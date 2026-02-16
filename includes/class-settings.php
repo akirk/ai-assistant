@@ -408,7 +408,8 @@ class Settings {
                         models = await fetchOpenAIModels(apiKey);
                     }
                 } else if (provider === 'local') {
-                    var endpoint = $('#ai_local_endpoint').val() || getSetting('localEndpoint');
+                    var userEndpoint = $('#ai_local_endpoint').val();
+                    var endpoint = userEndpoint || getSetting('localEndpoint');
                     var $endpointInput = $('#ai_local_endpoint');
                     var $status = $endpointInput.siblings('.ai-connection-status');
 
@@ -417,8 +418,8 @@ class Settings {
                         models = await fetchLocalModels(endpoint);
                     }
 
-                    // If no models found, auto-detect
-                    if (!models || models.length === 0) {
+                    // If no models found, auto-detect only when user hasn't set a custom endpoint
+                    if ((!models || models.length === 0) && !userEndpoint) {
                         $status.text('<?php echo esc_js(__('Auto-detecting...', 'ai-assistant')); ?>').removeClass('success error');
                         var detected = await autoDetectLocalEndpoint();
                         if (detected) {
