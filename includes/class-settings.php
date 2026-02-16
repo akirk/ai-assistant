@@ -602,14 +602,33 @@ class Settings {
                                     serverType = 'LM Studio';
                                 }
                             }
-                        } catch (e) {}
+                        } catch (e) { console.error('Local LLM connection test failed (LM Studio):', e); }
                     }
-                    message = success
-                        ? '<?php echo esc_js(__('Connected to', 'ai-assistant')); ?> ' + serverType + '!'
-                        : '<?php echo esc_js(__('Could not connect', 'ai-assistant')); ?>';
+                    // If both failed, check if it's a CORS issue vs server not running
+                    var isCors = false;
+                    if (!success) {
+                        try {
+                            await fetch(endpoint, { mode: 'no-cors' });
+                            // If we get here, the server is reachable but blocking CORS
+                            isCors = true;
+                        } catch (e) {
+                            // Server is not reachable at all
+                        }
+                    }
+                    if (success) {
+                        message = '<?php echo esc_js(__('Connected to', 'ai-assistant')); ?> ' + serverType + '!';
+                    } else if (isCors) {
+                        message = '<strong><?php echo esc_js(__('Could not connect.', 'ai-assistant')); ?></strong> '
+                            + '<?php echo esc_js(__('Your origin can\'t be accessed. To enable cross-origin requests follow', 'ai-assistant')); ?> '
+                            + '<a href="https://docs.ollama.com/faq#how-can-i-allow-additional-web-origins-to-access-ollama" target="_blank"><?php echo esc_js(__('these instructions for Ollama', 'ai-assistant')); ?></a>, '
+                            + '<?php echo esc_js(__('or', 'ai-assistant')); ?> '
+                            + '<a href="https://lmstudio.ai/docs/developer/core/server/settings#settings-information" target="_blank"><?php echo esc_js(__('these instructions for LM Studio', 'ai-assistant')); ?></a>.';
+                    } else {
+                        message = '<strong><?php echo esc_js(__('Could not connect.', 'ai-assistant')); ?></strong> <?php echo esc_js(__('Check the URL and ensure your local LLM server is running.', 'ai-assistant')); ?>';
+                    }
                 }
 
-                $status.text(message).addClass(success ? 'success' : 'error');
+                $status.html(message).addClass(success ? 'success' : 'error');
                 if (success) { loadModels(); }
             });
 
