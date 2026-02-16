@@ -295,7 +295,7 @@ class Settings {
                 <td>
                     <input type="password" id="ai_anthropic_key" class="regular-text ai-localstorage-setting" data-setting="anthropicApiKey" placeholder="sk-ant-..." autocomplete="off">
                     <button type="button" class="button ai-test-connection" data-provider="anthropic"><?php esc_html_e('Test Connection', 'ai-assistant'); ?></button>
-                    <span class="ai-connection-status"></span>
+                    <p class="ai-connection-status"></p>
                 </td>
             </tr>
             <tr class="ai-provider-row" data-provider="openai">
@@ -303,7 +303,7 @@ class Settings {
                 <td>
                     <input type="password" id="ai_openai_key" class="regular-text ai-localstorage-setting" data-setting="openaiApiKey" placeholder="sk-..." autocomplete="off">
                     <button type="button" class="button ai-test-connection" data-provider="openai"><?php esc_html_e('Test Connection', 'ai-assistant'); ?></button>
-                    <span class="ai-connection-status"></span>
+                    <p class="ai-connection-status"></p>
                 </td>
             </tr>
             <tr class="ai-provider-row" data-provider="local">
@@ -311,8 +311,8 @@ class Settings {
                 <td>
                     <input type="url" id="ai_local_endpoint" class="regular-text ai-localstorage-setting" data-setting="localEndpoint" placeholder="http://localhost:11434">
                     <button type="button" class="button ai-test-connection" data-provider="local"><?php esc_html_e('Test Connection', 'ai-assistant'); ?></button>
-                    <span class="ai-connection-status"></span>
                     <p class="description"><?php esc_html_e('Ollama default: localhost:11434, LM Studio: localhost:1234', 'ai-assistant'); ?></p>
+                    <p class="ai-connection-status"></p>
                 </td>
             </tr>
             <tr>
@@ -341,6 +341,9 @@ class Settings {
             .ai-connection-status { margin-left: 10px; }
             .ai-connection-status.success { color: green; }
             .ai-connection-status.error { color: red; }
+            .ai-connection-status {
+                margin-left: 0;
+            }
         </style>
 
         <script>
@@ -546,7 +549,7 @@ class Settings {
             // Test connection
             $('.ai-test-connection').on('click', async function() {
                 var $btn = $(this);
-                var $status = $btn.next('.ai-connection-status');
+                var $status = $btn.siblings('.ai-connection-status');
                 var provider = $btn.data('provider');
 
                 $status.text('<?php echo esc_js(__('Testing...', 'ai-assistant')); ?>').removeClass('success error');
