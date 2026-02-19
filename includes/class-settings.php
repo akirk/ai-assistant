@@ -609,10 +609,14 @@ class Settings {
                     if (!success) {
                         try {
                             await fetch(endpoint, { mode: 'no-cors' });
-                            // If we get here, the server is reachable but blocking CORS
+                            // Chrome: opaque response means server is reachable but blocking CORS
                             isCors = true;
                         } catch (e) {
-                            // Server is not reachable at all
+                            // Firefox rejects no-cors fetches even when CORS is the issue.
+                            // Fall back to origin check — less precise, but better than no hint.
+                            try {
+                                isCors = new URL(endpoint).origin !== window.location.origin;
+                            } catch (urlError) {}
                         }
                     }
                     if (success) {
