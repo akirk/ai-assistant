@@ -41,6 +41,12 @@ class Executor {
             throw new \Exception("Tool execution not allowed with chat-only permission");
         }
 
+        if (!current_user_can('ai_assistant_tool_' . $tool_name)) {
+            throw new \Exception(
+                "Tool '$tool_name' is not enabled. Enable it in AI Assistant → Settings → Tool Permissions."
+            );
+        }
+
         // Execute the tool
         switch ($tool_name) {
             // File operations

@@ -28,13 +28,6 @@ function ai_assistant_is_playground(): bool {
     return $is_wasm && $is_playground_path && $has_playground_function;
 }
 
-if (!ai_assistant_is_playground()) {
-    add_action('admin_notices', function() {
-        echo '<div class="notice notice-error"><p><strong>Playground AI Assistant</strong> only runs in WordPress Playground environments.</p></div>';
-    });
-    return;
-}
-
 define('AI_ASSISTANT_VERSION', '1.0.0');
 define('AI_ASSISTANT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AI_ASSISTANT_PLUGIN_URL', plugin_dir_url(__FILE__));
