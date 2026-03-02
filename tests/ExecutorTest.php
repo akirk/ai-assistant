@@ -19,6 +19,11 @@ class ExecutorTest extends TestCase {
         $this->executor = new Executor($this->tools);
         $this->test_dir = WP_CONTENT_DIR;
 
+        // All tool capabilities granted by default
+        $GLOBALS['wp_test_capabilities'] = [];
+        $GLOBALS['wp_test_is_playground'] = false;
+        $GLOBALS['wp_test_options'] = [];
+
         // Ensure clean test environment
         $this->cleanTestDirectory();
         $this->createTestStructure();
@@ -490,6 +495,78 @@ class ExecutorTest extends TestCase {
         $this->expectExceptionMessage('Unknown tool: fake_tool');
 
         $this->executor->execute_tool('fake_tool', []);
+    }
+
+    // ===== PER-TOOL CAPABILITY TESTS =====
+
+    public function test_tool_blocked_when_capability_denied(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_tool_read_file'] = false;
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage("Tool 'read_file' is not enabled");
+
+        $this->executor->execute_tool('read_file', [
+            'path' => 'plugins/test-plugin/test-plugin.php',
+        ]);
+    }
+
+    public function test_tool_allowed_when_capability_granted(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_tool_read_file'] = true;
+
+        $result = $this->executor->execute_tool('read_file', [
+            'path' => 'plugins/test-plugin/test-plugin.php',
+        ]);
+
+        $this->assertArrayHasKey('content', $result);
+    }
+
+    public function test_dangerous_tool_blocked_when_capability_denied(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_tool_run_php'] = false;
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage("Tool 'run_php' is not enabled");
+        $this->expectExceptionMessage('Tool Permissions');
+
+        $this->executor->execute_tool('run_php', ['code' => 'return 1;']);
+    }
+
+    public function test_capability_check_runs_before_permission_check(): void {
+        // Capability denied takes precedence over read_only permission check
+        $GLOBALS['wp_test_capabilities']['ai_assistant_tool_write_file'] = false;
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage("Tool 'write_file' is not enabled");
+
+        $this->executor->execute_tool('write_file', [
+            'path' => 'plugins/test-plugin/file.php',
+            'content' => '<?php',
+            'reason' => 'test',
+        ], 'full');
+    }
+
+    public function test_each_tool_has_independent_capability(): void {
+        // read_file denied, write_file allowed
+        $GLOBALS['wp_test_capabilities']['ai_assistant_tool_read_file'] = false;
+        $GLOBALS['wp_test_capabilities']['ai_assistant_tool_write_file'] = true;
+
+        // write_file should succeed (will fail for other reasons but not capability)
+        try {
+            $this->executor->execute_tool('write_file', [
+                'path' => 'plugins/test-plugin/cap-test.php',
+                'content' => '<?php',
+                'reason' => 'test',
+            ]);
+        } catch (\Exception $e) {
+            $this->assertStringNotContainsString('is not enabled', $e->getMessage());
+        }
+
+        // read_file should fail with capability error
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage("Tool 'read_file' is not enabled");
+
+        $this->executor->execute_tool('read_file', [
+            'path' => 'plugins/test-plugin/test-plugin.php',
+        ]);
     }
 
     // ===== PHP LINT VALIDATION TESTS =====
