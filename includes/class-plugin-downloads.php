@@ -47,8 +47,8 @@ class Plugin_Downloads {
         $actions['ai-changes'] = sprintf(
             '<a href="%s" title="%s">%s</a>',
             esc_url($changes_url),
-            esc_attr__('View AI changes for this plugin', 'ai-assistant'),
-            esc_html__('AI Changes', 'ai-assistant')
+            esc_attr__('View AI changes for this plugin', 'wp-ai-assistant'),
+            esc_html__('AI Changes', 'wp-ai-assistant')
         );
 
         $download_url = wp_nonce_url(
@@ -59,8 +59,8 @@ class Plugin_Downloads {
         $actions['ai-download'] = sprintf(
             '<a href="%s" title="%s">%s</a>',
             esc_url($download_url),
-            esc_attr__('Download this plugin as a ZIP file with git history', 'ai-assistant'),
-            esc_html__('Download ZIP', 'ai-assistant')
+            esc_attr__('Download this plugin as a ZIP file with git history', 'wp-ai-assistant'),
+            esc_html__('Download ZIP', 'wp-ai-assistant')
         );
 
         return $actions;
@@ -71,7 +71,7 @@ class Plugin_Downloads {
      */
     public function handle_download(): void {
         if (!current_user_can('manage_options')) {
-            wp_die(__('You do not have permission to download plugins.', 'ai-assistant'));
+            wp_die(__('You do not have permission to download plugins.', 'wp-ai-assistant'));
         }
 
         // Support both old 'plugin' param and new 'path' param (e.g., 'plugins/my-plugin' or 'themes/my-theme')
@@ -83,7 +83,7 @@ class Plugin_Downloads {
             $nonce_key = $path;
             $parts = explode('/', $path);
             if (count($parts) < 2) {
-                wp_die(__('Invalid path format.', 'ai-assistant'));
+                wp_die(__('Invalid path format.', 'wp-ai-assistant'));
             }
             $type = $parts[0];
             $folder = $parts[1];
@@ -94,11 +94,11 @@ class Plugin_Downloads {
             $folder = $plugin_folder;
             $path = 'plugins/' . $plugin_folder;
         } else {
-            wp_die(__('No plugin or theme specified.', 'ai-assistant'));
+            wp_die(__('No plugin or theme specified.', 'wp-ai-assistant'));
         }
 
         if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'ai_assistant_download_' . $nonce_key)) {
-            wp_die(__('Security check failed.', 'ai-assistant'));
+            wp_die(__('Security check failed.', 'wp-ai-assistant'));
         }
 
         if ($type === 'plugins') {
@@ -108,17 +108,17 @@ class Plugin_Downloads {
             $full_path = get_theme_root() . '/' . $folder;
             $allowed_dir = realpath(get_theme_root());
         } else {
-            wp_die(__('Invalid type. Must be plugins or themes.', 'ai-assistant'));
+            wp_die(__('Invalid type. Must be plugins or themes.', 'wp-ai-assistant'));
         }
 
         if (!is_dir($full_path)) {
-            wp_die(__('Directory not found.', 'ai-assistant'));
+            wp_die(__('Directory not found.', 'wp-ai-assistant'));
         }
 
         $real_path = realpath($full_path);
 
         if ($real_path === false || strpos($real_path, $allowed_dir) !== 0) {
-            wp_die(__('Invalid path.', 'ai-assistant'));
+            wp_die(__('Invalid path.', 'wp-ai-assistant'));
         }
 
         $this->send_zip($folder, $full_path, $path);
@@ -129,7 +129,7 @@ class Plugin_Downloads {
      */
     private function send_zip(string $folder_name, string $full_path, string $git_path = ''): void {
         if (!class_exists('ZipArchive')) {
-            wp_die(__('ZipArchive is not available on this server.', 'ai-assistant'));
+            wp_die(__('ZipArchive is not available on this server.', 'wp-ai-assistant'));
         }
 
         $zip_filename = $folder_name . '.zip';
@@ -139,7 +139,7 @@ class Plugin_Downloads {
         $zip = new \ZipArchive();
 
         if ($zip->open($temp_file, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
-            wp_die(__('Failed to create ZIP file.', 'ai-assistant'));
+            wp_die(__('Failed to create ZIP file.', 'wp-ai-assistant'));
         }
 
         $this->add_directory_to_zip($zip, $full_path, $folder_name);

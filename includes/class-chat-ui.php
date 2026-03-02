@@ -116,18 +116,18 @@ class Chat_UI {
             'userDisplayName' => $current_user->display_name,
             'systemPrompt' => $settings->get_system_prompt(),
             'strings' => [
-                'placeholder' => __('Ask me anything about your WordPress site...', 'ai-assistant'),
-                'send' => __('Send', 'ai-assistant'),
-                'thinking' => __('Thinking...', 'ai-assistant'),
-                'error' => __('An error occurred. Please try again.', 'ai-assistant'),
-                'confirmTitle' => __('Confirm Action', 'ai-assistant'),
-                'confirm' => __('Confirm', 'ai-assistant'),
-                'cancel' => __('Cancel', 'ai-assistant'),
-                'bulkConfirmTitle' => __('Approve Actions', 'ai-assistant'),
-                'approveAll' => __('Approve All', 'ai-assistant'),
-                'skipAll' => __('Skip All', 'ai-assistant'),
-                'newChat' => __('New Chat', 'ai-assistant'),
-                'close' => __('Close', 'ai-assistant'),
+                'placeholder' => __('Ask me anything about your WordPress site...', 'wp-ai-assistant'),
+                'send' => __('Send', 'wp-ai-assistant'),
+                'thinking' => __('Thinking...', 'wp-ai-assistant'),
+                'error' => __('An error occurred. Please try again.', 'wp-ai-assistant'),
+                'confirmTitle' => __('Confirm Action', 'wp-ai-assistant'),
+                'confirm' => __('Confirm', 'wp-ai-assistant'),
+                'cancel' => __('Cancel', 'wp-ai-assistant'),
+                'bulkConfirmTitle' => __('Approve Actions', 'wp-ai-assistant'),
+                'approveAll' => __('Approve All', 'wp-ai-assistant'),
+                'skipAll' => __('Skip All', 'wp-ai-assistant'),
+                'newChat' => __('New Chat', 'wp-ai-assistant'),
+                'close' => __('Close', 'wp-ai-assistant'),
             ]
         ]);
     }
@@ -156,7 +156,7 @@ class Chat_UI {
         }
 
         $panel_html = $this->get_panel_html();
-        $button_text = esc_html__('AI Assistant', 'ai-assistant');
+        $button_text = esc_html__('AI Assistant', 'wp-ai-assistant');
         ?>
         <!-- Standalone mode HTML - matches WordPress screen-meta structure -->
         <div id="ai-assistant-standalone-wrap" class="ai-assistant-standalone-wrap" style="display: none;">
@@ -299,13 +299,13 @@ class Chat_UI {
      * Get the HTML for the panel content
      */
     private function get_panel_html() {
-        $title = esc_html__('Playground AI Assistant', 'ai-assistant');
-        $new_chat = esc_html__('New Chat', 'ai-assistant');
-        $history = esc_html__('Conversations', 'ai-assistant');
-        $settings = esc_html__('Settings', 'ai-assistant');
-        $send = esc_html__('Send', 'ai-assistant');
-        $placeholder = esc_attr__('Ask me anything about your WordPress site...', 'ai-assistant');
-        $aria_label = esc_attr__('AI Assistant Tab', 'ai-assistant');
+        $title = esc_html__('AI Assistant', 'wp-ai-assistant');
+        $new_chat = esc_html__('New Chat', 'wp-ai-assistant');
+        $history = esc_html__('Conversations', 'wp-ai-assistant');
+        $settings = esc_html__('Settings', 'wp-ai-assistant');
+        $send = esc_html__('Send', 'wp-ai-assistant');
+        $placeholder = esc_attr__('Ask me anything about your WordPress site...', 'wp-ai-assistant');
+        $aria_label = esc_attr__('AI Assistant Tab', 'wp-ai-assistant');
         $history_url = esc_url(admin_url('tools.php?page=ai-conversations'));
         $settings_url = esc_url(admin_url('options-general.php?page=ai-assistant-settings'));
 
@@ -325,7 +325,7 @@ class Chat_UI {
                             <span class="ai-header-sep">|</span>
                             <a href="' . $settings_url . '" class="ai-header-link">' . $settings . '</a>
                             <span class="ai-header-sep">|</span>
-                            <button type="button" id="ai-assistant-expand" class="ai-header-link" title="' . esc_attr__('Expand', 'ai-assistant') . '">
+                            <button type="button" id="ai-assistant-expand" class="ai-header-link" title="' . esc_attr__('Expand', 'wp-ai-assistant') . '">
                                 <svg class="ai-expand-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 13.09l1.41 1.41-4.5 4.5H10v2H4v-6h2v3.59l4.5-4.5zm5-2.18L13.09 9.5l4.5-4.5H14v-2h6v6h-2V5.41l-4.5 4.5z"/></svg>
                                 <svg class="ai-collapse-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:none"><path d="M14.5 10.91l-1.41-1.41 4.5-4.5H14v-2h6v6h-2V5.41l-4.5 4.5zm-5 2.18l1.41 1.41-4.5 4.5H10v2H4v-6h2v3.59l4.5-4.5z"/></svg>
                             </button>
@@ -339,7 +339,7 @@ class Chat_UI {
                     <div class="ai-assistant-input-area">
                         <textarea id="ai-assistant-input" placeholder="' . $placeholder . '" rows="2"></textarea>
                         <button type="button" id="ai-assistant-send" class="button button-primary">' . $send . '</button>
-                        <button type="button" id="ai-assistant-stop" class="button" style="display: none;" title="' . esc_attr__('Stop generation', 'ai-assistant') . '">
+                        <button type="button" id="ai-assistant-stop" class="button" style="display: none;" title="' . esc_attr__('Stop generation', 'wp-ai-assistant') . '">
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
                         </button>
                     </div>

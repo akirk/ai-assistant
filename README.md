@@ -1,6 +1,6 @@
-# Playground AI Assistant
+# AI Assistant
 
-An AI-powered chat interface for WordPress Playground. Bring your own API key or connect to a local LLM.
+An AI-powered chat interface for WordPress. Bring your own API key or connect to a local LLM.
 
 ![Screenshot](screenshot.png)
 
@@ -24,7 +24,7 @@ An AI-powered chat interface for WordPress Playground. Bring your own API key or
 
 ## Installation
 
-1. Upload the plugin to `/wp-content/plugins/playground-ai-assistant`
+1. Upload the plugin to `/wp-content/plugins/wp-ai-assistant`
 2. Activate through the Plugins menu
 3. Configure your API keys in Settings > AI Assistant
 
