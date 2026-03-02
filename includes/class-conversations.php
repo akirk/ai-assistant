@@ -26,14 +26,14 @@ class Conversations {
     public function register_post_type() {
         register_post_type(self::POST_TYPE, [
             'labels' => [
-                'name' => __('AI Conversations', 'ai-assistant'),
-                'singular_name' => __('Conversation', 'ai-assistant'),
-                'menu_name' => __('Conversations', 'ai-assistant'),
-                'all_items' => __('All Conversations', 'ai-assistant'),
-                'view_item' => __('View Conversation', 'ai-assistant'),
-                'edit_item' => __('Continue Conversation', 'ai-assistant'),
-                'search_items' => __('Search Conversations', 'ai-assistant'),
-                'not_found' => __('No conversations found', 'ai-assistant'),
+                'name' => __('AI Conversations', 'wp-ai-assistant'),
+                'singular_name' => __('Conversation', 'wp-ai-assistant'),
+                'menu_name' => __('Conversations', 'wp-ai-assistant'),
+                'all_items' => __('All Conversations', 'wp-ai-assistant'),
+                'view_item' => __('View Conversation', 'wp-ai-assistant'),
+                'edit_item' => __('Continue Conversation', 'wp-ai-assistant'),
+                'search_items' => __('Search Conversations', 'wp-ai-assistant'),
+                'not_found' => __('No conversations found', 'wp-ai-assistant'),
             ],
             'public' => false,
             'show_ui' => true,
@@ -49,7 +49,7 @@ class Conversations {
     public function add_meta_boxes() {
         add_meta_box(
             'ai_conversation_messages',
-            __('Conversation Messages', 'ai-assistant'),
+            __('Conversation Messages', 'wp-ai-assistant'),
             [$this, 'render_messages_meta_box'],
             self::POST_TYPE,
             'normal',
@@ -58,7 +58,7 @@ class Conversations {
 
         add_meta_box(
             'ai_conversation_continue',
-            __('Continue Conversation', 'ai-assistant'),
+            __('Continue Conversation', 'wp-ai-assistant'),
             [$this, 'render_continue_meta_box'],
             self::POST_TYPE,
             'side',
@@ -77,7 +77,7 @@ class Conversations {
     public function render_messages_meta_box($post) {
         $messages = $this->get_messages($post);
         if (empty($messages)) {
-            echo '<p>' . esc_html__('No messages in this conversation.', 'ai-assistant') . '</p>';
+            echo '<p>' . esc_html__('No messages in this conversation.', 'wp-ai-assistant') . '</p>';
             return;
         }
 
@@ -107,10 +107,10 @@ class Conversations {
         $conversation_url = admin_url('tools.php?page=ai-conversations&conversation=' . $post->ID);
         echo '<p>';
         echo '<a href="' . esc_url($conversation_url) . '" class="button button-primary button-large" style="width:100%;text-align:center;">';
-        echo esc_html__('Continue this conversation', 'ai-assistant');
+        echo esc_html__('Continue this conversation', 'wp-ai-assistant');
         echo '</a>';
         echo '</p>';
-        echo '<p class="description">' . esc_html__('Opens the chat interface with this conversation loaded.', 'ai-assistant') . '</p>';
+        echo '<p class="description">' . esc_html__('Opens the chat interface with this conversation loaded.', 'wp-ai-assistant') . '</p>';
     }
 
     private function format_message_content($content) {
@@ -137,8 +137,8 @@ class Conversations {
         foreach ($columns as $key => $value) {
             $new_columns[$key] = $value;
             if ($key === 'title') {
-                $new_columns['message_count'] = __('Messages', 'ai-assistant');
-                $new_columns['last_message'] = __('Last Message', 'ai-assistant');
+                $new_columns['message_count'] = __('Messages', 'wp-ai-assistant');
+                $new_columns['last_message'] = __('Last Message', 'wp-ai-assistant');
             }
         }
         return $new_columns;
@@ -189,7 +189,7 @@ class Conversations {
                 $title = wp_trim_words($content, 8, '...');
             }
             if (empty($title)) {
-                $title = __('Conversation', 'ai-assistant') . ' ' . date('Y-m-d H:i');
+                $title = __('Conversation', 'wp-ai-assistant') . ' ' . date('Y-m-d H:i');
             }
         }
 
