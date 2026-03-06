@@ -113,6 +113,16 @@ To recover:
 
 The recovery screen highlights recently modified plugins to help identify the culprit.
 
+## Development
+
+To run the plugin locally using WordPress Playground:
+
+```bash
+npx @wp-playground/cli server --auto-mount
+```
+
+This starts a local WordPress Playground instance and automatically mounts the plugin directory, so any changes you make to the source files are reflected immediately.
+
 ## License
 
 GPL-2.0-or-later. See [LICENSE](LICENSE) for details.
