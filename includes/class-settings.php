@@ -295,7 +295,7 @@ class Settings {
                 <td>
                     <input type="password" id="ai_anthropic_key" class="regular-text ai-localstorage-setting" data-setting="anthropicApiKey" placeholder="sk-ant-..." autocomplete="off">
                     <button type="button" class="button ai-test-connection" data-provider="anthropic"><?php esc_html_e('Test Connection', 'ai-assistant'); ?></button>
-                    <span class="ai-connection-status"></span>
+                    <p class="ai-connection-status"></p>
                 </td>
             </tr>
             <tr class="ai-provider-row" data-provider="openai">
@@ -303,7 +303,7 @@ class Settings {
                 <td>
                     <input type="password" id="ai_openai_key" class="regular-text ai-localstorage-setting" data-setting="openaiApiKey" placeholder="sk-..." autocomplete="off">
                     <button type="button" class="button ai-test-connection" data-provider="openai"><?php esc_html_e('Test Connection', 'ai-assistant'); ?></button>
-                    <span class="ai-connection-status"></span>
+                    <p class="ai-connection-status"></p>
                 </td>
             </tr>
             <tr class="ai-provider-row" data-provider="local">
@@ -311,8 +311,8 @@ class Settings {
                 <td>
                     <input type="url" id="ai_local_endpoint" class="regular-text ai-localstorage-setting" data-setting="localEndpoint" placeholder="http://localhost:11434">
                     <button type="button" class="button ai-test-connection" data-provider="local"><?php esc_html_e('Test Connection', 'ai-assistant'); ?></button>
-                    <span class="ai-connection-status"></span>
                     <p class="description"><?php esc_html_e('Ollama default: localhost:11434, LM Studio: localhost:1234', 'ai-assistant'); ?></p>
+                    <p class="ai-connection-status"></p>
                 </td>
             </tr>
             <tr>
@@ -341,6 +341,9 @@ class Settings {
             .ai-connection-status { margin-left: 10px; }
             .ai-connection-status.success { color: green; }
             .ai-connection-status.error { color: red; }
+            .ai-connection-status {
+                margin-left: 0;
+            }
         </style>
 
         <script>
@@ -408,7 +411,8 @@ class Settings {
                         models = await fetchOpenAIModels(apiKey);
                     }
                 } else if (provider === 'local') {
-                    var endpoint = $('#ai_local_endpoint').val() || getSetting('localEndpoint');
+                    var userEndpoint = $('#ai_local_endpoint').val();
+                    var endpoint = userEndpoint || getSetting('localEndpoint');
                     var $endpointInput = $('#ai_local_endpoint');
                     var $status = $endpointInput.siblings('.ai-connection-status');
 
@@ -417,8 +421,8 @@ class Settings {
                         models = await fetchLocalModels(endpoint);
                     }
 
-                    // If no models found, auto-detect
-                    if (!models || models.length === 0) {
+                    // If no models found, auto-detect only when user hasn't set a custom endpoint
+                    if ((!models || models.length === 0) && !userEndpoint) {
                         $status.text('<?php echo esc_js(__('Auto-detecting...', 'ai-assistant')); ?>').removeClass('success error');
                         var detected = await autoDetectLocalEndpoint();
                         if (detected) {
@@ -545,7 +549,7 @@ class Settings {
             // Test connection
             $('.ai-test-connection').on('click', async function() {
                 var $btn = $(this);
-                var $status = $btn.next('.ai-connection-status');
+                var $status = $btn.siblings('.ai-connection-status');
                 var provider = $btn.data('provider');
 
                 $status.text('<?php echo esc_js(__('Testing...', 'ai-assistant')); ?>').removeClass('success error');
@@ -598,14 +602,37 @@ class Settings {
                                     serverType = 'LM Studio';
                                 }
                             }
-                        } catch (e) {}
+                        } catch (e) { console.error('Local LLM connection test failed (LM Studio):', e); }
                     }
-                    message = success
-                        ? '<?php echo esc_js(__('Connected to', 'ai-assistant')); ?> ' + serverType + '!'
-                        : '<?php echo esc_js(__('Could not connect', 'ai-assistant')); ?>';
+                    // If both failed, check if it's a CORS issue vs server not running
+                    var isCors = false;
+                    if (!success) {
+                        try {
+                            await fetch(endpoint, { mode: 'no-cors' });
+                            // Chrome: opaque response means server is reachable but blocking CORS
+                            isCors = true;
+                        } catch (e) {
+                            // Firefox rejects no-cors fetches even when CORS is the issue.
+                            // Fall back to origin check — less precise, but better than no hint.
+                            try {
+                                isCors = new URL(endpoint).origin !== window.location.origin;
+                            } catch (urlError) {}
+                        }
+                    }
+                    if (success) {
+                        message = '<?php echo esc_js(__('Connected to', 'ai-assistant')); ?> ' + serverType + '!';
+                    } else if (isCors) {
+                        message = '<strong><?php echo esc_js(__('Could not connect.', 'ai-assistant')); ?></strong> '
+                            + '<?php echo esc_js(__('Your origin can\'t be accessed. To enable cross-origin requests follow', 'ai-assistant')); ?> '
+                            + '<a href="https://docs.ollama.com/faq#how-can-i-allow-additional-web-origins-to-access-ollama" target="_blank"><?php echo esc_js(__('these instructions for Ollama', 'ai-assistant')); ?></a>, '
+                            + '<?php echo esc_js(__('or', 'ai-assistant')); ?> '
+                            + '<a href="https://lmstudio.ai/docs/developer/core/server/settings#settings-information" target="_blank"><?php echo esc_js(__('these instructions for LM Studio', 'ai-assistant')); ?></a>.';
+                    } else {
+                        message = '<strong><?php echo esc_js(__('Could not connect.', 'ai-assistant')); ?></strong> <?php echo esc_js(__('Check the URL and ensure your local LLM server is running.', 'ai-assistant')); ?>';
+                    }
                 }
 
-                $status.text(message).addClass(success ? 'success' : 'error');
+                $status.html(message).addClass(success ? 'success' : 'error');
                 if (success) { loadModels(); }
             });
 
