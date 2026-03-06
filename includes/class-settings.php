@@ -261,7 +261,7 @@ class Settings {
     public function get_default_enabled_tools() {
         return [
             'read_file', 'list_directory', 'search_files', 'search_content', 'db_query',
-            'get_plugins', 'get_themes', 'list_abilities', 'get_ability', 'get_page_html',
+            'get_plugins', 'get_themes', 'list_abilities', 'get_ability', 'execute_ability', 'get_page_html',
             'summarize_conversation', 'list_skills', 'get_skill', 'navigate',
         ];
     }

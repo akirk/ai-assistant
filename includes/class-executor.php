@@ -887,15 +887,16 @@ class Executor {
             throw new \Exception("Ability not found: $ability_id");
         }
 
-        if (is_object($ability)) {
+        if (is_object($ability) && method_exists($ability, 'get_input_schema')) {
+            $meta = $ability->get_meta() ?? [];
             return [
-                'id' => $ability->name ?? $ability_id,
-                'name' => $ability->label ?? $ability->name ?? $ability_id,
-                'description' => $ability->description ?? '',
-                'category' => $ability->category ?? 'uncategorized',
-                'parameters' => $ability->parameters ?? [],
-                'permissions' => $ability->permissions ?? [],
-                'returns' => $ability->returns ?? null,
+                'id' => $ability->get_name(),
+                'name' => $ability->get_label(),
+                'description' => $ability->get_description(),
+                'category' => $ability->get_category(),
+                'input_schema' => $ability->get_input_schema(),
+                'output_schema' => $ability->get_output_schema(),
+                'instructions' => $meta['annotations']['instructions'] ?? '',
             ];
         }
 
@@ -904,21 +905,27 @@ class Executor {
             'name' => $ability['name'] ?? $ability_id,
             'description' => $ability['description'] ?? '',
             'category' => $ability['category'] ?? 'uncategorized',
-            'parameters' => $ability['parameters'] ?? [],
-            'permissions' => $ability['permissions'] ?? [],
-            'returns' => $ability['returns'] ?? null,
+            'input_schema' => $ability['input_schema'] ?? [],
+            'output_schema' => $ability['output_schema'] ?? [],
+            'instructions' => $ability['meta']['annotations']['instructions'] ?? '',
         ];
     }
 
     private function execute_ability(string $ability_id, array $arguments = []): array {
-        if (!function_exists('wp_execute_ability')) {
+        if (!function_exists('wp_get_ability')) {
             return [
                 'error' => 'Abilities API not available',
                 'message' => 'WordPress 6.9+ with the Abilities API is required',
             ];
         }
 
-        $result = wp_execute_ability($ability_id, $arguments);
+        $ability = wp_get_ability($ability_id);
+        if ($ability === null) {
+            throw new \Exception("Ability not found: $ability_id");
+        }
+
+        $input = ($ability->get_input_schema() !== null && !empty($arguments)) ? $arguments : null;
+        $result = $ability->execute($input);
 
         if (is_wp_error($result)) {
             throw new \Exception("Ability execution failed: " . $result->get_error_message());

@@ -650,7 +650,11 @@
                 case 'get_ability':
                     return 'Get ability: ' + (args.ability || 'unknown');
                 case 'execute_ability':
-                    return 'Execute: ' + (args.ability || 'unknown');
+                    var abilityName = args.ability || 'unknown';
+                    var abilityInput = args.arguments || {};
+                    var abilityHint = abilityInput.username || abilityInput.name ||
+                                      abilityInput.query || abilityInput.group_slug || '';
+                    return 'Execute: ' + abilityName + (abilityHint ? ' (' + abilityHint + ')' : '');
                 default:
                     return toolName;
             }
@@ -757,6 +761,12 @@
                     if (args.code) {
                         content = typeof args.code === 'string' ? args.code : JSON.stringify(args.code, null, 2);
                         language = 'php';
+                    }
+                    break;
+                case 'execute_ability':
+                    if (args.arguments && Object.keys(args.arguments).length > 0) {
+                        content = JSON.stringify(args.arguments, null, 2);
+                        language = 'javascript';
                     }
                     break;
             }

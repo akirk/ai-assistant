@@ -525,6 +525,12 @@
                         return 'Query: ' + sql + (match[1].length > 40 ? '...' : '');
                     }
                     break;
+                case 'execute_ability':
+                    match = partialJson.match(/"ability"\s*:\s*"([^"]+)"/);
+                    if (match) {
+                        return 'Execute: ' + match[1];
+                    }
+                    break;
             }
             return null;
         },
@@ -641,7 +647,7 @@
                         var $output = $card.find('.ai-tool-output');
                         if ($output.length === 0) {
                             $output = $('<div class="ai-tool-output"></div>');
-                            $card.find('.ai-tool-card-content').append($output);
+                            $card.append($output);
                         }
                         var outputText = '';
                         if (options.output.output) {
@@ -653,6 +659,9 @@
                                 : JSON.stringify(options.output.result, null, 2);
                             if (outputText) outputText += '\n';
                             outputText += resultStr;
+                        }
+                        if (!outputText.trim() && typeof options.output === 'object' && options.output !== null) {
+                            outputText = JSON.stringify(options.output, null, 2);
                         }
                         if (outputText.trim()) {
                             $output.html('<pre class="ai-tool-output-content"></pre>');
