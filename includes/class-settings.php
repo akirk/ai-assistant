@@ -68,8 +68,8 @@ class Settings {
     public function add_settings_page() {
         // Add to Tools menu
         add_management_page(
-            __('AI Conversations', 'ai-assistant'),
-            __('AI Conversations', 'ai-assistant'),
+            __('AI Conversations', 'wp-ai-assistant'),
+            __('AI Conversations', 'wp-ai-assistant'),
             'edit_posts',
             'ai-conversations',
             [$this, 'render_chat_page']
@@ -77,8 +77,8 @@ class Settings {
 
         // Settings under Settings menu
         add_options_page(
-            __('AI Assistant Settings', 'ai-assistant'),
-            __('AI Assistant', 'ai-assistant'),
+            __('AI Assistant Settings', 'wp-ai-assistant'),
+            __('AI Assistant', 'wp-ai-assistant'),
             'manage_options',
             'ai-assistant-settings',
             [$this, 'render_settings_page']
@@ -93,28 +93,28 @@ class Settings {
 
         $screen->add_help_tab([
             'id'      => 'ai-assistant-overview',
-            'title'   => __('Overview', 'ai-assistant'),
-            'content' => '<p>' . __('The AI Assistant helps you manage your WordPress site through natural language conversation. Ask questions, request changes, or get help with content.', 'ai-assistant') . '</p>'
-                       . '<p>' . __('Your conversation history is saved automatically and can be accessed from the sidebar.', 'ai-assistant') . '</p>',
+            'title'   => __('Overview', 'wp-ai-assistant'),
+            'content' => '<p>' . __('The AI Assistant helps you manage your WordPress site through natural language conversation. Ask questions, request changes, or get help with content.', 'wp-ai-assistant') . '</p>'
+                       . '<p>' . __('Your conversation history is saved automatically and can be accessed from the sidebar.', 'wp-ai-assistant') . '</p>',
         ]);
 
         $screen->add_help_tab([
             'id'      => 'ai-assistant-capabilities',
-            'title'   => __('Capabilities', 'ai-assistant'),
-            'content' => '<p>' . __('The AI Assistant can help you with:', 'ai-assistant') . '</p>'
+            'title'   => __('Capabilities', 'wp-ai-assistant'),
+            'content' => '<p>' . __('The AI Assistant can help you with:', 'wp-ai-assistant') . '</p>'
                        . '<ul>'
-                       . '<li>' . __('<strong>Content</strong> - Create, edit, and manage posts and pages', 'ai-assistant') . '</li>'
-                       . '<li>' . __('<strong>Media</strong> - Upload and organize images and files', 'ai-assistant') . '</li>'
-                       . '<li>' . __('<strong>Settings</strong> - View and modify site configuration', 'ai-assistant') . '</li>'
-                       . '<li>' . __('<strong>Plugins</strong> - Get information about installed plugins', 'ai-assistant') . '</li>'
-                       . '<li>' . __('<strong>Database</strong> - Query data (read-only unless you have full access)', 'ai-assistant') . '</li>'
+                       . '<li>' . __('<strong>Content</strong> - Create, edit, and manage posts and pages', 'wp-ai-assistant') . '</li>'
+                       . '<li>' . __('<strong>Media</strong> - Upload and organize images and files', 'wp-ai-assistant') . '</li>'
+                       . '<li>' . __('<strong>Settings</strong> - View and modify site configuration', 'wp-ai-assistant') . '</li>'
+                       . '<li>' . __('<strong>Plugins</strong> - Get information about installed plugins', 'wp-ai-assistant') . '</li>'
+                       . '<li>' . __('<strong>Database</strong> - Query data (read-only unless you have full access)', 'wp-ai-assistant') . '</li>'
                        . '</ul>',
         ]);
 
         $screen->add_help_tab([
             'id'      => 'ai-assistant-tools',
-            'title'   => __('Available Tools', 'ai-assistant'),
-            'content' => '<p>' . __('The AI Assistant has access to the following tools:', 'ai-assistant') . '</p>'
+            'title'   => __('Available Tools', 'wp-ai-assistant'),
+            'content' => '<p>' . __('The AI Assistant has access to the following tools:', 'wp-ai-assistant') . '</p>'
                        . '<ul id="ai-tools-list"><li><em>Loading...</em></li></ul>'
                        . '<script>
                            jQuery(function($) {
@@ -138,28 +138,28 @@ class Settings {
         $skills_content = $this->get_skills_help_content();
         $screen->add_help_tab([
             'id'      => 'ai-assistant-skills',
-            'title'   => __('Available Skills', 'ai-assistant'),
+            'title'   => __('Available Skills', 'wp-ai-assistant'),
             'content' => $skills_content,
         ]);
 
         $screen->add_help_tab([
             'id'      => 'ai-assistant-yolo',
-            'title'   => __('YOLO Mode', 'ai-assistant'),
-            'content' => '<p>' . __('When YOLO Mode is enabled, the assistant will execute actions without asking for confirmation. Use with caution.', 'ai-assistant') . '</p>'
-                       . '<p>' . __('With YOLO Mode disabled (default), you will be prompted to approve any changes before they are made.', 'ai-assistant') . '</p>',
+            'title'   => __('YOLO Mode', 'wp-ai-assistant'),
+            'content' => '<p>' . __('When YOLO Mode is enabled, the assistant will execute actions without asking for confirmation. Use with caution.', 'wp-ai-assistant') . '</p>'
+                       . '<p>' . __('With YOLO Mode disabled (default), you will be prompted to approve any changes before they are made.', 'wp-ai-assistant') . '</p>',
         ]);
 
         $system_prompt = $this->get_system_prompt();
         $screen->add_help_tab([
             'id'      => 'ai-assistant-system-prompt',
-            'title'   => __('System Prompt', 'ai-assistant'),
-            'content' => '<p>' . __('The following system prompt is sent to the AI with each conversation:', 'ai-assistant') . '</p>'
+            'title'   => __('System Prompt', 'wp-ai-assistant'),
+            'content' => '<p>' . __('The following system prompt is sent to the AI with each conversation:', 'wp-ai-assistant') . '</p>'
                        . '<pre style="white-space: pre-wrap; background: #f6f7f7; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto;">' . esc_html($system_prompt) . '</pre>',
         ]);
 
         $screen->set_help_sidebar(
-            '<p><strong>' . __('For more information:', 'ai-assistant') . '</strong></p>'
-            . '<p><a href="' . esc_url(admin_url('options-general.php?page=ai-assistant-settings')) . '">' . __('Plugin Settings', 'ai-assistant') . '</a></p>'
+            '<p><strong>' . __('For more information:', 'wp-ai-assistant') . '</strong></p>'
+            . '<p><a href="' . esc_url(admin_url('options-general.php?page=ai-assistant-settings')) . '">' . __('Plugin Settings', 'wp-ai-assistant') . '</a></p>'
         );
     }
 
@@ -176,16 +176,16 @@ class Settings {
                 <div class="ai-chat-sidebar">
                     <div class="ai-sidebar-header">
                         <button type="button" id="ai-assistant-new-chat" class="button button-primary">
-                            + <?php esc_html_e('New Chat', 'ai-assistant'); ?>
+                            + <?php esc_html_e('New Chat', 'wp-ai-assistant'); ?>
                         </button>
                     </div>
                     <div class="ai-sidebar-conversations" id="ai-sidebar-conversations">
-                        <div class="ai-sidebar-loading"><?php esc_html_e('Loading...', 'ai-assistant'); ?></div>
+                        <div class="ai-sidebar-loading"><?php esc_html_e('Loading...', 'wp-ai-assistant'); ?></div>
                     </div>
                     <div class="ai-sidebar-footer">
                         <a href="<?php echo esc_url($settings_url); ?>" class="ai-sidebar-link">
                             <span class="dashicons dashicons-admin-settings"></span>
-                            <?php esc_html_e('Settings', 'ai-assistant'); ?>
+                            <?php esc_html_e('Settings', 'wp-ai-assistant'); ?>
                         </a>
                     </div>
                 </div>
@@ -194,15 +194,15 @@ class Settings {
                 <div class="ai-chat-main">
                     <div class="ai-chat-main-header">
                         <button type="button" class="ai-sidebar-toggle" id="ai-sidebar-toggle">
-                            <span class="dashicons dashicons-menu"></span> <?php esc_html_e('Chats', 'ai-assistant'); ?>
+                            <span class="dashicons dashicons-menu"></span> <?php esc_html_e('Chats', 'wp-ai-assistant'); ?>
                         </button>
                         <div class="ai-header-actions">
-                            <span id="ai-token-count" class="ai-token-count" title="<?php esc_attr_e('Estimated token usage', 'ai-assistant'); ?>">0 tokens</span>
+                            <span id="ai-token-count" class="ai-token-count" title="<?php esc_attr_e('Estimated token usage', 'wp-ai-assistant'); ?>">0 tokens</span>
                             <span class="ai-header-sep">|</span>
-                            <button type="button" id="ai-assistant-summarize" class="ai-header-btn" title="<?php esc_attr_e('Generate conversation summary', 'ai-assistant'); ?>" style="display: none;">
+                            <button type="button" id="ai-assistant-summarize" class="ai-header-btn" title="<?php esc_attr_e('Generate conversation summary', 'wp-ai-assistant'); ?>" style="display: none;">
                                 <span class="dashicons dashicons-media-text"></span>
                             </button>
-                            <label class="ai-yolo-label" title="<?php esc_attr_e('Skip confirmation prompts for destructive actions', 'ai-assistant'); ?>"><input type="checkbox" id="ai-assistant-yolo"> YOLO Mode</label>
+                            <label class="ai-yolo-label" title="<?php esc_attr_e('Skip confirmation prompts for destructive actions', 'wp-ai-assistant'); ?>"><input type="checkbox" id="ai-assistant-yolo"> YOLO Mode</label>
                         </div>
                     </div>
                     <div class="ai-assistant-chat-container">
@@ -212,9 +212,9 @@ class Settings {
                         </div>
                         <div id="ai-assistant-pending-actions"></div>
                         <div class="ai-assistant-input-area">
-                            <textarea id="ai-assistant-input" placeholder="<?php esc_attr_e('Ask me anything about your WordPress site...', 'ai-assistant'); ?>" rows="3"></textarea>
-                            <button type="button" id="ai-assistant-send" class="button button-primary"><?php esc_html_e('Send', 'ai-assistant'); ?></button>
-                            <button type="button" id="ai-assistant-stop" class="button" style="display: none;" title="<?php esc_attr_e('Stop generation', 'ai-assistant'); ?>">
+                            <textarea id="ai-assistant-input" placeholder="<?php esc_attr_e('Ask me anything about your WordPress site...', 'wp-ai-assistant'); ?>" rows="3"></textarea>
+                            <button type="button" id="ai-assistant-send" class="button button-primary"><?php esc_html_e('Send', 'wp-ai-assistant'); ?></button>
+                            <button type="button" id="ai-assistant-stop" class="button" style="display: none;" title="<?php esc_attr_e('Stop generation', 'wp-ai-assistant'); ?>">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
                             </button>
                         </div>
@@ -312,7 +312,7 @@ class Settings {
         // Provider section (localStorage-based, rendered via callback)
         add_settings_section(
             'ai_assistant_provider_section',
-            __('LLM Provider Settings', 'ai-assistant'),
+            __('LLM Provider Settings', 'wp-ai-assistant'),
             [$this, 'provider_section_callback'],
             'ai-assistant-settings'
         );
@@ -320,7 +320,7 @@ class Settings {
         // Capabilities section (read-only display)
         add_settings_section(
             'ai_assistant_permissions_section',
-            __('Role Capabilities', 'ai-assistant'),
+            __('Role Capabilities', 'wp-ai-assistant'),
             [$this, 'permissions_section_callback'],
             'ai-assistant-settings'
         );
@@ -336,7 +336,7 @@ class Settings {
 
         add_settings_section(
             'ai_assistant_tools_section',
-            __('Tool Permissions', 'ai-assistant'),
+            __('Tool Permissions', 'wp-ai-assistant'),
             [$this, 'tools_section_callback'],
             'ai-assistant-settings'
         );
@@ -347,60 +347,60 @@ class Settings {
      */
     public function provider_section_callback() {
         ?>
-        <p><?php esc_html_e('These settings are stored in your browser and not on the server. API keys never leave your device.', 'ai-assistant'); ?></p>
+        <p><?php esc_html_e('These settings are stored in your browser and not on the server. API keys never leave your device.', 'wp-ai-assistant'); ?></p>
 
         <table class="form-table" role="presentation">
             <tr>
-                <th scope="row"><label for="ai_provider"><?php esc_html_e('Provider', 'ai-assistant'); ?></label></th>
+                <th scope="row"><label for="ai_provider"><?php esc_html_e('Provider', 'wp-ai-assistant'); ?></label></th>
                 <td>
                     <select id="ai_provider" class="ai-localstorage-setting" data-setting="provider">
-                        <option value="anthropic"><?php esc_html_e('Anthropic (Claude)', 'ai-assistant'); ?></option>
-                        <option value="openai"><?php esc_html_e('OpenAI (ChatGPT)', 'ai-assistant'); ?></option>
-                        <option value="local"><?php esc_html_e('Local LLM (Ollama/LM Studio)', 'ai-assistant'); ?></option>
+                        <option value="anthropic"><?php esc_html_e('Anthropic (Claude)', 'wp-ai-assistant'); ?></option>
+                        <option value="openai"><?php esc_html_e('OpenAI (ChatGPT)', 'wp-ai-assistant'); ?></option>
+                        <option value="local"><?php esc_html_e('Local LLM (Ollama/LM Studio)', 'wp-ai-assistant'); ?></option>
                     </select>
                 </td>
             </tr>
             <tr class="ai-provider-row" data-provider="anthropic">
-                <th scope="row"><label for="ai_anthropic_key"><?php esc_html_e('Anthropic API Key', 'ai-assistant'); ?></label></th>
+                <th scope="row"><label for="ai_anthropic_key"><?php esc_html_e('Anthropic API Key', 'wp-ai-assistant'); ?></label></th>
                 <td>
                     <input type="password" id="ai_anthropic_key" class="regular-text ai-localstorage-setting" data-setting="anthropicApiKey" placeholder="sk-ant-..." autocomplete="off">
-                    <button type="button" class="button ai-test-connection" data-provider="anthropic"><?php esc_html_e('Test Connection', 'ai-assistant'); ?></button>
-                    <p class="ai-connection-status"></p>
+                    <button type="button" class="button ai-test-connection" data-provider="anthropic"><?php esc_html_e('Test Connection', 'wp-ai-assistant'); ?></button>
+                    <span class="ai-connection-status"></span>
                 </td>
             </tr>
             <tr class="ai-provider-row" data-provider="openai">
-                <th scope="row"><label for="ai_openai_key"><?php esc_html_e('OpenAI API Key', 'ai-assistant'); ?></label></th>
+                <th scope="row"><label for="ai_openai_key"><?php esc_html_e('OpenAI API Key', 'wp-ai-assistant'); ?></label></th>
                 <td>
                     <input type="password" id="ai_openai_key" class="regular-text ai-localstorage-setting" data-setting="openaiApiKey" placeholder="sk-..." autocomplete="off">
-                    <button type="button" class="button ai-test-connection" data-provider="openai"><?php esc_html_e('Test Connection', 'ai-assistant'); ?></button>
-                    <p class="ai-connection-status"></p>
+                    <button type="button" class="button ai-test-connection" data-provider="openai"><?php esc_html_e('Test Connection', 'wp-ai-assistant'); ?></button>
+                    <span class="ai-connection-status"></span>
                 </td>
             </tr>
             <tr class="ai-provider-row" data-provider="local">
-                <th scope="row"><label for="ai_local_endpoint"><?php esc_html_e('Local LLM Endpoint', 'ai-assistant'); ?></label></th>
+                <th scope="row"><label for="ai_local_endpoint"><?php esc_html_e('Local LLM Endpoint', 'wp-ai-assistant'); ?></label></th>
                 <td>
                     <input type="url" id="ai_local_endpoint" class="regular-text ai-localstorage-setting" data-setting="localEndpoint" placeholder="http://localhost:11434">
-                    <button type="button" class="button ai-test-connection" data-provider="local"><?php esc_html_e('Test Connection', 'ai-assistant'); ?></button>
-                    <p class="description"><?php esc_html_e('Ollama default: localhost:11434, LM Studio: localhost:1234', 'ai-assistant'); ?></p>
-                    <p class="ai-connection-status"></p>
+                    <button type="button" class="button ai-test-connection" data-provider="local"><?php esc_html_e('Test Connection', 'wp-ai-assistant'); ?></button>
+                    <span class="ai-connection-status"></span>
+                    <p class="description"><?php esc_html_e('Ollama default: localhost:11434, LM Studio: localhost:1234', 'wp-ai-assistant'); ?></p>
                 </td>
             </tr>
             <tr>
-                <th scope="row"><label for="ai_model"><?php esc_html_e('Model', 'ai-assistant'); ?></label></th>
+                <th scope="row"><label for="ai_model"><?php esc_html_e('Model', 'wp-ai-assistant'); ?></label></th>
                 <td>
                     <select id="ai_model" class="ai-localstorage-setting" data-setting="model">
-                        <option value=""><?php esc_html_e('Select a model...', 'ai-assistant'); ?></option>
+                        <option value=""><?php esc_html_e('Select a model...', 'wp-ai-assistant'); ?></option>
                     </select>
-                    <button type="button" class="button" id="ai-refresh-models"><?php esc_html_e('Refresh Models', 'ai-assistant'); ?></button>
+                    <button type="button" class="button" id="ai-refresh-models"><?php esc_html_e('Refresh Models', 'wp-ai-assistant'); ?></button>
                 </td>
             </tr>
             <tr>
-                <th scope="row"><label for="ai_summarization_model"><?php esc_html_e('Summarization Model', 'ai-assistant'); ?></label></th>
+                <th scope="row"><label for="ai_summarization_model"><?php esc_html_e('Summarization Model', 'wp-ai-assistant'); ?></label></th>
                 <td>
                     <select id="ai_summarization_model" class="ai-localstorage-setting" data-setting="summarizationModel">
-                        <option value=""><?php esc_html_e('Same as chat model', 'ai-assistant'); ?></option>
+                        <option value=""><?php esc_html_e('Same as chat model', 'wp-ai-assistant'); ?></option>
                     </select>
-                    <p class="description"><?php esc_html_e('Optional: Use a faster/cheaper model for conversation summaries.', 'ai-assistant'); ?></p>
+                    <p class="description"><?php esc_html_e('Optional: Use a faster/cheaper model for conversation summaries.', 'wp-ai-assistant'); ?></p>
                 </td>
             </tr>
         </table>
@@ -466,7 +466,7 @@ class Settings {
                 var currentModel = getSetting('model');
                 var currentSumModel = getSetting('summarizationModel');
 
-                $modelSelect.html('<option value=""><?php echo esc_js(__('Loading...', 'ai-assistant')); ?></option>');
+                $modelSelect.html('<option value=""><?php echo esc_js(__('Loading...', 'wp-ai-assistant')); ?></option>');
 
                 var models = [];
 
@@ -493,21 +493,21 @@ class Settings {
 
                     // If no models found, auto-detect only when user hasn't set a custom endpoint
                     if ((!models || models.length === 0) && !userEndpoint) {
-                        $status.text('<?php echo esc_js(__('Auto-detecting...', 'ai-assistant')); ?>').removeClass('success error');
+                        $status.text('<?php echo esc_js(__('Auto-detecting...', 'wp-ai-assistant')); ?>').removeClass('success error');
                         var detected = await autoDetectLocalEndpoint();
                         if (detected) {
                             $endpointInput.val(detected.url);
                             setSetting('localEndpoint', detected.url);
-                            $status.text('<?php echo esc_js(__('Found', 'ai-assistant')); ?> ' + detected.name + '!').addClass('success');
+                            $status.text('<?php echo esc_js(__('Found', 'wp-ai-assistant')); ?> ' + detected.name + '!').addClass('success');
                             models = await fetchLocalModels(detected.url);
                         } else {
-                            $status.text('<?php echo esc_js(__('No local LLM found', 'ai-assistant')); ?>').addClass('error');
+                            $status.text('<?php echo esc_js(__('No local LLM found', 'wp-ai-assistant')); ?>').addClass('error');
                         }
                     }
                 }
 
-                $modelSelect.empty().append('<option value=""><?php echo esc_js(__('Select a model...', 'ai-assistant')); ?></option>');
-                $sumSelect.empty().append('<option value=""><?php echo esc_js(__('Same as chat model', 'ai-assistant')); ?></option>');
+                $modelSelect.empty().append('<option value=""><?php echo esc_js(__('Select a model...', 'wp-ai-assistant')); ?></option>');
+                $sumSelect.empty().append('<option value=""><?php echo esc_js(__('Same as chat model', 'wp-ai-assistant')); ?></option>');
 
                 if (models && models.length > 0) {
                     models.forEach(function(m) {
@@ -517,9 +517,9 @@ class Settings {
                         $sumSelect.append('<option value="' + m.id + '" ' + sumSelected + '>' + m.name + '</option>');
                     });
                 } else if (provider !== 'local') {
-                    $modelSelect.html('<option value=""><?php echo esc_js(__('Enter API key first', 'ai-assistant')); ?></option>');
+                    $modelSelect.html('<option value=""><?php echo esc_js(__('Enter API key first', 'wp-ai-assistant')); ?></option>');
                 } else {
-                    $modelSelect.html('<option value=""><?php echo esc_js(__('Could not connect to local server', 'ai-assistant')); ?></option>');
+                    $modelSelect.html('<option value=""><?php echo esc_js(__('Could not connect to local server', 'wp-ai-assistant')); ?></option>');
                 }
             }
 
@@ -622,30 +622,30 @@ class Settings {
                 var $status = $btn.siblings('.ai-connection-status');
                 var provider = $btn.data('provider');
 
-                $status.text('<?php echo esc_js(__('Testing...', 'ai-assistant')); ?>').removeClass('success error');
+                $status.text('<?php echo esc_js(__('Testing...', 'wp-ai-assistant')); ?>').removeClass('success error');
 
                 var success = false;
                 var message = '';
 
                 if (provider === 'anthropic') {
                     var apiKey = $('#ai_anthropic_key').val();
-                    if (!apiKey) { $status.text('<?php echo esc_js(__('Enter API key first', 'ai-assistant')); ?>').addClass('error'); return; }
+                    if (!apiKey) { $status.text('<?php echo esc_js(__('Enter API key first', 'wp-ai-assistant')); ?>').addClass('error'); return; }
                     try {
                         var response = await fetch('https://api.anthropic.com/v1/models', {
                             headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }
                         });
                         success = response.ok;
-                        message = success ? '<?php echo esc_js(__('Connected!', 'ai-assistant')); ?>' : '<?php echo esc_js(__('Invalid API key', 'ai-assistant')); ?>';
+                        message = success ? '<?php echo esc_js(__('Connected!', 'wp-ai-assistant')); ?>' : '<?php echo esc_js(__('Invalid API key', 'wp-ai-assistant')); ?>';
                     } catch (e) { message = e.message; }
                 } else if (provider === 'openai') {
                     var apiKey = $('#ai_openai_key').val();
-                    if (!apiKey) { $status.text('<?php echo esc_js(__('Enter API key first', 'ai-assistant')); ?>').addClass('error'); return; }
+                    if (!apiKey) { $status.text('<?php echo esc_js(__('Enter API key first', 'wp-ai-assistant')); ?>').addClass('error'); return; }
                     try {
                         var response = await fetch('https://api.openai.com/v1/models', {
                             headers: { 'Authorization': 'Bearer ' + apiKey }
                         });
                         success = response.ok;
-                        message = success ? '<?php echo esc_js(__('Connected!', 'ai-assistant')); ?>' : '<?php echo esc_js(__('Invalid API key', 'ai-assistant')); ?>';
+                        message = success ? '<?php echo esc_js(__('Connected!', 'wp-ai-assistant')); ?>' : '<?php echo esc_js(__('Invalid API key', 'wp-ai-assistant')); ?>';
                     } catch (e) { message = e.message; }
                 } else if (provider === 'local') {
                     var endpoint = normalizeEndpoint($('#ai_local_endpoint').val() || 'localhost:11434');
@@ -690,15 +690,15 @@ class Settings {
                         }
                     }
                     if (success) {
-                        message = '<?php echo esc_js(__('Connected to', 'ai-assistant')); ?> ' + serverType + '!';
+                        message = '<?php echo esc_js(__('Connected to', 'wp-ai-assistant')); ?> ' + serverType + '!';
                     } else if (isCors) {
-                        message = '<strong><?php echo esc_js(__('Could not connect.', 'ai-assistant')); ?></strong> '
-                            + '<?php echo esc_js(__('Your origin can\'t be accessed. To enable cross-origin requests follow', 'ai-assistant')); ?> '
-                            + '<a href="https://docs.ollama.com/faq#how-can-i-allow-additional-web-origins-to-access-ollama" target="_blank"><?php echo esc_js(__('these instructions for Ollama', 'ai-assistant')); ?></a>, '
-                            + '<?php echo esc_js(__('or', 'ai-assistant')); ?> '
-                            + '<a href="https://lmstudio.ai/docs/developer/core/server/settings#settings-information" target="_blank"><?php echo esc_js(__('these instructions for LM Studio', 'ai-assistant')); ?></a>.';
+                        message = '<strong><?php echo esc_js(__('Could not connect.', 'wp-ai-assistant')); ?></strong> '
+                            + '<?php echo esc_js(__('Your origin can\'t be accessed. To enable cross-origin requests follow', 'wp-ai-assistant')); ?> '
+                            + '<a href="https://docs.ollama.com/faq#how-can-i-allow-additional-web-origins-to-access-ollama" target="_blank"><?php echo esc_js(__('these instructions for Ollama', 'wp-ai-assistant')); ?></a>, '
+                            + '<?php echo esc_js(__('or', 'wp-ai-assistant')); ?> '
+                            + '<a href="https://lmstudio.ai/docs/developer/core/server/settings#settings-information" target="_blank"><?php echo esc_js(__('these instructions for LM Studio', 'wp-ai-assistant')); ?></a>.';
                     } else {
-                        message = '<strong><?php echo esc_js(__('Could not connect.', 'ai-assistant')); ?></strong> <?php echo esc_js(__('Check the URL and ensure your local LLM server is running.', 'ai-assistant')); ?>';
+                        message = '<strong><?php echo esc_js(__('Could not connect.', 'wp-ai-assistant')); ?></strong> <?php echo esc_js(__('Check the URL and ensure your local LLM server is running.', 'wp-ai-assistant')); ?>';
                     }
                 }
 
@@ -722,7 +722,7 @@ class Settings {
     public function tools_section_callback() {
         if (ai_assistant_is_playground()) {
             echo '<div class="ai-collapsible-content" data-section="tools">';
-            echo '<p>' . esc_html__('All tools are automatically enabled in Playground.', 'ai-assistant') . '</p>';
+            echo '<p>' . esc_html__('All tools are automatically enabled in Playground.', 'wp-ai-assistant') . '</p>';
             echo '</div>';
             return;
         }
@@ -736,7 +736,7 @@ class Settings {
         }
         ?>
         <div class="ai-collapsible-content" data-section="tools">
-            <p><?php esc_html_e('Choose which tools are available to the AI. Dangerous tools (⚠) can modify files, run code, or install plugins.', 'ai-assistant'); ?></p>
+            <p><?php esc_html_e('Choose which tools are available to the AI. Dangerous tools (⚠) can modify files, run code, or install plugins.', 'wp-ai-assistant'); ?></p>
             <input type="hidden" name="ai_assistant_enabled_tools" value="">
             <?php foreach ($by_group as $group => $tools) : ?>
             <table class="wp-list-table widefat fixed striped" style="max-width: 600px; margin-bottom: 12px;">
@@ -755,7 +755,7 @@ class Settings {
                         <td>
                             <code><?php echo esc_html($name); ?></code>
                             <?php if ($meta['dangerous']) : ?>
-                                <span title="<?php esc_attr_e('Dangerous: can modify data or execute code', 'ai-assistant'); ?>"> ⚠</span>
+                                <span title="<?php esc_attr_e('Dangerous: can modify data or execute code', 'wp-ai-assistant'); ?>"> ⚠</span>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -773,24 +773,24 @@ class Settings {
     public function permissions_section_callback() {
         $roles = wp_roles()->roles;
         $caps = [
-            'ai_assistant_full' => __('Full Access', 'ai-assistant'),
-            'ai_assistant_read_only' => __('Read Only', 'ai-assistant'),
-            'ai_assistant_chat_only' => __('Chat Only', 'ai-assistant'),
+            'ai_assistant_full' => __('Full Access', 'wp-ai-assistant'),
+            'ai_assistant_read_only' => __('Read Only', 'wp-ai-assistant'),
+            'ai_assistant_chat_only' => __('Chat Only', 'wp-ai-assistant'),
         ];
         ?>
         <div class="ai-collapsible-content" data-section="permissions">
-            <p><?php esc_html_e('AI Assistant access is controlled via WordPress capabilities. The following shows the current capability assigned to each role.', 'ai-assistant'); ?></p>
+            <p><?php esc_html_e('AI Assistant access is controlled via WordPress capabilities. The following shows the current capability assigned to each role.', 'wp-ai-assistant'); ?></p>
             <table class="wp-list-table widefat fixed striped" style="max-width: 500px;">
                 <thead>
                     <tr>
-                        <th scope="col"><?php esc_html_e('Role', 'ai-assistant'); ?></th>
-                        <th scope="col"><?php esc_html_e('Capability', 'ai-assistant'); ?></th>
+                        <th scope="col"><?php esc_html_e('Role', 'wp-ai-assistant'); ?></th>
+                        <th scope="col"><?php esc_html_e('Capability', 'wp-ai-assistant'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($roles as $role_slug => $role_data) :
                         $role_obj = get_role($role_slug);
-                        $current_cap = __('No Access', 'ai-assistant');
+                        $current_cap = __('No Access', 'wp-ai-assistant');
                         if ($role_obj) {
                             foreach ($caps as $cap => $label) {
                                 if ($role_obj->has_cap($cap)) {
@@ -808,10 +808,10 @@ class Settings {
                 </tbody>
             </table>
             <p class="description">
-                <?php esc_html_e('Full Access: All file and database operations. Read Only: Can read files and query database. Chat Only: Can chat but no tool execution.', 'ai-assistant'); ?>
+                <?php esc_html_e('Full Access: All file and database operations. Read Only: Can read files and query database. Chat Only: Can chat but no tool execution.', 'wp-ai-assistant'); ?>
             </p>
             <p class="description">
-                <?php esc_html_e('To change capabilities, use a role management plugin or add code to assign ai_assistant_full, ai_assistant_read_only, or ai_assistant_chat_only capabilities.', 'ai-assistant'); ?>
+                <?php esc_html_e('To change capabilities, use a role management plugin or add code to assign ai_assistant_full, ai_assistant_read_only, or ai_assistant_chat_only capabilities.', 'wp-ai-assistant'); ?>
             </p>
         </div>
         <?php
@@ -821,7 +821,7 @@ class Settings {
      * Display section description
      */
     public function display_section_callback() {
-        echo '<p>' . esc_html__('Configure where the AI Assistant appears.', 'ai-assistant') . '</p>';
+        echo '<p>' . esc_html__('Configure where the AI Assistant appears.', 'wp-ai-assistant') . '</p>';
     }
 
     /**
@@ -835,10 +835,10 @@ class Settings {
                    name="ai_assistant_show_on_frontend"
                    value="1"
                    <?php checked($show_on_frontend, '1'); ?>>
-            <?php esc_html_e('Show AI Assistant on the frontend', 'ai-assistant'); ?>
+            <?php esc_html_e('Show AI Assistant on the frontend', 'wp-ai-assistant'); ?>
         </label>
         <p class="description">
-            <?php esc_html_e('When enabled, logged-in users with access will see the AI Assistant button on the frontend of your site.', 'ai-assistant'); ?>
+            <?php esc_html_e('When enabled, logged-in users with access will see the AI Assistant button on the frontend of your site.', 'wp-ai-assistant'); ?>
         </p>
         <?php
     }
@@ -889,12 +889,12 @@ class Settings {
                 ?>
 
                 <div class="ai-collapsible-section" data-section="display">
-                    <h2><?php esc_html_e('Display Settings', 'ai-assistant'); ?></h2>
+                    <h2><?php esc_html_e('Display Settings', 'wp-ai-assistant'); ?></h2>
                     <div class="ai-collapsible-content">
                         <?php $this->display_section_callback(); ?>
                         <table class="form-table">
                             <tr>
-                                <th scope="row"><?php esc_html_e('Frontend Access', 'ai-assistant'); ?></th>
+                                <th scope="row"><?php esc_html_e('Frontend Access', 'wp-ai-assistant'); ?></th>
                                 <td><?php $this->frontend_field_callback(); ?></td>
                             </tr>
                         </table>
@@ -1122,12 +1122,12 @@ class Settings {
         $skills_dir = plugin_dir_path(__DIR__) . 'skills/';
 
         if (!is_dir($skills_dir)) {
-            return '<p>' . __('No skills available. Add .md files to the skills/ directory.', 'ai-assistant') . '</p>';
+            return '<p>' . __('No skills available. Add .md files to the skills/ directory.', 'wp-ai-assistant') . '</p>';
         }
 
         $files = glob($skills_dir . '*.md');
         if (empty($files)) {
-            return '<p>' . __('No skills available. Add .md files to the skills/ directory.', 'ai-assistant') . '</p>';
+            return '<p>' . __('No skills available. Add .md files to the skills/ directory.', 'wp-ai-assistant') . '</p>';
         }
 
         $skills_by_category = [];
@@ -1177,7 +1177,7 @@ class Settings {
             .ai-skill-desc { display: block; font-size: 12px; color: #666; margin-top: 4px; }
         </style>';
 
-        $html .= '<p>' . __('Skills are specialized knowledge documents the AI can load on-demand. Click a skill to view its content:', 'ai-assistant') . '</p>';
+        $html .= '<p>' . __('Skills are specialized knowledge documents the AI can load on-demand. Click a skill to view its content:', 'wp-ai-assistant') . '</p>';
 
         foreach ($skills_by_category as $category => $skills) {
             $html .= '<h4 style="margin: 1em 0 0.5em; text-transform: capitalize;">' . esc_html($category) . '</h4>';
@@ -1268,7 +1268,7 @@ class Settings {
         ];
 
         $prompt = <<<PROMPT
-You are the Playground AI Assistant integrated into WordPress. You help users manage and modify their WordPress installation.
+You are the AI Assistant integrated into WordPress. You help users manage and modify their WordPress installation.
 
 Current WordPress Information:
 - Site URL: {$wp_info['siteUrl']}

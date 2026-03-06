@@ -1,6 +1,6 @@
 {
-    "name": "playground/ai-assistant",
-    "description": "AI Assistant for WordPress Playground",
+    "name": "akirk/wp-ai-assistant",
+    "description": "AI-powered chat interface for WordPress",
     "type": "wordpress-plugin",
     "require-dev": {
         "phpunit/phpunit": "^10.0"

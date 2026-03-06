@@ -1,11 +1,11 @@
-# Playground AI Assistant - Architecture Overview
+# AI Assistant - Architecture Overview
 
 A WordPress plugin that provides an AI assistant interface, supporting multiple LLM providers (Anthropic, OpenAI, local/Ollama).
 
 ## Directory Structure
 
 ```
-playground-ai-assistant/
+wp-ai-assistant/
 ├── assets/
 │   ├── css/
 │   │   └── chat.css              # All chat UI styles
