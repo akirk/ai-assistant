@@ -16,6 +16,7 @@ class Settings {
         add_action('wp_ajax_ai_assistant_get_skill', [$this, 'ajax_get_skill']);
         add_action('load-tools_page_ai-conversations', [$this, 'add_help_tabs']);
         add_action('load-settings_page_ai-assistant-settings', [$this, 'add_help_tabs']);
+        add_filter('map_meta_cap', [$this, 'map_tool_cap'], 10, 3);
     }
 
     public function ajax_get_skill() {
@@ -242,6 +243,59 @@ class Settings {
         <?php
     }
 
+    public function map_tool_cap($caps, $cap, $user_id) {
+        if (strpos($cap, 'ai_assistant_tool_') !== 0) {
+            return $caps;
+        }
+        if (!user_can($user_id, 'ai_assistant_full')) {
+            return ['do_not_allow'];
+        }
+        if (ai_assistant_is_playground()) {
+            return ['exist'];
+        }
+        $tool_name = substr($cap, strlen('ai_assistant_tool_'));
+        $enabled = get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools());
+        return in_array($tool_name, (array) $enabled, true) ? ['exist'] : ['do_not_allow'];
+    }
+
+    public function get_default_enabled_tools() {
+        return [
+            'read_file', 'list_directory', 'search_files', 'search_content', 'db_query',
+            'get_plugins', 'get_themes', 'list_abilities', 'get_ability', 'get_page_html',
+            'summarize_conversation', 'list_skills', 'get_skill', 'navigate',
+        ];
+    }
+
+    public function get_all_tools_with_meta() {
+        return [
+            'read_file'             => ['label' => 'Read File',             'group' => 'File Reading',    'dangerous' => false],
+            'list_directory'        => ['label' => 'List Directory',        'group' => 'File Reading',    'dangerous' => false],
+            'search_files'          => ['label' => 'Search Files',          'group' => 'File Reading',    'dangerous' => false],
+            'search_content'        => ['label' => 'Search Content',        'group' => 'File Reading',    'dangerous' => false],
+            'write_file'            => ['label' => 'Write File',            'group' => 'File Writing',    'dangerous' => true],
+            'edit_file'             => ['label' => 'Edit File',             'group' => 'File Writing',    'dangerous' => true],
+            'delete_file'           => ['label' => 'Delete File',           'group' => 'File Writing',    'dangerous' => true],
+            'db_query'              => ['label' => 'DB Query',              'group' => 'Database',        'dangerous' => false],
+            'get_plugins'           => ['label' => 'Get Plugins',           'group' => 'WordPress',       'dangerous' => false],
+            'get_themes'            => ['label' => 'Get Themes',            'group' => 'WordPress',       'dangerous' => false],
+            'install_plugin'        => ['label' => 'Install Plugin',        'group' => 'WordPress',       'dangerous' => true],
+            'run_php'               => ['label' => 'Run PHP',               'group' => 'Code Execution',  'dangerous' => true],
+            'list_abilities'        => ['label' => 'List Abilities',        'group' => 'Abilities',       'dangerous' => false],
+            'get_ability'           => ['label' => 'Get Ability',           'group' => 'Abilities',       'dangerous' => false],
+            'execute_ability'       => ['label' => 'Execute Ability',       'group' => 'Abilities',       'dangerous' => true],
+            'navigate'              => ['label' => 'Navigate',              'group' => 'Navigation & UI', 'dangerous' => false],
+            'get_page_html'         => ['label' => 'Get Page HTML',         'group' => 'Navigation & UI', 'dangerous' => false],
+            'summarize_conversation'=> ['label' => 'Summarize Conversation','group' => 'Conversation',    'dangerous' => false],
+            'list_skills'           => ['label' => 'List Skills',           'group' => 'Conversation',    'dangerous' => false],
+            'get_skill'             => ['label' => 'Get Skill',             'group' => 'Conversation',    'dangerous' => false],
+        ];
+    }
+
+    public function get_user_enabled_tools() {
+        $all = array_keys($this->get_all_tools_with_meta());
+        return array_values(array_filter($all, fn($t) => current_user_can('ai_assistant_tool_' . $t)));
+    }
+
     /**
      * Register settings
      */
@@ -268,6 +322,22 @@ class Settings {
             'ai_assistant_permissions_section',
             __('Role Capabilities', 'ai-assistant'),
             [$this, 'permissions_section_callback'],
+            'ai-assistant-settings'
+        );
+
+        register_setting('ai_assistant_settings', 'ai_assistant_enabled_tools', [
+            'type' => 'array',
+            'sanitize_callback' => function($value) {
+                $all = array_keys($this->get_all_tools_with_meta());
+                return array_values(array_intersect((array) $value, $all));
+            },
+            'default' => $this->get_default_enabled_tools(),
+        ]);
+
+        add_settings_section(
+            'ai_assistant_tools_section',
+            __('Tool Permissions', 'ai-assistant'),
+            [$this, 'tools_section_callback'],
             'ai-assistant-settings'
         );
     }
@@ -649,6 +719,54 @@ class Settings {
         <?php
     }
 
+    public function tools_section_callback() {
+        if (ai_assistant_is_playground()) {
+            echo '<div class="ai-collapsible-content" data-section="tools">';
+            echo '<p>' . esc_html__('All tools are automatically enabled in Playground.', 'ai-assistant') . '</p>';
+            echo '</div>';
+            return;
+        }
+
+        $all_tools = $this->get_all_tools_with_meta();
+        $enabled = (array) get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools());
+
+        $by_group = [];
+        foreach ($all_tools as $name => $meta) {
+            $by_group[$meta['group']][$name] = $meta;
+        }
+        ?>
+        <div class="ai-collapsible-content" data-section="tools">
+            <p><?php esc_html_e('Choose which tools are available to the AI. Dangerous tools (⚠) can modify files, run code, or install plugins.', 'ai-assistant'); ?></p>
+            <input type="hidden" name="ai_assistant_enabled_tools" value="">
+            <?php foreach ($by_group as $group => $tools) : ?>
+            <table class="wp-list-table widefat fixed striped" style="max-width: 600px; margin-bottom: 12px;">
+                <thead>
+                    <tr><th colspan="2"><?php echo esc_html($group); ?></th></tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($tools as $name => $meta) : ?>
+                    <tr>
+                        <td style="width: 36px; text-align: center;">
+                            <input type="checkbox"
+                                   name="ai_assistant_enabled_tools[]"
+                                   value="<?php echo esc_attr($name); ?>"
+                                   <?php checked(in_array($name, $enabled, true)); ?>>
+                        </td>
+                        <td>
+                            <code><?php echo esc_html($name); ?></code>
+                            <?php if ($meta['dangerous']) : ?>
+                                <span title="<?php esc_attr_e('Dangerous: can modify data or execute code', 'ai-assistant'); ?>"> ⚠</span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <?php endforeach; ?>
+        </div>
+        <?php
+    }
+
     /**
      * Permissions section - read-only display of capabilities
      */
@@ -804,16 +922,18 @@ class Settings {
                 });
             });
 
-            // Wrap permissions section in collapsible container
-            var $permissionsContent = $('.ai-collapsible-content[data-section="permissions"]');
-            if ($permissionsContent.length) {
-                var $permissionsH2 = $permissionsContent.prev('h2');
-                if ($permissionsH2.length) {
-                    var $wrapper = $('<div class="ai-collapsible-section" data-section="permissions"></div>');
-                    $permissionsH2.before($wrapper);
-                    $wrapper.append($permissionsH2).append($permissionsContent);
+            // Wrap settings sections in collapsible containers
+            ['permissions', 'tools'].forEach(function(section) {
+                var $content = $('.ai-collapsible-content[data-section="' + section + '"]');
+                if ($content.length) {
+                    var $h2 = $content.prev('h2');
+                    if ($h2.length) {
+                        var $wrapper = $('<div class="ai-collapsible-section" data-section="' + section + '"></div>');
+                        $h2.before($wrapper);
+                        $wrapper.append($h2).append($content);
+                    }
                 }
-            }
+            });
 
             // Collapsible toggle behavior
             $(document).on('click', '.ai-collapsible-section h2', function() {

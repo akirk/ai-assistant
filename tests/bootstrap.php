@@ -28,10 +28,32 @@ if (!is_dir(WP_PLUGIN_DIR)) {
 }
 
 // WordPress function stubs for testing
+$GLOBALS['wp_test_options'] = [];
+$GLOBALS['wp_test_capabilities'] = [];
+$GLOBALS['wp_test_is_playground'] = false;
+
 if (!function_exists('get_option')) {
-    $GLOBALS['wp_test_options'] = [];
     function get_option($option, $default = false) {
         return $GLOBALS['wp_test_options'][$option] ?? $default;
+    }
+}
+
+if (!function_exists('current_user_can')) {
+    function current_user_can($cap) {
+        // Default true so existing executor tests keep passing unchanged
+        return $GLOBALS['wp_test_capabilities'][$cap] ?? true;
+    }
+}
+
+if (!function_exists('user_can')) {
+    function user_can($user_id, $cap) {
+        return $GLOBALS['wp_test_capabilities'][$cap] ?? true;
+    }
+}
+
+if (!function_exists('ai_assistant_is_playground')) {
+    function ai_assistant_is_playground(): bool {
+        return $GLOBALS['wp_test_is_playground'] ?? false;
     }
 }
 
@@ -65,9 +87,20 @@ if (!is_dir(WP_CONTENT_DIR . '/themes')) {
     mkdir(WP_CONTENT_DIR . '/themes', 0755, true);
 }
 
+// WordPress hook/admin stubs needed to load Settings class
+if (!function_exists('add_action'))          { function add_action()          {} }
+if (!function_exists('add_filter'))          { function add_filter()          {} }
+if (!function_exists('add_management_page')) { function add_management_page() {} }
+if (!function_exists('add_options_page'))    { function add_options_page()    {} }
+if (!function_exists('register_setting'))    { function register_setting()    {} }
+if (!function_exists('add_settings_section')){ function add_settings_section(){} }
+if (!function_exists('add_settings_field'))  { function add_settings_field()  {} }
+if (!function_exists('__'))                  { function __($t, $d = '') { return $t; } }
+
 // Manual class loading (no Composer autoloader)
 $plugin_dir = dirname(__DIR__);
 require_once $plugin_dir . '/includes/class-tools.php';
 require_once $plugin_dir . '/includes/class-executor.php';
 require_once $plugin_dir . '/includes/class-git-tracker.php';
 require_once $plugin_dir . '/includes/class-git-tracker-manager.php';
+require_once $plugin_dir . '/includes/class-settings.php';

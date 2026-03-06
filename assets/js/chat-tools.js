@@ -3,7 +3,8 @@
 
     $.extend(window.aiAssistant, {
         getTools: function() {
-            return [
+            var enabled = (window.aiAssistantConfig && window.aiAssistantConfig.enabledTools) || [];
+            var allTools = [
                 {
                     name: 'read_file',
                     description: 'Read the contents of a file within wp-content directory',
@@ -210,6 +211,9 @@
                     }
                 }
             ];
+            return allTools.filter(function(tool) {
+                return enabled.indexOf(tool.name) !== -1;
+            });
         },
 
         getToolsOpenAI: function() {
