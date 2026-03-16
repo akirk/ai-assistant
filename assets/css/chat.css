@@ -616,24 +616,8 @@
 
 /* Tool output display */
 .ai-tool-output {
-    margin-top: 8px;
+    margin-top: 4px;
     padding-left: 22px;
-}
-
-.ai-tool-output-content {
-    background: #f6f7f7;
-    border: 1px solid #dcdcde;
-    border-radius: 3px;
-    padding: 8px 10px;
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    font-size: 11px;
-    line-height: 1.4;
-    white-space: pre-wrap;
-    word-break: break-word;
-    max-height: 150px;
-    overflow: auto;
-    margin: 0;
-    color: #1d2327;
 }
 
 /* State: Error */
@@ -657,7 +641,8 @@
     opacity: 0.7;
 }
 
-.ai-tool-card-skipped .ai-tool-card-spinner {
+.ai-tool-card-skipped .ai-tool-card-spinner,
+.ai-tool-card-skipped .ai-tool-card-actions {
     display: none;
 }
 
