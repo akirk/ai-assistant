@@ -650,22 +650,42 @@
                             $card.append($output);
                         }
                         var outputText = '';
-                        if (options.output.output) {
-                            outputText += options.output.output;
-                        }
-                        if (options.output.result !== undefined && options.output.result !== null) {
-                            var resultStr = typeof options.output.result === 'string'
-                                ? options.output.result
-                                : JSON.stringify(options.output.result, null, 2);
-                            if (outputText) outputText += '\n';
-                            outputText += resultStr;
-                        }
-                        if (!outputText.trim() && typeof options.output === 'object' && options.output !== null) {
-                            outputText = JSON.stringify(options.output, null, 2);
+                        // For execute_ability, extract just the meaningful result value
+                        if (options.output.ability !== undefined && options.output.success !== undefined) {
+                            var abilityResult = options.output.result;
+                            if (abilityResult !== null && abilityResult !== undefined) {
+                                outputText = typeof abilityResult === 'string'
+                                    ? abilityResult
+                                    : JSON.stringify(abilityResult, null, 2);
+                            }
+                        } else {
+                            if (options.output.output) {
+                                outputText += options.output.output;
+                            }
+                            if (options.output.result !== undefined && options.output.result !== null) {
+                                var resultStr = typeof options.output.result === 'string'
+                                    ? options.output.result
+                                    : JSON.stringify(options.output.result, null, 2);
+                                if (outputText) outputText += '\n';
+                                outputText += resultStr;
+                            }
+                            if (!outputText.trim() && typeof options.output === 'object' && options.output !== null) {
+                                outputText = JSON.stringify(options.output, null, 2);
+                            }
                         }
                         if (outputText.trim()) {
-                            $output.html('<pre class="ai-tool-output-content"></pre>');
-                            $output.find('pre').text(outputText);
+                            var lineCount = (outputText.match(/\n/g) || []).length + 1;
+                            var autoExpand = lineCount <= 10;
+                            $output.html(
+                                '<div class="ai-action-preview' + (autoExpand ? ' expanded' : '') + '">' +
+                                '<button type="button" class="ai-action-preview-toggle">' +
+                                '<span class="dashicons dashicons-arrow-right-alt2"></span>' +
+                                'Result (' + lineCount + ' line' + (lineCount !== 1 ? 's' : '') + ')' +
+                                '</button>' +
+                                '<div class="ai-action-preview-content"><pre class="ai-code-preview"></pre></div>' +
+                                '</div>'
+                            );
+                            $output.find('.ai-code-preview').text(outputText);
                             $output.show();
                         }
                     }
