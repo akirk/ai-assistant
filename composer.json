@@ -1,5 +1,5 @@
 {
-    "name": "akirk/wp-ai-assistant",
+    "name": "akirk/ai-assistant",
     "description": "AI-powered chat interface for WordPress",
     "type": "wordpress-plugin",
     "require-dev": {

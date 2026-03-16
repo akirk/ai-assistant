@@ -1,14 +1,14 @@
 <?php
 /**
  * Plugin Name: AI Assistant
- * Plugin URI: https://github.com/akirk/wp-ai-assistant
+ * Plugin URI: https://github.com/akirk/ai-assistant
  * Description: AI-powered chat interface for WordPress. Bring your own key or use a local LLM.
  * Version: 1.0.0
  * Author: Alex Kirk
  * Author URI: https://alex.kirk.at
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: wp-ai-assistant
+ * Text Domain: ai-assistant
  * Requires at least: 6.0
  * Requires PHP: 7.4
  */

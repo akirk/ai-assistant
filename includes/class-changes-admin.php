@@ -33,8 +33,8 @@ class Changes_Admin {
 
     public function add_admin_page(): void {
         add_management_page(
-            __('AI Changes', 'wp-ai-assistant'),
-            __('AI Changes', 'wp-ai-assistant'),
+            __('AI Changes', 'ai-assistant'),
+            __('AI Changes', 'ai-assistant'),
             'manage_options',
             'ai-changes',
             [$this, 'render_page']
@@ -49,19 +49,19 @@ class Changes_Admin {
         $diff = time() - $timestamp;
 
         if ($diff < 60) {
-            return __('just now', 'wp-ai-assistant');
+            return __('just now', 'ai-assistant');
         }
         if ($diff < 3600) {
             $mins = (int) floor($diff / 60);
-            return sprintf(_n('%d min ago', '%d mins ago', $mins, 'wp-ai-assistant'), $mins);
+            return sprintf(_n('%d min ago', '%d mins ago', $mins, 'ai-assistant'), $mins);
         }
         if ($diff < 86400) {
             $hours = (int) floor($diff / 3600);
-            return sprintf(_n('%d hour ago', '%d hours ago', $hours, 'wp-ai-assistant'), $hours);
+            return sprintf(_n('%d hour ago', '%d hours ago', $hours, 'ai-assistant'), $hours);
         }
         if ($diff < 604800) {
             $days = (int) floor($diff / 86400);
-            return sprintf(_n('%d day ago', '%d days ago', $days, 'wp-ai-assistant'), $days);
+            return sprintf(_n('%d day ago', '%d days ago', $days, 'ai-assistant'), $days);
         }
 
         return date_i18n('M j', $timestamp);
@@ -95,37 +95,37 @@ class Changes_Admin {
             'downloadNonce' => wp_create_nonce('ai_assistant_download_diff'),
             'downloadUrl' => admin_url('admin.php?action=ai_assistant_download_diff'),
             'strings' => [
-                'confirmClear' => __('Are you sure you want to clear all tracked changes? This cannot be undone.', 'wp-ai-assistant'),
-                'noSelection' => __('Please select at least one file to download.', 'wp-ai-assistant'),
-                'clearing' => __('Clearing...', 'wp-ai-assistant'),
-                'importing' => __('Importing...', 'wp-ai-assistant'),
-                'importSuccess' => __('Patch applied successfully! %d file(s) modified.', 'wp-ai-assistant'),
-                'importError' => __('Failed to apply patch.', 'wp-ai-assistant'),
-                'confirmRevert' => __('Are you sure you want to revert this file to its original state?', 'wp-ai-assistant'),
-                'reverting' => __('...', 'wp-ai-assistant'),
-                'revertError' => __('Failed to revert file.', 'wp-ai-assistant'),
-                'confirmReapply' => __('Are you sure you want to reapply the changes to this file?', 'wp-ai-assistant'),
-                'reapplyError' => __('Failed to reapply changes.', 'wp-ai-assistant'),
-                'revert' => __('Revert', 'wp-ai-assistant'),
-                'reapply' => __('Reapply', 'wp-ai-assistant'),
-                'revertTitle' => __('Revert this change', 'wp-ai-assistant'),
-                'reapplyTitle' => __('Reapply this change', 'wp-ai-assistant'),
-                'confirmRevertDir' => __('Are you sure you want to revert %d file(s) in this directory?', 'wp-ai-assistant'),
-                'confirmRevertPlugin' => __('Are you sure you want to revert %d file(s) in this plugin?', 'wp-ai-assistant'),
-                'nothingToRevert' => __('No files to revert.', 'wp-ai-assistant'),
-                'syntaxError' => __('Syntax Error', 'wp-ai-assistant'),
-                'syntaxOk' => __('Syntax OK', 'wp-ai-assistant'),
-                'confirmRevertToCommit' => __('Are you sure you want to revert all files to this commit? This will restore files to how they were at that point.', 'wp-ai-assistant'),
-                'revertingToCommit' => __('Reverting...', 'wp-ai-assistant'),
-                'revertToCommitError' => __('Failed to revert to commit.', 'wp-ai-assistant'),
-                'loading' => __('Loading...', 'wp-ai-assistant'),
-                'loadMore' => __('Load more', 'wp-ai-assistant'),
-                'current' => __('(current)', 'wp-ai-assistant'),
-                'revertToHere' => __('Revert to here', 'wp-ai-assistant'),
-                'revertToCommitTitle' => __('Revert files to this commit', 'wp-ai-assistant'),
-                'justNow' => __('just now', 'wp-ai-assistant'),
-                'noCommits' => __('No commits yet', 'wp-ai-assistant'),
-                'viewConversation' => __('View conversation', 'wp-ai-assistant'),
+                'confirmClear' => __('Are you sure you want to clear all tracked changes? This cannot be undone.', 'ai-assistant'),
+                'noSelection' => __('Please select at least one file to download.', 'ai-assistant'),
+                'clearing' => __('Clearing...', 'ai-assistant'),
+                'importing' => __('Importing...', 'ai-assistant'),
+                'importSuccess' => __('Patch applied successfully! %d file(s) modified.', 'ai-assistant'),
+                'importError' => __('Failed to apply patch.', 'ai-assistant'),
+                'confirmRevert' => __('Are you sure you want to revert this file to its original state?', 'ai-assistant'),
+                'reverting' => __('...', 'ai-assistant'),
+                'revertError' => __('Failed to revert file.', 'ai-assistant'),
+                'confirmReapply' => __('Are you sure you want to reapply the changes to this file?', 'ai-assistant'),
+                'reapplyError' => __('Failed to reapply changes.', 'ai-assistant'),
+                'revert' => __('Revert', 'ai-assistant'),
+                'reapply' => __('Reapply', 'ai-assistant'),
+                'revertTitle' => __('Revert this change', 'ai-assistant'),
+                'reapplyTitle' => __('Reapply this change', 'ai-assistant'),
+                'confirmRevertDir' => __('Are you sure you want to revert %d file(s) in this directory?', 'ai-assistant'),
+                'confirmRevertPlugin' => __('Are you sure you want to revert %d file(s) in this plugin?', 'ai-assistant'),
+                'nothingToRevert' => __('No files to revert.', 'ai-assistant'),
+                'syntaxError' => __('Syntax Error', 'ai-assistant'),
+                'syntaxOk' => __('Syntax OK', 'ai-assistant'),
+                'confirmRevertToCommit' => __('Are you sure you want to revert all files to this commit? This will restore files to how they were at that point.', 'ai-assistant'),
+                'revertingToCommit' => __('Reverting...', 'ai-assistant'),
+                'revertToCommitError' => __('Failed to revert to commit.', 'ai-assistant'),
+                'loading' => __('Loading...', 'ai-assistant'),
+                'loadMore' => __('Load more', 'ai-assistant'),
+                'current' => __('(current)', 'ai-assistant'),
+                'revertToHere' => __('Revert to here', 'ai-assistant'),
+                'revertToCommitTitle' => __('Revert files to this commit', 'ai-assistant'),
+                'justNow' => __('just now', 'ai-assistant'),
+                'noCommits' => __('No commits yet', 'ai-assistant'),
+                'viewConversation' => __('View conversation', 'ai-assistant'),
             ],
         ]);
     }
@@ -135,40 +135,40 @@ class Changes_Admin {
 
         $screen->add_help_tab([
             'id'      => 'ai-changes-overview',
-            'title'   => __('Overview', 'wp-ai-assistant'),
-            'content' => '<p>' . __('The AI Changes page tracks all file modifications made by the AI Assistant. This allows you to review, export, revert, or reapply changes.', 'wp-ai-assistant') . '</p>'
-                       . '<p>' . __('Changes are organized by directory and show the type of modification (created, modified, or deleted).', 'wp-ai-assistant') . '</p>',
+            'title'   => __('Overview', 'ai-assistant'),
+            'content' => '<p>' . __('The AI Changes page tracks all file modifications made by the AI Assistant. This allows you to review, export, revert, or reapply changes.', 'ai-assistant') . '</p>'
+                       . '<p>' . __('Changes are organized by directory and show the type of modification (created, modified, or deleted).', 'ai-assistant') . '</p>',
         ]);
 
         $screen->add_help_tab([
             'id'      => 'ai-changes-actions',
-            'title'   => __('Actions', 'wp-ai-assistant'),
-            'content' => '<p>' . __('Available actions:', 'wp-ai-assistant') . '</p>'
+            'title'   => __('Actions', 'ai-assistant'),
+            'content' => '<p>' . __('Available actions:', 'ai-assistant') . '</p>'
                        . '<ul>'
-                       . '<li><strong>' . __('Import Patch', 'wp-ai-assistant') . '</strong> - ' . __('Upload a .patch, .diff, or .txt file to apply changes to your files.', 'wp-ai-assistant') . '</li>'
-                       . '<li><strong>' . __('Download .patch', 'wp-ai-assistant') . '</strong> - ' . __('Select files and download a unified diff patch file.', 'wp-ai-assistant') . '</li>'
-                       . '<li><strong>' . __('Revert', 'wp-ai-assistant') . '</strong> - ' . __('Restore a file to its original state before AI modification.', 'wp-ai-assistant') . '</li>'
-                       . '<li><strong>' . __('Reapply', 'wp-ai-assistant') . '</strong> - ' . __('Re-apply previously reverted changes.', 'wp-ai-assistant') . '</li>'
-                       . '<li><strong>' . __('Clear History', 'wp-ai-assistant') . '</strong> - ' . __('Remove all tracked changes from the list.', 'wp-ai-assistant') . '</li>'
+                       . '<li><strong>' . __('Import Patch', 'ai-assistant') . '</strong> - ' . __('Upload a .patch, .diff, or .txt file to apply changes to your files.', 'ai-assistant') . '</li>'
+                       . '<li><strong>' . __('Download .patch', 'ai-assistant') . '</strong> - ' . __('Select files and download a unified diff patch file.', 'ai-assistant') . '</li>'
+                       . '<li><strong>' . __('Revert', 'ai-assistant') . '</strong> - ' . __('Restore a file to its original state before AI modification.', 'ai-assistant') . '</li>'
+                       . '<li><strong>' . __('Reapply', 'ai-assistant') . '</strong> - ' . __('Re-apply previously reverted changes.', 'ai-assistant') . '</li>'
+                       . '<li><strong>' . __('Clear History', 'ai-assistant') . '</strong> - ' . __('Remove all tracked changes from the list.', 'ai-assistant') . '</li>'
                        . '</ul>',
         ]);
 
         $screen->add_help_tab([
             'id'      => 'ai-changes-diff',
-            'title'   => __('Diff Preview', 'wp-ai-assistant'),
-            'content' => '<p>' . __('Click the arrow (▶) next to any file to preview its diff inline.', 'wp-ai-assistant') . '</p>'
-                       . '<p>' . __('Select multiple files using the checkboxes to see a combined diff in the preview panel at the bottom.', 'wp-ai-assistant') . '</p>'
-                       . '<p>' . __('The diff shows:', 'wp-ai-assistant') . '</p>'
+            'title'   => __('Diff Preview', 'ai-assistant'),
+            'content' => '<p>' . __('Click the arrow (▶) next to any file to preview its diff inline.', 'ai-assistant') . '</p>'
+                       . '<p>' . __('Select multiple files using the checkboxes to see a combined diff in the preview panel at the bottom.', 'ai-assistant') . '</p>'
+                       . '<p>' . __('The diff shows:', 'ai-assistant') . '</p>'
                        . '<ul>'
-                       . '<li><span style="color: #22863a;">+ Green lines</span> - ' . __('Added content', 'wp-ai-assistant') . '</li>'
-                       . '<li><span style="color: #cb2431;">- Red lines</span> - ' . __('Removed content', 'wp-ai-assistant') . '</li>'
+                       . '<li><span style="color: #22863a;">+ Green lines</span> - ' . __('Added content', 'ai-assistant') . '</li>'
+                       . '<li><span style="color: #cb2431;">- Red lines</span> - ' . __('Removed content', 'ai-assistant') . '</li>'
                        . '</ul>',
         ]);
 
         $screen->set_help_sidebar(
-            '<p><strong>' . __('For more information:', 'wp-ai-assistant') . '</strong></p>'
-            . '<p><a href="' . esc_url(admin_url('tools.php?page=ai-conversations')) . '">' . __('AI Conversations', 'wp-ai-assistant') . '</a></p>'
-            . '<p><a href="' . esc_url(admin_url('options-general.php?page=ai-assistant-settings')) . '">' . __('Plugin Settings', 'wp-ai-assistant') . '</a></p>'
+            '<p><strong>' . __('For more information:', 'ai-assistant') . '</strong></p>'
+            . '<p><a href="' . esc_url(admin_url('tools.php?page=ai-conversations')) . '">' . __('AI Conversations', 'ai-assistant') . '</a></p>'
+            . '<p><a href="' . esc_url(admin_url('options-general.php?page=ai-assistant-settings')) . '">' . __('Plugin Settings', 'ai-assistant') . '</a></p>'
         );
     }
 
@@ -177,22 +177,22 @@ class Changes_Admin {
         $has_changes = !empty($plugins);
         ?>
         <div class="wrap ai-changes-wrap">
-            <h1><?php esc_html_e('AI Changes', 'wp-ai-assistant'); ?></h1>
+            <h1><?php esc_html_e('AI Changes', 'ai-assistant'); ?></h1>
 
             <p class="description">
-                <?php esc_html_e('Track and export changes made by the AI assistant. Changes are grouped by plugin/theme with commit history and conversation references.', 'wp-ai-assistant'); ?>
+                <?php esc_html_e('Track and export changes made by the AI assistant. Changes are grouped by plugin/theme with commit history and conversation references.', 'ai-assistant'); ?>
             </p>
 
             <?php if ($has_changes): ?>
             <div class="ai-changes-actions">
                 <button type="button" class="button" id="ai-select-all">
-                    <?php esc_html_e('Select All', 'wp-ai-assistant'); ?>
+                    <?php esc_html_e('Select All', 'ai-assistant'); ?>
                 </button>
                 <button type="button" class="button" id="ai-clear-selection">
-                    <?php esc_html_e('Clear Selection', 'wp-ai-assistant'); ?>
+                    <?php esc_html_e('Clear Selection', 'ai-assistant'); ?>
                 </button>
                 <button type="button" class="button" id="ai-clear-history">
-                    <?php esc_html_e('Clear History', 'wp-ai-assistant'); ?>
+                    <?php esc_html_e('Clear History', 'ai-assistant'); ?>
                 </button>
             </div>
 
@@ -216,29 +216,29 @@ class Changes_Admin {
                             'ai_assistant_download_' . $plugin_path
                         );
                         ?>
-                        <a href="<?php echo esc_url($download_url); ?>" class="button button-small" title="<?php esc_attr_e('Download as ZIP with git history', 'wp-ai-assistant'); ?>">
-                            <?php esc_html_e('Download ZIP', 'wp-ai-assistant'); ?>
+                        <a href="<?php echo esc_url($download_url); ?>" class="button button-small" title="<?php esc_attr_e('Download as ZIP with git history', 'ai-assistant'); ?>">
+                            <?php esc_html_e('Download ZIP', 'ai-assistant'); ?>
                         </a>
-                        <button type="button" class="button button-small ai-revert-plugin" data-plugin="<?php echo esc_attr($plugin_path); ?>" title="<?php esc_attr_e('Revert all files in this plugin', 'wp-ai-assistant'); ?>">
-                            <?php esc_html_e('Revert All', 'wp-ai-assistant'); ?>
+                        <button type="button" class="button button-small ai-revert-plugin" data-plugin="<?php echo esc_attr($plugin_path); ?>" title="<?php esc_attr_e('Revert all files in this plugin', 'ai-assistant'); ?>">
+                            <?php esc_html_e('Revert All', 'ai-assistant'); ?>
                         </button>
                     </div>
                     <div class="ai-plugin-content" style="display: none;">
                         <?php if (!empty($plugin['commits'])): ?>
                         <div class="ai-plugin-commits">
-                            <div class="ai-plugin-section-header"><?php esc_html_e('Recent Commits', 'wp-ai-assistant'); ?></div>
+                            <div class="ai-plugin-section-header"><?php esc_html_e('Recent Commits', 'ai-assistant'); ?></div>
                             <?php foreach ($plugin['commits'] as $index => $commit): ?>
                             <div class="ai-commit-entry" data-sha="<?php echo esc_attr($commit['sha']); ?>">
                                 <div class="ai-commit-row<?php echo $index === 0 ? ' ai-commit-current' : ''; ?>">
                                     <div class="ai-commit-row-top">
-                                        <button type="button" class="ai-commit-diff-toggle" data-sha="<?php echo esc_attr($commit['sha']); ?>" title="<?php esc_attr_e('Preview diff', 'wp-ai-assistant'); ?>">▶</button>
+                                        <button type="button" class="ai-commit-diff-toggle" data-sha="<?php echo esc_attr($commit['sha']); ?>" title="<?php esc_attr_e('Preview diff', 'ai-assistant'); ?>">▶</button>
                                         <span class="ai-commit-sha"><?php echo esc_html($commit['short_sha']); ?></span>
                                         <span class="ai-commit-message"><?php echo esc_html($commit['message']); ?></span>
                                         <?php if (!empty($commit['conversation_id'])): ?>
                                         <a href="<?php echo esc_url(admin_url('tools.php?page=ai-conversations&conversation_id=' . $commit['conversation_id'])); ?>"
                                            class="ai-commit-conversation"
                                            data-id="<?php echo esc_attr($commit['conversation_id']); ?>"
-                                           title="<?php esc_attr_e('View conversation', 'wp-ai-assistant'); ?>">
+                                           title="<?php esc_attr_e('View conversation', 'ai-assistant'); ?>">
                                             Conv #<?php echo esc_html($commit['conversation_id']); ?>
                                         </a>
                                         <?php endif; ?>
@@ -246,10 +246,10 @@ class Changes_Admin {
                                     <div class="ai-commit-row-bottom">
                                         <span class="ai-commit-date" title="<?php echo esc_attr($commit['date']); ?>"><?php echo esc_html($this->format_time_ago($commit['timestamp'])); ?></span>
                                         <?php if ($index === 0): ?>
-                                        <span class="ai-commit-label"><?php esc_html_e('(current)', 'wp-ai-assistant'); ?></span>
+                                        <span class="ai-commit-label"><?php esc_html_e('(current)', 'ai-assistant'); ?></span>
                                         <?php else: ?>
-                                        <button type="button" class="button button-small ai-revert-to-commit" data-sha="<?php echo esc_attr($commit['sha']); ?>" title="<?php esc_attr_e('Revert files to this commit', 'wp-ai-assistant'); ?>">
-                                            <?php esc_html_e('Revert to here', 'wp-ai-assistant'); ?>
+                                        <button type="button" class="button button-small ai-revert-to-commit" data-sha="<?php echo esc_attr($commit['sha']); ?>" title="<?php esc_attr_e('Revert files to this commit', 'ai-assistant'); ?>">
+                                            <?php esc_html_e('Revert to here', 'ai-assistant'); ?>
                                         </button>
                                         <?php endif; ?>
                                     </div>
@@ -263,7 +263,7 @@ class Changes_Admin {
                         <?php endif; ?>
 
                         <div class="ai-plugin-files">
-                            <div class="ai-plugin-section-header"><?php esc_html_e('Changed Files', 'wp-ai-assistant'); ?></div>
+                            <div class="ai-plugin-section-header"><?php esc_html_e('Changed Files', 'ai-assistant'); ?></div>
                             <?php foreach ($plugin['files'] as $file):
                                 $file_id = 'file-' . md5($file['path']);
                             ?>
@@ -272,7 +272,7 @@ class Changes_Admin {
                                     <input type="checkbox" class="ai-file-checkbox" id="<?php echo esc_attr($file_id); ?>"
                                            data-path="<?php echo esc_attr($file['path']); ?>"
                                            data-plugin="<?php echo esc_attr($plugin_path); ?>">
-                                    <button type="button" class="ai-file-preview-toggle" data-path="<?php echo esc_attr($file['path']); ?>" title="<?php esc_attr_e('Preview diff', 'wp-ai-assistant'); ?>">▶</button>
+                                    <button type="button" class="ai-file-preview-toggle" data-path="<?php echo esc_attr($file['path']); ?>" title="<?php esc_attr_e('Preview diff', 'ai-assistant'); ?>">▶</button>
                                     <label class="ai-changes-file-path" for="<?php echo esc_attr($file_id); ?>"><?php echo esc_html($file['relative_path'] ?: basename($file['path'])); ?></label>
                                     <span class="ai-lint-status" data-path="<?php echo esc_attr($file['path']); ?>"></span>
                                     <span class="ai-changes-type ai-changes-type-<?php echo esc_attr($file['change_type']); ?>">
@@ -280,16 +280,16 @@ class Changes_Admin {
                                     </span>
                                     <?php if (!empty($file['is_reverted'])): ?>
                                     <span class="ai-changes-type ai-changes-type-reverted">
-                                        <?php esc_html_e('Reverted', 'wp-ai-assistant'); ?>
+                                        <?php esc_html_e('Reverted', 'ai-assistant'); ?>
                                     </span>
                                     <?php endif; ?>
                                     <?php if (!empty($file['is_reverted'])): ?>
-                                    <button type="button" class="button button-small ai-reapply-file" data-path="<?php echo esc_attr($file['path']); ?>" title="<?php esc_attr_e('Reapply this change', 'wp-ai-assistant'); ?>">
-                                        <?php esc_html_e('Reapply', 'wp-ai-assistant'); ?>
+                                    <button type="button" class="button button-small ai-reapply-file" data-path="<?php echo esc_attr($file['path']); ?>" title="<?php esc_attr_e('Reapply this change', 'ai-assistant'); ?>">
+                                        <?php esc_html_e('Reapply', 'ai-assistant'); ?>
                                     </button>
                                     <?php else: ?>
-                                    <button type="button" class="button button-small ai-revert-file" data-path="<?php echo esc_attr($file['path']); ?>" title="<?php esc_attr_e('Revert this change', 'wp-ai-assistant'); ?>">
-                                        <?php esc_html_e('Revert', 'wp-ai-assistant'); ?>
+                                    <button type="button" class="button button-small ai-revert-file" data-path="<?php echo esc_attr($file['path']); ?>" title="<?php esc_attr_e('Revert this change', 'ai-assistant'); ?>">
+                                        <?php esc_html_e('Revert', 'ai-assistant'); ?>
                                     </button>
                                     <?php endif; ?>
                                 </div>
@@ -305,13 +305,13 @@ class Changes_Admin {
             </div>
             <div id="ai-diff-preview" class="ai-diff-preview">
                 <div class="ai-diff-preview-header">
-                    <h2><?php esc_html_e('Diff Preview', 'wp-ai-assistant'); ?></h2>
+                    <h2><?php esc_html_e('Diff Preview', 'ai-assistant'); ?></h2>
                     <div class="ai-diff-preview-actions">
                         <button type="button" class="button button-primary" id="ai-download-diff">
-                            <?php esc_html_e('Download .patch', 'wp-ai-assistant'); ?>
+                            <?php esc_html_e('Download .patch', 'ai-assistant'); ?>
                         </button>
                         <button type="button" class="button" id="ai-close-preview">
-                            <?php esc_html_e('Close', 'wp-ai-assistant'); ?>
+                            <?php esc_html_e('Close', 'ai-assistant'); ?>
                         </button>
                     </div>
                 </div>
@@ -320,13 +320,13 @@ class Changes_Admin {
             <?php endif; ?>
 
             <div class="ai-import-section">
-                <h2><?php esc_html_e('Import Patch', 'wp-ai-assistant'); ?></h2>
+                <h2><?php esc_html_e('Import Patch', 'ai-assistant'); ?></h2>
                 <p class="description">
-                    <?php esc_html_e('Apply a patch file to modify files in your wp-content directory. Supports unified diff format (.patch, .diff, or .txt files).', 'wp-ai-assistant'); ?>
+                    <?php esc_html_e('Apply a patch file to modify files in your wp-content directory. Supports unified diff format (.patch, .diff, or .txt files).', 'ai-assistant'); ?>
                 </p>
                 <input type="file" id="ai-patch-file" accept=".patch,.diff,.txt" style="display:none;">
                 <button type="button" class="button" id="ai-import-patch">
-                    <?php esc_html_e('Choose Patch File...', 'wp-ai-assistant'); ?>
+                    <?php esc_html_e('Choose Patch File...', 'ai-assistant'); ?>
                 </button>
             </div>
         </div>
@@ -389,7 +389,7 @@ class Changes_Admin {
 
         wp_send_json_success([
             'deleted' => $deleted,
-            'message' => sprintf(__('%d change(s) cleared.', 'wp-ai-assistant'), $deleted),
+            'message' => sprintf(__('%d change(s) cleared.', 'ai-assistant'), $deleted),
         ]);
     }
 
@@ -426,7 +426,7 @@ class Changes_Admin {
 
             wp_send_json_success([
                 'modified' => $modified,
-                'message' => sprintf(__('%d file(s) modified.', 'wp-ai-assistant'), $modified),
+                'message' => sprintf(__('%d file(s) modified.', 'ai-assistant'), $modified),
             ]);
         } catch (\Exception $e) {
             wp_send_json_error(['message' => $e->getMessage()]);
@@ -453,7 +453,7 @@ class Changes_Admin {
         try {
             if ($this->git_tracker_manager->revert_file($file_path)) {
                 wp_send_json_success([
-                    'message' => __('File reverted successfully.', 'wp-ai-assistant'),
+                    'message' => __('File reverted successfully.', 'ai-assistant'),
                 ]);
             } else {
                 wp_send_json_error(['message' => 'Failed to revert file']);
@@ -483,7 +483,7 @@ class Changes_Admin {
         try {
             if ($this->git_tracker_manager->reapply_file($file_path)) {
                 wp_send_json_success([
-                    'message' => __('File changes reapplied successfully.', 'wp-ai-assistant'),
+                    'message' => __('File changes reapplied successfully.', 'ai-assistant'),
                 ]);
             } else {
                 wp_send_json_error(['message' => 'Failed to reapply changes']);
@@ -518,7 +518,7 @@ class Changes_Admin {
                 if ($this->git_tracker_manager->revert_file($file_path)) {
                     $reverted[] = $file_path;
                 } else {
-                    $errors[] = sprintf(__('Failed to revert: %s', 'wp-ai-assistant'), $file_path);
+                    $errors[] = sprintf(__('Failed to revert: %s', 'ai-assistant'), $file_path);
                 }
             } catch (\Exception $e) {
                 $errors[] = $e->getMessage();
@@ -528,7 +528,7 @@ class Changes_Admin {
         wp_send_json_success([
             'reverted' => $reverted,
             'errors' => $errors,
-            'message' => sprintf(__('%d file(s) reverted.', 'wp-ai-assistant'), count($reverted)),
+            'message' => sprintf(__('%d file(s) reverted.', 'ai-assistant'), count($reverted)),
         ]);
     }
 
@@ -669,7 +669,7 @@ class Changes_Admin {
         if ($result['success']) {
             wp_send_json_success([
                 'reverted' => $result['reverted'],
-                'message' => sprintf(__('%d file(s) reverted to commit state.', 'wp-ai-assistant'), count($result['reverted'])),
+                'message' => sprintf(__('%d file(s) reverted to commit state.', 'ai-assistant'), count($result['reverted'])),
             ]);
         } else {
             wp_send_json_error([
@@ -829,17 +829,17 @@ class Changes_Admin {
 
     public function handle_diff_download(): void {
         if (!current_user_can('manage_options')) {
-            wp_die(__('Permission denied.', 'wp-ai-assistant'));
+            wp_die(__('Permission denied.', 'ai-assistant'));
         }
 
         if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'ai_assistant_download_diff')) {
-            wp_die(__('Security check failed.', 'wp-ai-assistant'));
+            wp_die(__('Security check failed.', 'ai-assistant'));
         }
 
         $file_paths = isset($_GET['file_paths']) ? array_map('sanitize_text_field', explode(',', $_GET['file_paths'])) : [];
 
         if (empty($file_paths)) {
-            wp_die(__('No files selected.', 'wp-ai-assistant'));
+            wp_die(__('No files selected.', 'ai-assistant'));
         }
 
         $diff = $this->git_tracker_manager->generate_diff($file_paths);
