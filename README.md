@@ -24,7 +24,7 @@ An AI-powered chat interface for WordPress. Bring your own API key or connect to
 
 ## Installation
 
-1. Upload the plugin to `/wp-content/plugins/wp-ai-assistant`
+1. Upload the plugin to `/wp-content/plugins/ai-assistant`
 2. Activate through the Plugins menu
 3. Configure your API keys in Settings > AI Assistant
 

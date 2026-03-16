@@ -5,7 +5,7 @@ A WordPress plugin that provides an AI assistant interface, supporting multiple 
 ## Directory Structure
 
 ```
-wp-ai-assistant/
+ai-assistant/
 ├── assets/
 │   ├── css/
 │   │   └── chat.css              # All chat UI styles
