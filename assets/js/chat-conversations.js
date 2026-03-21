@@ -146,6 +146,7 @@
             this.conversationProvider = this.getProvider();
             this.conversationModel = this.getModel();
             this.pendingNewChat = false;
+            this.resetActiveExtendedTools();
             this.updateSendButton();
             this.updateTokenCount();
             this.clearToolCards();

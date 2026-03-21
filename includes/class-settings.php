@@ -261,7 +261,8 @@ class Settings {
     public function get_default_enabled_tools() {
         return [
             'read_file', 'list_directory', 'search_files', 'search_content', 'db_query',
-            'get_plugins', 'get_themes', 'list_abilities', 'get_ability', 'execute_ability', 'get_page_html',
+            'environment_info', 'get_plugins', 'get_themes',
+            'list_abilities', 'get_ability', 'execute_ability', 'get_page_html',
             'summarize_conversation', 'list_skills', 'get_skill', 'navigate',
         ];
     }
@@ -276,6 +277,7 @@ class Settings {
             'edit_file'             => ['label' => 'Edit File',             'group' => 'File Writing',    'dangerous' => true],
             'delete_file'           => ['label' => 'Delete File',           'group' => 'File Writing',    'dangerous' => true],
             'db_query'              => ['label' => 'DB Query',              'group' => 'Database',        'dangerous' => false],
+            'environment_info'      => ['label' => 'Environment Info',      'group' => 'WordPress',       'dangerous' => false],
             'get_plugins'           => ['label' => 'Get Plugins',           'group' => 'WordPress',       'dangerous' => false],
             'get_themes'            => ['label' => 'Get Themes',            'group' => 'WordPress',       'dangerous' => false],
             'install_plugin'        => ['label' => 'Install Plugin',        'group' => 'WordPress',       'dangerous' => true],

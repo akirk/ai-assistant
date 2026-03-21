@@ -697,6 +697,76 @@ class ExecutorTest extends TestCase {
         $this->assertEquals(1, $result['edits_applied']);
     }
 
+    // ===== CONSOLIDATED 'find' TOOL TESTS =====
+
+    public function test_find_list_directory(): void {
+        $result = $this->executor->execute_tool('find', [
+            'path' => 'plugins/test-plugin',
+        ]);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('items', $result);
+        $this->assertArrayHasKey('count', $result);
+        $this->assertGreaterThan(0, $result['count']);
+    }
+
+    public function test_find_search_files_by_glob(): void {
+        $result = $this->executor->execute_tool('find', [
+            'glob' => 'plugins/*/*.php',
+        ]);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('matches', $result);
+        $this->assertArrayHasKey('count', $result);
+        $this->assertGreaterThanOrEqual(2, $result['count']);
+    }
+
+    public function test_find_search_content(): void {
+        $result = $this->executor->execute_tool('find', [
+            'text' => 'Plugin Name',
+            'path' => 'plugins/test-plugin',
+        ]);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('matches', $result);
+        $this->assertArrayHasKey('count', $result);
+        $this->assertEquals(1, $result['count']);
+    }
+
+    public function test_find_defaults_to_list_directory(): void {
+        $result = $this->executor->execute_tool('find', []);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('items', $result);
+    }
+
+    public function test_find_read_only_permission(): void {
+        $result = $this->executor->execute_tool('find', [
+            'path' => 'plugins/test-plugin',
+        ], 'read_only');
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('items', $result);
+    }
+
+    // ===== CONSOLIDATED 'environment_info' TOOL TESTS =====
+
+    public function test_environment_info_returns_data(): void {
+        $result = $this->executor->execute_tool('environment_info', []);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('php_version', $result);
+        $this->assertArrayHasKey('active_plugins', $result);
+        $this->assertArrayHasKey('inactive_plugins', $result);
+    }
+
+    public function test_environment_info_read_only_permission(): void {
+        $result = $this->executor->execute_tool('environment_info', [], 'read_only');
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('php_version', $result);
+    }
+
     public function test_write_file_lint_error_includes_line_number(): void {
         try {
             $this->executor->execute_tool('write_file', [

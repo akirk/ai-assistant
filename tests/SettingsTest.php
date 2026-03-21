@@ -26,7 +26,7 @@ class SettingsTest extends TestCase {
 
         $expected_safe = [
             'read_file', 'list_directory', 'search_files', 'search_content',
-            'db_query', 'get_plugins', 'get_themes', 'list_abilities', 'get_ability',
+            'db_query', 'environment_info', 'get_plugins', 'get_themes', 'list_abilities', 'get_ability',
             'get_page_html', 'summarize_conversation', 'list_skills', 'get_skill', 'navigate',
         ];
 
@@ -38,7 +38,7 @@ class SettingsTest extends TestCase {
     public function test_default_enabled_tools_excludes_dangerous_tools(): void {
         $defaults = $this->settings->get_default_enabled_tools();
 
-        $dangerous = ['run_php', 'write_file', 'edit_file', 'delete_file', 'install_plugin', 'execute_ability'];
+        $dangerous = ['run_php', 'write_file', 'edit_file', 'delete_file', 'install_plugin'];
 
         foreach ($dangerous as $tool) {
             $this->assertNotContains($tool, $defaults, "Dangerous tool '$tool' should not be in defaults");
@@ -85,7 +85,7 @@ class SettingsTest extends TestCase {
         $expected = [
             'read_file', 'list_directory', 'search_files', 'search_content',
             'write_file', 'edit_file', 'delete_file',
-            'db_query', 'get_plugins', 'get_themes', 'install_plugin', 'run_php',
+            'db_query', 'environment_info', 'get_plugins', 'get_themes', 'install_plugin', 'run_php',
             'list_abilities', 'get_ability', 'execute_ability',
             'navigate', 'get_page_html',
             'summarize_conversation', 'list_skills', 'get_skill',

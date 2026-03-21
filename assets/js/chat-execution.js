@@ -4,7 +4,7 @@
     $.extend(window.aiAssistant, {
         processToolCalls: function(toolCalls, provider, stopReason) {
             var self = this;
-            var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin'];
+            var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'ability'];
             var alwaysConfirmTools = ['navigate'];
 
             var needsConfirmation = [];
@@ -112,6 +112,11 @@
         executeSingleTool: function(toolCall) {
             var self = this;
             var toolName = toolCall.name || toolCall.tool;
+
+            if (toolName === 'enable_tools') {
+                // executeEnableTools (from chat-tools.js) is synchronous; wrap in Promise
+                return Promise.resolve(this.executeEnableTools(toolCall));
+            }
 
             if (toolName === 'get_page_html') {
                 return this.executeGetPageHtml(toolCall);
@@ -423,7 +428,8 @@
 
             // Determine if needs confirmation
             var needsConfirm = alwaysConfirmTools.indexOf(toolName) >= 0 ||
-                (!this.yoloMode && destructiveTools.indexOf(toolName) >= 0);
+                (!this.yoloMode && destructiveTools.indexOf(toolName) >= 0 &&
+                 !(toolName === 'ability' && toolArgs && toolArgs.action !== 'execute'));
 
             if (needsConfirm) {
                 this.setToolCardState(toolId, 'pending');
@@ -624,6 +630,15 @@
                     return 'Edit: ' + (args.path || 'unknown') + ' (' + editCount + ' change' + (editCount !== 1 ? 's' : '') + ')';
                 case 'delete_file':
                     return 'Delete: ' + (args.path || 'unknown');
+                case 'find':
+                    if (args.text) {
+                        return 'Search for: "' + args.text.substring(0, 30) + (args.text.length > 30 ? '...' : '') + '"';
+                    }
+                    if (args.glob) {
+                        return 'Search files: ' + args.glob;
+                    }
+                    return 'List: ' + (args.path || 'wp-content');
+                // Legacy tool names (backward compat with saved conversations)
                 case 'list_directory':
                     return 'List: ' + (args.path || 'wp-content');
                 case 'search_files':
@@ -633,10 +648,6 @@
                 case 'db_query':
                     var sql = (args.sql || '').substring(0, 40);
                     return 'Query: ' + sql + (args.sql && args.sql.length > 40 ? '...' : '');
-                case 'get_plugins':
-                    return 'List plugins';
-                case 'get_themes':
-                    return 'List themes';
                 case 'install_plugin':
                     return 'Install plugin: ' + (args.slug || 'unknown') + (args.activate ? ' (+ activate)' : '');
                 case 'run_php':
@@ -645,6 +656,25 @@
                     return 'Navigate to: ' + (args.url || 'unknown');
                 case 'get_page_html':
                     return 'Get page HTML: ' + (args.selector || 'body');
+                case 'environment_info':
+                    return 'Get environment info';
+                case 'ability':
+                    if (args.action === 'list') {
+                        return 'List abilities' + (args.category ? ' (' + args.category + ')' : '');
+                    }
+                    if (args.action === 'get') {
+                        return 'Get ability: ' + (args.ability || 'unknown');
+                    }
+                    if (args.action === 'execute') {
+                        var abilityHint = '';
+                        if (args.arguments) {
+                            abilityHint = args.arguments.username || args.arguments.name ||
+                                          args.arguments.query || args.arguments.group_slug || '';
+                        }
+                        return 'Execute: ' + (args.ability || 'unknown') + (abilityHint ? ' (' + abilityHint + ')' : '');
+                    }
+                    return 'Ability: ' + (args.action || 'unknown');
+                // Legacy ability tool names
                 case 'list_abilities':
                     return 'List abilities' + (args.category ? ' (' + args.category + ')' : '');
                 case 'get_ability':
@@ -652,9 +682,16 @@
                 case 'execute_ability':
                     var abilityName = args.ability || 'unknown';
                     var abilityInput = args.arguments || {};
-                    var abilityHint = abilityInput.username || abilityInput.name ||
+                    var legacyHint = abilityInput.username || abilityInput.name ||
                                       abilityInput.query || abilityInput.group_slug || '';
-                    return 'Execute: ' + abilityName + (abilityHint ? ' (' + abilityHint + ')' : '');
+                    return 'Execute: ' + abilityName + (legacyHint ? ' (' + legacyHint + ')' : '');
+                case 'skill':
+                    if (args.action === 'list') {
+                        return 'List skills' + (args.category ? ' (' + args.category + ')' : '');
+                    }
+                    return 'Get skill: ' + (args.skill || 'unknown');
+                case 'enable_tools':
+                    return 'Enable tools: ' + (args.tools ? args.tools.join(', ') : 'unknown');
                 default:
                     return toolName;
             }
@@ -765,6 +802,12 @@
                     break;
                 case 'execute_ability':
                     if (args.arguments && Object.keys(args.arguments).length > 0) {
+                        content = JSON.stringify(args.arguments, null, 2);
+                        language = 'javascript';
+                    }
+                    break;
+                case 'ability':
+                    if (args.action === 'execute' && args.arguments && Object.keys(args.arguments).length > 0) {
                         content = JSON.stringify(args.arguments, null, 2);
                         language = 'javascript';
                     }

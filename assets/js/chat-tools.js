@@ -1,10 +1,20 @@
-(function($) {
+/* exported aiAssistantToolsMixin */
+var aiAssistantToolsMixin = (function() {
     'use strict';
 
-    $.extend(window.aiAssistant, {
-        getTools: function() {
-            var enabled = (window.aiAssistantConfig && window.aiAssistantConfig.enabledTools) || [];
-            var allTools = [
+    // Tools enabled via enable_tools during this conversation (local LLM tiering)
+    var activeExtendedTools = [];
+
+    return {
+
+        // Core tools - always available
+        coreToolNames: ['run_php', 'read_file', 'edit_file', 'write_file', 'find', 'environment_info'],
+
+        // Extended tools - loaded on demand for local LLMs, always available for cloud
+        extendedToolNames: ['delete_file', 'db_query', 'install_plugin', 'ability', 'navigate', 'get_page_html', 'summarize_conversation', 'skill'],
+
+        getAllToolDefinitions: function() {
+            return [
                 {
                     name: 'read_file',
                     description: 'Read the contents of a file within wp-content directory',
@@ -54,83 +64,16 @@
                     }
                 },
                 {
-                    name: 'delete_file',
-                    description: 'Delete a file within wp-content directory',
+                    name: 'find',
+                    description: 'Find files and content in wp-content. Provide path alone to list a directory, glob to search filenames, or text to search file contents.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            path: { type: 'string', description: 'Relative path from wp-content' },
-                            reason: { type: 'string', description: 'Brief explanation of why this file is being deleted (used for change tracking)' }
-                        },
-                        required: ['path', 'reason']
-                    }
-                },
-                {
-                    name: 'list_directory',
-                    description: 'List files and directories within a directory in wp-content',
-                    input_schema: {
-                        type: 'object',
-                        properties: {
-                            path: { type: 'string', description: 'Relative path from wp-content' }
-                        },
-                        required: ['path']
-                    }
-                },
-                {
-                    name: 'search_files',
-                    description: 'Search for files matching a glob pattern within wp-content',
-                    input_schema: {
-                        type: 'object',
-                        properties: {
-                            pattern: { type: 'string', description: 'Glob pattern (e.g., "plugins/*/*.php")' }
-                        },
-                        required: ['pattern']
-                    }
-                },
-                {
-                    name: 'search_content',
-                    description: 'Search for text content within files in wp-content',
-                    input_schema: {
-                        type: 'object',
-                        properties: {
-                            needle: { type: 'string', description: 'The text to search for' },
-                            directory: { type: 'string', description: 'Directory to search in (relative to wp-content)' },
-                            file_pattern: { type: 'string', description: 'File extension filter (e.g., "*.php")' }
-                        },
-                        required: ['needle']
-                    }
-                },
-                {
-                    name: 'db_query',
-                    description: 'Execute a SELECT query on the WordPress database',
-                    input_schema: {
-                        type: 'object',
-                        properties: {
-                            sql: { type: 'string', description: 'The SELECT SQL query. Use {prefix} for table prefix.' }
-                        },
-                        required: ['sql']
-                    }
-                },
-                {
-                    name: 'get_plugins',
-                    description: 'List all installed WordPress plugins with their status',
-                    input_schema: { type: 'object', properties: {} }
-                },
-                {
-                    name: 'get_themes',
-                    description: 'List all installed WordPress themes',
-                    input_schema: { type: 'object', properties: {} }
-                },
-                {
-                    name: 'install_plugin',
-                    description: 'Install a plugin from the WordPress.org plugin directory. The slug is typically the plugin URL path on wordpress.org (e.g., wordpress.org/plugins/contact-form-7 → slug is "contact-form-7").',
-                    input_schema: {
-                        type: 'object',
-                        properties: {
-                            slug: { type: 'string', description: 'The plugin slug from wordpress.org (e.g., "akismet", "contact-form-7", "woocommerce")' },
-                            activate: { type: 'boolean', description: 'Whether to activate the plugin after installation (default: false)' }
-                        },
-                        required: ['slug']
+                            path: { type: 'string', description: 'Directory to list or search in (relative to wp-content)' },
+                            glob: { type: 'string', description: 'Glob pattern to match filenames (e.g., "plugins/*/*.php")' },
+                            text: { type: 'string', description: 'Text to search for in file contents' },
+                            file_pattern: { type: 'string', description: 'File extension filter when searching text (e.g., "*.php")' }
+                        }
                     }
                 },
                 {
@@ -145,75 +88,244 @@
                     }
                 },
                 {
-                    name: 'list_abilities',
-                    description: 'List all available WordPress abilities from plugins, themes, and core. Returns ability names and brief descriptions. Use this first to discover what actions are available.',
+                    name: 'environment_info',
+                    description: 'Get WordPress environment info: active plugins, themes, WP/PHP versions, and site URLs.',
                     input_schema: {
                         type: 'object',
-                        properties: {
-                            category: { type: 'string', description: 'Optional category filter (e.g., "content", "media", "users")' }
-                        }
+                        properties: {}
                     }
                 },
                 {
-                    name: 'get_ability',
-                    description: 'Get full details of a specific WordPress ability including its parameters, permissions, and usage. Call this before execute_ability to understand required arguments.',
+                    name: 'delete_file',
+                    description: 'Delete a file within wp-content directory',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            ability: { type: 'string', description: 'The ability identifier (e.g., "core/create-post")' }
+                            path: { type: 'string', description: 'Relative path from wp-content' },
+                            reason: { type: 'string', description: 'Brief explanation of why this file is being deleted (used for change tracking)' }
                         },
-                        required: ['ability']
+                        required: ['path', 'reason']
                     }
                 },
                 {
-                    name: 'execute_ability',
-                    description: 'Execute a WordPress ability with the given arguments. Use get_ability first to understand required parameters.',
+                    name: 'db_query',
+                    description: 'Execute a SELECT query on the WordPress database',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            ability: { type: 'string', description: 'The ability identifier to execute' },
-                            arguments: { type: 'object', description: 'Arguments to pass to the ability' }
+                            sql: { type: 'string', description: 'The SELECT SQL query. Use {prefix} for table prefix.' }
                         },
-                        required: ['ability']
+                        required: ['sql']
+                    }
+                },
+                {
+                    name: 'install_plugin',
+                    description: 'Install a plugin from the WordPress.org plugin directory. The slug is typically the plugin URL path on wordpress.org (e.g., wordpress.org/plugins/contact-form-7 → slug is "contact-form-7").',
+                    input_schema: {
+                        type: 'object',
+                        properties: {
+                            slug: { type: 'string', description: 'The plugin slug from wordpress.org (e.g., "akismet", "contact-form-7", "woocommerce")' },
+                            activate: { type: 'boolean', description: 'Whether to activate the plugin after installation (default: false)' }
+                        },
+                        required: ['slug']
+                    }
+                },
+                {
+                    name: 'ability',
+                    description: 'WordPress abilities API. List available abilities, get details of one, or execute one.',
+                    input_schema: {
+                        type: 'object',
+                        properties: {
+                            action: { type: 'string', enum: ['list', 'get', 'execute'], description: 'Action to perform' },
+                            ability: { type: 'string', description: 'Ability identifier (for get/execute, e.g., "core/create-post")' },
+                            category: { type: 'string', description: 'Category filter (for list, e.g., "content", "media", "users")' },
+                            arguments: { type: 'object', description: 'Arguments to pass when executing' }
+                        },
+                        required: ['action']
                     }
                 },
                 {
                     name: 'navigate',
-                    description: 'Navigate the user to a URL within the WordPress site. Use this to take the user to specific admin pages, posts, or frontend pages. The URL must be within the current WordPress site. Note: This will reload the page, so it should typically be the last action in a conversation turn.',
+                    description: 'Navigate the user to a URL within the WordPress site. This will reload the page, so it should typically be the last action in a conversation turn.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            url: { type: 'string', description: 'The URL to navigate to. Can be a full URL (must start with the site\'s home URL) or a relative path (e.g., "/wp-admin/edit.php" or "/sample-page/").' }
+                            url: { type: 'string', description: 'The URL to navigate to. Can be a full URL or a relative path (e.g., "/wp-admin/edit.php").' }
                         },
                         required: ['url']
                     }
                 },
                 {
                     name: 'get_page_html',
-                    description: 'Get the HTML content of elements on the current page the user is viewing. Use this to understand what the user is seeing, inspect page structure, or help debug frontend issues. Returns the outer HTML of matched elements.',
+                    description: 'Get the HTML content of elements on the current page the user is viewing.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            selector: { type: 'string', description: 'CSS selector to query (e.g., "#main-content", ".entry-title", "article", "body"). Use "body" to get the full page content.' },
-                            max_length: { type: 'number', description: 'Maximum characters to return per element (default: 5000). Use a smaller value for large pages.' }
+                            selector: { type: 'string', description: 'CSS selector to query (e.g., "#main-content", ".entry-title", "body").' },
+                            max_length: { type: 'number', description: 'Maximum characters to return per element (default: 5000).' }
                         },
                         required: ['selector']
                     }
                 },
                 {
                     name: 'summarize_conversation',
-                    description: 'Generate a compact summary of a conversation and store it for future reference. Use this when a conversation is getting long or when the user wants to preserve context before starting a new chat. The summary captures key topics, decisions, files modified, and important context.',
+                    description: 'Generate a compact summary of a conversation and store it for future reference.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            conversation_id: { type: 'number', description: 'The conversation ID to summarize. Use 0 or omit to summarize the current conversation.' }
+                            conversation_id: { type: 'number', description: 'The conversation ID to summarize. Use 0 or omit for the current conversation.' }
                         }
+                    }
+                },
+                {
+                    name: 'skill',
+                    description: 'Load AI skill documents with specialized knowledge. List available skills or get a specific one.',
+                    input_schema: {
+                        type: 'object',
+                        properties: {
+                            action: { type: 'string', enum: ['list', 'get'], description: 'Action to perform' },
+                            skill: { type: 'string', description: 'Skill identifier (for get)' },
+                            category: { type: 'string', description: 'Category filter (for list)' }
+                        },
+                        required: ['action']
                     }
                 }
             ];
-            return allTools.filter(function(tool) {
-                return enabled.indexOf(tool.name) !== -1;
+        },
+
+        getEnableToolsDef: function() {
+            return {
+                name: 'enable_tools',
+                description: 'Enable additional tools for this conversation. Available: ' + this.extendedToolNames.join(', '),
+                input_schema: {
+                    type: 'object',
+                    properties: {
+                        tools: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: 'Tool names to enable'
+                        }
+                    },
+                    required: ['tools']
+                }
+            };
+        },
+
+        getActiveExtendedTools: function() {
+            return activeExtendedTools;
+        },
+
+        setActiveExtendedTools: function(tools) {
+            activeExtendedTools = tools;
+        },
+
+        resetActiveExtendedTools: function() {
+            activeExtendedTools = [];
+        },
+
+        getEnabledToolNames: function() {
+            return (typeof window !== 'undefined' && window.aiAssistantConfig && window.aiAssistantConfig.enabledTools) ||
+                   this._enabledTools ||
+                   [];
+        },
+
+        getTools: function() {
+            var enabled = this.getEnabledToolNames();
+            var allTools = this.getAllToolDefinitions();
+            var self = this;
+
+            // Filter to enabled tools
+            var available = allTools.filter(function(tool) {
+                return self.isToolEnabled(tool.name, enabled);
             });
+
+            var provider = this.conversationProvider || this.getProvider();
+
+            // For local LLMs: only core tools + enable_tools + any dynamically enabled extended tools
+            if (provider === 'local') {
+                var coreNames = self.coreToolNames;
+                var active = activeExtendedTools;
+                var filtered = available.filter(function(tool) {
+                    return coreNames.indexOf(tool.name) >= 0 || active.indexOf(tool.name) >= 0;
+                });
+                // Add enable_tools if there are still-disabled extended tools available
+                var hasMoreExtended = self.extendedToolNames.some(function(name) {
+                    return active.indexOf(name) < 0 && self.isToolEnabled(name, enabled);
+                });
+                if (hasMoreExtended) {
+                    filtered.push(self.getEnableToolsDef());
+                }
+                return filtered;
+            }
+
+            return available;
+        },
+
+        // Check if a consolidated tool name is enabled based on the user's permission settings.
+        // Consolidated tools (find, ability, skill) are enabled if ANY of their component tools are enabled.
+        isToolEnabled: function(toolName, enabled) {
+            switch (toolName) {
+                case 'find':
+                    return enabled.indexOf('list_directory') >= 0 ||
+                           enabled.indexOf('search_files') >= 0 ||
+                           enabled.indexOf('search_content') >= 0;
+                case 'ability':
+                    return enabled.indexOf('list_abilities') >= 0 ||
+                           enabled.indexOf('get_ability') >= 0 ||
+                           enabled.indexOf('execute_ability') >= 0;
+                case 'skill':
+                    return enabled.indexOf('list_skills') >= 0 ||
+                           enabled.indexOf('get_skill') >= 0;
+                case 'environment_info':
+                    return enabled.indexOf('environment_info') >= 0 ||
+                           enabled.indexOf('get_plugins') >= 0 ||
+                           enabled.indexOf('get_themes') >= 0;
+                default:
+                    return enabled.indexOf(toolName) >= 0;
+            }
+        },
+
+        executeEnableTools: function(toolCall) {
+            var self = this;
+            var args = toolCall.arguments || {};
+            var requested = args.tools || [];
+
+            var enabled = this.getEnabledToolNames();
+            var allTools = self.getAllToolDefinitions();
+            var current = self.getActiveExtendedTools().slice();
+            var added = [];
+            var definitions = [];
+
+            requested.forEach(function(name) {
+                if (self.extendedToolNames.indexOf(name) < 0) {
+                    return; // not a valid extended tool
+                }
+                if (!self.isToolEnabled(name, enabled)) {
+                    return; // not permitted for this user
+                }
+                if (current.indexOf(name) < 0) {
+                    current.push(name);
+                    added.push(name);
+                }
+                // Always return the definition (even if already enabled)
+                var def = allTools.find(function(t) { return t.name === name; });
+                if (def) {
+                    definitions.push(def);
+                }
+            });
+
+            self.setActiveExtendedTools(current);
+
+            return {
+                id: toolCall.id,
+                name: 'enable_tools',
+                input: args,
+                result: {
+                    enabled: added,
+                    tools: definitions
+                },
+                success: true
+            };
         },
 
         getToolsOpenAI: function() {
@@ -228,6 +340,15 @@
                 };
             });
         }
-    });
+    };
+})();
 
-})(jQuery);
+// Browser: merge into shared namespace
+if (typeof window !== 'undefined' && typeof jQuery !== 'undefined') {
+    jQuery.extend(window.aiAssistant, aiAssistantToolsMixin);
+}
+
+// Node: export for testing
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = aiAssistantToolsMixin;
+}
