@@ -31,7 +31,25 @@ class Executor {
      */
     public function execute_tool(string $tool_name, array $arguments, string $permission = 'full', ?int $conversation_id = null) {
         // Validate permission
-        $read_only_tools = ['read_file', 'list_directory', 'search_files', 'search_content', 'db_query', 'get_plugins', 'get_themes', 'list_abilities', 'get_ability', 'list_skills', 'get_skill'];
+        $read_only_tools = [
+            'read_file', 'list_directory', 'search_files', 'search_content',
+            'db_query', 'get_plugins', 'get_themes',
+            'list_abilities', 'get_ability', 'list_skills', 'get_skill',
+            'find', 'environment_info',
+        ];
+
+        // Consolidated 'ability' tool: read-only for list/get, full for execute
+        if ($tool_name === 'ability') {
+            $action = $arguments['action'] ?? '';
+            if ($action !== 'execute') {
+                $read_only_tools[] = 'ability';
+            }
+        }
+
+        // Consolidated 'skill' tool is always read-only
+        if ($tool_name === 'skill') {
+            $read_only_tools[] = 'skill';
+        }
 
         if ($permission === 'read_only' && !in_array($tool_name, $read_only_tools)) {
             throw new \Exception("Tool '$tool_name' requires full access permission");
@@ -41,7 +59,8 @@ class Executor {
             throw new \Exception("Tool execution not allowed with chat-only permission");
         }
 
-        if (!current_user_can('ai_assistant_tool_' . $tool_name)) {
+        // For consolidated tools, check component permissions
+        if (!$this->check_tool_permission($tool_name, $arguments)) {
             throw new \Exception(
                 "Tool '$tool_name' is not enabled. Enable it in AI Assistant → Settings → Tool Permissions."
             );
@@ -66,6 +85,12 @@ class Executor {
                 $path = $this->get_string_arg($arguments, 'path', $tool_name);
                 $reason = $this->get_string_arg($arguments, 'reason', $tool_name, '');
                 return $this->delete_file($path, $reason, $conversation_id);
+
+            // Consolidated find tool (replaces list_directory, search_files, search_content)
+            case 'find':
+                return $this->execute_find($arguments);
+
+            // Legacy tool names (backward compat with saved conversations)
             case 'list_directory':
                 return $this->list_directory($this->get_string_arg($arguments, 'path', $tool_name));
             case 'search_files':
@@ -95,7 +120,15 @@ class Executor {
             case 'navigate':
                 return $this->navigate($this->get_string_arg($arguments, 'url', $tool_name));
 
-            // Abilities API operations
+            // Environment info
+            case 'environment_info':
+                return $this->get_environment_info();
+
+            // Consolidated ability tool (replaces list_abilities, get_ability, execute_ability)
+            case 'ability':
+                return $this->execute_ability_consolidated($arguments);
+
+            // Legacy ability tool names
             case 'list_abilities':
                 return $this->list_abilities($this->get_string_arg($arguments, 'category', $tool_name, ''));
             case 'get_ability':
@@ -105,7 +138,11 @@ class Executor {
                 $ability_args = $arguments['arguments'] ?? [];
                 return $this->execute_ability($ability, $ability_args);
 
-            // Skills operations
+            // Consolidated skill tool (replaces list_skills, get_skill)
+            case 'skill':
+                return $this->execute_skill_consolidated($arguments);
+
+            // Legacy skill tool names
             case 'list_skills':
                 return $this->list_skills($this->get_string_arg($arguments, 'category', $tool_name, ''));
             case 'get_skill':
@@ -114,6 +151,157 @@ class Executor {
             default:
                 throw new \Exception("Unknown tool: $tool_name");
         }
+    }
+
+    /**
+     * Check tool permission, handling consolidated tool name mapping.
+     */
+    private function check_tool_permission(string $tool_name, array $arguments): bool {
+        // Consolidated tools map to component permissions
+        switch ($tool_name) {
+            case 'find':
+                $text = $arguments['text'] ?? '';
+                $glob = $arguments['glob'] ?? '';
+                if ($text) {
+                    return current_user_can('ai_assistant_tool_search_content');
+                }
+                if ($glob) {
+                    return current_user_can('ai_assistant_tool_search_files');
+                }
+                return current_user_can('ai_assistant_tool_list_directory');
+
+            case 'ability':
+                $action = $arguments['action'] ?? 'list';
+                $map = ['list' => 'list_abilities', 'get' => 'get_ability', 'execute' => 'execute_ability'];
+                $cap = $map[$action] ?? 'list_abilities';
+                return current_user_can('ai_assistant_tool_' . $cap);
+
+            case 'skill':
+                $action = $arguments['action'] ?? 'list';
+                $cap = $action === 'get' ? 'get_skill' : 'list_skills';
+                return current_user_can('ai_assistant_tool_' . $cap);
+
+            case 'environment_info':
+                // Read-only, allow if user can use any tool
+                return current_user_can('ai_assistant_tool_read_file') ||
+                       current_user_can('ai_assistant_tool_run_php');
+
+            default:
+                return current_user_can('ai_assistant_tool_' . $tool_name);
+        }
+    }
+
+    /**
+     * Execute the consolidated 'find' tool.
+     */
+    private function execute_find(array $arguments) {
+        $text = $arguments['text'] ?? '';
+        $glob = $arguments['glob'] ?? '';
+        $path = $arguments['path'] ?? '';
+
+        if ($text) {
+            return $this->search_content(
+                $text,
+                $path,
+                $arguments['file_pattern'] ?? '*.php'
+            );
+        }
+
+        if ($glob) {
+            return $this->search_files($glob);
+        }
+
+        return $this->list_directory($path ?: '.');
+    }
+
+    /**
+     * Execute the consolidated 'ability' tool.
+     */
+    private function execute_ability_consolidated(array $arguments) {
+        $action = $arguments['action'] ?? 'list';
+
+        switch ($action) {
+            case 'list':
+                return $this->list_abilities($arguments['category'] ?? '');
+            case 'get':
+                if (empty($arguments['ability'])) {
+                    throw new \Exception("ability tool with action 'get' requires 'ability' argument");
+                }
+                return $this->get_ability($arguments['ability']);
+            case 'execute':
+                if (empty($arguments['ability'])) {
+                    throw new \Exception("ability tool with action 'execute' requires 'ability' argument");
+                }
+                return $this->execute_ability($arguments['ability'], $arguments['arguments'] ?? []);
+            default:
+                throw new \Exception("Unknown ability action: $action");
+        }
+    }
+
+    /**
+     * Execute the consolidated 'skill' tool.
+     */
+    private function execute_skill_consolidated(array $arguments) {
+        $action = $arguments['action'] ?? 'list';
+
+        switch ($action) {
+            case 'list':
+                return $this->list_skills($arguments['category'] ?? '');
+            case 'get':
+                if (empty($arguments['skill'])) {
+                    throw new \Exception("skill tool with action 'get' requires 'skill' argument");
+                }
+                return $this->get_skill($arguments['skill']);
+            default:
+                throw new \Exception("Unknown skill action: $action");
+        }
+    }
+
+    /**
+     * Get environment info (plugins, themes, WordPress version, etc.)
+     */
+    private function get_environment_info(): array {
+        $info = [
+            'wordpress_version' => get_bloginfo('version'),
+            'php_version' => PHP_VERSION,
+            'site_url' => site_url(),
+            'home_url' => home_url(),
+            'is_multisite' => is_multisite(),
+            'active_theme' => [],
+            'active_plugins' => [],
+            'inactive_plugins' => [],
+        ];
+
+        // Active theme
+        $theme = wp_get_theme();
+        $info['active_theme'] = [
+            'name' => $theme->get('Name'),
+            'version' => $theme->get('Version'),
+            'template' => $theme->get_template(),
+            'is_child_theme' => $theme->parent() ? true : false,
+        ];
+
+        // Plugins
+        if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        $all_plugins = get_plugins();
+        $active_plugins = get_option('active_plugins', []);
+
+        foreach ($all_plugins as $file => $data) {
+            $entry = [
+                'file' => $file,
+                'name' => $data['Name'],
+                'version' => $data['Version'],
+            ];
+            if (in_array($file, $active_plugins)) {
+                $info['active_plugins'][] = $entry;
+            } else {
+                $info['inactive_plugins'][] = $entry;
+            }
+        }
+
+        return $info;
     }
 
     private function get_string_arg(array $args, string $name, string $tool, ?string $default = null): string {
@@ -611,10 +799,19 @@ class Executor {
     private function db_query(string $sql): array {
         global $wpdb;
 
-        // Security: Only allow SELECT queries
+        // Security: Only allow read-only queries
         $sql = trim($sql);
-        if (stripos($sql, 'SELECT') !== 0) {
-            throw new \Exception("Only SELECT queries are allowed with db_query. Use db_insert, db_update, or db_delete for modifications.");
+        $first_word = strtoupper(strtok($sql, " \t\n\r"));
+        if (!in_array($first_word, ['SELECT', 'DESCRIBE', 'DESC', 'SHOW'], true)) {
+            throw new \Exception("Only SELECT, DESCRIBE, and SHOW queries are allowed with db_query. Use run_php for modifications.");
+        }
+
+        // Restrict SHOW to table-related forms only (block SHOW VARIABLES, SHOW STATUS, etc.)
+        if ($first_word === 'SHOW') {
+            $second_word = strtoupper(strtok(" \t\n\r"));
+            if (!in_array($second_word, ['TABLES', 'COLUMNS', 'INDEX', 'INDEXES', 'KEYS', 'CREATE', 'FULL'], true)) {
+                throw new \Exception("SHOW is restricted to table-related queries (SHOW TABLES, SHOW COLUMNS, SHOW INDEX, SHOW CREATE TABLE).");
+            }
         }
 
         // Replace {prefix} placeholder
@@ -841,10 +1038,18 @@ class Executor {
         $abilities = wp_get_abilities();
 
         if (!empty($category)) {
-            $abilities = array_filter($abilities, function($ability) use ($category) {
+            $exact = array_filter($abilities, function($ability) use ($category) {
                 $cat = is_object($ability) ? ($ability->category ?? '') : ($ability['category'] ?? '');
                 return $cat === $category;
             });
+            if (!empty($exact)) {
+                $abilities = $exact;
+            } else {
+                $abilities = array_filter($abilities, function($ability) use ($category) {
+                    $cat = is_object($ability) ? ($ability->category ?? '') : ($ability['category'] ?? '');
+                    return stripos($cat, $category) !== false || stripos($category, $cat) !== false;
+                });
+            }
         }
 
         $result = [];

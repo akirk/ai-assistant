@@ -534,17 +534,20 @@
 .ai-tool-card-actions {
     margin-top: 8px;
     padding-left: 22px;
-    display: flex;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap;
     gap: 6px;
 }
 
 .ai-tool-card-actions:empty {
-    display: none;
+    display: none !important;
 }
 
-/* Button styles for frontend (where WP admin CSS isn't loaded) */
-.ai-tool-card-actions button {
-    display: inline-block;
+.ai-tool-card-actions button,
+#ai-assistant-pending-actions-header button {
+    display: inline-block !important;
+    width: auto !important;
     padding: 4px 12px;
     font-size: 12px;
     line-height: 1.5;
@@ -555,27 +558,55 @@
     transition: background 0.1s, border-color 0.1s;
 }
 
-.ai-tool-card-actions .ai-approve-btn {
+.ai-approve-btn {
     background: #2271b1;
     border: 1px solid #2271b1;
-    color: #fff;
+    color: #fff !important;
 }
 
-.ai-tool-card-actions .ai-approve-btn:hover {
+.ai-approve-btn:hover {
     background: #135e96;
     border-color: #135e96;
 }
 
-.ai-tool-card-actions .ai-skip-btn {
+.ai-skip-btn {
     background: #f6f7f7;
     border: 1px solid #c3c4c7;
-    color: #50575e;
+    color: #50575e !important;
 }
 
-.ai-tool-card-actions .ai-skip-btn:hover {
+.ai-skip-btn:hover {
     background: #f0f0f1;
     border-color: #8c8f94;
+    color: #1d2327 !important;
+}
+
+.ai-tool-params {
+    margin-top: 6px;
+    padding-left: 22px;
+    font-size: 11px;
+}
+
+.ai-tool-params summary {
+    cursor: pointer;
+    color: #787c82;
+    user-select: none;
+}
+
+.ai-tool-params summary:hover {
     color: #1d2327;
+}
+
+.ai-tool-params pre {
+    margin: 4px 0 0;
+    padding: 6px 8px;
+    background: #f0f0f1;
+    border-radius: 3px;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 120px;
+    overflow-y: auto;
 }
 
 /* State: Generating */

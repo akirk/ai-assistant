@@ -236,13 +236,13 @@ class Tools {
     private function tool_db_query(): array {
         return [
             'name' => 'db_query',
-            'description' => 'Execute a SELECT query on the WordPress database. Only SELECT queries are allowed.',
+            'description' => 'Execute a read-only query on the WordPress database. SELECT, DESCRIBE, and SHOW queries are allowed.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
                     'sql' => [
                         'type' => 'string',
-                        'description' => 'The SELECT SQL query to execute. Use {prefix} as placeholder for table prefix.',
+                        'description' => 'The SQL query to execute (SELECT, DESCRIBE, or SHOW). Use {prefix} as placeholder for table prefix.',
                     ],
                 ],
                 'required' => ['sql'],

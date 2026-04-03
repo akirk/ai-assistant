@@ -575,6 +575,9 @@
             }
 
             if ($card.length) {
+                if (this.toolCardsState[toolId]) {
+                    this.toolCardsState[toolId].arguments = args;
+                }
                 var description = this.getActionDescription(toolName, args);
                 $card.find('.ai-tool-card-desc').text(description);
 
@@ -627,15 +630,26 @@
                 case 'pending':
                     $status.text('Waiting for approval');
                     $spinner.hide();
+                    var $params = $card.find('.ai-tool-params');
+                    if (!$params.length && this.toolCardsState[toolId] && this.toolCardsState[toolId].arguments) {
+                        var pendingArgs = this.toolCardsState[toolId].arguments;
+                        var pendingArgsJson = JSON.stringify(pendingArgs, null, 2);
+                        if (pendingArgsJson !== 'null') {
+                            $params = $('<details class="ai-tool-params"><summary>Parameters</summary><pre></pre></details>');
+                            $params.find('pre').text(pendingArgsJson);
+                            $card.find('.ai-tool-card-actions').before($params);
+                        }
+                    }
                     $actions.html(
-                        '<button class="button button-primary button-small ai-tool-approve ai-approve-btn" data-tool-id="' + toolId + '">Approve</button>' +
-                        '<button class="button button-small ai-tool-skip ai-skip-btn" data-tool-id="' + toolId + '">Skip</button>'
+                        '<button class="ai-tool-approve ai-approve-btn" data-tool-id="' + toolId + '">Approve</button>' +
+                        '<button class="ai-tool-skip ai-skip-btn" data-tool-id="' + toolId + '">Skip</button>'
                     );
                     break;
                 case 'executing':
                     $status.text('Executing...');
                     $spinner.show();
                     $actions.empty();
+                    $card.find('.ai-tool-params').remove();
                     break;
                 case 'completed':
                     $status.text(options.message || 'Completed');
@@ -689,31 +703,17 @@
                             $output.show();
                         }
                     }
-                    // Move completed card out of the tool-cards container so it persists
-                    var $container = $('#ai-assistant-tool-cards');
-                    if ($card.parent().is($container)) {
-                        $card.insertBefore($container);
-                    }
                     break;
                 case 'error':
                     $status.text(options.message || 'Error');
                     $spinner.hide();
                     $actions.empty();
-                    // Move error card out of the tool-cards container so it persists
-                    var $errorContainer = $('#ai-assistant-tool-cards');
-                    if ($card.parent().is($errorContainer)) {
-                        $card.insertBefore($errorContainer);
-                    }
                     break;
                 case 'skipped':
-                    $status.text('Skipped');
+                    $status.text('Skipped by user');
                     $spinner.hide();
                     $actions.empty();
-                    // Move skipped card out of the tool-cards container so it persists
-                    var $skipContainer = $('#ai-assistant-tool-cards');
-                    if ($card.parent().is($skipContainer)) {
-                        $card.insertBefore($skipContainer);
-                    }
+                    $card.find('.ai-tool-params').remove();
                     break;
             }
 
@@ -726,7 +726,10 @@
 
         clearToolCards: function() {
             this.toolCardsState = {};
-            $('#ai-assistant-tool-cards').remove();
+            var $container = $('#ai-assistant-tool-cards');
+            // Preserve completed/error/skipped cards in their original order
+            $container.find('.ai-tool-card-completed, .ai-tool-card-error, .ai-tool-card-skipped').insertBefore($container);
+            $container.remove();
         },
 
         hideToolProgress: function() {

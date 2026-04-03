@@ -87,6 +87,32 @@ if (!is_dir(WP_CONTENT_DIR . '/themes')) {
     mkdir(WP_CONTENT_DIR . '/themes', 0755, true);
 }
 
+// WordPress function stubs needed for environment_info tool
+if (!function_exists('get_bloginfo'))   { function get_bloginfo($show = '') { return '6.7'; } }
+if (!function_exists('site_url'))       { function site_url() { return 'http://localhost'; } }
+if (!function_exists('home_url'))       { function home_url() { return 'http://localhost'; } }
+if (!function_exists('is_multisite'))   { function is_multisite() { return false; } }
+if (!function_exists('wp_get_theme'))   {
+    function wp_get_theme() {
+        return new class {
+            public function get($key) {
+                $map = ['Name' => 'Twenty Twenty-Five', 'Version' => '1.0'];
+                return $map[$key] ?? '';
+            }
+            public function get_template() { return 'twentytwentyfive'; }
+            public function parent() { return false; }
+        };
+    }
+}
+if (!function_exists('get_plugins'))    {
+    function get_plugins() {
+        return [
+            'hello.php' => ['Name' => 'Hello Dolly', 'Version' => '1.7.2'],
+            'ai-assistant/ai-assistant.php' => ['Name' => 'AI Assistant', 'Version' => '1.0'],
+        ];
+    }
+}
+
 // WordPress hook/admin stubs needed to load Settings class
 if (!function_exists('add_action'))          { function add_action()          {} }
 if (!function_exists('add_filter'))          { function add_filter()          {} }

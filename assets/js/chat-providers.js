@@ -32,6 +32,7 @@
             this.streamComplete = false;
             this.executingToolCount = 0;
             this.processedToolIds = {};
+            this.toolCallRounds = 0;
             this.addToDraftHistory(message);
             this.addMessage('user', message);
             this.messages.push({ role: 'user', content: message });
@@ -286,7 +287,7 @@
             try {
                 var requestMessages = [
                     { role: 'system', content: this.systemPrompt },
-                    ...this.messages
+                    ...this.sanitizeMessages(this.messages)
                 ];
 
                 var response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -415,6 +416,73 @@
             }
         },
 
+        // Sanitize messages before sending to the API:
+        // - Drop empty assistant messages (no content, no tool_calls)
+        // - Normalize empty tool_call arguments to {} (copies objects, never mutates source)
+        // - Remove tool result messages whose tool_call_id has no matching tool_call
+        // - Collapse consecutive user messages into one
+        sanitizeMessages: function(messages) {
+            var validToolCallIds = {};
+            messages.forEach(function(m) {
+                if (m.role === 'assistant' && m.tool_calls) {
+                    m.tool_calls.forEach(function(tc) { validToolCallIds[tc.id] = true; });
+                }
+            });
+
+            var result = [];
+            messages.forEach(function(m) {
+                if (m.role === 'assistant' && !m.content && !m.tool_calls) return;
+                if (m.role === 'tool' && !validToolCallIds[m.tool_call_id]) return;
+
+                if (m.role === 'assistant' && m.tool_calls) {
+                    var needsCopy = m.tool_calls.some(function(tc) {
+                        var args = tc.function ? tc.function.arguments : tc.arguments;
+                        return args === '' || args === null || args === undefined;
+                    });
+                    if (needsCopy) {
+                        m = Object.assign({}, m, {
+                            tool_calls: m.tool_calls.map(function(tc) {
+                                var args = tc.function ? tc.function.arguments : tc.arguments;
+                                if (args !== '' && args !== null && args !== undefined) return tc;
+                                if (tc.function) {
+                                    return Object.assign({}, tc, { function: Object.assign({}, tc.function, { arguments: '{}' }) });
+                                }
+                                return Object.assign({}, tc, { arguments: {} });
+                            })
+                        });
+                    }
+                }
+
+                if (m.role === 'user' && result.length > 0 && result[result.length - 1].role === 'user') {
+                    var prev = result[result.length - 1];
+                    var prevText = typeof prev.content === 'string' ? prev.content : '';
+                    var newText = typeof m.content === 'string' ? m.content : '';
+                    if (newText) prev.content = prevText ? prevText + '\n' + newText : newText;
+                    return;
+                }
+
+                result.push(m);
+            });
+            return result;
+        },
+
+        // Drop messages from the front in safe units, keeping at least the last 6 messages.
+        // A "unit" is either a standalone message or an assistant+tool_calls group with all its tool results.
+        trimMessagesForContext: function(messages) {
+            var keep = Math.max(6, Math.floor(messages.length / 2));
+            if (messages.length <= keep) return messages;
+
+            // Find a safe cut point: start after a complete tool round-trip
+            var cutAt = messages.length - keep;
+            // Walk forward from cutAt until we land on a user or standalone assistant message
+            while (cutAt < messages.length - 4) {
+                var m = messages[cutAt];
+                if (m.role === 'user' || (m.role === 'assistant' && !m.tool_calls)) break;
+                cutAt++;
+            }
+            return messages.slice(cutAt);
+        },
+
         callLocalLLM: async function() {
             var self = this;
             var endpoint = this.getLocalEndpoint().replace(/\/$/, '');
@@ -422,7 +490,7 @@
             try {
                 var requestMessages = [
                     { role: 'system', content: this.systemPrompt },
-                    ...this.messages
+                    ...this.sanitizeMessages(this.messages)
                 ];
 
                 var model = this.conversationModel || this.getModel();
@@ -444,7 +512,7 @@
                     signal: abortSignal
                 });
 
-                if (!response.ok) {
+                if (!response.ok && (response.status === 404 || response.status === 405)) {
                     useOllamaApi = true;
                     response = await fetch(endpoint + '/api/chat', {
                         method: 'POST',
@@ -462,7 +530,27 @@
                 }
 
                 if (!response.ok) {
-                    throw new Error('Local LLM request failed. Make sure Ollama or LM Studio is running.');
+                    var errBody = '';
+                    try { var errJson = await response.clone().json(); errBody = errJson.error?.message || JSON.stringify(errJson); } catch(e) {}
+
+                    // On 500 with no useful error message, assume context overflow and retry with trimmed messages
+                    if (response.status === 500 && !errBody) {
+                        var trimmed = self.trimMessagesForContext(requestMessages.slice(1)); // exclude system prompt
+                        if (trimmed.length < requestMessages.length - 1) {
+                            requestMessages = [requestMessages[0], ...trimmed];
+                            self.addMessage('system', 'Context trimmed: dropped ' + (self.messages.filter(function(m){ return !m.content && !m.tool_calls; }).length === 0 ? 'older' : 'empty') + ' messages to fit context window.');
+                            response = await fetch(endpoint + (useOllamaApi ? '/api/chat' : '/v1/chat/completions'), {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ model: model, stream: true, messages: requestMessages, tools: this.getToolsOpenAI() }),
+                                signal: abortSignal
+                            });
+                        }
+                    }
+
+                    if (!response.ok) {
+                        throw new Error('Local LLM error ' + response.status + (errBody ? ': ' + errBody : '. Make sure Ollama or LM Studio is running.'));
+                    }
                 }
 
                 var $reply = this.startReply();
@@ -471,6 +559,8 @@
                 var thinkingStartTime = null;
                 var textContent = '';
                 var toolCallsMap = {};
+                var streamTruncated = false;
+                var enableToolsIdx = null;
 
                 if (useOllamaApi) {
                     for await (var chunk of this.readOllamaStream(response)) {
@@ -531,7 +621,10 @@
                                 }
                                 if (tc.id) toolCallsMap[idx].id = tc.id;
                                 if (tc.function) {
-                                    if (tc.function.name) toolCallsMap[idx].function.name = tc.function.name;
+                                    if (tc.function.name) {
+                                        toolCallsMap[idx].function.name = tc.function.name;
+                                        if (tc.function.name === 'enable_tools') enableToolsIdx = idx;
+                                    }
                                     if (tc.function.arguments) toolCallsMap[idx].function.arguments += tc.function.arguments;
                                 }
                                 var toolInfo = toolCallsMap[idx];
@@ -540,6 +633,24 @@
                                     self.showToolProgress(toolInfo.function.name, toolInfo.function.arguments.length, toolId, toolInfo.function.arguments);
                                 }
                             });
+
+                            if (Object.keys(toolCallsMap).length > 10) {
+                                streamTruncated = true;
+                                break;
+                            }
+
+                            // Break as soon as enable_tools has complete arguments —
+                            // anything else in the stream lacks schemas and must be dropped.
+                            if (enableToolsIdx !== null) {
+                                var enableArgs = toolCallsMap[enableToolsIdx].function.arguments;
+                                if (enableArgs && enableArgs.trim()) {
+                                    try {
+                                        JSON.parse(enableArgs);
+                                        streamTruncated = true;
+                                        break;
+                                    } catch (e) { /* arguments not yet complete */ }
+                                }
+                            }
                         }
                     }
 
@@ -547,6 +658,10 @@
                     if ($thinking && thinkingStartTime) {
                         this.finalizeThinking($thinking, Date.now() - thinkingStartTime);
                         $reply = this.startReply();
+                    }
+
+                    if (streamTruncated && this.abortController) {
+                        this.abortController.abort();
                     }
                 }
 
@@ -562,6 +677,27 @@
                             arguments: parsedArgs
                         });
                         self.updateToolCardDescription(toolId, tc.function.name, parsedArgs);
+                    }
+                });
+
+                // Deduplicate tool calls by name+arguments before storing in message history.
+                // The assistant message and the tool results sent back must stay in sync —
+                // if the model requests 25 calls but we only execute 3, it will loop waiting
+                // for the other 22 results.
+                var seenToolSigs = {};
+                var uniqueToolIds = {};
+                toolCalls = toolCalls.filter(function(tc) {
+                    var sig = tc.name + ':' + JSON.stringify(tc.arguments);
+                    if (seenToolSigs[sig]) return false;
+                    seenToolSigs[sig] = true;
+                    uniqueToolIds[tc.id] = true;
+                    return true;
+                });
+                Object.keys(toolCallsMap).forEach(function(idx) {
+                    var tc = toolCallsMap[idx];
+                    var toolId = tc.id || 'tool_' + idx;
+                    if (!uniqueToolIds[toolId]) {
+                        delete toolCallsMap[idx];
                     }
                 });
 

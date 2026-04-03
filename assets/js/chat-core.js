@@ -8,6 +8,7 @@
         conversationTitle: '',
         messages: [],
         pendingActions: [],
+        toolCallRounds: 0,
         isLoading: false,
         systemPrompt: '',
         isFullPage: false,
@@ -127,13 +128,13 @@
 
             $(document).on('click', '.ai-tool-approve', function(e) {
                 e.preventDefault();
-                var toolId = $(this).data('tool-id');
+                var toolId = $(this).attr('data-tool-id');
                 self.confirmAction(toolId, true);
             });
 
             $(document).on('click', '.ai-tool-skip', function(e) {
                 e.preventDefault();
-                var toolId = $(this).data('tool-id');
+                var toolId = $(this).attr('data-tool-id');
                 self.confirmAction(toolId, false);
             });
 
@@ -477,6 +478,7 @@
             stripped = stripped.replace(/^\s*<think>[\s\S]*$/gi, '');
             return stripped.trim();
         },
+
 
         setupAjaxErrorTracking: function() {
             var self = this;
