@@ -535,6 +535,15 @@
             }
 
             this.autoSaveConversation();
+
+            this.toolCallRounds++;
+            if (this.toolCallRounds >= 10) {
+                this.addMessage('error', 'Tool call limit reached (10 rounds). Please continue manually.');
+                this.setLoading(false);
+                this.toolCallRounds = 0;
+                return;
+            }
+
             this.callLLM();
         },
 

@@ -32,6 +32,7 @@
             this.streamComplete = false;
             this.executingToolCount = 0;
             this.processedToolIds = {};
+            this.toolCallRounds = 0;
             this.addToDraftHistory(message);
             this.addMessage('user', message);
             this.messages.push({ role: 'user', content: message });
@@ -540,6 +541,10 @@
                                     self.showToolProgress(toolInfo.function.name, toolInfo.function.arguments.length, toolId, toolInfo.function.arguments);
                                 }
                             });
+
+                            if (Object.keys(toolCallsMap).length > 10) {
+                                break;
+                            }
                         }
                     }
 
@@ -562,6 +567,27 @@
                             arguments: parsedArgs
                         });
                         self.updateToolCardDescription(toolId, tc.function.name, parsedArgs);
+                    }
+                });
+
+                // Deduplicate tool calls by name+arguments before storing in message history.
+                // The assistant message and the tool results sent back must stay in sync —
+                // if the model requests 25 calls but we only execute 3, it will loop waiting
+                // for the other 22 results.
+                var seenToolSigs = {};
+                var uniqueToolIds = {};
+                toolCalls = toolCalls.filter(function(tc) {
+                    var sig = tc.name + ':' + JSON.stringify(tc.arguments);
+                    if (seenToolSigs[sig]) return false;
+                    seenToolSigs[sig] = true;
+                    uniqueToolIds[tc.id] = true;
+                    return true;
+                });
+                Object.keys(toolCallsMap).forEach(function(idx) {
+                    var tc = toolCallsMap[idx];
+                    var toolId = tc.id || 'tool_' + idx;
+                    if (!uniqueToolIds[toolId]) {
+                        delete toolCallsMap[idx];
                     }
                 });
 

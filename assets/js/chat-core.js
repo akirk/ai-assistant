@@ -8,6 +8,7 @@
         conversationTitle: '',
         messages: [],
         pendingActions: [],
+        toolCallRounds: 0,
         isLoading: false,
         systemPrompt: '',
         isFullPage: false,
@@ -477,6 +478,7 @@
             stripped = stripped.replace(/^\s*<think>[\s\S]*$/gi, '');
             return stripped.trim();
         },
+
 
         setupAjaxErrorTracking: function() {
             var self = this;
