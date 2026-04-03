@@ -132,6 +132,14 @@
                 self.confirmAction(toolId, true);
             });
 
+            $(document).on('click', '.ai-tool-approve-always', function(e) {
+                e.preventDefault();
+                var toolId = $(this).attr('data-tool-id');
+                var abilityId = $(this).attr('data-ability');
+                self.saveAutoApprovedAbility(abilityId);
+                self.confirmAction(toolId, true);
+            });
+
             $(document).on('click', '.ai-tool-skip', function(e) {
                 e.preventDefault();
                 var toolId = $(this).attr('data-tool-id');

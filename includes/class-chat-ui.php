@@ -111,6 +111,7 @@ class Chat_UI {
             'nonce' => wp_create_nonce('ai_assistant_chat'),
             'userPermission' => $settings->get_user_permission_level(),
             'enabledTools' => $settings->get_user_enabled_tools(),
+            'autoApprovedAbilities' => $settings->get_auto_approved_abilities(),
             'settingsUrl' => admin_url('options-general.php?page=ai-assistant-settings'),
             'homeUrl' => home_url(),
             'userDisplayName' => $current_user->display_name,

@@ -43,7 +43,9 @@
 
                 if (alwaysConfirmTools.indexOf(tc.name) >= 0) {
                     needsConfirmation.push(tc);
-                } else if (self.yoloMode || destructiveTools.indexOf(tc.name) < 0) {
+                } else if (self.yoloMode || destructiveTools.indexOf(tc.name) < 0 ||
+                           (tc.name === 'ability' && tc.arguments && tc.arguments.action !== 'execute') ||
+                           self.isAbilityAutoApproved(tc)) {
                     executeImmediately.push(tc);
                 } else {
                     needsConfirmation.push(tc);
@@ -407,6 +409,28 @@
             });
         },
 
+        isAbilityAutoApproved: function(toolCall) {
+            if (toolCall.name !== 'ability') return false;
+            var args = toolCall.arguments || {};
+            if (args.action !== 'execute' || !args.ability) return false;
+            var autoApproved = (window.aiAssistantConfig && window.aiAssistantConfig.autoApprovedAbilities) || [];
+            return autoApproved.indexOf(args.ability) >= 0;
+        },
+
+        saveAutoApprovedAbility: function(abilityId) {
+            var autoApproved = (window.aiAssistantConfig && window.aiAssistantConfig.autoApprovedAbilities) || [];
+            if (autoApproved.indexOf(abilityId) < 0) {
+                autoApproved.push(abilityId);
+                window.aiAssistantConfig.autoApprovedAbilities = autoApproved;
+            }
+            $.post(aiAssistantConfig.ajaxUrl, {
+                action: 'ai_assistant_toggle_auto_approve_ability',
+                _wpnonce: aiAssistantConfig.nonce,
+                ability: abilityId,
+                approved: 1
+            });
+        },
+
         // Accumulate tool results until all tools are resolved
         pendingToolResults: [],
         currentProvider: null,
@@ -429,7 +453,8 @@
             // Determine if needs confirmation
             var needsConfirm = alwaysConfirmTools.indexOf(toolName) >= 0 ||
                 (!this.yoloMode && destructiveTools.indexOf(toolName) >= 0 &&
-                 !(toolName === 'ability' && toolArgs && toolArgs.action !== 'execute'));
+                 !(toolName === 'ability' && toolArgs && toolArgs.action !== 'execute') &&
+                 !this.isAbilityAutoApproved({ name: toolName, arguments: toolArgs }));
 
             if (needsConfirm) {
                 this.setToolCardState(toolId, 'pending');

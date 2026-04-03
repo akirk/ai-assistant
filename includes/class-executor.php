@@ -1056,17 +1056,17 @@ class Executor {
         foreach ($abilities as $id => $ability) {
             if (is_object($ability)) {
                 $result[] = [
-                    'id' => $ability->name ?? $id,
-                    'name' => $ability->label ?? $ability->name ?? $id,
-                    'description' => $ability->description ?? '',
-                    'category' => $ability->category ?? 'uncategorized',
+                    'id'          => method_exists($ability, 'get_name')        ? $ability->get_name()        : ($ability->name ?? $id),
+                    'name'        => method_exists($ability, 'get_label')       ? $ability->get_label()       : ($ability->label ?? $ability->name ?? $id),
+                    'description' => method_exists($ability, 'get_description') ? $ability->get_description() : ($ability->description ?? ''),
+                    'category'    => method_exists($ability, 'get_category')    ? $ability->get_category()    : ($ability->category ?? 'uncategorized'),
                 ];
             } else {
                 $result[] = [
-                    'id' => $id,
-                    'name' => $ability['name'] ?? $id,
+                    'id'          => $id,
+                    'name'        => $ability['label'] ?? $ability['name'] ?? $id,
                     'description' => $ability['description'] ?? '',
-                    'category' => $ability['category'] ?? 'uncategorized',
+                    'category'    => $ability['category'] ?? 'uncategorized',
                 ];
             }
         }

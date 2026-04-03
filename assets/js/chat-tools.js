@@ -8,10 +8,10 @@ var aiAssistantToolsMixin = (function() {
     return {
 
         // Core tools - always available
-        coreToolNames: ['run_php', 'read_file', 'edit_file', 'write_file', 'find', 'environment_info'],
+        coreToolNames: ['run_php', 'read_file', 'edit_file', 'write_file', 'find', 'environment_info', 'ability', 'skill'],
 
         // Extended tools - loaded on demand for local LLMs, always available for cloud
-        extendedToolNames: ['delete_file', 'db_query', 'install_plugin', 'ability', 'navigate', 'get_page_html', 'summarize_conversation', 'skill'],
+        extendedToolNames: ['delete_file', 'db_query', 'install_plugin', 'navigate', 'get_page_html', 'summarize_conversation'],
 
         getAllToolDefinitions: function() {
             return [

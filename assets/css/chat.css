@@ -569,6 +569,17 @@
     border-color: #135e96;
 }
 
+.ai-always-approve-btn {
+    background: #f0f6fc;
+    border: 1px solid #72aee6;
+    color: #2271b1 !important;
+}
+
+.ai-always-approve-btn:hover {
+    background: #dde8f0;
+    border-color: #2271b1;
+}
+
 .ai-skip-btn {
     background: #f6f7f7;
     border: 1px solid #c3c4c7;

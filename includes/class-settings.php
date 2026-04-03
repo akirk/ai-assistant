@@ -14,6 +14,7 @@ class Settings {
         add_action('admin_menu', [$this, 'add_settings_page']);
         add_action('admin_init', [$this, 'register_settings']);
         add_action('wp_ajax_ai_assistant_get_skill', [$this, 'ajax_get_skill']);
+        add_action('wp_ajax_ai_assistant_toggle_auto_approve_ability', [$this, 'ajax_toggle_auto_approve_ability']);
         add_action('load-tools_page_ai-conversations', [$this, 'add_help_tabs']);
         add_action('load-settings_page_ai-assistant-settings', [$this, 'add_help_tabs']);
         add_filter('map_meta_cap', [$this, 'map_tool_cap'], 10, 3);
@@ -170,6 +171,12 @@ class Settings {
         $conversation_id = isset($_GET['conversation']) ? intval($_GET['conversation']) : 0;
         $settings_url = admin_url('options-general.php?page=ai-assistant-settings');
         ?>
+        <style>
+            html, body, #wpwrap { overflow: hidden; }
+            #wpbody-content { padding-bottom: 0; }
+            .ai-assistant-page { margin: 0 !important; padding: 0; }
+            .ai-chat-layout { height: calc(100vh - 32px); }
+        </style>
         <div class="wrap ai-assistant-page">
             <div class="ai-chat-layout">
                 <!-- Sidebar -->
@@ -342,6 +349,14 @@ class Settings {
             [$this, 'tools_section_callback'],
             'ai-assistant-settings'
         );
+
+        register_setting('ai_assistant_settings', 'ai_assistant_auto_approved_abilities', [
+            'type' => 'array',
+            'sanitize_callback' => function($value) {
+                return array_values(array_map('sanitize_text_field', (array) $value));
+            },
+            'default' => [],
+        ]);
     }
 
     /**
@@ -738,34 +753,118 @@ class Settings {
         }
         ?>
         <div class="ai-collapsible-content" data-section="tools">
-            <p><?php esc_html_e('Choose which tools are available to the AI. Dangerous tools (⚠) can modify files, run code, or install plugins.', 'ai-assistant'); ?></p>
+            <p><?php esc_html_e('Choose which tools the AI can use. ⚠ tools can modify files, run code, or install plugins.', 'ai-assistant'); ?></p>
             <input type="hidden" name="ai_assistant_enabled_tools" value="">
-            <?php foreach ($by_group as $group => $tools) : ?>
-            <table class="wp-list-table widefat fixed striped" style="max-width: 600px; margin-bottom: 12px;">
-                <thead>
-                    <tr><th colspan="2"><?php echo esc_html($group); ?></th></tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($tools as $name => $meta) : ?>
-                    <tr>
-                        <td style="width: 36px; text-align: center;">
+            <div class="ai-tool-tree">
+                <?php foreach ($by_group as $group => $tools) :
+                    $group_names = array_keys($tools);
+                    $all_checked = count(array_filter($group_names, fn($n) => in_array($n, $enabled, true))) === count($group_names);
+                    $some_checked = !$all_checked && count(array_filter($group_names, fn($n) => in_array($n, $enabled, true))) > 0;
+                ?>
+                <div class="ai-tool-group">
+                    <label class="ai-tool-group-header">
+                        <input type="checkbox" class="ai-group-toggle"
+                               <?php checked($all_checked); ?>
+                               <?php if ($some_checked) echo 'data-indeterminate="1"'; ?>>
+                        <strong><?php echo esc_html($group); ?></strong>
+                    </label>
+                    <div class="ai-tool-group-items">
+                        <?php foreach ($tools as $name => $meta) : ?>
+                        <label class="ai-tool-item">
                             <input type="checkbox"
                                    name="ai_assistant_enabled_tools[]"
                                    value="<?php echo esc_attr($name); ?>"
                                    <?php checked(in_array($name, $enabled, true)); ?>>
-                        </td>
-                        <td>
                             <code><?php echo esc_html($name); ?></code>
                             <?php if ($meta['dangerous']) : ?>
-                                <span title="<?php esc_attr_e('Dangerous: can modify data or execute code', 'ai-assistant'); ?>"> ⚠</span>
+                                <span title="<?php esc_attr_e('Dangerous: can modify data or execute code', 'ai-assistant'); ?>">⚠</span>
                             <?php endif; ?>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-            <?php endforeach; ?>
+                        </label>
+                        <?php if ($name === 'execute_ability') :
+                            $auto_approved = $this->get_auto_approved_abilities();
+                            $hidden = !in_array('execute_ability', $enabled, true) ? ' style="display:none"' : ''; ?>
+                        <div class="ai-tool-sub-items"<?php echo $hidden; ?>>
+                            <input type="hidden" name="ai_assistant_auto_approved_abilities" value="">
+                            <?php if (!function_exists('wp_get_abilities')) : ?>
+                            <p class="description" style="margin:4px 0"><?php esc_html_e('No abilities available — requires WordPress 6.9+ with the Abilities API.', 'ai-assistant'); ?></p>
+                            <?php else :
+                                $abilities = wp_get_abilities();
+                                if (empty($abilities)) : ?>
+                                <p class="description" style="margin:4px 0"><?php esc_html_e('No abilities registered yet. Abilities are exposed by plugins using the WordPress Abilities API.', 'ai-assistant'); ?></p>
+                                <?php else :
+                                    // Group by category
+                                    $by_cat = [];
+                                    foreach ($abilities as $id => $ability) {
+                                        if (is_object($ability)) {
+                                            $ability_id  = method_exists($ability, 'get_name')        ? $ability->get_name()        : ($ability->name ?? $id);
+                                            $label       = method_exists($ability, 'get_label')       ? $ability->get_label()       : ($ability->label ?? $ability_id);
+                                            $description = method_exists($ability, 'get_description') ? $ability->get_description() : ($ability->description ?? '');
+                                            $category    = method_exists($ability, 'get_category')    ? $ability->get_category()    : ($ability->category ?? '');
+                                        } else {
+                                            $ability_id  = $id;
+                                            $label       = $ability['label'] ?? $ability['name'] ?? $id;
+                                            $description = $ability['description'] ?? '';
+                                            $category    = $ability['category'] ?? '';
+                                        }
+                                        $by_cat[$category][] = compact('ability_id', 'label', 'description');
+                                    }
+                                    foreach ($by_cat as $category => $cat_abilities) : ?>
+                                    <?php if ($category) : ?>
+                                    <div class="ai-ability-category"><?php echo esc_html($category); ?></div>
+                                    <?php endif; ?>
+                                    <?php foreach ($cat_abilities as $a) : ?>
+                                    <div class="ai-tool-sub-item">
+                                        <input type="checkbox"
+                                               name="ai_assistant_auto_approved_abilities[]"
+                                               value="<?php echo esc_attr($a['ability_id']); ?>"
+                                               <?php checked(in_array($a['ability_id'], $auto_approved, true)); ?>>
+                                        <?php if ($a['description']) : ?>
+                                        <details class="ai-ability-details">
+                                            <summary><code><?php echo esc_html($a['ability_id']); ?></code></summary>
+                                            <span class="description"><?php echo esc_html($a['description']); ?></span>
+                                        </details>
+                                        <?php else : ?>
+                                        <code><?php echo esc_html($a['ability_id']); ?></code>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php endforeach; ?>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
         </div>
+        <script>
+        jQuery(function($) {
+            // Sync group toggle with children
+            $('.ai-group-toggle').each(function() {
+                if ($(this).data('indeterminate')) this.indeterminate = true;
+            });
+            $('.ai-group-toggle').on('change', function() {
+                var checked = this.checked;
+                $(this).closest('.ai-tool-group').find('.ai-tool-group-items input[type=checkbox]').prop('checked', checked);
+                this.indeterminate = false;
+            });
+            // Update group toggle when child changes
+            $(document).on('change', '.ai-tool-group-items input[type=checkbox]', function() {
+                var $group = $(this).closest('.ai-tool-group');
+                var $children = $group.find('.ai-tool-group-items > label > input[type=checkbox]');
+                var checkedCount = $children.filter(':checked').length;
+                var $toggle = $group.find('.ai-group-toggle')[0];
+                $toggle.checked = checkedCount === $children.length;
+                $toggle.indeterminate = checkedCount > 0 && checkedCount < $children.length;
+            });
+            // Toggle execute_ability sub-items visibility
+            $(document).on('change', 'input[name="ai_assistant_enabled_tools[]"][value="execute_ability"]', function() {
+                $(this).closest('.ai-tool-item').next('.ai-tool-sub-items').toggle(this.checked);
+            });
+        });
+        </script>
         <?php
     }
 
@@ -854,6 +953,99 @@ class Settings {
         }
         ?>
         <style>
+            .ai-tool-tree {
+                max-width: 520px;
+            }
+            .ai-tool-group {
+                margin-bottom: 4px;
+                border: 1px solid #dcdcde;
+                border-radius: 3px;
+                overflow: hidden;
+            }
+            .ai-tool-group-header {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 7px 10px;
+                background: #f6f7f7;
+                cursor: pointer;
+                font-weight: 600;
+            }
+            .ai-tool-group-header:hover {
+                background: #f0f0f1;
+            }
+            .ai-tool-group-items {
+                padding: 4px 10px 6px 32px;
+                display: flex;
+                flex-direction: column;
+                gap: 3px;
+            }
+            .ai-tool-item {
+                display: flex;
+                align-items: baseline;
+                gap: 6px;
+                cursor: pointer;
+                padding: 2px 0;
+            }
+            .ai-tool-item input[type=checkbox] {
+                flex-shrink: 0;
+                margin-top: 1px;
+            }
+            .ai-tool-item .description {
+                color: #787c82;
+                font-size: 12px;
+            }
+            .ai-tool-sub-items {
+                margin-left: 20px;
+                padding: 4px 0 4px 10px;
+                border-left: 2px solid #dcdcde;
+            }
+            .ai-tool-sub-item {
+                display: flex;
+                align-items: baseline;
+                gap: 6px;
+                padding: 2px 0;
+            }
+            .ai-tool-sub-item input[type=checkbox] {
+                flex-shrink: 0;
+                margin-top: 1px;
+            }
+            .ai-ability-details {
+                flex: 1;
+            }
+            .ai-ability-details summary {
+                cursor: pointer;
+                list-style: none;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
+            .ai-ability-details summary::before {
+                content: '▶';
+                font-size: 9px;
+                color: #787c82;
+                transition: transform 0.15s;
+                flex-shrink: 0;
+            }
+            .ai-ability-details[open] summary::before {
+                transform: rotate(90deg);
+            }
+            .ai-ability-details .description {
+                display: block;
+                font-size: 11px;
+                padding: 3px 0 2px 14px;
+            }
+            .ai-ability-category {
+                font-size: 10px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                color: #787c82;
+                margin: 6px 0 2px;
+            }
+            .ai-ability-category:first-child {
+                margin-top: 2px;
+            }
             .ai-collapsible-section h2 {
                 cursor: pointer;
                 user-select: none;
@@ -1327,6 +1519,38 @@ PROMPT;
         $prompt .= $this->load_skills();
 
         return $prompt;
+    }
+
+    public function get_auto_approved_abilities(): array {
+        return (array) get_option('ai_assistant_auto_approved_abilities', []);
+    }
+
+    public function ajax_toggle_auto_approve_ability() {
+        check_ajax_referer('ai_assistant_chat', '_wpnonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => 'Insufficient permissions']);
+        }
+
+        $ability = sanitize_text_field($_POST['ability'] ?? '');
+        $approved = !empty($_POST['approved']);
+
+        if (empty($ability)) {
+            wp_send_json_error(['message' => 'Missing ability identifier']);
+        }
+
+        $auto_approved = $this->get_auto_approved_abilities();
+
+        if ($approved) {
+            if (!in_array($ability, $auto_approved, true)) {
+                $auto_approved[] = $ability;
+            }
+        } else {
+            $auto_approved = array_values(array_filter($auto_approved, fn($a) => $a !== $ability));
+        }
+
+        update_option('ai_assistant_auto_approved_abilities', $auto_approved);
+        wp_send_json_success(['autoApprovedAbilities' => $auto_approved]);
     }
 
     /**
