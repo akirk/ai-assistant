@@ -799,10 +799,19 @@ class Executor {
     private function db_query(string $sql): array {
         global $wpdb;
 
-        // Security: Only allow SELECT queries
+        // Security: Only allow read-only queries
         $sql = trim($sql);
-        if (stripos($sql, 'SELECT') !== 0) {
-            throw new \Exception("Only SELECT queries are allowed with db_query. Use db_insert, db_update, or db_delete for modifications.");
+        $first_word = strtoupper(strtok($sql, " \t\n\r"));
+        if (!in_array($first_word, ['SELECT', 'DESCRIBE', 'DESC', 'SHOW'], true)) {
+            throw new \Exception("Only SELECT, DESCRIBE, and SHOW queries are allowed with db_query. Use run_php for modifications.");
+        }
+
+        // Restrict SHOW to table-related forms only (block SHOW VARIABLES, SHOW STATUS, etc.)
+        if ($first_word === 'SHOW') {
+            $second_word = strtoupper(strtok(" \t\n\r"));
+            if (!in_array($second_word, ['TABLES', 'COLUMNS', 'INDEX', 'INDEXES', 'KEYS', 'CREATE', 'FULL'], true)) {
+                throw new \Exception("SHOW is restricted to table-related queries (SHOW TABLES, SHOW COLUMNS, SHOW INDEX, SHOW CREATE TABLE).");
+            }
         }
 
         // Replace {prefix} placeholder
@@ -1029,10 +1038,18 @@ class Executor {
         $abilities = wp_get_abilities();
 
         if (!empty($category)) {
-            $abilities = array_filter($abilities, function($ability) use ($category) {
+            $exact = array_filter($abilities, function($ability) use ($category) {
                 $cat = is_object($ability) ? ($ability->category ?? '') : ($ability['category'] ?? '');
                 return $cat === $category;
             });
+            if (!empty($exact)) {
+                $abilities = $exact;
+            } else {
+                $abilities = array_filter($abilities, function($ability) use ($category) {
+                    $cat = is_object($ability) ? ($ability->category ?? '') : ($ability['category'] ?? '');
+                    return stripos($cat, $category) !== false || stripos($category, $cat) !== false;
+                });
+            }
         }
 
         $result = [];

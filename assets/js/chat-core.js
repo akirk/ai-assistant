@@ -128,13 +128,13 @@
 
             $(document).on('click', '.ai-tool-approve', function(e) {
                 e.preventDefault();
-                var toolId = $(this).data('tool-id');
+                var toolId = $(this).attr('data-tool-id');
                 self.confirmAction(toolId, true);
             });
 
             $(document).on('click', '.ai-tool-skip', function(e) {
                 e.preventDefault();
-                var toolId = $(this).data('tool-id');
+                var toolId = $(this).attr('data-tool-id');
                 self.confirmAction(toolId, false);
             });
 

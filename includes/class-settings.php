@@ -1293,7 +1293,15 @@ You have access to tools that let you interact with the WordPress filesystem and
 If the user describes something they are seeing on the page, references UI elements, or asks about content visible on screen, use the get_page_html tool to see what they're looking at.
 
 WORDPRESS ABILITIES API:
-For common WordPress operations (posts, options, queries, users), use run_php with standard WordPress functions.
+PROMPT;
+
+        $enabled_tools = $this->get_user_enabled_tools();
+        if (in_array('run_php', $enabled_tools, true)) {
+            $prompt .= "\nFor common WordPress operations (posts, options, queries, users), use run_php with standard WordPress functions.";
+        }
+
+        $prompt .= <<<'PROMPT'
+
 Use the Abilities API (list_abilities, get_ability, execute_ability) when:
 - The task involves plugin-specific functionality (e.g., WooCommerce, forms, SEO plugins)
 - The user asks about what actions are available
