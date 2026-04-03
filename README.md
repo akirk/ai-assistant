@@ -20,7 +20,7 @@ An AI-powered chat interface for WordPress. Bring your own API key or connect to
 
 - WordPress 6.0+
 - PHP 7.4+
-- WordPress Playground environment
+- An API key for Anthropic or OpenAI, or a locally running Ollama/LM Studio instance
 
 ## Installation
 
@@ -45,24 +45,29 @@ The AI Assistant panel appears in the WordPress admin screen meta area (alongsid
 
 | Tool | Description |
 |------|-------------|
-| `read_file` | Read file contents |
-| `write_file` | Create new files |
-| `edit_file` | Edit existing files via search/replace |
+| `read_file` | Read file contents from wp-content |
+| `write_file` | Create new files (use `edit_file` for modifications) |
+| `edit_file` | Edit existing files via search/replace operations |
 | `delete_file` | Delete files |
-| `list_directory` | List directory contents |
-| `search_files` | Search for files by glob pattern |
-| `search_content` | Search for text within files |
-| `db_query` | Execute SELECT queries on the database |
-| `get_plugins` | List installed plugins |
-| `get_themes` | List installed themes |
+| `find` | Find files (by path/glob) or search file contents |
+| `run_php` | Execute PHP code in the WordPress environment |
+| `environment_info` | Get active plugins, themes, WP/PHP versions |
+| `db_query` | Execute SELECT/DESCRIBE/SHOW queries on the database |
 | `install_plugin` | Install a plugin from WordPress.org |
-| `run_php` | Execute PHP code |
-| `list_abilities` | Discover available WordPress abilities |
-| `get_ability` | Get details of a specific ability |
-| `execute_ability` | Execute a WordPress ability |
-| `navigate` | Navigate to a URL within the site |
-| `get_page_html` | Get HTML of the current page |
-| `summarize_conversation` | Generate a conversation summary |
+| `ability` | List, inspect, or execute WordPress abilities (plugin-exposed actions) |
+| `navigate` | Navigate the browser to a URL within the site |
+| `get_page_html` | Get HTML of elements on the current page |
+| `skill` | Load skill documents with specialized WordPress knowledge |
+| `summarize_conversation` | Generate a summary of the current conversation |
+
+### Tool Tiering for Local LLMs
+
+When using a local LLM (Ollama, LM Studio), tools are tiered to avoid overwhelming smaller models:
+
+- **Core tools** (always available): `read_file`, `write_file`, `edit_file`, `find`, `run_php`, `environment_info`
+- **Extended tools** (enabled on demand): `delete_file`, `db_query`, `install_plugin`, `ability`, `navigate`, `get_page_html`, `summarize_conversation`, `skill`
+
+The model can call `enable_tools` to activate specific extended tools when it needs them. Cloud providers (Anthropic, OpenAI) receive all tools upfront.
 
 ### YOLO Mode
 
