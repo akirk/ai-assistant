@@ -119,24 +119,6 @@ class Chat_UI {
             'restApiNonce' => wp_create_nonce('wp_rest'),
             'userDisplayName' => $current_user->display_name,
             'systemPrompt' => $settings->get_system_prompt(),
-            /**
-             * Filter the ability domains passed to the JavaScript chat config.
-             *
-             * Returns an associative array mapping a plugin slug to a comma-separated list
-             * of topic keywords. The AI uses these keywords to decide when to reach for your
-             * plugin's abilities instead of generic tools like `run_php` or `db_query`.
-             *
-             * Example:
-             * ```php
-             * add_filter( 'ai_assistant_ability_domains', function ( $domains ) {
-             *     $domains['my-plugin'] = 'invoices, billing, payments, clients';
-             *     return $domains;
-             * } );
-             * ```
-             *
-             * @param array<string,string> $domains Map of plugin slug => comma-separated topic keywords.
-             * @return array<string,string> The filtered domains map.
-             */
             'abilityDomains' => apply_filters('ai_assistant_ability_domains', []),
             'strings' => [
                 'placeholder' => __('Ask me anything about your WordPress site...', 'ai-assistant'),
