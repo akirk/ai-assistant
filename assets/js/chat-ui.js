@@ -91,6 +91,10 @@
         },
 
         finalizeThinking: function($thinking, durationMs) {
+            if (!$thinking.find('.ai-thinking-content').text().trim()) {
+                $thinking.remove();
+                return;
+            }
             $thinking.find('.ai-thinking-spinner').hide();
             var durationSec = (durationMs / 1000).toFixed(1);
             $thinking.find('.ai-thinking-label').text('Thought for ' + durationSec + 's');
@@ -105,6 +109,10 @@
         },
 
         finalizeReply: function($message) {
+            if (!$message.find('.ai-message-content').text().trim()) {
+                $message.remove();
+                return;
+            }
             $message.removeClass('ai-message-streaming');
             if (!$message.find('.ai-message-actions').length) {
                 $message.append(this.getMessageActions());
@@ -583,10 +591,14 @@
                         return this.describeSql(match[1].replace(/\\n/g, ' ').replace(/\\t/g, ' '));
                     }
                     break;
+                case 'ability':
                 case 'execute_ability':
                     match = partialJson.match(/"ability"\s*:\s*"([^"]+)"/);
                     if (match) {
-                        return 'Execute: ' + match[1];
+                        var abilityDesc = 'Execute: ' + match[1];
+                        var argMatches = partialJson.match(/"(?:query|name|username|group_slug)"\s*:\s*"([^"]+)"/);
+                        if (argMatches) abilityDesc += ' (' + argMatches[1] + ')';
+                        return abilityDesc;
                     }
                     break;
             }

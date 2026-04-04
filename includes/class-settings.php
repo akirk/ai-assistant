@@ -186,6 +186,7 @@ class Settings {
                 overflow: hidden;
             }
             .ai-chat-layout { flex: 1; min-height: 0; }
+            .ai-assistant-chat-container { border: none; border-radius: 0; }
         </style>
         <div class="wrap ai-assistant-page">
             <div class="ai-chat-layout">
@@ -1573,6 +1574,7 @@ Use the Abilities API (ability tool with action list/get/execute) FIRST before f
 - You need to read or write data that a plugin manages
 - You're unsure how to accomplish something with standard WordPress functions
 Only use db_query directly when you need custom reporting or data that no ability covers. Never use db_query as a substitute for an ability that already exists.
+If an ability result contains an `_instructions` key, follow those instructions when presenting the result to the user.
 
 FILE EDITING RULES:
 - Use write_file ONLY for creating NEW files

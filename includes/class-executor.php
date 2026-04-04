@@ -122,7 +122,7 @@ class Executor {
 
             // Environment info
             case 'environment_info':
-                return $this->get_environment_info();
+                return $this->get_environment_info(!empty($arguments['include_inactive']));
 
             // Consolidated ability tool (replaces list_abilities, get_ability, execute_ability)
             case 'ability':
@@ -260,44 +260,27 @@ class Executor {
     /**
      * Get environment info (plugins, themes, WordPress version, etc.)
      */
-    private function get_environment_info(): array {
-        $info = [
-            'wordpress_version' => get_bloginfo('version'),
-            'php_version' => PHP_VERSION,
-            'site_url' => site_url(),
-            'home_url' => home_url(),
-            'is_multisite' => is_multisite(),
-            'active_theme' => [],
-            'active_plugins' => [],
-            'inactive_plugins' => [],
-        ];
-
-        // Active theme
+    private function get_environment_info(bool $include_inactive = false): array {
         $theme = wp_get_theme();
-        $info['active_theme'] = [
-            'name' => $theme->get('Name'),
-            'version' => $theme->get('Version'),
-            'template' => $theme->get_template(),
-            'is_child_theme' => $theme->parent() ? true : false,
+        $info = [
+            'wp'      => get_bloginfo('version'),
+            'php'     => PHP_VERSION,
+            'theme'   => $theme->get_template(),
+            'plugins' => [],
         ];
 
-        // Plugins
         if (!function_exists('get_plugins')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
-        $all_plugins = get_plugins();
-        $active_plugins = get_option('active_plugins', []);
+        $all_plugins  = get_plugins();
+        $active_slugs = get_option('active_plugins', []);
 
         foreach ($all_plugins as $file => $data) {
-            $entry = [
-                'file' => $file,
-                'name' => $data['Name'],
-                'version' => $data['Version'],
-            ];
-            if (in_array($file, $active_plugins)) {
-                $info['active_plugins'][] = $entry;
-            } else {
-                $info['inactive_plugins'][] = $entry;
+            $slug = dirname($file) === '.' ? basename($file, '.php') : dirname($file);
+            if (in_array($file, $active_slugs)) {
+                $info['plugins'][$slug] = $data['Name'];
+            } elseif ($include_inactive) {
+                $info['inactive'][$slug] = $data['Name'];
             }
         }
 
@@ -1176,11 +1159,18 @@ class Executor {
             throw new \Exception("Ability execution failed: " . $result->get_error_message());
         }
 
-        return [
+        $response = [
             'ability' => $ability_id,
             'success' => true,
-            'result' => $result,
+            'result'  => $result,
         ];
+
+        $instructions = apply_filters('ai_assistant_ability_instructions', '', $ability_id, $arguments, $result);
+        if ($instructions) {
+            $response['_instructions'] = $instructions;
+        }
+
+        return $response;
     }
 
     // ===== SKILLS OPERATIONS =====
