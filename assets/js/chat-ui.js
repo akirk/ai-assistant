@@ -488,14 +488,26 @@
         },
 
         getToolCardsContainer: function() {
+            var self = this;
             var $container = $('#ai-assistant-tool-cards');
             if ($container.length === 0) {
                 $container = $('<details id="ai-assistant-tool-cards" open><summary class="ai-tool-cards-summary">Tools</summary></details>');
+                $container[0].addEventListener('toggle', function() {
+                    if (self._programmaticToggle) return;
+                    // Track user intent: if user opened it, don't auto-close; if closed, allow auto-close again
+                    if ($container[0].open) {
+                        $container.attr('data-user-opened', '1');
+                    } else {
+                        $container.removeAttr('data-user-opened');
+                    }
+                });
                 $('#ai-assistant-messages').append($container);
             } else {
                 // Move container to end of messages if it already exists
                 // This handles cases where LLM responds multiple times with tool calls
+                self._programmaticToggle = true;
                 $container.attr('open', '');
+                self._programmaticToggle = false;
                 $('#ai-assistant-messages').append($container);
             }
             return $container;
@@ -516,7 +528,11 @@
             ids.forEach(function(id) { var n = state[id].name; if (n && !seen[n]) { seen[n] = true; names.push(n); } });
             var base = (total === 1 ? '1 tool' : total + ' tools') + (names.length ? ': ' + names.join(', ') : '');
             if (done === total && total > 0) {
-                $container.removeAttr('open');
+                if (!$container.attr('data-user-opened')) {
+                    this._programmaticToggle = true;
+                    $container.removeAttr('open');
+                    this._programmaticToggle = false;
+                }
                 $container.find('.ai-tool-cards-summary').text(base);
             } else {
                 $container.find('.ai-tool-cards-summary').text(base + ' \u2013 ' + done + '/' + total + ' done');
