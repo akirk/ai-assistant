@@ -118,6 +118,10 @@ To recover:
 
 The recovery screen highlights recently modified plugins to help identify the culprit.
 
+## Plugin Integration
+
+Other plugins can expose their functionality to the AI by registering **WordPress Abilities**. See [docs/plugin-integration.md](docs/plugin-integration.md) for a full guide.
+
 ## Development
 
 To run the plugin locally using WordPress Playground:
