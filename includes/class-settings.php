@@ -174,9 +174,10 @@ class Settings {
         ?>
         <style>
             html, body, #wpwrap, #wpcontent, #wpbody, #wpbody-content { height: 100%; overflow: hidden; }
+            #wpfooter { display: none; }
             #wpbody-content { padding-bottom: 0; }
-            .ai-assistant-page { height: 100%; margin: 0 !important; padding: 0; }
-            .ai-chat-layout { height: 100%; }
+            .ai-assistant-page { height: calc(100% - 36px); margin: 0 !important; padding: 8px; box-sizing: border-box; display: flex; flex-direction: column; }
+            .ai-chat-layout { flex: 1; min-height: 0; }
         </style>
         <div class="wrap ai-assistant-page">
             <div class="ai-chat-layout">
