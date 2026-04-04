@@ -475,9 +475,11 @@
 #ai-assistant-tool-cards,
 .ai-tool-cards-group {
     margin: 4px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+}
+
+#ai-assistant-tool-cards .ai-tool-card + .ai-tool-card,
+.ai-tool-cards-group .ai-tool-card + .ai-tool-card {
+    margin-top: 4px;
 }
 
 #ai-assistant-tool-cards > .ai-tool-cards-summary,
