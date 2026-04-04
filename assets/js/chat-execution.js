@@ -811,7 +811,7 @@
                         return 'List abilities' + (args.category ? ' (' + args.category + ')' : '');
                     }
                     if (args.action === 'get') {
-                        return 'Get ability: ' + (args.ability || 'unknown');
+                        return args.ability ? 'Get ability: ' + args.ability : 'Get ability…';
                     }
                     if (args.action === 'execute') {
                         var abilityHint = '';
@@ -819,9 +819,11 @@
                             abilityHint = args.arguments.username || args.arguments.name ||
                                           args.arguments.query || args.arguments.group_slug || '';
                         }
-                        return 'Execute: ' + (args.ability || 'unknown') + (abilityHint ? ' (' + abilityHint + ')' : '');
+                        return args.ability
+                            ? 'Execute: ' + args.ability + (abilityHint ? ' (' + abilityHint + ')' : '')
+                            : 'Execute ability…';
                     }
-                    return 'Ability: ' + (args.action || 'unknown');
+                    return 'Ability…';
                 // Legacy ability tool names
                 case 'list_abilities':
                     return 'List abilities' + (args.category ? ' (' + args.category + ')' : '');

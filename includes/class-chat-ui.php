@@ -336,6 +336,7 @@ class Chat_UI {
                         </div>
                     </div>
                     <div id="ai-assistant-messages"></div>
+                    <button type="button" id="ai-assistant-scroll-bottom" title="Scroll to bottom" style="display:none">&#8595;</button>
                     <div id="ai-assistant-loading" style="display: none;">
                         <div class="ai-loading-dots"><span></span><span></span><span></span></div>
                     </div>

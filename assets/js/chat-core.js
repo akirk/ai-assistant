@@ -176,6 +176,14 @@
                     : 'YOLO Mode disabled - destructive actions will require confirmation.');
             });
 
+            $(document).on('click', '#ai-assistant-scroll-bottom', function() {
+                self.scrollToBottom(true);
+            });
+
+            $(document).on('scroll', '#ai-assistant-messages', function() {
+                $('#ai-assistant-scroll-bottom').toggle(!self.isNearBottom(100));
+            });
+
             $(document).on('click', '#ai-assistant-expand', function() {
                 var $container = $('.ai-assistant-chat-container');
                 var isExpanded = $container.toggleClass('expanded').hasClass('expanded');
@@ -445,6 +453,7 @@
             var threshold = this.isLoading ? 300 : 100;
             if (force || this.isNearBottom(threshold)) {
                 $messages.scrollTop($messages[0].scrollHeight);
+                $('#ai-assistant-scroll-bottom').hide();
             }
         },
 
