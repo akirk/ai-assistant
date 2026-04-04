@@ -173,10 +173,10 @@ class Settings {
         $settings_url = admin_url('options-general.php?page=ai-assistant-settings');
         ?>
         <style>
-            html, body, #wpwrap { overflow: hidden; }
+            html, body, #wpwrap, #wpcontent, #wpbody, #wpbody-content { height: 100%; overflow: hidden; }
             #wpbody-content { padding-bottom: 0; }
-            .ai-assistant-page { margin: 0 !important; padding: 0; }
-            .ai-chat-layout { height: calc(100vh - 32px); }
+            .ai-assistant-page { height: 100%; margin: 0 !important; padding: 0; }
+            .ai-chat-layout { height: 100%; }
         </style>
         <div class="wrap ai-assistant-page">
             <div class="ai-chat-layout">

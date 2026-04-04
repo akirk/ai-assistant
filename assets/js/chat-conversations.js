@@ -634,8 +634,8 @@
                     console.error('[AI Assistant] Title generation failed:', err);
                 });
             } else {
-                var endpoint = (config.localEndpoint || 'http://localhost:11434').replace(/\/$/, '');
-                var model = self.conversationModel || config.model;
+                var endpoint = self.getLocalEndpoint().replace(/\/$/, '');
+                var model = self.conversationModel || self.getModel();
 
                 fetch(endpoint + '/v1/chat/completions', {
                     method: 'POST',

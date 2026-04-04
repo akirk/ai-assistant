@@ -745,6 +745,26 @@
             }
         },
 
+        describeSql: function(sql) {
+            var s = sql.trim().replace(/\s+/g, ' ');
+            var verb = (s.match(/^(\w+)/) || [])[1] || 'Query';
+            verb = verb.toUpperCase();
+            var table;
+            if (verb === 'SELECT' || verb === 'DELETE') {
+                table = (s.match(/\bFROM\s+([\w,\s`"]+?)(?:\s+WHERE|\s+JOIN|\s+LIMIT|\s+ORDER|\s+GROUP|$)/i) || [])[1];
+                if (table) table = table.replace(/[`"]/g, '').trim();
+            } else if (verb === 'UPDATE') {
+                table = (s.match(/^UPDATE\s+([\w`"]+)/i) || [])[1];
+                if (table) table = table.replace(/[`"]/g, '').trim();
+            } else if (verb === 'INSERT') {
+                table = (s.match(/\bINTO\s+([\w`"]+)/i) || [])[1];
+                if (table) table = table.replace(/[`"]/g, '').trim();
+            } else if (verb === 'DESCRIBE' || verb === 'DESC' || verb === 'SHOW') {
+                return s.length > 40 ? s.substring(0, 40) + '...' : s;
+            }
+            return table ? verb + ' from ' + table : verb;
+        },
+
         getActionDescription: function(toolName, args) {
             switch (toolName) {
                 case 'read_file':
@@ -772,8 +792,7 @@
                 case 'search_content':
                     return 'Search for: "' + (args.needle || '').substring(0, 30) + (args.needle && args.needle.length > 30 ? '...' : '') + '"';
                 case 'db_query':
-                    var sql = (args.sql || '').substring(0, 40);
-                    return 'Query: ' + sql + (args.sql && args.sql.length > 40 ? '...' : '');
+                    return this.describeSql(args.sql || '');
                 case 'install_plugin':
                     return 'Install plugin: ' + (args.slug || 'unknown') + (args.activate ? ' (+ activate)' : '');
                 case 'run_php':

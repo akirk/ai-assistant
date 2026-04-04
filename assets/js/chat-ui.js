@@ -112,9 +112,9 @@
             this.updateSummarizeVisibility();
         },
 
-        addToolUseMessage: function(toolName, input) {
+        addToolUseMessage: function(toolName, input, $container) {
             var self = this;
-            var $messages = $('#ai-assistant-messages');
+            var $messages = $container || $('#ai-assistant-messages');
             var description = this.getActionDescription(toolName, input || {});
 
             var $card = $('<div class="ai-tool-card ai-tool-card-completed">' +
@@ -149,6 +149,26 @@
             }
 
             $messages.append($card);
+        },
+
+        toolGroupLabel: function(toolUses) {
+            var count = toolUses.length;
+            var seen = {};
+            var names = [];
+            toolUses.forEach(function(tu) {
+                if (!seen[tu.name]) { seen[tu.name] = true; names.push(tu.name); }
+            });
+            return (count === 1 ? '1 tool' : count + ' tools') + ': ' + names.join(', ');
+        },
+
+        addToolUseGroup: function(toolUses) {
+            var self = this;
+            var label = this.toolGroupLabel(toolUses);
+            var $details = $('<details class="ai-tool-cards-group"><summary class="ai-tool-cards-summary">' + this.escapeHtml(label) + '</summary></details>');
+            toolUses.forEach(function(tu) {
+                self.addToolUseMessage(tu.name, tu.input, $details);
+            });
+            $('#ai-assistant-messages').append($details);
         },
 
         formatContent: function(content) {
@@ -237,31 +257,50 @@
 
             // Collect pending tool calls to process at the end
             var pendingToolCalls = [];
+            // Accumulate resolved tool uses across consecutive tool-only turns
+            var accumulatedToolUses = [];
+
+            var flushToolUseGroup = function() {
+                if (accumulatedToolUses.length > 0) {
+                    self.addToolUseGroup(accumulatedToolUses);
+                    accumulatedToolUses = [];
+                }
+            };
 
             // Second pass: render messages
             this.messages.forEach(function(msg) {
                 if (msg.role === 'user') {
+                    // Real user text flushes accumulated tool uses first
+                    var hasText = typeof msg.content === 'string'
+                        ? msg.content.trim()
+                        : Array.isArray(msg.content) && msg.content.some(function(b) { return b.type === 'text' && b.text && b.text.trim(); });
+                    if (hasText) {
+                        flushToolUseGroup();
+                    }
                     if (typeof msg.content === 'string' && msg.content.trim()) {
                         self.addMessage('user', msg.content);
                     } else if (Array.isArray(msg.content)) {
                         msg.content.forEach(function(block) {
-                            if (block.type === 'tool_result') {
-                                // Skip - shown inline with tool_use
-                            } else if (block.type === 'text' && block.text && block.text.trim()) {
+                            if (block.type === 'text' && block.text && block.text.trim()) {
                                 self.addMessage('user', block.text);
                             }
+                            // tool_result blocks are skipped - shown with tool_use
                         });
                     }
                 } else if (msg.role === 'assistant') {
                     if (typeof msg.content === 'string' && msg.content.trim()) {
+                        flushToolUseGroup();
                         self.addMessage('assistant', msg.content);
-                    } else if (Array.isArray(msg.content)) {
+                    }
+                    if (Array.isArray(msg.content)) {
+                        var hasAssistantText = msg.content.some(function(b) { return b.type === 'text' && b.text && b.text.trim(); });
+                        if (hasAssistantText) flushToolUseGroup();
                         msg.content.forEach(function(block) {
                             if (block.type === 'text' && block.text && block.text.trim()) {
                                 self.addMessage('assistant', block.text);
                             } else if (block.type === 'tool_use') {
                                 if (resolvedToolIds[block.id]) {
-                                    self.addToolUseMessage(block.name, block.input || block.arguments || {});
+                                    accumulatedToolUses.push({ name: block.name, input: block.input || block.arguments || {} });
                                 } else {
                                     pendingToolCalls.push({
                                         id: block.id,
@@ -281,13 +320,9 @@
                                 if (typeof args === 'string') args = JSON.parse(args);
                             } catch(e) { args = {}; }
                             if (resolvedToolIds[tc.id]) {
-                                self.addToolUseMessage(name, args || {});
+                                accumulatedToolUses.push({ name: name, input: args || {} });
                             } else {
-                                pendingToolCalls.push({
-                                    id: tc.id,
-                                    name: name,
-                                    arguments: args || {}
-                                });
+                                pendingToolCalls.push({ id: tc.id, name: name, arguments: args || {} });
                             }
                         });
                     }
@@ -295,6 +330,7 @@
                     // Skip - shown with tool_use
                 }
             });
+            flushToolUseGroup();
 
             // Process pending tool calls through normal flow
             if (pendingToolCalls.length > 0) {
@@ -454,14 +490,37 @@
         getToolCardsContainer: function() {
             var $container = $('#ai-assistant-tool-cards');
             if ($container.length === 0) {
-                $container = $('<div id="ai-assistant-tool-cards"></div>');
+                $container = $('<details id="ai-assistant-tool-cards" open><summary class="ai-tool-cards-summary">Tools</summary></details>');
                 $('#ai-assistant-messages').append($container);
             } else {
                 // Move container to end of messages if it already exists
                 // This handles cases where LLM responds multiple times with tool calls
+                $container.attr('open', '');
                 $('#ai-assistant-messages').append($container);
             }
             return $container;
+        },
+
+        updateToolCardsSummary: function() {
+            var $container = $('#ai-assistant-tool-cards');
+            if (!$container.length) return;
+            var state = this.toolCardsState;
+            var ids = Object.keys(state);
+            var total = ids.length;
+            var done = ids.filter(function(id) {
+                var s = state[id].state;
+                return s === 'completed' || s === 'error' || s === 'skipped';
+            }).length;
+            var seen = {};
+            var names = [];
+            ids.forEach(function(id) { var n = state[id].name; if (n && !seen[n]) { seen[n] = true; names.push(n); } });
+            var base = (total === 1 ? '1 tool' : total + ' tools') + (names.length ? ': ' + names.join(', ') : '');
+            if (done === total && total > 0) {
+                $container.removeAttr('open');
+                $container.find('.ai-tool-cards-summary').text(base);
+            } else {
+                $container.find('.ai-tool-cards-summary').text(base + ' \u2013 ' + done + '/' + total + ' done');
+            }
         },
 
         showToolProgress: function(toolName, bytesReceived, toolId, partialInput) {
@@ -521,8 +580,7 @@
                 case 'db_query':
                     match = partialJson.match(/"sql"\s*:\s*"([^"]+)"/);
                     if (match) {
-                        var sql = match[1].substring(0, 40);
-                        return 'Query: ' + sql + (match[1].length > 40 ? '...' : '');
+                        return this.describeSql(match[1].replace(/\\n/g, ' ').replace(/\\t/g, ' '));
                     }
                     break;
                 case 'execute_ability':
@@ -552,6 +610,7 @@
                 '</div>');
 
             $container.append($card);
+            this.updateToolCardsSummary();
             this.scrollToBottom();
         },
 
@@ -700,7 +759,8 @@
                         }
                         if (outputText.trim()) {
                             var lineCount = (outputText.match(/\n/g) || []).length + 1;
-                            var autoExpand = lineCount <= 10;
+                            var toolCardName = this.toolCardsState[toolId] && this.toolCardsState[toolId].name;
+                            var autoExpand = lineCount <= 10 && toolCardName !== 'db_query';
                             $output.html(
                                 '<div class="ai-action-preview' + (autoExpand ? ' expanded' : '') + '">' +
                                 '<button type="button" class="ai-action-preview-toggle">' +
@@ -732,14 +792,24 @@
                 this.toolCardsState[toolId].state = state;
             }
 
+            this.updateToolCardsSummary();
             this.scrollToBottom();
         },
 
         clearToolCards: function() {
             this.toolCardsState = {};
             var $container = $('#ai-assistant-tool-cards');
-            // Preserve completed/error/skipped cards in their original order
-            $container.find('.ai-tool-card-completed, .ai-tool-card-error, .ai-tool-card-skipped').insertBefore($container);
+            var $finished = $container.find('.ai-tool-card-completed, .ai-tool-card-error, .ai-tool-card-skipped');
+            if ($finished.length > 0) {
+                var state = this.toolCardsState;
+                var seen = {}, names = [];
+                Object.keys(state).forEach(function(id) { var n = state[id].name; if (n && !seen[n]) { seen[n] = true; names.push(n); } });
+                var count = $finished.length;
+                var label = (count === 1 ? '1 tool' : count + ' tools') + (names.length ? ': ' + names.join(', ') : '');
+                var $group = $('<details class="ai-tool-cards-group"><summary class="ai-tool-cards-summary">' + this.escapeHtml(label) + '</summary></details>');
+                $finished.appendTo($group);
+                $group.insertBefore($container);
+            }
             $container.remove();
         },
 
