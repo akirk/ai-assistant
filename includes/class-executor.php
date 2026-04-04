@@ -1165,7 +1165,7 @@ class Executor {
             'result'  => $result,
         ];
 
-        /*
+        /**
          * Filter the instructions injected into the AI context after an ability executes.
          *
          * Use this to tell the AI how to present or act on the result it just received —

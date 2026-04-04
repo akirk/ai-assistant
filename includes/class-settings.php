@@ -1552,7 +1552,7 @@ PROMPT;
             $prompt .= "\n\nPAGE STRUCTURE (useful CSS selectors for get_page_html on this page):\n" . $page_hints;
         }
 
-        /*
+        /**
          * Filter the ability domains injected into the AI system prompt.
          *
          * Returns an associative array mapping a plugin slug to a comma-separated list
