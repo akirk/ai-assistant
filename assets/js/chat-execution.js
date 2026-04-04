@@ -10,6 +10,21 @@
             var needsConfirmation = [];
             var executeImmediately = [];
 
+            // Deduplicate tool calls with identical name + arguments (local models repeat themselves)
+            var seen = {};
+            var duplicateIds = {};
+            toolCalls = toolCalls.filter(function(tc) {
+                var key = tc.name + '|' + JSON.stringify(tc.arguments);
+                if (seen[key]) { duplicateIds[tc.id] = true; return false; }
+                seen[key] = true;
+                return true;
+            });
+            // Remove tool cards for dropped duplicates silently
+            Object.keys(duplicateIds).forEach(function(id) {
+                $('[data-tool-id="' + id + '"]').remove();
+                if (self.toolCardsState) delete self.toolCardsState[id];
+            });
+
             // Build set of valid tool IDs from this batch
             var validToolIds = {};
             toolCalls.forEach(function(tc) {

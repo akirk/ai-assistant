@@ -1552,29 +1552,35 @@ PROMPT;
             $prompt .= "\n\nPAGE STRUCTURE (useful CSS selectors for get_page_html on this page):\n" . $page_hints;
         }
 
+        $ability_domains = apply_filters('ai_assistant_ability_domains', []);
+
         $prompt .= <<<'PROMPT'
 
 
-You have access to tools that let you interact with the WordPress filesystem and database. All file paths are relative to wp-content/.
+TOOL USAGE RULES:
 
-If the user describes something they are seeing on the page, references UI elements, or asks about content visible on screen, use the get_page_html tool to see what they're looking at.
+If the user describes something they are seeing on the page, references UI elements, or asks about content visible on screen, use get_page_html to see what they're looking at.
 
-WORDPRESS ABILITIES API:
 PROMPT;
+
+        if (!empty($ability_domains)) {
+            $prompt .= "The following topics are handled by plugin abilities. For these, ALWAYS use the ability tool — never db_query, find, or run_php:\n";
+            foreach ($ability_domains as $slug => $keywords) {
+                $prompt .= "- $slug: $keywords\n";
+            }
+            $prompt .= "\n";
+        }
+
+        $prompt .= "For any other plugin-specific data or actions, check abilities first (ability action:list) before reaching for db_query or run_php.\n";
 
         $enabled_tools = $this->get_user_enabled_tools();
         if (in_array('run_php', $enabled_tools, true)) {
-            $prompt .= "\nFor common WordPress operations (posts, options, queries, users), use run_php with standard WordPress functions.";
+            $prompt .= "For native WordPress data (posts, options, users) with no matching ability, use run_php with standard WordPress functions.\n";
         }
 
-        $prompt .= <<<'PROMPT'
+        $prompt .= "Only use db_query for custom reporting or cross-table queries that no ability covers.\n";
 
-Use the Abilities API (ability tool with action list/get/execute) FIRST before falling back to run_php or db_query. Abilities expose plugin/theme capabilities in a safe, structured way. Prefer abilities when:
-- The task involves plugin-specific functionality (e.g., WooCommerce, CRM, forms, SEO plugins)
-- You need to read or write data that a plugin manages
-- You're unsure how to accomplish something with standard WordPress functions
-Only use db_query directly when you need custom reporting or data that no ability covers. Never use db_query as a substitute for an ability that already exists.
-If an ability result contains an `_instructions` key, follow those instructions when presenting the result to the user.
+        $prompt .= <<<'PROMPT'
 
 FILE EDITING RULES:
 - Use write_file ONLY for creating NEW files

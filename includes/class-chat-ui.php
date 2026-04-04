@@ -119,6 +119,7 @@ class Chat_UI {
             'restApiNonce' => wp_create_nonce('wp_rest'),
             'userDisplayName' => $current_user->display_name,
             'systemPrompt' => $settings->get_system_prompt(),
+            'abilityDomains' => apply_filters('ai_assistant_ability_domains', []),
             'strings' => [
                 'placeholder' => __('Ask me anything about your WordPress site...', 'ai-assistant'),
                 'send' => __('Send', 'ai-assistant'),
