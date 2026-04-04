@@ -9,7 +9,7 @@ const ALL_ENABLED = [
     'run_php', 'db_query', 'rest_api', 'environment_info',
     'get_plugins', 'get_themes', 'install_plugin',
     'list_abilities', 'get_ability', 'execute_ability',
-    'navigate', 'get_page_html', 'summarize_conversation',
+    'get_page_html', 'summarize_conversation',
     'list_skills', 'get_skill',
 ];
 
@@ -149,7 +149,7 @@ describe('getTools tiering', function() {
 
         assert.ok(!names.includes('enable_tools'));
         assert.ok(names.includes('db_query'));
-        assert.ok(names.includes('navigate'));
+        assert.ok(names.includes('get_page_html'));
     });
 
     it('respects enabled tools filter', function() {
@@ -180,13 +180,13 @@ describe('enable_tools activation', function() {
 
         // Before: only core tools
         let names = inst.getTools().map(t => t.name);
-        assert.ok(!names.includes('db_query'));
+        assert.ok(!names.includes('get_page_html'));
 
-        // Enable db_query
-        inst.setActiveExtendedTools(['db_query']);
+        // Enable get_page_html
+        inst.setActiveExtendedTools(['get_page_html']);
 
         names = inst.getTools().map(t => t.name);
-        assert.ok(names.includes('db_query'), 'db_query should be available after enabling');
+        assert.ok(names.includes('get_page_html'), 'get_page_html should be available after enabling');
     });
 
     it('enable_tools disappears when all extended tools are activated', function() {
@@ -201,7 +201,7 @@ describe('enable_tools activation', function() {
 
     it('enable_tools remains when some extended tools are still inactive', function() {
         const inst = createInstance();
-        inst.setActiveExtendedTools(['db_query']);
+        inst.setActiveExtendedTools(['get_page_html']);
 
         const names = inst.getTools().map(t => t.name);
         assert.ok(names.includes('enable_tools'), 'enable_tools should remain');
@@ -209,15 +209,15 @@ describe('enable_tools activation', function() {
 
     it('resetActiveExtendedTools clears all activated tools', function() {
         const inst = createInstance();
-        inst.setActiveExtendedTools(['db_query', 'navigate']);
+        inst.setActiveExtendedTools(['get_page_html', 'summarize_conversation']);
 
         let names = inst.getTools().map(t => t.name);
-        assert.ok(names.includes('db_query'));
+        assert.ok(names.includes('get_page_html'));
 
         toolsMixin.resetActiveExtendedTools();
 
         names = inst.getTools().map(t => t.name);
-        assert.ok(!names.includes('db_query'), 'db_query should be gone after reset');
+        assert.ok(!names.includes('get_page_html'), 'get_page_html should be gone after reset');
     });
 });
 
@@ -229,19 +229,19 @@ describe('executeEnableTools', function() {
 
         const result = inst.executeEnableTools({
             id: 'tool_1',
-            arguments: { tools: ['db_query', 'navigate'] },
+            arguments: { tools: ['get_page_html', 'summarize_conversation'] },
         });
 
         assert.strictEqual(result.success, true);
-        assert.deepStrictEqual(result.result.enabled, ['db_query', 'navigate']);
+        assert.deepStrictEqual(result.result.enabled, ['get_page_html', 'summarize_conversation']);
         assert.strictEqual(result.result.tools.length, 2);
-        assert.strictEqual(result.result.tools[0].name, 'db_query');
-        assert.strictEqual(result.result.tools[1].name, 'navigate');
+        assert.strictEqual(result.result.tools[0].name, 'get_page_html');
+        assert.strictEqual(result.result.tools[1].name, 'summarize_conversation');
 
         // They should now appear in getTools
         const names = inst.getTools().map(t => t.name);
-        assert.ok(names.includes('db_query'));
-        assert.ok(names.includes('navigate'));
+        assert.ok(names.includes('get_page_html'));
+        assert.ok(names.includes('summarize_conversation'));
     });
 
     it('ignores invalid tool names', function() {
@@ -249,22 +249,22 @@ describe('executeEnableTools', function() {
 
         const result = inst.executeEnableTools({
             id: 'tool_2',
-            arguments: { tools: ['fake_tool', 'db_query'] },
+            arguments: { tools: ['fake_tool', 'get_page_html'] },
         });
 
-        assert.deepStrictEqual(result.result.enabled, ['db_query']);
+        assert.deepStrictEqual(result.result.enabled, ['get_page_html']);
         assert.strictEqual(result.result.tools.length, 1);
     });
 
     it('ignores tools not permitted for user', function() {
         const inst = createInstance({
-            // Only file tools enabled — db_query requires 'db_query' in enabled list
+            // Only file tools enabled — get_page_html requires 'get_page_html' in enabled list
             _enabledTools: ['read_file', 'list_directory'],
         });
 
         const result = inst.executeEnableTools({
             id: 'tool_3',
-            arguments: { tools: ['db_query'] },
+            arguments: { tools: ['get_page_html'] },
         });
 
         assert.deepStrictEqual(result.result.enabled, []);
@@ -274,25 +274,25 @@ describe('executeEnableTools', function() {
     it('does not duplicate already-enabled tools', function() {
         const inst = createInstance();
 
-        // Enable db_query twice
+        // Enable get_page_html twice
         inst.executeEnableTools({
             id: 'tool_4',
-            arguments: { tools: ['db_query'] },
+            arguments: { tools: ['get_page_html'] },
         });
 
         const result = inst.executeEnableTools({
             id: 'tool_5',
-            arguments: { tools: ['db_query'] },
+            arguments: { tools: ['get_page_html'] },
         });
 
         // Second call: not newly added, but definition still returned
         assert.deepStrictEqual(result.result.enabled, []);
         assert.strictEqual(result.result.tools.length, 1);
-        assert.strictEqual(result.result.tools[0].name, 'db_query');
+        assert.strictEqual(result.result.tools[0].name, 'get_page_html');
 
         // Only one copy in active list
         const active = inst.getActiveExtendedTools();
-        assert.strictEqual(active.filter(t => t === 'db_query').length, 1);
+        assert.strictEqual(active.filter(t => t === 'get_page_html').length, 1);
     });
 
     it('ignores core tool names', function() {
@@ -439,14 +439,14 @@ describe('Local LLM payload format', function() {
 
         inst.executeEnableTools({
             id: 'test',
-            arguments: { tools: ['db_query', 'navigate'] },
+            arguments: { tools: ['get_page_html', 'summarize_conversation'] },
         });
 
         const tools = inst.getToolsOpenAI();
         const names = tools.map(t => t.function.name);
 
-        assert.ok(names.includes('db_query'));
-        assert.ok(names.includes('navigate'));
+        assert.ok(names.includes('get_page_html'));
+        assert.ok(names.includes('summarize_conversation'));
         // enable_tools should still be present (not all extended activated)
         assert.ok(names.includes('enable_tools'));
     });

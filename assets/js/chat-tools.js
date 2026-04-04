@@ -8,10 +8,10 @@ var aiAssistantToolsMixin = (function() {
     return {
 
         // Core tools - always available
-        coreToolNames: ['run_php', 'read_file', 'edit_file', 'write_file', 'find', 'environment_info', 'ability', 'skill'],
+        coreToolNames: ['run_php', 'read_file', 'edit_file', 'write_file', 'find', 'environment_info', 'db_query', 'rest_api', 'ability', 'skill'],
 
         // Extended tools - loaded on demand for local LLMs, always available for cloud
-        extendedToolNames: ['delete_file', 'db_query', 'rest_api', 'install_plugin', 'navigate', 'get_page_html', 'summarize_conversation'],
+        extendedToolNames: ['delete_file', 'install_plugin', 'get_page_html', 'summarize_conversation'],
 
         getAllToolDefinitions: function() {
             return [
@@ -109,11 +109,11 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'db_query',
-                    description: 'Execute a SELECT query on the WordPress database',
+                    description: 'Execute a read-only query on the WordPress database. SELECT, DESCRIBE, and SHOW queries are allowed.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            sql: { type: 'string', description: 'The SELECT SQL query. Use {prefix} for table prefix.' }
+                            sql: { type: 'string', description: 'The SQL query to execute (SELECT, DESCRIBE, or SHOW). Use {prefix} as placeholder for table prefix.' }
                         },
                         required: ['sql']
                     }
