@@ -1552,6 +1552,24 @@ PROMPT;
             $prompt .= "\n\nPAGE STRUCTURE (useful CSS selectors for get_page_html on this page):\n" . $page_hints;
         }
 
+        /**
+         * Filter the ability domains injected into the AI system prompt.
+         *
+         * Returns an associative array mapping a plugin slug to a comma-separated list
+         * of topic keywords. The AI is instructed to always use the `ability` tool for
+         * these topics instead of generic tools like `run_php`, `find`, or `db_query`.
+         *
+         * Example:
+         * ```php
+         * add_filter( 'ai_assistant_ability_domains', function ( $domains ) {
+         *     $domains['my-plugin'] = 'invoices, billing, payments, clients';
+         *     return $domains;
+         * } );
+         * ```
+         *
+         * @param array<string,string> $domains Map of plugin slug => comma-separated topic keywords.
+         * @return array<string,string> The filtered domains map.
+         */
         $ability_domains = apply_filters('ai_assistant_ability_domains', []);
 
         $prompt .= <<<'PROMPT'

@@ -1165,6 +1165,29 @@ class Executor {
             'result'  => $result,
         ];
 
+        /**
+         * Filter the instructions injected into the AI context after an ability executes.
+         *
+         * Use this to tell the AI how to present or act on the result it just received —
+         * for example, which fields to render as links, how to format numbers, or what
+         * follow-up actions to suggest.
+         *
+         * Example:
+         * ```php
+         * add_filter( 'ai_assistant_ability_instructions', function ( $instructions, $ability_id, $args, $result ) {
+         *     if ( 'my-plugin/get-invoice' === $ability_id && ! empty( $result ) ) {
+         *         $instructions = 'Present the invoice total in bold. Link the invoice number using the url field.';
+         *     }
+         *     return $instructions;
+         * }, 10, 4 );
+         * ```
+         *
+         * @param string $instructions Instructions to inject (empty string by default).
+         * @param string $ability_id   The ID of the ability that was just executed, e.g. `my-plugin/get-invoice`.
+         * @param array  $arguments    The arguments passed to the ability by the AI.
+         * @param mixed  $result       The value returned by the ability's execute_callback.
+         * @return string Instructions string, or empty string for no instructions.
+         */
         $instructions = apply_filters('ai_assistant_ability_instructions', '', $ability_id, $arguments, $result);
         if ($instructions) {
             $response['_instructions'] = $instructions;
