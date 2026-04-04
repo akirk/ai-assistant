@@ -655,9 +655,12 @@
 
             this.toolCallRounds++;
             if (this.toolCallRounds >= 10) {
-                this.addMessage('error', 'Tool call limit reached (10 rounds). Please continue manually.');
-                this.setLoading(false);
                 this.toolCallRounds = 0;
+                this.messages.push({
+                    role: 'user',
+                    content: 'You have reached the maximum number of tool call rounds. Summarize what you accomplished and what, if anything, remains to be done.'
+                });
+                this.callLLM();
                 return;
             }
 
