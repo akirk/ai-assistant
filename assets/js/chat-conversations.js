@@ -146,7 +146,6 @@
             this.conversationProvider = this.getProvider();
             this.conversationModel = this.getModel();
             this.pendingNewChat = false;
-            this.resetActiveExtendedTools();
             this.updateSendButton();
             this.updateTokenCount();
             this.clearToolCards();
@@ -317,22 +316,6 @@
                             console.error('[AI Assistant] Failed to decode messages:', e);
                             self.messages = [];
                         }
-
-                        // Restore enable_tools state from saved message history
-                        self.resetActiveExtendedTools();
-                        self.messages.forEach(function(m) {
-                            if (m.role === 'assistant' && m.tool_calls) {
-                                m.tool_calls.forEach(function(tc) {
-                                    var name = tc.function ? tc.function.name : tc.name;
-                                    if (name !== 'enable_tools') return;
-                                    var args = tc.function ? tc.function.arguments : tc.arguments;
-                                    if (typeof args === 'string') {
-                                        try { args = JSON.parse(args); } catch(e) { args = {}; }
-                                    }
-                                    self.executeEnableTools({ id: tc.id, arguments: args || {} });
-                                });
-                            }
-                        });
 
                         var $messages = $('#ai-assistant-messages');
                         $messages.css('visibility', 'hidden').empty();

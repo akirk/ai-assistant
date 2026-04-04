@@ -2,94 +2,84 @@
 var aiAssistantToolsMixin = (function() {
     'use strict';
 
-    // Tools enabled via enable_tools during this conversation (local LLM tiering)
-    var activeExtendedTools = [];
-
     return {
-
-        // Core tools - always available
-        coreToolNames: ['run_php', 'read_file', 'edit_file', 'write_file', 'find', 'environment_info', 'db_query', 'rest_api', 'ability', 'skill'],
-
-        // Extended tools - loaded on demand for local LLMs, always available for cloud
-        extendedToolNames: ['delete_file', 'install_plugin', 'get_page_html', 'summarize_conversation'],
 
         getAllToolDefinitions: function() {
             return [
                 {
                     name: 'read_file',
-                    description: 'Read the contents of a file within wp-content directory',
+                    description: 'Read a file in wp-content',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            path: { type: 'string', description: 'Relative path from wp-content (e.g., "plugins/my-plugin/file.php")' }
+                            path: { type: 'string', description: 'Relative path from wp-content' }
                         },
                         required: ['path']
                     }
                 },
                 {
                     name: 'write_file',
-                    description: 'Write or overwrite a file within wp-content directory. Use ONLY for creating NEW files.',
+                    description: 'Create a new file in wp-content. Use edit_file for existing files.',
                     input_schema: {
                         type: 'object',
                         properties: {
                             path: { type: 'string', description: 'Relative path from wp-content' },
-                            content: { type: 'string', description: 'The content to write to the file' },
-                            reason: { type: 'string', description: 'Brief explanation of why this file is being created (used for change tracking)' }
+                            content: { type: 'string' },
+                            reason: { type: 'string' }
                         },
                         required: ['path', 'content', 'reason']
                     }
                 },
                 {
                     name: 'edit_file',
-                    description: 'Edit an existing file by applying search and replace operations. Use this for modifying existing files instead of write_file. Each edit finds a unique string and replaces it.',
+                    description: 'Edit a file via search/replace operations. Each search string must be unique in the file.',
                     input_schema: {
                         type: 'object',
                         properties: {
                             path: { type: 'string', description: 'Relative path from wp-content' },
                             edits: {
                                 type: 'array',
-                                description: 'Array of edit operations to apply in order',
                                 items: {
                                     type: 'object',
                                     properties: {
-                                        search: { type: 'string', description: 'The exact string to find (must be unique in the file)' },
-                                        replace: { type: 'string', description: 'The string to replace it with' }
+                                        search: { type: 'string' },
+                                        replace: { type: 'string' }
                                     },
                                     required: ['search', 'replace']
                                 }
                             },
-                            reason: { type: 'string', description: 'Brief explanation of why this file is being edited (used for change tracking)' }
+                            reason: { type: 'string' }
                         },
                         required: ['path', 'edits', 'reason']
                     }
                 },
                 {
                     name: 'find',
-                    description: 'Find files and content in wp-content. Provide path alone to list a directory, glob to search filenames, or text to search file contents.',
+                    description: 'Find files or content in wp-content. Omit all params to list root. Use path to list a directory, glob to match filenames, text to search file contents.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            path: { type: 'string', description: 'Directory to list or search in (relative to wp-content)' },
-                            glob: { type: 'string', description: 'Glob pattern to match filenames (e.g., "plugins/*/*.php")' },
-                            text: { type: 'string', description: 'Text to search for in file contents' },
-                            file_pattern: { type: 'string', description: 'File extension filter when searching text (e.g., "*.php")' }
+                            path: { type: 'string', description: 'Directory (relative to wp-content)' },
+                            glob: { type: 'string', description: 'Filename glob pattern' },
+                            text: { type: 'string', description: 'Search string' },
+                            file_pattern: { type: 'string', description: 'File filter for text search' }
                         }
                     }
                 },
                 {
                     name: 'run_php',
-                    description: 'Execute PHP code in the WordPress environment. Use for standard WordPress functions like wp_insert_post(), get_option(), WP_Query, etc.',
+                    description: 'Execute PHP in the WordPress environment. No <?php tag. Return a value to get output.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            code: { type: 'string', description: 'PHP code to execute. Do not include <?php tags. The code should return a value that will be sent back as the result.' }
+                            code: { type: 'string' }
                         },
                         required: ['code']
                     }
                 },
                 {
                     name: 'environment_info',
-                    description: 'Get WordPress environment info: active plugins, themes, WP/PHP versions, and site URLs.',
+                    description: 'Get active plugins, themes, WP/PHP versions, and site URLs.',
                     input_schema: {
                         type: 'object',
                         properties: {}
@@ -97,144 +87,114 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'delete_file',
-                    description: 'Delete a file within wp-content directory',
+                    description: 'Delete a file in wp-content',
                     input_schema: {
                         type: 'object',
                         properties: {
                             path: { type: 'string', description: 'Relative path from wp-content' },
-                            reason: { type: 'string', description: 'Brief explanation of why this file is being deleted (used for change tracking)' }
+                            reason: { type: 'string' }
                         },
                         required: ['path', 'reason']
                     }
                 },
                 {
                     name: 'db_query',
-                    description: 'Execute a read-only query on the WordPress database. SELECT, DESCRIBE, and SHOW queries are allowed.',
+                    description: 'Read-only database query (SELECT, DESCRIBE, SHOW). Use {prefix} for table prefix.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            sql: { type: 'string', description: 'The SQL query to execute (SELECT, DESCRIBE, or SHOW). Use {prefix} as placeholder for table prefix.' }
+                            sql: { type: 'string' }
                         },
                         required: ['sql']
                     }
                 },
                 {
                     name: 'rest_api',
-                    description: 'Make WordPress REST API requests. Use GET to read data and POST/PUT/PATCH/DELETE to modify it. Standard namespaces: /wp/v2/posts, /wp/v2/pages, /wp/v2/users, /wp/v2/media, /wp/v2/taxonomies, /wp/v2/settings. Discover all available routes via GET /.',
+                    description: 'WordPress REST API. GET / to discover routes. GET and OPTIONS are always allowed; write methods require approval.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            method: { type: 'string', enum: ['GET', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'], description: 'HTTP method' },
-                            path: { type: 'string', description: 'REST API path, e.g. /wp/v2/posts or /wp/v2/posts/123' },
-                            params: { type: 'object', description: 'Query string parameters for GET requests, e.g. {"per_page": 10, "status": "draft"}' },
-                            body: { type: 'object', description: 'Request body for POST/PUT/PATCH requests' }
+                            method: { type: 'string', enum: ['GET', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'] },
+                            path: { type: 'string', description: 'e.g. /wp/v2/posts or /wp/v2/posts/123' },
+                            params: { type: 'object', description: 'Query params for GET' },
+                            body: { type: 'object', description: 'Request body for write methods' }
                         },
                         required: ['method', 'path']
                     }
                 },
                 {
                     name: 'install_plugin',
-                    description: 'Install a plugin from the WordPress.org plugin directory. The slug is typically the plugin URL path on wordpress.org (e.g., wordpress.org/plugins/contact-form-7 → slug is "contact-form-7").',
+                    description: 'Install a plugin from wordpress.org by slug.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            slug: { type: 'string', description: 'The plugin slug from wordpress.org (e.g., "akismet", "contact-form-7", "woocommerce")' },
-                            activate: { type: 'boolean', description: 'Whether to activate the plugin after installation (default: false)' }
+                            slug: { type: 'string' },
+                            activate: { type: 'boolean' }
                         },
                         required: ['slug']
                     }
                 },
                 {
                     name: 'ability',
-                    description: 'WordPress abilities API. List available abilities, get details of one, or execute one.',
+                    description: 'WordPress abilities: list, get details, or execute. Use list first to discover what\'s available.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            action: { type: 'string', enum: ['list', 'get', 'execute'], description: 'Action to perform' },
-                            ability: { type: 'string', description: 'Ability identifier (for get/execute, e.g., "core/create-post")' },
-                            category: { type: 'string', description: 'Category filter (for list, e.g., "content", "media", "users")' },
-                            arguments: { type: 'object', description: 'Arguments to pass when executing' }
+                            action: { type: 'string', enum: ['list', 'get', 'execute'] },
+                            ability: { type: 'string', description: 'Ability identifier' },
+                            category: { type: 'string' },
+                            arguments: { type: 'object' }
                         },
                         required: ['action']
                     }
                 },
                 {
                     name: 'navigate',
-                    description: 'Navigate the user to a URL within the WordPress site. This will reload the page, so it should typically be the last action in a conversation turn.',
+                    description: 'Navigate the user to a URL (reloads the page).',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            url: { type: 'string', description: 'The URL to navigate to. Can be a full URL or a relative path (e.g., "/wp-admin/edit.php").' }
+                            url: { type: 'string' }
                         },
                         required: ['url']
                     }
                 },
                 {
                     name: 'get_page_html',
-                    description: 'Get the HTML content of elements on the current page the user is viewing.',
+                    description: 'Get HTML of elements on the current page.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            selector: { type: 'string', description: 'CSS selector to query (e.g., "#main-content", ".entry-title", "body").' },
-                            max_length: { type: 'number', description: 'Maximum characters to return per element (default: 5000).' }
+                            selector: { type: 'string', description: 'CSS selector' },
+                            max_length: { type: 'number' }
                         },
                         required: ['selector']
                     }
                 },
                 {
                     name: 'summarize_conversation',
-                    description: 'Generate a compact summary of a conversation and store it for future reference.',
+                    description: 'Summarize a conversation and store it.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            conversation_id: { type: 'number', description: 'The conversation ID to summarize. Use 0 or omit for the current conversation.' }
+                            conversation_id: { type: 'number', description: 'Omit for current conversation' }
                         }
                     }
                 },
                 {
                     name: 'skill',
-                    description: 'Load AI skill documents with specialized knowledge. List available skills or get a specific one.',
+                    description: 'Load skill documents with specialized knowledge.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            action: { type: 'string', enum: ['list', 'get'], description: 'Action to perform' },
-                            skill: { type: 'string', description: 'Skill identifier (for get)' },
-                            category: { type: 'string', description: 'Category filter (for list)' }
+                            action: { type: 'string', enum: ['list', 'get'] },
+                            skill: { type: 'string' },
+                            category: { type: 'string' }
                         },
                         required: ['action']
                     }
                 }
             ];
-        },
-
-        getEnableToolsDef: function() {
-            return {
-                name: 'enable_tools',
-                description: 'Enable additional tools for this conversation. Available: ' + this.extendedToolNames.join(', '),
-                input_schema: {
-                    type: 'object',
-                    properties: {
-                        tools: {
-                            type: 'array',
-                            items: { type: 'string' },
-                            description: 'Tool names to enable'
-                        }
-                    },
-                    required: ['tools']
-                }
-            };
-        },
-
-        getActiveExtendedTools: function() {
-            return activeExtendedTools;
-        },
-
-        setActiveExtendedTools: function(tools) {
-            activeExtendedTools = tools;
-        },
-
-        resetActiveExtendedTools: function() {
-            activeExtendedTools = [];
         },
 
         getEnabledToolNames: function() {
@@ -247,32 +207,9 @@ var aiAssistantToolsMixin = (function() {
             var enabled = this.getEnabledToolNames();
             var allTools = this.getAllToolDefinitions();
             var self = this;
-
-            // Filter to enabled tools
-            var available = allTools.filter(function(tool) {
+            return allTools.filter(function(tool) {
                 return self.isToolEnabled(tool.name, enabled);
             });
-
-            var provider = this.conversationProvider || this.getProvider();
-
-            // For local LLMs: only core tools + enable_tools + any dynamically enabled extended tools
-            if (provider === 'local') {
-                var coreNames = self.coreToolNames;
-                var active = activeExtendedTools;
-                var filtered = available.filter(function(tool) {
-                    return coreNames.indexOf(tool.name) >= 0 || active.indexOf(tool.name) >= 0;
-                });
-                // Add enable_tools if there are still-disabled extended tools available
-                var hasMoreExtended = self.extendedToolNames.some(function(name) {
-                    return active.indexOf(name) < 0 && self.isToolEnabled(name, enabled);
-                });
-                if (hasMoreExtended) {
-                    filtered.push(self.getEnableToolsDef());
-                }
-                return filtered;
-            }
-
-            return available;
         },
 
         // Check if a consolidated tool name is enabled based on the user's permission settings.
@@ -297,49 +234,6 @@ var aiAssistantToolsMixin = (function() {
                 default:
                     return enabled.indexOf(toolName) >= 0;
             }
-        },
-
-        executeEnableTools: function(toolCall) {
-            var self = this;
-            var args = toolCall.arguments || {};
-            var requested = args.tools || [];
-
-            var enabled = this.getEnabledToolNames();
-            var allTools = self.getAllToolDefinitions();
-            var current = self.getActiveExtendedTools().slice();
-            var added = [];
-            var definitions = [];
-
-            requested.forEach(function(name) {
-                if (self.extendedToolNames.indexOf(name) < 0) {
-                    return; // not a valid extended tool
-                }
-                if (!self.isToolEnabled(name, enabled)) {
-                    return; // not permitted for this user
-                }
-                if (current.indexOf(name) < 0) {
-                    current.push(name);
-                    added.push(name);
-                }
-                // Always return the definition (even if already enabled)
-                var def = allTools.find(function(t) { return t.name === name; });
-                if (def) {
-                    definitions.push(def);
-                }
-            });
-
-            self.setActiveExtendedTools(current);
-
-            return {
-                id: toolCall.id,
-                name: 'enable_tools',
-                input: args,
-                result: {
-                    enabled: added,
-                    tools: definitions
-                },
-                success: true
-            };
         },
 
         getToolsOpenAI: function() {

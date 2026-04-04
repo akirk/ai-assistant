@@ -116,11 +116,6 @@
             var self = this;
             var toolName = toolCall.name || toolCall.tool;
 
-            if (toolName === 'enable_tools') {
-                // executeEnableTools (from chat-tools.js) is synchronous; wrap in Promise
-                return Promise.resolve(this.executeEnableTools(toolCall));
-            }
-
             if (toolName === 'rest_api') {
                 return this.executeRestApi(toolCall);
             }
@@ -824,8 +819,6 @@
                         return 'List skills' + (args.category ? ' (' + args.category + ')' : '');
                     }
                     return 'Get skill: ' + (args.skill || 'unknown');
-                case 'enable_tools':
-                    return 'Enable tools: ' + (args.tools ? args.tools.join(', ') : 'unknown');
                 default:
                     return toolName;
             }
