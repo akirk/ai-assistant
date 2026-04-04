@@ -45,8 +45,8 @@
                     needsConfirmation.push(tc);
                 } else if (self.yoloMode || destructiveTools.indexOf(tc.name) < 0 ||
                            (tc.name === 'ability' && tc.arguments && tc.arguments.action !== 'execute') ||
-                           (tc.name === 'rest_api' && tc.arguments && (tc.arguments.method || 'GET').toUpperCase() === 'GET') ||
-                           self.isAbilityAutoApproved(tc)) {
+                           self.isAbilityAutoApproved(tc) ||
+                           self.isRestApiAutoApproved(tc)) {
                     executeImmediately.push(tc);
                 } else {
                     needsConfirmation.push(tc);
@@ -335,6 +335,15 @@
                             success: false
                         };
                     }
+
+                    // Simplify root discovery response — full route definitions are too large
+                    if ((method === 'GET' || method === 'OPTIONS') && path === '/') {
+                        data = {
+                            namespaces: data.namespaces || [],
+                            routes: Object.keys(data.routes || {})
+                        };
+                    }
+
                     return {
                         id: toolCall.id,
                         name: 'rest_api',
@@ -492,6 +501,30 @@
             });
         },
 
+        isRestApiAutoApproved: function(toolCall) {
+            if (toolCall.name !== 'rest_api') return false;
+            var args = toolCall.arguments || {};
+            var method = (args.method || 'GET').toUpperCase();
+            if (method === 'GET' || method === 'OPTIONS') return true;
+            var pattern = method + ' ' + (args.path || '/');
+            var autoApproved = (window.aiAssistantConfig && window.aiAssistantConfig.autoApprovedRestApis) || [];
+            return autoApproved.indexOf(pattern) >= 0;
+        },
+
+        saveAutoApprovedRestApi: function(pattern) {
+            var autoApproved = (window.aiAssistantConfig && window.aiAssistantConfig.autoApprovedRestApis) || [];
+            if (autoApproved.indexOf(pattern) < 0) {
+                autoApproved.push(pattern);
+                window.aiAssistantConfig.autoApprovedRestApis = autoApproved;
+            }
+            $.post(aiAssistantConfig.ajaxUrl, {
+                action: 'ai_assistant_toggle_auto_approve_rest_api',
+                _wpnonce: aiAssistantConfig.nonce,
+                pattern: pattern,
+                approved: 1
+            });
+        },
+
         // Accumulate tool results until all tools are resolved
         pendingToolResults: [],
         currentProvider: null,
@@ -515,8 +548,8 @@
             var needsConfirm = alwaysConfirmTools.indexOf(toolName) >= 0 ||
                 (!this.yoloMode && destructiveTools.indexOf(toolName) >= 0 &&
                  !(toolName === 'ability' && toolArgs && toolArgs.action !== 'execute') &&
-                 !(toolName === 'rest_api' && toolArgs && (toolArgs.method || 'GET').toUpperCase() === 'GET') &&
-                 !this.isAbilityAutoApproved({ name: toolName, arguments: toolArgs }));
+                 !this.isAbilityAutoApproved({ name: toolName, arguments: toolArgs }) &&
+                 !this.isRestApiAutoApproved({ name: toolName, arguments: toolArgs }));
 
             if (needsConfirm) {
                 this.setToolCardState(toolId, 'pending');

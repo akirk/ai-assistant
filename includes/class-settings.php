@@ -15,6 +15,7 @@ class Settings {
         add_action('admin_init', [$this, 'register_settings']);
         add_action('wp_ajax_ai_assistant_get_skill', [$this, 'ajax_get_skill']);
         add_action('wp_ajax_ai_assistant_toggle_auto_approve_ability', [$this, 'ajax_toggle_auto_approve_ability']);
+        add_action('wp_ajax_ai_assistant_toggle_auto_approve_rest_api', [$this, 'ajax_toggle_auto_approve_rest_api']);
         add_action('load-tools_page_ai-conversations', [$this, 'add_help_tabs']);
         add_action('load-settings_page_ai-assistant-settings', [$this, 'add_help_tabs']);
         add_filter('map_meta_cap', [$this, 'map_tool_cap'], 10, 3);
@@ -288,7 +289,7 @@ class Settings {
             'get_plugins'           => ['label' => 'Get Plugins',           'group' => 'WordPress',       'dangerous' => false],
             'get_themes'            => ['label' => 'Get Themes',            'group' => 'WordPress',       'dangerous' => false],
             'install_plugin'        => ['label' => 'Install Plugin',        'group' => 'WordPress',       'dangerous' => true],
-            'rest_api'              => ['label' => 'REST API',              'group' => 'WordPress',       'dangerous' => true],
+            'rest_api'              => ['label' => 'REST API',              'group' => 'WordPress',       'dangerous' => false],
             'run_php'               => ['label' => 'Run PHP',               'group' => 'Code Execution',  'dangerous' => true],
             'list_abilities'        => ['label' => 'List Abilities',        'group' => 'Abilities',       'dangerous' => false],
             'get_ability'           => ['label' => 'Get Ability',           'group' => 'Abilities',       'dangerous' => false],
@@ -352,6 +353,14 @@ class Settings {
         );
 
         register_setting('ai_assistant_settings', 'ai_assistant_auto_approved_abilities', [
+            'type' => 'array',
+            'sanitize_callback' => function($value) {
+                return array_values(array_map('sanitize_text_field', (array) $value));
+            },
+            'default' => [],
+        ]);
+
+        register_setting('ai_assistant_settings', 'ai_assistant_auto_approved_rest_apis', [
             'type' => 'array',
             'sanitize_callback' => function($value) {
                 return array_values(array_map('sanitize_text_field', (array) $value));
@@ -781,6 +790,44 @@ class Settings {
                                 <span title="<?php esc_attr_e('Dangerous: can modify data or execute code', 'ai-assistant'); ?>">⚠</span>
                             <?php endif; ?>
                         </label>
+                        <?php if ($name === 'rest_api') :
+                            $auto_approved_rest = $this->get_auto_approved_rest_apis();
+                            $hidden = !in_array('rest_api', $enabled, true) ? ' style="display:none"' : '';
+                            // Group approved patterns by method
+                            $by_method = [];
+                            foreach ($auto_approved_rest as $pattern) {
+                                $parts = explode(' ', $pattern, 2);
+                                if (count($parts) === 2) {
+                                    $by_method[$parts[0]][] = $parts[1];
+                                }
+                            }
+                            ?>
+                        <div class="ai-tool-sub-items"<?php echo $hidden; ?>>
+                            <input type="hidden" name="ai_assistant_auto_approved_rest_apis" value="">
+                            <?php foreach (['GET', 'OPTIONS'] as $safe_method) : ?>
+                            <div class="ai-ability-category"><?php echo esc_html($safe_method); ?></div>
+                            <div class="ai-tool-sub-item">
+                                <input type="checkbox" disabled checked>
+                                <span class="description"><?php esc_html_e('Always allowed', 'ai-assistant'); ?></span>
+                            </div>
+                            <?php endforeach; ?>
+                            <?php foreach (['POST', 'PUT', 'PATCH', 'DELETE'] as $method) : ?>
+                            <div class="ai-ability-category"><?php echo esc_html($method); ?></div>
+                            <?php if (!empty($by_method[$method])) : ?>
+                                <?php foreach ($by_method[$method] as $path) :
+                                    $pattern = $method . ' ' . $path; ?>
+                                <div class="ai-tool-sub-item">
+                                    <input type="checkbox"
+                                           name="ai_assistant_auto_approved_rest_apis[]"
+                                           value="<?php echo esc_attr($pattern); ?>"
+                                           checked>
+                                    <code><?php echo esc_html($path); ?></code>
+                                </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
                         <?php if ($name === 'execute_ability') :
                             $auto_approved = $this->get_auto_approved_abilities();
                             $hidden = !in_array('execute_ability', $enabled, true) ? ' style="display:none"' : ''; ?>
@@ -860,8 +907,11 @@ class Settings {
                 $toggle.checked = checkedCount === $children.length;
                 $toggle.indeterminate = checkedCount > 0 && checkedCount < $children.length;
             });
-            // Toggle execute_ability sub-items visibility
+            // Toggle sub-items visibility
             $(document).on('change', 'input[name="ai_assistant_enabled_tools[]"][value="execute_ability"]', function() {
+                $(this).closest('.ai-tool-item').next('.ai-tool-sub-items').toggle(this.checked);
+            });
+            $(document).on('change', 'input[name="ai_assistant_enabled_tools[]"][value="rest_api"]', function() {
                 $(this).closest('.ai-tool-item').next('.ai-tool-sub-items').toggle(this.checked);
             });
         });
@@ -1526,6 +1576,10 @@ PROMPT;
         return (array) get_option('ai_assistant_auto_approved_abilities', []);
     }
 
+    public function get_auto_approved_rest_apis(): array {
+        return (array) get_option('ai_assistant_auto_approved_rest_apis', []);
+    }
+
     public function ajax_toggle_auto_approve_ability() {
         check_ajax_referer('ai_assistant_chat', '_wpnonce');
 
@@ -1552,6 +1606,34 @@ PROMPT;
 
         update_option('ai_assistant_auto_approved_abilities', $auto_approved);
         wp_send_json_success(['autoApprovedAbilities' => $auto_approved]);
+    }
+
+    public function ajax_toggle_auto_approve_rest_api() {
+        check_ajax_referer('ai_assistant_chat', '_wpnonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => 'Insufficient permissions']);
+        }
+
+        $pattern = sanitize_text_field($_POST['pattern'] ?? '');
+        $approved = !empty($_POST['approved']);
+
+        if (empty($pattern)) {
+            wp_send_json_error(['message' => 'Missing pattern']);
+        }
+
+        $auto_approved = $this->get_auto_approved_rest_apis();
+
+        if ($approved) {
+            if (!in_array($pattern, $auto_approved, true)) {
+                $auto_approved[] = $pattern;
+            }
+        } else {
+            $auto_approved = array_values(array_filter($auto_approved, fn($p) => $p !== $pattern));
+        }
+
+        update_option('ai_assistant_auto_approved_rest_apis', $auto_approved);
+        wp_send_json_success(['autoApprovedRestApis' => $auto_approved]);
     }
 
     /**

@@ -124,7 +124,7 @@ var aiAssistantToolsMixin = (function() {
                     input_schema: {
                         type: 'object',
                         properties: {
-                            method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], description: 'HTTP method' },
+                            method: { type: 'string', enum: ['GET', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'], description: 'HTTP method' },
                             path: { type: 'string', description: 'REST API path, e.g. /wp/v2/posts or /wp/v2/posts/123' },
                             params: { type: 'object', description: 'Query string parameters for GET requests, e.g. {"per_page": 10, "status": "draft"}' },
                             body: { type: 'object', description: 'Request body for POST/PUT/PATCH requests' }
