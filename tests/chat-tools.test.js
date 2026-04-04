@@ -6,7 +6,7 @@ const toolsMixin = require('../assets/js/chat-tools.js');
 const ALL_ENABLED = [
     'read_file', 'write_file', 'edit_file', 'delete_file',
     'list_directory', 'search_files', 'search_content',
-    'run_php', 'db_query', 'environment_info',
+    'run_php', 'db_query', 'rest_api', 'environment_info',
     'get_plugins', 'get_themes', 'install_plugin',
     'list_abilities', 'get_ability', 'execute_ability',
     'navigate', 'get_page_html', 'summarize_conversation',

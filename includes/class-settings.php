@@ -268,7 +268,7 @@ class Settings {
     public function get_default_enabled_tools() {
         return [
             'read_file', 'list_directory', 'search_files', 'search_content', 'db_query',
-            'environment_info', 'get_plugins', 'get_themes',
+            'rest_api', 'environment_info', 'get_plugins', 'get_themes',
             'list_abilities', 'get_ability', 'execute_ability', 'get_page_html',
             'summarize_conversation', 'list_skills', 'get_skill', 'navigate',
         ];
@@ -288,6 +288,7 @@ class Settings {
             'get_plugins'           => ['label' => 'Get Plugins',           'group' => 'WordPress',       'dangerous' => false],
             'get_themes'            => ['label' => 'Get Themes',            'group' => 'WordPress',       'dangerous' => false],
             'install_plugin'        => ['label' => 'Install Plugin',        'group' => 'WordPress',       'dangerous' => true],
+            'rest_api'              => ['label' => 'REST API',              'group' => 'WordPress',       'dangerous' => true],
             'run_php'               => ['label' => 'Run PHP',               'group' => 'Code Execution',  'dangerous' => true],
             'list_abilities'        => ['label' => 'List Abilities',        'group' => 'Abilities',       'dangerous' => false],
             'get_ability'           => ['label' => 'Get Ability',           'group' => 'Abilities',       'dangerous' => false],
