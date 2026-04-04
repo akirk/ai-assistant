@@ -4,8 +4,32 @@ var aiAssistantToolsMixin = (function() {
 
     return {
 
+        getAbilityToolDescription: function() {
+            var domains = (typeof aiAssistantConfig !== 'undefined' && aiAssistantConfig.abilityDomains) || {};
+            var keys = Object.keys(domains);
+            if (keys.length === 0) {
+                return 'Plugin abilities: list, get, or execute. Use for plugin-specific data and actions.';
+            }
+            var domainParts = keys.map(function(slug) { return slug + ' (' + domains[slug] + ')'; });
+            return 'Plugin abilities: list, get, or execute. ALWAYS use this for: ' + domainParts.join('; ') + '. Do not use db_query or find for these topics.';
+        },
+
         getAllToolDefinitions: function() {
             return [
+                {
+                    name: 'ability',
+                    description: this.getAbilityToolDescription(),
+                    input_schema: {
+                        type: 'object',
+                        properties: {
+                            action: { type: 'string', enum: ['list', 'get', 'execute'] },
+                            ability: { type: 'string', description: 'Ability identifier' },
+                            category: { type: 'string' },
+                            arguments: { type: 'object' }
+                        },
+                        required: ['action']
+                    }
+                },
                 {
                     name: 'read_file',
                     description: 'Read a file in wp-content',
@@ -79,10 +103,12 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'environment_info',
-                    description: 'Get active plugins, themes, WP/PHP versions, and site URLs.',
+                    description: 'Get active plugins, theme, WP/PHP versions.',
                     input_schema: {
                         type: 'object',
-                        properties: {}
+                        properties: {
+                            include_inactive: { type: 'boolean' }
+                        }
                     }
                 },
                 {
@@ -132,20 +158,6 @@ var aiAssistantToolsMixin = (function() {
                             activate: { type: 'boolean' }
                         },
                         required: ['slug']
-                    }
-                },
-                {
-                    name: 'ability',
-                    description: 'WordPress abilities: list, get details, or execute. Use list first to discover what\'s available.',
-                    input_schema: {
-                        type: 'object',
-                        properties: {
-                            action: { type: 'string', enum: ['list', 'get', 'execute'] },
-                            ability: { type: 'string', description: 'Ability identifier' },
-                            category: { type: 'string' },
-                            arguments: { type: 'object' }
-                        },
-                        required: ['action']
                     }
                 },
                 {

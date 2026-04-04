@@ -10,6 +10,21 @@
             var needsConfirmation = [];
             var executeImmediately = [];
 
+            // Deduplicate tool calls with identical name + arguments (local models repeat themselves)
+            var seen = {};
+            var duplicateIds = {};
+            toolCalls = toolCalls.filter(function(tc) {
+                var key = tc.name + '|' + JSON.stringify(tc.arguments);
+                if (seen[key]) { duplicateIds[tc.id] = true; return false; }
+                seen[key] = true;
+                return true;
+            });
+            // Remove tool cards for dropped duplicates silently
+            Object.keys(duplicateIds).forEach(function(id) {
+                $('[data-tool-id="' + id + '"]').remove();
+                if (self.toolCardsState) delete self.toolCardsState[id];
+            });
+
             // Build set of valid tool IDs from this batch
             var validToolIds = {};
             toolCalls.forEach(function(tc) {
@@ -748,6 +763,26 @@
             }
         },
 
+        describeSql: function(sql) {
+            var s = sql.trim().replace(/\s+/g, ' ');
+            var verb = (s.match(/^(\w+)/) || [])[1] || 'Query';
+            verb = verb.toUpperCase();
+            var table;
+            if (verb === 'SELECT' || verb === 'DELETE') {
+                table = (s.match(/\bFROM\s+([\w,\s`"]+?)(?:\s+WHERE|\s+JOIN|\s+LIMIT|\s+ORDER|\s+GROUP|$)/i) || [])[1];
+                if (table) table = table.replace(/[`"]/g, '').trim();
+            } else if (verb === 'UPDATE') {
+                table = (s.match(/^UPDATE\s+([\w`"]+)/i) || [])[1];
+                if (table) table = table.replace(/[`"]/g, '').trim();
+            } else if (verb === 'INSERT') {
+                table = (s.match(/\bINTO\s+([\w`"]+)/i) || [])[1];
+                if (table) table = table.replace(/[`"]/g, '').trim();
+            } else if (verb === 'DESCRIBE' || verb === 'DESC' || verb === 'SHOW') {
+                return s.length > 40 ? s.substring(0, 40) + '...' : s;
+            }
+            return table ? verb + ' from ' + table : verb;
+        },
+
         getActionDescription: function(toolName, args) {
             switch (toolName) {
                 case 'read_file':
@@ -775,8 +810,7 @@
                 case 'search_content':
                     return 'Search for: "' + (args.needle || '').substring(0, 30) + (args.needle && args.needle.length > 30 ? '...' : '') + '"';
                 case 'db_query':
-                    var sql = (args.sql || '').substring(0, 40);
-                    return 'Query: ' + sql + (args.sql && args.sql.length > 40 ? '...' : '');
+                    return this.describeSql(args.sql || '');
                 case 'install_plugin':
                     return 'Install plugin: ' + (args.slug || 'unknown') + (args.activate ? ' (+ activate)' : '');
                 case 'run_php':
@@ -795,7 +829,7 @@
                         return 'List abilities' + (args.category ? ' (' + args.category + ')' : '');
                     }
                     if (args.action === 'get') {
-                        return 'Get ability: ' + (args.ability || 'unknown');
+                        return args.ability ? 'Get ability: ' + args.ability : 'Get ability…';
                     }
                     if (args.action === 'execute') {
                         var abilityHint = '';
@@ -803,9 +837,11 @@
                             abilityHint = args.arguments.username || args.arguments.name ||
                                           args.arguments.query || args.arguments.group_slug || '';
                         }
-                        return 'Execute: ' + (args.ability || 'unknown') + (abilityHint ? ' (' + abilityHint + ')' : '');
+                        return args.ability
+                            ? 'Execute: ' + args.ability + (abilityHint ? ' (' + abilityHint + ')' : '')
+                            : 'Execute ability…';
                     }
-                    return 'Ability: ' + (args.action || 'unknown');
+                    return 'Ability…';
                 // Legacy ability tool names
                 case 'list_abilities':
                     return 'List abilities' + (args.category ? ' (' + args.category + ')' : '');

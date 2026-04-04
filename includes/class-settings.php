@@ -173,10 +173,20 @@ class Settings {
         $settings_url = admin_url('options-general.php?page=ai-assistant-settings');
         ?>
         <style>
-            html, body, #wpwrap { overflow: hidden; }
-            #wpbody-content { padding-bottom: 0; }
-            .ai-assistant-page { margin: 0 !important; padding: 0; }
-            .ai-chat-layout { height: calc(100vh - 32px); }
+            #wpfooter { display: none; }
+            .ai-assistant-page {
+                position: fixed;
+                top: 68px; /* 32px admin bar + 36px screen-meta-links */
+                height: calc(100vh - 68px);
+                margin: 0 !important;
+                padding: 8px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+            .ai-chat-layout { flex: 1; min-height: 0; }
+            .ai-assistant-chat-container { border: none; border-radius: 0; }
         </style>
         <div class="wrap ai-assistant-page">
             <div class="ai-chat-layout">
@@ -404,7 +414,7 @@ class Settings {
             <tr class="ai-provider-row" data-provider="anthropic">
                 <th scope="row"><label for="ai_anthropic_key"><?php esc_html_e('Anthropic API Key', 'ai-assistant'); ?></label></th>
                 <td>
-                    <input type="password" id="ai_anthropic_key" class="regular-text ai-localstorage-setting" data-setting="anthropicApiKey" placeholder="sk-ant-..." autocomplete="off">
+                    <input type="password" id="ai_anthropic_key" class="regular-text ai-localstorage-setting" data-setting="anthropicApiKey" placeholder="sk-ant-..." autocomplete="new-password">
                     <button type="button" class="button ai-test-connection" data-provider="anthropic"><?php esc_html_e('Test Connection', 'ai-assistant'); ?></button>
                     <span class="ai-connection-status"></span>
                 </td>
@@ -412,7 +422,7 @@ class Settings {
             <tr class="ai-provider-row" data-provider="openai">
                 <th scope="row"><label for="ai_openai_key"><?php esc_html_e('OpenAI API Key', 'ai-assistant'); ?></label></th>
                 <td>
-                    <input type="password" id="ai_openai_key" class="regular-text ai-localstorage-setting" data-setting="openaiApiKey" placeholder="sk-..." autocomplete="off">
+                    <input type="password" id="ai_openai_key" class="regular-text ai-localstorage-setting" data-setting="openaiApiKey" placeholder="sk-..." autocomplete="new-password">
                     <button type="button" class="button ai-test-connection" data-provider="openai"><?php esc_html_e('Test Connection', 'ai-assistant'); ?></button>
                     <span class="ai-connection-status"></span>
                 </td>
@@ -1542,28 +1552,35 @@ PROMPT;
             $prompt .= "\n\nPAGE STRUCTURE (useful CSS selectors for get_page_html on this page):\n" . $page_hints;
         }
 
+        $ability_domains = apply_filters('ai_assistant_ability_domains', []);
+
         $prompt .= <<<'PROMPT'
 
 
-You have access to tools that let you interact with the WordPress filesystem and database. All file paths are relative to wp-content/.
+TOOL USAGE RULES:
 
-If the user describes something they are seeing on the page, references UI elements, or asks about content visible on screen, use the get_page_html tool to see what they're looking at.
+If the user describes something they are seeing on the page, references UI elements, or asks about content visible on screen, use get_page_html to see what they're looking at.
 
-WORDPRESS ABILITIES API:
 PROMPT;
+
+        if (!empty($ability_domains)) {
+            $prompt .= "The following topics are handled by plugin abilities. For these, ALWAYS use the ability tool — never db_query, find, or run_php:\n";
+            foreach ($ability_domains as $slug => $keywords) {
+                $prompt .= "- $slug: $keywords\n";
+            }
+            $prompt .= "\n";
+        }
+
+        $prompt .= "For any other plugin-specific data or actions, check abilities first (ability action:list) before reaching for db_query or run_php.\n";
 
         $enabled_tools = $this->get_user_enabled_tools();
         if (in_array('run_php', $enabled_tools, true)) {
-            $prompt .= "\nFor common WordPress operations (posts, options, queries, users), use run_php with standard WordPress functions.";
+            $prompt .= "For native WordPress data (posts, options, users) with no matching ability, use run_php with standard WordPress functions.\n";
         }
 
-        $prompt .= <<<'PROMPT'
+        $prompt .= "Only use db_query for custom reporting or cross-table queries that no ability covers.\n";
 
-Use the Abilities API (list_abilities, get_ability, execute_ability) when:
-- The task involves plugin-specific functionality (e.g., WooCommerce, forms, SEO plugins)
-- The user asks about what actions are available
-- You're unsure how to accomplish something with standard WordPress functions
-Abilities expose plugin/theme capabilities in a standardized way.
+        $prompt .= <<<'PROMPT'
 
 FILE EDITING RULES:
 - Use write_file ONLY for creating NEW files

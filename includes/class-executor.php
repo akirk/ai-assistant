@@ -122,7 +122,7 @@ class Executor {
 
             // Environment info
             case 'environment_info':
-                return $this->get_environment_info();
+                return $this->get_environment_info(!empty($arguments['include_inactive']));
 
             // Consolidated ability tool (replaces list_abilities, get_ability, execute_ability)
             case 'ability':
@@ -260,44 +260,27 @@ class Executor {
     /**
      * Get environment info (plugins, themes, WordPress version, etc.)
      */
-    private function get_environment_info(): array {
-        $info = [
-            'wordpress_version' => get_bloginfo('version'),
-            'php_version' => PHP_VERSION,
-            'site_url' => site_url(),
-            'home_url' => home_url(),
-            'is_multisite' => is_multisite(),
-            'active_theme' => [],
-            'active_plugins' => [],
-            'inactive_plugins' => [],
-        ];
-
-        // Active theme
+    private function get_environment_info(bool $include_inactive = false): array {
         $theme = wp_get_theme();
-        $info['active_theme'] = [
-            'name' => $theme->get('Name'),
-            'version' => $theme->get('Version'),
-            'template' => $theme->get_template(),
-            'is_child_theme' => $theme->parent() ? true : false,
+        $info = [
+            'wp'      => get_bloginfo('version'),
+            'php'     => PHP_VERSION,
+            'theme'   => $theme->get_template(),
+            'plugins' => [],
         ];
 
-        // Plugins
         if (!function_exists('get_plugins')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
-        $all_plugins = get_plugins();
-        $active_plugins = get_option('active_plugins', []);
+        $all_plugins  = get_plugins();
+        $active_slugs = get_option('active_plugins', []);
 
         foreach ($all_plugins as $file => $data) {
-            $entry = [
-                'file' => $file,
-                'name' => $data['Name'],
-                'version' => $data['Version'],
-            ];
-            if (in_array($file, $active_plugins)) {
-                $info['active_plugins'][] = $entry;
-            } else {
-                $info['inactive_plugins'][] = $entry;
+            $slug = dirname($file) === '.' ? basename($file, '.php') : dirname($file);
+            if (in_array($file, $active_slugs)) {
+                $info['plugins'][$slug] = $data['Name'];
+            } elseif ($include_inactive) {
+                $info['inactive'][$slug] = $data['Name'];
             }
         }
 
@@ -817,11 +800,29 @@ class Executor {
         // Replace {prefix} placeholder
         $sql = str_replace('{prefix}', $wpdb->prefix, $sql);
 
+        $wpdb->suppress_errors(true);
         $results = $wpdb->get_results($sql, ARRAY_A);
+        $wpdb->suppress_errors(false);
 
         if ($wpdb->last_error) {
             throw new \Exception("Database error: " . $wpdb->last_error);
         }
+
+        // Truncate large fields to avoid flooding the context window.
+        // post_content on ai_conversation posts is base64-encoded JSON and can be enormous.
+        $max_field_length = 500;
+        $results = array_map(function($row) use ($max_field_length) {
+            $is_ai_conversation = isset($row['post_type']) && $row['post_type'] === 'ai_conversation';
+            foreach ($row as $key => $value) {
+                if (!is_string($value)) continue;
+                if ($is_ai_conversation && $key === 'post_content') {
+                    $row[$key] = '[ai_conversation post_content omitted — use summarize_conversation tool instead]';
+                } elseif (strlen($value) > $max_field_length) {
+                    $row[$key] = substr($value, 0, $max_field_length) . '… [truncated]';
+                }
+            }
+            return $row;
+        }, $results);
 
         return [
             'query' => $sql,
@@ -1038,17 +1039,39 @@ class Executor {
         $abilities = wp_get_abilities();
 
         if (!empty($category)) {
-            $exact = array_filter($abilities, function($ability) use ($category) {
-                $cat = is_object($ability) ? ($ability->category ?? '') : ($ability['category'] ?? '');
-                return $cat === $category;
+            $get_cat = function($ability) {
+                return is_object($ability) ? ($ability->category ?? '') : ($ability['category'] ?? '');
+            };
+            $get_id = function($id, $ability) {
+                return is_object($ability) ? ($ability->name ?? $id) : $id;
+            };
+            $get_label = function($id, $ability) {
+                if (is_object($ability)) return $ability->label ?? $ability->name ?? $id;
+                return $ability['label'] ?? $ability['name'] ?? $id;
+            };
+
+            // 1. Exact category match
+            $exact = array_filter($abilities, function($ability) use ($category, $get_cat) {
+                return $get_cat($ability) === $category;
             });
             if (!empty($exact)) {
                 $abilities = $exact;
             } else {
-                $abilities = array_filter($abilities, function($ability) use ($category) {
-                    $cat = is_object($ability) ? ($ability->category ?? '') : ($ability['category'] ?? '');
-                    return stripos($cat, $category) !== false || stripos($category, $cat) !== false;
+                // 2. Substring category match — guard against empty $cat (stripos('crm','') === 0, not false)
+                $by_cat = array_filter($abilities, function($ability) use ($category, $get_cat) {
+                    $cat = $get_cat($ability);
+                    return !empty($cat) && (stripos($cat, $category) !== false || stripos($category, $cat) !== false);
                 });
+                if (!empty($by_cat)) {
+                    $abilities = $by_cat;
+                } else {
+                    // 3. Substring match against ability ID and label as last resort
+                    $abilities = array_filter($abilities, function($ability, $id) use ($category, $get_id, $get_label) {
+                        $ability_id = $get_id($id, $ability);
+                        $label = $get_label($id, $ability);
+                        return stripos((string) $ability_id, $category) !== false || stripos($label, $category) !== false;
+                    }, ARRAY_FILTER_USE_BOTH);
+                }
             }
         }
 
@@ -1136,11 +1159,18 @@ class Executor {
             throw new \Exception("Ability execution failed: " . $result->get_error_message());
         }
 
-        return [
+        $response = [
             'ability' => $ability_id,
             'success' => true,
-            'result' => $result,
+            'result'  => $result,
         ];
+
+        $instructions = apply_filters('ai_assistant_ability_instructions', '', $ability_id, $arguments, $result);
+        if ($instructions) {
+            $response['_instructions'] = $instructions;
+        }
+
+        return $response;
     }
 
     // ===== SKILLS OPERATIONS =====

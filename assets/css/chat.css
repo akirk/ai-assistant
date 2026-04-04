@@ -29,6 +29,7 @@
     border-radius: 4px;
     background: #fff;
     overflow: hidden;
+    position: relative;
     transition: height 0.3s ease;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
     font-size: 13px;
@@ -282,21 +283,16 @@
 
 /* Message action buttons - overlay style */
 .ai-message {
-    position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 .ai-message-actions {
-    position: absolute;
-    bottom: 4px;
-    right: 4px;
     display: flex;
     gap: 2px;
     opacity: 0;
     transition: opacity 0.15s;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 4px;
-    padding: 2px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    padding: 2px 0;
 }
 
 .ai-message:hover .ai-message-actions,
@@ -469,6 +465,53 @@
     flex-direction: column;
     gap: 6px;
     margin: 8px 0;
+}
+
+/* Tool cards group */
+#ai-assistant-tool-cards,
+.ai-tool-cards-group {
+    margin: 4px 0;
+}
+
+#ai-assistant-tool-cards .ai-tool-card + .ai-tool-card,
+.ai-tool-cards-group .ai-tool-card + .ai-tool-card {
+    margin-top: 4px;
+}
+
+#ai-assistant-tool-cards > .ai-tool-cards-summary,
+.ai-tool-cards-group > .ai-tool-cards-summary {
+    cursor: pointer;
+    font-size: 11px;
+    color: #757575;
+    padding: 2px 4px;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    text-decoration: none;
+}
+
+#ai-assistant-tool-cards > .ai-tool-cards-summary::-webkit-details-marker,
+.ai-tool-cards-group > .ai-tool-cards-summary::-webkit-details-marker {
+    display: none;
+}
+
+#ai-assistant-tool-cards > .ai-tool-cards-summary::before,
+.ai-tool-cards-group > .ai-tool-cards-summary::before {
+    content: '▾';
+    font-size: 14px;
+    transition: transform 0.15s;
+}
+
+#ai-assistant-tool-cards:not([open]) > .ai-tool-cards-summary::before,
+.ai-tool-cards-group:not([open]) > .ai-tool-cards-summary::before {
+    transform: rotate(-90deg);
+}
+
+#ai-assistant-tool-cards > .ai-tool-cards-summary:hover,
+.ai-tool-cards-group > .ai-tool-cards-summary:hover {
+    color: #1d2327;
 }
 
 /* Tool card base */
@@ -1013,6 +1056,27 @@
 }
 
 /* Loading indicator */
+#ai-assistant-scroll-bottom {
+    position: absolute;
+    bottom: 90px;
+    right: 20px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid #c3c4c7;
+    background: #fff;
+    color: #50575e;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,.15);
+    z-index: 10;
+}
+#ai-assistant-scroll-bottom:hover {
+    background: #f6f7f7;
+    color: #1d2327;
+}
+
 #ai-assistant-loading {
     padding: 10px 14px;
     flex-shrink: 0;
@@ -1225,7 +1289,6 @@ body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
 
 .ai-chat-layout {
     display: flex;
-    height: calc(100vh - 80px);
     min-height: 500px;
     background: #fff;
     border: 1px solid #c3c4c7;
