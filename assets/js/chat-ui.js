@@ -216,13 +216,13 @@
                 var model = this.getModel();
                 var providerName = this.getProviderName(provider);
                 var modelInfo = model ? ' (' + model + ')' : '';
-                this.addMessage('assistant', 'Hello! I\'m your Playground AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?', 'ai-welcome-message');
+                this.addMessage('assistant', 'Hello! I\'m your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?', 'ai-welcome-message');
                 this.addMessage('system', 'You\'re chatting with **' + providerName + '**' + modelInfo, 'ai-model-info');
             }
         },
 
         loadConversationWelcome: function(provider, model) {
-            this.addMessage('assistant', 'Hello! I\'m your Playground AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?', 'ai-welcome-message');
+            this.addMessage('assistant', 'Hello! I\'m your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?', 'ai-welcome-message');
             // Only show model info if the conversation has it saved
             if (provider) {
                 var providerName = this.getProviderName(provider);

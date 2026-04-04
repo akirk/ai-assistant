@@ -1560,11 +1560,11 @@ PROMPT;
 
         $prompt .= <<<'PROMPT'
 
-Use the Abilities API (list_abilities, get_ability, execute_ability) when:
-- The task involves plugin-specific functionality (e.g., WooCommerce, forms, SEO plugins)
-- The user asks about what actions are available
+Use the Abilities API (ability tool with action list/get/execute) FIRST before falling back to run_php or db_query. Abilities expose plugin/theme capabilities in a safe, structured way. Prefer abilities when:
+- The task involves plugin-specific functionality (e.g., WooCommerce, CRM, forms, SEO plugins)
+- You need to read or write data that a plugin manages
 - You're unsure how to accomplish something with standard WordPress functions
-Abilities expose plugin/theme capabilities in a standardized way.
+Only use db_query directly when you need custom reporting or data that no ability covers. Never use db_query as a substitute for an ability that already exists.
 
 FILE EDITING RULES:
 - Use write_file ONLY for creating NEW files
