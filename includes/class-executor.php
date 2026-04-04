@@ -817,7 +817,9 @@ class Executor {
         // Replace {prefix} placeholder
         $sql = str_replace('{prefix}', $wpdb->prefix, $sql);
 
+        $wpdb->suppress_errors(true);
         $results = $wpdb->get_results($sql, ARRAY_A);
+        $wpdb->suppress_errors(false);
 
         if ($wpdb->last_error) {
             throw new \Exception("Database error: " . $wpdb->last_error);
