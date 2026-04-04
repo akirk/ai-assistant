@@ -216,7 +216,19 @@
             $(document).on('click', '.ai-action-retry', function(e) {
                 e.preventDefault();
                 if (self.isLoading) return;
-                self.retryLastResponse();
+                var content = $(this).closest('.ai-message').attr('data-raw-content');
+                self.truncateFromUserMessage(content);
+                $('#ai-assistant-input').val(content);
+                self.sendMessage();
+            });
+
+            $(document).on('click', '.ai-action-edit', function(e) {
+                e.preventDefault();
+                if (self.isLoading) return;
+                var content = $(this).closest('.ai-message').attr('data-raw-content');
+                self.truncateFromUserMessage(content);
+                var $input = $('#ai-assistant-input');
+                $input.val(content).trigger('input').focus();
             });
 
             $(document).on('click', '.ai-action-summarize', function(e) {
@@ -457,29 +469,21 @@
             }
         },
 
-        retryLastResponse: function() {
-            if (this.messages.length < 2) return;
-
-            var lastAssistantIdx = -1;
+        truncateFromUserMessage: function(content) {
+            // Find the last user message with this content and truncate everything from there
+            var msgIndex = -1;
             for (var i = this.messages.length - 1; i >= 0; i--) {
-                if (this.messages[i].role === 'assistant') {
-                    lastAssistantIdx = i;
+                var msg = this.messages[i];
+                if (msg.role === 'user' && (msg.content === content ||
+                    (Array.isArray(msg.content) && msg.content.some(function(b) { return b.type === 'text' && b.text === content; })))) {
+                    msgIndex = i;
                     break;
                 }
             }
-
-            if (lastAssistantIdx === -1) return;
-
-            this.messages = this.messages.slice(0, lastAssistantIdx);
-
-            var $messages = $('#ai-assistant-messages');
-            var $lastAssistant = $messages.find('.ai-message-assistant').last();
-            if ($lastAssistant.length) {
-                $lastAssistant.remove();
-            }
-
+            if (msgIndex < 0) return;
+            this.messages = this.messages.slice(0, msgIndex);
+            this.rebuildMessagesUI();
             this.updateSummarizeVisibility();
-            this.callLLM();
         },
 
         escapeHtml: function(text) {

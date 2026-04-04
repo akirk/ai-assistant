@@ -33,9 +33,6 @@
                 '<button type="button" class="ai-action-btn ai-action-copy" title="Copy">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
                 '</button>' +
-                '<button type="button" class="ai-action-btn ai-action-retry" title="Retry">' +
-                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>' +
-                '</button>' +
                 '<button type="button" class="ai-action-btn ai-action-summarize" title="Summarize conversation">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>' +
                 '</button>' +
@@ -46,6 +43,12 @@
             return '<div class="ai-message-actions">' +
                 '<button type="button" class="ai-action-btn ai-action-copy" title="Copy">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
+                '</button>' +
+                '<button type="button" class="ai-action-btn ai-action-edit" title="Edit and resend">' +
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
+                '</button>' +
+                '<button type="button" class="ai-action-btn ai-action-retry" title="Retry">' +
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>' +
                 '</button>' +
                 '</div>';
         },
@@ -120,7 +123,41 @@
             this.updateSummarizeVisibility();
         },
 
-        addToolUseMessage: function(toolName, input, $container) {
+        renderToolResultOutput: function($card, toolName, output) {
+            if (!output) return;
+            var outputText = '';
+            if (output.ability !== undefined && output.success !== undefined) {
+                var r = output.result;
+                if (r !== null && r !== undefined) {
+                    outputText = typeof r === 'string' ? r : JSON.stringify(r, null, 2);
+                }
+            } else {
+                if (output.output) outputText += output.output;
+                if (output.result !== undefined && output.result !== null) {
+                    var rs = typeof output.result === 'string' ? output.result : JSON.stringify(output.result, null, 2);
+                    if (outputText) outputText += '\n';
+                    outputText += rs;
+                }
+                if (!outputText.trim() && typeof output === 'object') {
+                    outputText = JSON.stringify(output, null, 2);
+                }
+            }
+            if (!outputText.trim()) return;
+            var lineCount = (outputText.match(/\n/g) || []).length + 1;
+            var autoExpand = lineCount <= 10 && toolName !== 'db_query';
+            var $output = $('<div class="ai-tool-output">' +
+                '<div class="ai-action-preview' + (autoExpand ? ' expanded' : '') + '">' +
+                '<button type="button" class="ai-action-preview-toggle">' +
+                '<span class="dashicons dashicons-arrow-right-alt2"></span>' +
+                'Result (' + lineCount + ' line' + (lineCount !== 1 ? 's' : '') + ')' +
+                '</button>' +
+                '<div class="ai-action-preview-content"><pre class="ai-code-preview"></pre></div>' +
+                '</div></div>');
+            $output.find('.ai-code-preview').text(outputText);
+            $card.append($output);
+        },
+
+        addToolUseMessage: function(toolName, input, $container, result) {
             var self = this;
             var $messages = $container || $('#ai-assistant-messages');
             var description = this.getActionDescription(toolName, input || {});
@@ -134,7 +171,7 @@
                 '<div class="ai-tool-card-preview"></div>' +
                 '</div>');
 
-            // Add preview if available
+            // Add input preview if available
             var preview = this.getActionContentPreview(toolName, input || {});
             if (preview) {
                 var previewLabel = preview.isEdit ? 'Show changes' : 'Show content';
@@ -151,9 +188,12 @@
                     '<div class="ai-action-preview-content"><pre class="ai-code-preview"></pre></div>' +
                     '</div>';
                 $card.find('.ai-tool-card-preview').html(previewHtml);
+                this.highlightCode($card.find('.ai-code-preview')[0], contentStr, preview.language, preview.isEdit);
+            }
 
-                var $pre = $card.find('.ai-code-preview');
-                this.highlightCode($pre[0], contentStr, preview.language, preview.isEdit);
+            // Add result output
+            if (result !== undefined) {
+                this.renderToolResultOutput($card, toolName, result);
             }
 
             $messages.append($card);
@@ -174,7 +214,7 @@
             var label = this.toolGroupLabel(toolUses);
             var $details = $('<details class="ai-tool-cards-group"><summary class="ai-tool-cards-summary">' + this.escapeHtml(label) + '</summary></details>');
             toolUses.forEach(function(tu) {
-                self.addToolUseMessage(tu.name, tu.input, $details);
+                self.addToolUseMessage(tu.name, tu.input, $details, tu.result);
             });
             $('#ai-assistant-messages').append($details);
         },
@@ -248,18 +288,24 @@
         rebuildMessagesUI: function() {
             var self = this;
 
-            // First pass: collect resolved tool IDs
+            // First pass: collect resolved tool IDs and their results
             var resolvedToolIds = {};
+            var toolResults = {}; // tool_use_id -> parsed result object
             this.messages.forEach(function(msg) {
                 if (msg.role === 'user' && Array.isArray(msg.content)) {
                     msg.content.forEach(function(block) {
                         if (block.type === 'tool_result' && block.tool_use_id) {
                             resolvedToolIds[block.tool_use_id] = true;
+                            var raw = Array.isArray(block.content)
+                                ? (block.content[0] && block.content[0].text || '')
+                                : (block.content || '');
+                            try { toolResults[block.tool_use_id] = JSON.parse(raw); } catch(e) { toolResults[block.tool_use_id] = raw; }
                         }
                     });
                 }
                 if (msg.role === 'tool' && msg.tool_call_id) {
                     resolvedToolIds[msg.tool_call_id] = true;
+                    try { toolResults[msg.tool_call_id] = JSON.parse(msg.content); } catch(e) { toolResults[msg.tool_call_id] = msg.content; }
                 }
             });
 
@@ -308,7 +354,7 @@
                                 self.addMessage('assistant', block.text);
                             } else if (block.type === 'tool_use') {
                                 if (resolvedToolIds[block.id]) {
-                                    accumulatedToolUses.push({ name: block.name, input: block.input || block.arguments || {} });
+                                    accumulatedToolUses.push({ name: block.name, input: block.input || block.arguments || {}, result: toolResults[block.id] });
                                 } else {
                                     pendingToolCalls.push({
                                         id: block.id,
@@ -328,7 +374,7 @@
                                 if (typeof args === 'string') args = JSON.parse(args);
                             } catch(e) { args = {}; }
                             if (resolvedToolIds[tc.id]) {
-                                accumulatedToolUses.push({ name: name, input: args || {} });
+                                accumulatedToolUses.push({ name: name, input: args || {}, result: toolResults[tc.id] });
                             } else {
                                 pendingToolCalls.push({ id: tc.id, name: name, arguments: args || {} });
                             }
@@ -704,11 +750,16 @@
                     var $params = $card.find('.ai-tool-params');
                     if (!$params.length && this.toolCardsState[toolId] && this.toolCardsState[toolId].arguments) {
                         var pendingArgs = this.toolCardsState[toolId].arguments;
-                        var pendingArgsJson = JSON.stringify(pendingArgs, null, 2);
-                        if (pendingArgsJson !== 'null') {
-                            $params = $('<details class="ai-tool-params"><summary>Parameters</summary><pre></pre></details>');
-                            $params.find('pre').text(pendingArgsJson);
-                            $card.find('.ai-tool-card-actions').before($params);
+                        var cardName = this.toolCardsState[toolId].name;
+                        // Skip Parameters block if a content preview already shows the arguments
+                        var hasPreview = !!this.getActionContentPreview(cardName, pendingArgs);
+                        if (!hasPreview) {
+                            var pendingArgsJson = JSON.stringify(pendingArgs, null, 2);
+                            if (pendingArgsJson !== 'null') {
+                                $params = $('<details class="ai-tool-params"><summary>Parameters</summary><pre></pre></details>');
+                                $params.find('pre').text(pendingArgsJson);
+                                $card.find('.ai-tool-card-actions').before($params);
+                            }
                         }
                     }
                     var cardState = this.toolCardsState[toolId];
@@ -738,53 +789,9 @@
                     $spinner.hide();
                     $actions.empty();
                     $card.find('.ai-tool-card-size').hide();
-                    // Show output if provided
                     if (options.output) {
-                        var $output = $card.find('.ai-tool-output');
-                        if ($output.length === 0) {
-                            $output = $('<div class="ai-tool-output"></div>');
-                            $card.append($output);
-                        }
-                        var outputText = '';
-                        // For execute_ability, extract just the meaningful result value
-                        if (options.output.ability !== undefined && options.output.success !== undefined) {
-                            var abilityResult = options.output.result;
-                            if (abilityResult !== null && abilityResult !== undefined) {
-                                outputText = typeof abilityResult === 'string'
-                                    ? abilityResult
-                                    : JSON.stringify(abilityResult, null, 2);
-                            }
-                        } else {
-                            if (options.output.output) {
-                                outputText += options.output.output;
-                            }
-                            if (options.output.result !== undefined && options.output.result !== null) {
-                                var resultStr = typeof options.output.result === 'string'
-                                    ? options.output.result
-                                    : JSON.stringify(options.output.result, null, 2);
-                                if (outputText) outputText += '\n';
-                                outputText += resultStr;
-                            }
-                            if (!outputText.trim() && typeof options.output === 'object' && options.output !== null) {
-                                outputText = JSON.stringify(options.output, null, 2);
-                            }
-                        }
-                        if (outputText.trim()) {
-                            var lineCount = (outputText.match(/\n/g) || []).length + 1;
-                            var toolCardName = this.toolCardsState[toolId] && this.toolCardsState[toolId].name;
-                            var autoExpand = lineCount <= 10 && toolCardName !== 'db_query';
-                            $output.html(
-                                '<div class="ai-action-preview' + (autoExpand ? ' expanded' : '') + '">' +
-                                '<button type="button" class="ai-action-preview-toggle">' +
-                                '<span class="dashicons dashicons-arrow-right-alt2"></span>' +
-                                'Result (' + lineCount + ' line' + (lineCount !== 1 ? 's' : '') + ')' +
-                                '</button>' +
-                                '<div class="ai-action-preview-content"><pre class="ai-code-preview"></pre></div>' +
-                                '</div>'
-                            );
-                            $output.find('.ai-code-preview').text(outputText);
-                            $output.show();
-                        }
+                        var toolCardName = this.toolCardsState[toolId] && this.toolCardsState[toolId].name;
+                        this.renderToolResultOutput($card, toolCardName, options.output);
                     }
                     break;
                 case 'error':
