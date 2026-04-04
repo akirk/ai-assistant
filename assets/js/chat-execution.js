@@ -302,6 +302,8 @@
             var args = toolCall.arguments || {};
             var method = (args.method || 'GET').toUpperCase();
             var path = args.path || '/';
+
+
             var params = args.params || null;
             var body = args.body || null;
 

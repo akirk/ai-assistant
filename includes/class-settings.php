@@ -255,15 +255,30 @@ class Settings {
         if (strpos($cap, 'ai_assistant_tool_') !== 0) {
             return $caps;
         }
-        if (!user_can($user_id, 'ai_assistant_full')) {
-            return ['do_not_allow'];
-        }
         if (ai_assistant_is_playground()) {
             return ['exist'];
         }
+
         $tool_name = substr($cap, strlen('ai_assistant_tool_'));
         $enabled = get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools());
-        return in_array($tool_name, (array) $enabled, true) ? ['exist'] : ['do_not_allow'];
+
+        if (!in_array($tool_name, (array) $enabled, true)) {
+            return ['do_not_allow'];
+        }
+
+        if (user_can($user_id, 'ai_assistant_full')) {
+            return ['exist'];
+        }
+
+        // read_only users get non-dangerous tools only
+        if (user_can($user_id, 'ai_assistant_read_only')) {
+            $all_meta = $this->get_all_tools_with_meta();
+            if (isset($all_meta[$tool_name]) && !$all_meta[$tool_name]['dangerous']) {
+                return ['exist'];
+            }
+        }
+
+        return ['do_not_allow'];
     }
 
     public function get_default_enabled_tools() {
@@ -959,7 +974,7 @@ class Settings {
                 </tbody>
             </table>
             <p class="description">
-                <?php esc_html_e('Full Access: All file and database operations. Read Only: Can read files and query database. Chat Only: Can chat but no tool execution.', 'ai-assistant'); ?>
+                <?php esc_html_e('Full Access: All enabled tools including file writes, PHP execution, and plugin installation. Read Only: Non-dangerous enabled tools only (read files, search, db queries, REST API, environment info, abilities) — REST API write requests are additionally enforced by WordPress permissions. Chat Only: No tool execution. Tool permissions above apply as a further restriction to all roles.', 'ai-assistant'); ?>
             </p>
             <p class="description">
                 <?php esc_html_e('To change capabilities, use a role management plugin or add code to assign ai_assistant_full, ai_assistant_read_only, or ai_assistant_chat_only capabilities.', 'ai-assistant'); ?>
