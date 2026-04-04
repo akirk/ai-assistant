@@ -11,7 +11,7 @@ var aiAssistantToolsMixin = (function() {
         coreToolNames: ['run_php', 'read_file', 'edit_file', 'write_file', 'find', 'environment_info', 'ability', 'skill'],
 
         // Extended tools - loaded on demand for local LLMs, always available for cloud
-        extendedToolNames: ['delete_file', 'db_query', 'install_plugin', 'navigate', 'get_page_html', 'summarize_conversation'],
+        extendedToolNames: ['delete_file', 'db_query', 'rest_api', 'install_plugin', 'navigate', 'get_page_html', 'summarize_conversation'],
 
         getAllToolDefinitions: function() {
             return [
@@ -116,6 +116,20 @@ var aiAssistantToolsMixin = (function() {
                             sql: { type: 'string', description: 'The SELECT SQL query. Use {prefix} for table prefix.' }
                         },
                         required: ['sql']
+                    }
+                },
+                {
+                    name: 'rest_api',
+                    description: 'Make WordPress REST API requests. Use GET to read data and POST/PUT/PATCH/DELETE to modify it. Standard namespaces: /wp/v2/posts, /wp/v2/pages, /wp/v2/users, /wp/v2/media, /wp/v2/taxonomies, /wp/v2/settings. Discover all available routes via GET /.',
+                    input_schema: {
+                        type: 'object',
+                        properties: {
+                            method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], description: 'HTTP method' },
+                            path: { type: 'string', description: 'REST API path, e.g. /wp/v2/posts or /wp/v2/posts/123' },
+                            params: { type: 'object', description: 'Query string parameters for GET requests, e.g. {"per_page": 10, "status": "draft"}' },
+                            body: { type: 'object', description: 'Request body for POST/PUT/PATCH requests' }
+                        },
+                        required: ['method', 'path']
                     }
                 },
                 {
