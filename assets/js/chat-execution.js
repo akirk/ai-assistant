@@ -4,7 +4,7 @@
     $.extend(window.aiAssistant, {
         processToolCalls: function(toolCalls, provider, stopReason) {
             var self = this;
-            var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'ability'];
+            var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'ability', 'rest_api'];
             var alwaysConfirmTools = ['navigate'];
 
             var needsConfirmation = [];
@@ -45,7 +45,8 @@
                     needsConfirmation.push(tc);
                 } else if (self.yoloMode || destructiveTools.indexOf(tc.name) < 0 ||
                            (tc.name === 'ability' && tc.arguments && tc.arguments.action !== 'execute') ||
-                           self.isAbilityAutoApproved(tc)) {
+                           self.isAbilityAutoApproved(tc) ||
+                           self.isRestApiAutoApproved(tc)) {
                     executeImmediately.push(tc);
                 } else {
                     needsConfirmation.push(tc);
@@ -118,6 +119,10 @@
             if (toolName === 'enable_tools') {
                 // executeEnableTools (from chat-tools.js) is synchronous; wrap in Promise
                 return Promise.resolve(this.executeEnableTools(toolCall));
+            }
+
+            if (toolName === 'rest_api') {
+                return this.executeRestApi(toolCall);
             }
 
             if (toolName === 'get_page_html') {
@@ -293,6 +298,73 @@
             });
         },
 
+        executeRestApi: function(toolCall) {
+            var args = toolCall.arguments || {};
+            var method = (args.method || 'GET').toUpperCase();
+            var path = args.path || '/';
+
+
+            var params = args.params || null;
+            var body = args.body || null;
+
+            var baseUrl = (aiAssistantConfig.restApiUrl || '').replace(/\/$/, '');
+            var url = baseUrl + path;
+            if (params && Object.keys(params).length > 0) {
+                url += '?' + new URLSearchParams(params).toString();
+            }
+
+            var fetchOptions = {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': aiAssistantConfig.restApiNonce
+                }
+            };
+
+            if (body && method !== 'GET' && method !== 'HEAD') {
+                fetchOptions.body = JSON.stringify(body);
+            }
+
+            return fetch(url, fetchOptions).then(function(response) {
+                var status = response.status;
+                return response.json().then(function(data) {
+                    if (!response.ok) {
+                        return {
+                            id: toolCall.id,
+                            name: 'rest_api',
+                            input: args,
+                            result: { error: data.message || 'Request failed', status: status, data: data },
+                            success: false
+                        };
+                    }
+
+                    // Simplify root discovery response — full route definitions are too large
+                    if ((method === 'GET' || method === 'OPTIONS') && path === '/') {
+                        data = {
+                            namespaces: data.namespaces || [],
+                            routes: Object.keys(data.routes || {})
+                        };
+                    }
+
+                    return {
+                        id: toolCall.id,
+                        name: 'rest_api',
+                        input: args,
+                        result: data,
+                        success: true
+                    };
+                });
+            }).catch(function(error) {
+                return {
+                    id: toolCall.id,
+                    name: 'rest_api',
+                    input: args,
+                    result: { error: error.message },
+                    success: false
+                };
+            });
+        },
+
         executeSummarizeConversation: function(toolCall) {
             var self = this;
             var args = toolCall.arguments || {};
@@ -431,6 +503,30 @@
             });
         },
 
+        isRestApiAutoApproved: function(toolCall) {
+            if (toolCall.name !== 'rest_api') return false;
+            var args = toolCall.arguments || {};
+            var method = (args.method || 'GET').toUpperCase();
+            if (method === 'GET' || method === 'OPTIONS') return true;
+            var pattern = method + ' ' + (args.path || '/');
+            var autoApproved = (window.aiAssistantConfig && window.aiAssistantConfig.autoApprovedRestApis) || [];
+            return autoApproved.indexOf(pattern) >= 0;
+        },
+
+        saveAutoApprovedRestApi: function(pattern) {
+            var autoApproved = (window.aiAssistantConfig && window.aiAssistantConfig.autoApprovedRestApis) || [];
+            if (autoApproved.indexOf(pattern) < 0) {
+                autoApproved.push(pattern);
+                window.aiAssistantConfig.autoApprovedRestApis = autoApproved;
+            }
+            $.post(aiAssistantConfig.ajaxUrl, {
+                action: 'ai_assistant_toggle_auto_approve_rest_api',
+                _wpnonce: aiAssistantConfig.nonce,
+                pattern: pattern,
+                approved: 1
+            });
+        },
+
         // Accumulate tool results until all tools are resolved
         pendingToolResults: [],
         currentProvider: null,
@@ -441,7 +537,7 @@
         // Process a single tool immediately when it finishes streaming
         processToolCallImmediate: function(toolId, toolName, toolArgs, provider) {
             var self = this;
-            var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin'];
+            var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'rest_api'];
             var alwaysConfirmTools = ['navigate'];
 
             this.currentProvider = provider;
@@ -454,7 +550,8 @@
             var needsConfirm = alwaysConfirmTools.indexOf(toolName) >= 0 ||
                 (!this.yoloMode && destructiveTools.indexOf(toolName) >= 0 &&
                  !(toolName === 'ability' && toolArgs && toolArgs.action !== 'execute') &&
-                 !this.isAbilityAutoApproved({ name: toolName, arguments: toolArgs }));
+                 !this.isAbilityAutoApproved({ name: toolName, arguments: toolArgs }) &&
+                 !this.isRestApiAutoApproved({ name: toolName, arguments: toolArgs }));
 
             if (needsConfirm) {
                 this.setToolCardState(toolId, 'pending');
@@ -686,6 +783,9 @@
                     return 'Install plugin: ' + (args.slug || 'unknown') + (args.activate ? ' (+ activate)' : '');
                 case 'run_php':
                     return 'Run PHP code';
+                case 'rest_api':
+                    return (args.method || 'GET').toUpperCase() + ' ' + (args.path || '/') +
+                           (args.params ? '?' + new URLSearchParams(args.params).toString() : '');
                 case 'navigate':
                     return 'Navigate to: ' + (args.url || 'unknown');
                 case 'get_page_html':

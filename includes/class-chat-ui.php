@@ -112,8 +112,11 @@ class Chat_UI {
             'userPermission' => $settings->get_user_permission_level(),
             'enabledTools' => $settings->get_user_enabled_tools(),
             'autoApprovedAbilities' => $settings->get_auto_approved_abilities(),
+            'autoApprovedRestApis' => $settings->get_auto_approved_rest_apis(),
             'settingsUrl' => admin_url('options-general.php?page=ai-assistant-settings'),
             'homeUrl' => home_url(),
+            'restApiUrl' => rest_url(),
+            'restApiNonce' => wp_create_nonce('wp_rest'),
             'userDisplayName' => $current_user->display_name,
             'systemPrompt' => $settings->get_system_prompt(),
             'strings' => [

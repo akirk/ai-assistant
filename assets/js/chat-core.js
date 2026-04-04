@@ -136,7 +136,12 @@
                 e.preventDefault();
                 var toolId = $(this).attr('data-tool-id');
                 var abilityId = $(this).attr('data-ability');
-                self.saveAutoApprovedAbility(abilityId);
+                var restApi = $(this).attr('data-rest-api');
+                if (abilityId) {
+                    self.saveAutoApprovedAbility(abilityId);
+                } else if (restApi) {
+                    self.saveAutoApprovedRestApi(restApi);
+                }
                 self.confirmAction(toolId, true);
             });
 
