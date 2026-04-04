@@ -640,8 +640,13 @@
                             $card.find('.ai-tool-card-actions').before($params);
                         }
                     }
+                    var cardState = this.toolCardsState[toolId];
+                    var isAbilityExecute = cardState && cardState.name === 'ability' &&
+                        cardState.arguments && cardState.arguments.action === 'execute' &&
+                        cardState.arguments.ability;
                     $actions.html(
                         '<button class="ai-tool-approve ai-approve-btn" data-tool-id="' + toolId + '">Approve</button>' +
+                        (isAbilityExecute ? '<button class="ai-tool-approve-always ai-always-approve-btn" data-tool-id="' + toolId + '" data-ability="' + this.escapeHtml(cardState.arguments.ability) + '">Always approve</button>' : '') +
                         '<button class="ai-tool-skip ai-skip-btn" data-tool-id="' + toolId + '">Skip</button>'
                     );
                     break;
