@@ -1054,17 +1054,39 @@ class Executor {
         $abilities = wp_get_abilities();
 
         if (!empty($category)) {
-            $exact = array_filter($abilities, function($ability) use ($category) {
-                $cat = is_object($ability) ? ($ability->category ?? '') : ($ability['category'] ?? '');
-                return $cat === $category;
+            $get_cat = function($ability) {
+                return is_object($ability) ? ($ability->category ?? '') : ($ability['category'] ?? '');
+            };
+            $get_id = function($id, $ability) {
+                return is_object($ability) ? ($ability->name ?? $id) : $id;
+            };
+            $get_label = function($id, $ability) {
+                if (is_object($ability)) return $ability->label ?? $ability->name ?? $id;
+                return $ability['label'] ?? $ability['name'] ?? $id;
+            };
+
+            // 1. Exact category match
+            $exact = array_filter($abilities, function($ability) use ($category, $get_cat) {
+                return $get_cat($ability) === $category;
             });
             if (!empty($exact)) {
                 $abilities = $exact;
             } else {
-                $abilities = array_filter($abilities, function($ability) use ($category) {
-                    $cat = is_object($ability) ? ($ability->category ?? '') : ($ability['category'] ?? '');
-                    return stripos($cat, $category) !== false || stripos($category, $cat) !== false;
+                // 2. Substring category match — guard against empty $cat (stripos('crm','') === 0, not false)
+                $by_cat = array_filter($abilities, function($ability) use ($category, $get_cat) {
+                    $cat = $get_cat($ability);
+                    return !empty($cat) && (stripos($cat, $category) !== false || stripos($category, $cat) !== false);
                 });
+                if (!empty($by_cat)) {
+                    $abilities = $by_cat;
+                } else {
+                    // 3. Substring match against ability ID and label as last resort
+                    $abilities = array_filter($abilities, function($ability, $id) use ($category, $get_id, $get_label) {
+                        $ability_id = $get_id($id, $ability);
+                        $label = $get_label($id, $ability);
+                        return stripos((string) $ability_id, $category) !== false || stripos($label, $category) !== false;
+                    }, ARRAY_FILTER_USE_BOTH);
+                }
             }
         }
 
