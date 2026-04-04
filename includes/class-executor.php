@@ -823,6 +823,22 @@ class Executor {
             throw new \Exception("Database error: " . $wpdb->last_error);
         }
 
+        // Truncate large fields to avoid flooding the context window.
+        // post_content on ai_conversation posts is base64-encoded JSON and can be enormous.
+        $max_field_length = 500;
+        $results = array_map(function($row) use ($max_field_length) {
+            $is_ai_conversation = isset($row['post_type']) && $row['post_type'] === 'ai_conversation';
+            foreach ($row as $key => $value) {
+                if (!is_string($value)) continue;
+                if ($is_ai_conversation && $key === 'post_content') {
+                    $row[$key] = '[ai_conversation post_content omitted — use summarize_conversation tool instead]';
+                } elseif (strlen($value) > $max_field_length) {
+                    $row[$key] = substr($value, 0, $max_field_length) . '… [truncated]';
+                }
+            }
+            return $row;
+        }, $results);
+
         return [
             'query' => $sql,
             'rows' => $results,
