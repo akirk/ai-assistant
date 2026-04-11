@@ -884,6 +884,13 @@ class Settings {
                     <?php esc_html_e('A local LLM provider (e.g. Ollama) is configured on the server. The AI Assistant connects to local LLMs directly from your browser instead.', 'ai-assistant'); ?>
                 </p>
             <?php endif; ?>
+
+            <?php if (current_user_can('manage_options') && !empty($config['debug'])) : ?>
+                <details style="margin-top: 1em;">
+                    <summary style="cursor: pointer; color: #646970;"><?php esc_html_e('Debug: Connectors Bridge', 'ai-assistant'); ?></summary>
+                    <pre style="background: #f0f0f1; padding: 10px; margin-top: 5px; font-size: 12px; overflow: auto; max-height: 400px;"><?php echo esc_html(wp_json_encode($config['debug'], JSON_PRETTY_PRINT)); ?></pre>
+                </details>
+            <?php endif; ?>
         </div>
         <?php
     }

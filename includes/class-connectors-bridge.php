@@ -64,14 +64,53 @@ class Connectors_Bridge {
 
         $available = [];
         $has_local = false;
+        $debug = [
+            'registered_ids'  => $provider_ids,
+            'can_prompt'      => $can_prompt,
+            'providers'       => [],
+        ];
 
         foreach ($provider_ids as $id) {
-            if (!$registry->isProviderConfigured($id)) {
+            $provider_debug = ['id' => $id];
+
+            $is_configured = $registry->isProviderConfigured($id);
+            $provider_debug['isConfigured'] = $is_configured;
+
+            try {
+                $class_name = $registry->getProviderClassName($id);
+                $provider_debug['className'] = $class_name;
+            } catch (\Throwable $e) {
+                $provider_debug['classNameError'] = $e->getMessage();
+                $debug['providers'][] = $provider_debug;
                 continue;
             }
 
-            $class_name = $registry->getProviderClassName($id);
-            $meta = $class_name::metadata();
+            try {
+                $meta = $class_name::metadata();
+                $provider_debug['name'] = $meta->name;
+                $provider_debug['type'] = (string) $meta->type;
+                $provider_debug['authMethod'] = $meta->authenticationMethod ?? null;
+            } catch (\Throwable $e) {
+                $provider_debug['metadataError'] = $e->getMessage();
+                $debug['providers'][] = $provider_debug;
+                continue;
+            }
+
+            // Check auth availability regardless of isConfigured
+            try {
+                $auth = $registry->getProviderRequestAuthentication($id);
+                $provider_debug['authClass'] = $auth ? get_class($auth) : null;
+                $provider_debug['hasApiKey'] = ($auth instanceof ApiKeyRequestAuthentication) ? (bool) $auth->getApiKey() : false;
+            } catch (\Throwable $e) {
+                $provider_debug['authError'] = $e->getMessage();
+            }
+
+            if (!$is_configured) {
+                $provider_debug['skipped'] = 'isProviderConfigured() returned false';
+                $debug['providers'][] = $provider_debug;
+                continue;
+            }
+
             $type = (string) $meta->type;
 
             // Flag server-type providers (e.g. Ollama) — JS handles these via browser-direct local detection
@@ -122,6 +161,12 @@ class Connectors_Bridge {
                 }
             }
 
+            $provider_debug['endpoint'] = $endpoint;
+            $provider_debug['modelCount'] = count($models);
+            $provider_debug['browserSupported'] = in_array($id, self::SUPPORTED_BROWSER_PROVIDERS, true);
+            $provider_debug['included'] = true;
+            $debug['providers'][] = $provider_debug;
+
             $available[$id] = [
                 'name'     => $meta->name,
                 'type'     => $type,
@@ -136,6 +181,7 @@ class Connectors_Bridge {
             'source'    => 'connectors',
             'available' => $available,
             'hasLocal'  => $has_local,
+            'debug'     => $debug,
         ];
     }
 }
