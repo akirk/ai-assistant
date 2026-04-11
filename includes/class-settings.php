@@ -838,15 +838,45 @@ class Settings {
                     <?php endforeach; ?>
                 </table>
             <?php else : ?>
-                <p class="description">
-                    <?php
-                    printf(
-                        /* translators: %s: link to Connectors settings page */
-                        esc_html__('No providers configured yet. Visit %s to connect your LLM providers.', 'ai-assistant'),
-                        '<a href="' . esc_url($connectors_url) . '">' . esc_html__('Settings &rarr; Connectors', 'ai-assistant') . '</a>'
-                    );
-                    ?>
-                </p>
+                <?php
+                // Distinguish: are there registered providers without keys, or none at all?
+                $registered_count = count($config['available']);
+                $browser_supported = array_filter($config['available'], function($p) {
+                    return !empty($p['browserSupported']);
+                });
+                ?>
+                <?php if ($registered_count > 0 && count($browser_supported) > 0) : ?>
+                    <p class="description">
+                        <?php
+                        printf(
+                            /* translators: 1: number of providers, 2: link to Connectors settings page */
+                            esc_html__('%1$d provider plugin(s) found but none have API keys configured. Visit %2$s to enter your credentials.', 'ai-assistant'),
+                            $registered_count,
+                            '<a href="' . esc_url($connectors_url) . '">' . esc_html__('Settings &rarr; Connectors', 'ai-assistant') . '</a>'
+                        );
+                        ?>
+                    </p>
+                <?php elseif ($registered_count > 0) : ?>
+                    <p class="description">
+                        <?php
+                        printf(
+                            /* translators: %s: link to Connectors settings page */
+                            esc_html__('Provider plugins are installed but none are supported for browser-direct calls yet. Visit %s to check your configuration.', 'ai-assistant'),
+                            '<a href="' . esc_url($connectors_url) . '">' . esc_html__('Settings &rarr; Connectors', 'ai-assistant') . '</a>'
+                        );
+                        ?>
+                    </p>
+                <?php else : ?>
+                    <p class="description">
+                        <?php
+                        printf(
+                            /* translators: %s: link to Connectors settings page */
+                            esc_html__('No AI provider plugins are installed. Visit %s to install and configure a provider (e.g. Anthropic, OpenAI).', 'ai-assistant'),
+                            '<a href="' . esc_url($connectors_url) . '">' . esc_html__('Settings &rarr; Connectors', 'ai-assistant') . '</a>'
+                        );
+                        ?>
+                    </p>
+                <?php endif; ?>
             <?php endif; ?>
 
             <?php if ($config['hasLocal'] ?? false) : ?>
