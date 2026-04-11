@@ -140,16 +140,23 @@
         },
 
         getModel: function() {
-            var override = this.getSetting('model');
-            if (override) return override;
+            var provider = this.getProvider();
 
             if (this.isConnectorsMode()) {
-                var provider = this.getProvider();
                 var providerConfig = aiAssistantProviders.available[provider];
                 if (providerConfig && providerConfig.models && providerConfig.models.length > 0) {
+                    // Check if the stored model belongs to this provider
+                    var override = this.getSetting('model');
+                    if (override) {
+                        var validForProvider = providerConfig.models.some(function(m) { return m.id === override; });
+                        if (validForProvider) return override;
+                    }
                     return providerConfig.models[0].id;
                 }
             }
+
+            var override = this.getSetting('model');
+            if (override) return override;
 
             return 'claude-sonnet-4-20250514';
         },
