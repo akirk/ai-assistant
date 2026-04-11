@@ -47,42 +47,92 @@
         },
 
         /**
-         * Get the first browser-supported provider from Connectors config.
+         * Get the provider priority list.
+         * Returns an ordered array of provider IDs, highest priority first.
          */
-        _getConnectorsDefaultProvider: function() {
-            if (!this.isConnectorsMode()) return null;
-            var available = aiAssistantProviders.available;
-            // Prefer providers we can call from the browser
-            var ids = Object.keys(available);
-            for (var i = 0; i < ids.length; i++) {
-                if (available[ids[i]].browserSupported && available[ids[i]].apiKey) {
-                    return ids[i];
+        getProviderPriority: function() {
+            var stored = this.getSetting('providerPriority');
+            if (stored) {
+                try {
+                    var priority = JSON.parse(stored);
+                    if (Array.isArray(priority) && priority.length > 0) {
+                        return priority;
+                    }
+                } catch (e) {}
+            }
+            return null;
+        },
+
+        /**
+         * Set the provider priority list.
+         */
+        setProviderPriority: function(priorityArray) {
+            return this.setSetting('providerPriority', JSON.stringify(priorityArray));
+        },
+
+        /**
+         * Check if a provider is available for use right now.
+         * Cloud providers need an API key, server/local providers are always "available"
+         * (actual reachability is checked at call time).
+         */
+        _isProviderAvailable: function(id) {
+            if (id === 'local') return true;
+            if (!this.isConnectorsMode()) {
+                // Legacy mode: check localStorage keys
+                if (id === 'anthropic') return !!(this.getSetting('anthropicApiKey'));
+                if (id === 'openai') return !!(this.getSetting('openaiApiKey'));
+                return false;
+            }
+            var config = aiAssistantProviders.available[id];
+            if (!config) return false;
+            if (config.type === 'server') return true;
+            return !!(config.apiKey);
+        },
+
+        /**
+         * Resolve the active provider using the priority list.
+         * Walks the priority list and returns the first available provider.
+         */
+        _resolveProvider: function() {
+            var priority = this.getProviderPriority();
+            if (priority) {
+                for (var i = 0; i < priority.length; i++) {
+                    if (this._isProviderAvailable(priority[i])) {
+                        return priority[i];
+                    }
                 }
             }
-            return ids[0] || null;
+
+            // No priority set or no available provider in list — use defaults
+            if (this.isConnectorsMode()) {
+                var available = aiAssistantProviders.available;
+                var ids = Object.keys(available);
+                for (var i = 0; i < ids.length; i++) {
+                    if (this._isProviderAvailable(ids[i])) {
+                        return ids[i];
+                    }
+                }
+                return ids[0] || 'anthropic';
+            }
+
+            return 'anthropic';
         },
 
         getProvider: function() {
-            // localStorage override takes precedence (user's choice within this browser)
+            // Direct provider override (set by switching mid-session) takes precedence
             var override = this.getSetting('provider');
             if (override) {
-                // In connectors mode, validate the override is still available
                 if (this.isConnectorsMode()) {
                     if (aiAssistantProviders.available[override] || override === 'local') {
                         return override;
                     }
-                    // Override is stale (provider removed from Connectors), clear it
                     this.removeSetting('provider');
                 } else {
                     return override;
                 }
             }
 
-            if (this.isConnectorsMode()) {
-                return this._getConnectorsDefaultProvider() || 'anthropic';
-            }
-
-            return 'anthropic';
+            return this._resolveProvider();
         },
 
         setProvider: function(provider) {
@@ -224,21 +274,7 @@
 
         isConfigured: function() {
             var provider = this.getProvider();
-
-            if (provider === 'local') {
-                return true;
-            }
-
-            // In connectors mode, check if the provider has a key in the registry
-            if (this.isConnectorsMode()) {
-                var providerConfig = aiAssistantProviders.available[provider];
-                if (providerConfig && providerConfig.apiKey) {
-                    return true;
-                }
-            }
-
-            var apiKey = this.getApiKey(provider);
-            return apiKey && apiKey.length > 0;
+            return this._isProviderAvailable(provider);
         },
 
         getAllSettings: function() {

@@ -795,51 +795,139 @@ class Settings {
                 <?php
                 printf(
                     /* translators: %s: link to Connectors settings page */
-                    esc_html__('LLM providers are managed through %s.', 'ai-assistant'),
+                    esc_html__('LLM providers are managed through %s. Drag to reorder — the first available provider will be used.', 'ai-assistant'),
                     '<a href="' . esc_url($connectors_url) . '">' . esc_html__('WordPress Connectors', 'ai-assistant') . '</a>'
                 );
                 ?>
             </p>
             <?php if ($configured_count > 0) : ?>
-                <p>
-                    <?php
-                    printf(
-                        /* translators: %d: number of configured providers */
-                        esc_html(_n(
-                            '%d provider is configured and available for the AI Assistant.',
-                            '%d providers are configured and available for the AI Assistant.',
-                            $configured_count,
-                            'ai-assistant'
-                        )),
-                        $configured_count
-                    );
-                    ?>
+                <ul id="ai-provider-priority" class="ai-provider-priority">
+                </ul>
+                <p class="description"><?php esc_html_e('Priority order is stored per-browser.', 'ai-assistant'); ?>
+                <?php if ($config['hasLocal'] ?? false) : ?>
+                    <?php esc_html_e('Local providers connect directly from your browser.', 'ai-assistant'); ?>
+                <?php endif; ?>
                 </p>
-                <table class="form-table" role="presentation">
-                    <?php foreach ($config['available'] as $id => $provider) : ?>
-                        <?php if (!empty($provider['apiKey']) || $provider['type'] === 'server') : ?>
-                        <tr>
-                            <th scope="row"><?php echo esc_html($provider['name']); ?></th>
-                            <td>
-                                <?php
-                                $model_count = count($provider['models']);
-                                printf(
-                                    /* translators: %d: number of available models */
-                                    esc_html(_n('%d model available', '%d models available', $model_count, 'ai-assistant')),
-                                    $model_count
-                                );
-                                if (!$provider['browserSupported']) {
-                                    echo ' <em>(' . esc_html__('not yet supported for browser-direct calls', 'ai-assistant') . ')</em>';
-                                }
-                                ?>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                </table>
+                <style>
+                    .ai-provider-priority { max-width: 500px; margin: 10px 0; padding: 0; list-style: none; }
+                    .ai-provider-priority li {
+                        display: flex; align-items: center; gap: 8px;
+                        padding: 8px 12px; margin: 4px 0;
+                        background: #fff; border: 1px solid #c3c4c7; border-radius: 4px;
+                        cursor: grab; user-select: none;
+                    }
+                    .ai-provider-priority li:active { cursor: grabbing; }
+                    .ai-provider-priority li.dragging { opacity: 0.5; }
+                    .ai-provider-priority .ai-priority-handle { color: #999; }
+                    .ai-provider-priority .ai-priority-name { flex: 1; font-weight: 500; }
+                    .ai-provider-priority .ai-priority-models { color: #646970; font-size: 13px; }
+                    .ai-provider-priority .ai-priority-status {
+                        font-size: 12px; padding: 1px 6px;
+                        border-radius: 3px;
+                    }
+                    .ai-priority-status.available { color: #00a32a; background: #edfaef; }
+                    .ai-priority-status.unavailable { color: #996800; background: #fcf0e3; }
+                </style>
+                <script>
+                jQuery(function($) {
+                    var STORAGE_PREFIX = 'aiAssistant_';
+                    var providers = <?php echo wp_json_encode(array_map(function($id, $p) {
+                        return [
+                            'id' => $id,
+                            'name' => $p['name'],
+                            'type' => $p['type'],
+                            'modelCount' => count($p['models']),
+                            'available' => !empty($p['apiKey']) || $p['type'] === 'server',
+                        ];
+                    }, array_keys($config['available']), array_values($config['available']))); ?>;
+
+                    // Load saved priority
+                    var savedPriority = null;
+                    try {
+                        var stored = localStorage.getItem(STORAGE_PREFIX + 'providerPriority');
+                        if (stored) savedPriority = JSON.parse(stored);
+                    } catch (e) {}
+
+                    // Sort providers by saved priority
+                    if (savedPriority && Array.isArray(savedPriority)) {
+                        providers.sort(function(a, b) {
+                            var ai = savedPriority.indexOf(a.id);
+                            var bi = savedPriority.indexOf(b.id);
+                            if (ai === -1) ai = 999;
+                            if (bi === -1) bi = 999;
+                            return ai - bi;
+                        });
+                    }
+
+                    var $list = $('#ai-provider-priority');
+
+                    function render() {
+                        $list.empty();
+                        providers.forEach(function(p) {
+                            var statusClass = p.available ? 'available' : 'unavailable';
+                            var statusText = p.available ? '<?php echo esc_js(__('ready', 'ai-assistant')); ?>' : '<?php echo esc_js(__('no key', 'ai-assistant')); ?>';
+                            if (p.type === 'server') statusText = p.available ? '<?php echo esc_js(__('local', 'ai-assistant')); ?>' : statusText;
+                            var modelsText = p.modelCount === 1
+                                ? '<?php echo esc_js(__('1 model', 'ai-assistant')); ?>'
+                                : p.modelCount + ' <?php echo esc_js(__('models', 'ai-assistant')); ?>';
+                            $list.append(
+                                '<li data-provider="' + p.id + '">' +
+                                '<span class="ai-priority-handle">&#9776;</span>' +
+                                '<span class="ai-priority-name">' + $('<span>').text(p.name).html() + '</span>' +
+                                '<span class="ai-priority-models">' + modelsText + '</span>' +
+                                '<span class="ai-priority-status ' + statusClass + '">' + statusText + '</span>' +
+                                '</li>'
+                            );
+                        });
+                    }
+
+                    function savePriority() {
+                        var order = [];
+                        $list.children('li').each(function() {
+                            order.push($(this).data('provider'));
+                        });
+                        localStorage.setItem(STORAGE_PREFIX + 'providerPriority', JSON.stringify(order));
+                        // Clear the direct provider override so priority takes effect
+                        localStorage.removeItem(STORAGE_PREFIX + 'provider');
+                    }
+
+                    render();
+
+                    // Drag-and-drop reordering
+                    var dragEl = null;
+                    $list.on('dragstart', 'li', function(e) {
+                        dragEl = this;
+                        $(this).addClass('dragging');
+                        e.originalEvent.dataTransfer.effectAllowed = 'move';
+                    });
+                    $list.on('dragend', 'li', function() {
+                        $(this).removeClass('dragging');
+                        dragEl = null;
+                    });
+                    $list.on('dragover', 'li', function(e) {
+                        e.preventDefault();
+                        e.originalEvent.dataTransfer.dropEffect = 'move';
+                        var $target = $(this);
+                        if (dragEl && this !== dragEl) {
+                            var $dragging = $(dragEl);
+                            var targetRect = this.getBoundingClientRect();
+                            var midY = targetRect.top + targetRect.height / 2;
+                            if (e.originalEvent.clientY < midY) {
+                                $dragging.insertBefore($target);
+                            } else {
+                                $dragging.insertAfter($target);
+                            }
+                        }
+                    });
+                    $list.on('drop', 'li', function(e) {
+                        e.preventDefault();
+                        savePriority();
+                    });
+                    $list.children('li').attr('draggable', 'true');
+                });
+                </script>
             <?php else : ?>
                 <?php
-                // Distinguish: are there registered providers without keys, or none at all?
                 $registered_count = count($config['available']);
                 $browser_supported = array_filter($config['available'], function($p) {
                     return !empty($p['browserSupported']);
@@ -849,7 +937,6 @@ class Settings {
                     <p class="description">
                         <?php
                         printf(
-                            /* translators: 1: number of providers, 2: link to Connectors settings page */
                             esc_html__('%1$d provider plugin(s) found but none have API keys configured. Visit %2$s to enter your credentials.', 'ai-assistant'),
                             $registered_count,
                             '<a href="' . esc_url($connectors_url) . '">' . esc_html__('Settings &rarr; Connectors', 'ai-assistant') . '</a>'
@@ -860,7 +947,6 @@ class Settings {
                     <p class="description">
                         <?php
                         printf(
-                            /* translators: %s: link to Connectors settings page */
                             esc_html__('Provider plugins are installed but none are supported for browser-direct calls yet. Visit %s to check your configuration.', 'ai-assistant'),
                             '<a href="' . esc_url($connectors_url) . '">' . esc_html__('Settings &rarr; Connectors', 'ai-assistant') . '</a>'
                         );
@@ -870,19 +956,12 @@ class Settings {
                     <p class="description">
                         <?php
                         printf(
-                            /* translators: %s: link to Connectors settings page */
                             esc_html__('No AI provider plugins are installed. Visit %s to install and configure a provider (e.g. Anthropic, OpenAI).', 'ai-assistant'),
                             '<a href="' . esc_url($connectors_url) . '">' . esc_html__('Settings &rarr; Connectors', 'ai-assistant') . '</a>'
                         );
                         ?>
                     </p>
                 <?php endif; ?>
-            <?php endif; ?>
-
-            <?php if ($config['hasLocal'] ?? false) : ?>
-                <p class="description">
-                    <?php esc_html_e('A local LLM provider (e.g. Ollama) is configured on the server. The AI Assistant connects to local LLMs directly from your browser instead.', 'ai-assistant'); ?>
-                </p>
             <?php endif; ?>
 
             <?php if (current_user_can('manage_options') && !empty($config['debug'])) : ?>

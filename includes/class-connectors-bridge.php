@@ -138,7 +138,7 @@ class Connectors_Bridge {
                 // Model listing may fail if provider is misconfigured
             }
 
-            // Get endpoint URL for browser-supported providers
+            // Get endpoint URL
             $endpoint = '';
             if (in_array($id, self::SUPPORTED_BROWSER_PROVIDERS, true) && isset(self::PROVIDER_GENERATION_PATHS[$id])) {
                 try {
@@ -147,8 +147,18 @@ class Connectors_Bridge {
                     // url() may not be available on all provider classes
                 }
             }
+            // For server-type providers, try to get the base URL for browser-direct use
+            if ($type === 'server' && !$endpoint) {
+                try {
+                    $endpoint = $class_name::url('');
+                } catch (\Throwable $e) {
+                    // Fall back — JS will use auto-detection
+                }
+                // Clean trailing slash from base URL
+                $endpoint = rtrim($endpoint, '/');
+            }
 
-            // Get API key only for users with appropriate capability and browser-supported providers
+            // Get API key only for users with appropriate capability and cloud providers
             $api_key = '';
             if ($can_prompt && in_array($id, self::SUPPORTED_BROWSER_PROVIDERS, true)) {
                 try {
@@ -164,7 +174,9 @@ class Connectors_Bridge {
             $provider_debug['endpoint'] = $endpoint;
             $provider_debug['apiKeyMasked'] = $api_key ? '***' . substr($api_key, -4) : '(empty)';
             $provider_debug['modelCount'] = count($models);
-            $provider_debug['browserSupported'] = in_array($id, self::SUPPORTED_BROWSER_PROVIDERS, true);
+            $browser_supported = in_array($id, self::SUPPORTED_BROWSER_PROVIDERS, true) || $type === 'server';
+
+            $provider_debug['browserSupported'] = $browser_supported;
             $provider_debug['included'] = true;
             $debug['providers'][] = $provider_debug;
 
@@ -174,7 +186,7 @@ class Connectors_Bridge {
                 'endpoint' => $endpoint,
                 'apiKey'   => $api_key,
                 'models'   => $models,
-                'browserSupported' => in_array($id, self::SUPPORTED_BROWSER_PROVIDERS, true),
+                'browserSupported' => $browser_supported,
             ];
         }
 

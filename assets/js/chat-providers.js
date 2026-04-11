@@ -53,12 +53,13 @@
             this.executingToolCount = 0;
             this.processedToolIds = {};
 
-            // In connectors mode, check if the provider is browser-supported
+            // In connectors mode, route based on provider type
             if (this.isConnectorsMode() && provider !== 'local') {
                 var providerConfig = aiAssistantProviders.available[provider];
                 if (providerConfig && providerConfig.type === 'server') {
-                    // Server-type providers (e.g. Ollama) — use browser-direct local LLM path
-                    this.callLocalLLM();
+                    // Server-type providers (e.g. LM Studio, Ollama) — use browser-direct local LLM path
+                    // with the endpoint from Connectors if available
+                    this.callLocalLLM(providerConfig.endpoint || null);
                     return;
                 }
                 if (providerConfig && !providerConfig.browserSupported) {
@@ -79,6 +80,14 @@
                     this.callLocalLLM();
                     break;
                 default:
+                    // In connectors mode, unknown providers with cloud type might be OpenAI-compatible
+                    if (this.isConnectorsMode()) {
+                        var config = aiAssistantProviders.available[provider];
+                        if (config && config.type === 'cloud' && config.apiKey) {
+                            this.callOpenAI();
+                            return;
+                        }
+                    }
                     this.addMessage('error', 'Unknown provider: ' + provider);
                     this.setLoading(false);
             }
@@ -500,9 +509,9 @@
             return messages.slice(cutAt);
         },
 
-        callLocalLLM: async function() {
+        callLocalLLM: async function(endpointOverride) {
             var self = this;
-            var endpoint = this.getLocalEndpoint().replace(/\/$/, '');
+            var endpoint = (endpointOverride || this.getLocalEndpoint()).replace(/\/$/, '');
 
             try {
                 var requestMessages = [
