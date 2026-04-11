@@ -87,9 +87,9 @@ class Connectors_Bridge {
 
             try {
                 $meta = $class_name::metadata();
-                $provider_debug['name'] = $meta->name;
-                $provider_debug['type'] = (string) $meta->type;
-                $provider_debug['authMethod'] = $meta->authenticationMethod ?? null;
+                $provider_debug['name'] = $meta->getName();
+                $provider_debug['type'] = (string) $meta->getType();
+                $provider_debug['authMethod'] = $meta->getAuthenticationMethod() ? (string) $meta->getAuthenticationMethod() : null;
             } catch (\Throwable $e) {
                 $provider_debug['metadataError'] = $e->getMessage();
                 $debug['providers'][] = $provider_debug;
@@ -111,7 +111,7 @@ class Connectors_Bridge {
                 continue;
             }
 
-            $type = (string) $meta->type;
+            $type = (string) $meta->getType();
 
             // Flag server-type providers (e.g. Ollama) — JS handles these via browser-direct local detection
             if ($type === 'server') {
@@ -123,14 +123,14 @@ class Connectors_Bridge {
             try {
                 $directory = $class_name::modelMetadataDirectory();
                 foreach ($directory->listModelMetadata() as $model_meta) {
-                    $capabilities = array_map('strval', $model_meta->supportedCapabilities);
+                    $capabilities = array_map('strval', $model_meta->getSupportedCapabilities());
                     // Only include models that support text generation
                     if (!in_array('text_generation', $capabilities, true)) {
                         continue;
                     }
                     $models[] = [
-                        'id'           => $model_meta->id,
-                        'name'         => $model_meta->name ?: $model_meta->id,
+                        'id'           => $model_meta->getId(),
+                        'name'         => $model_meta->getName() ?: $model_meta->getId(),
                         'capabilities' => $capabilities,
                     ];
                 }
@@ -168,7 +168,7 @@ class Connectors_Bridge {
             $debug['providers'][] = $provider_debug;
 
             $available[$id] = [
-                'name'     => $meta->name,
+                'name'     => $meta->getName(),
                 'type'     => $type,
                 'endpoint' => $endpoint,
                 'apiKey'   => $api_key,
