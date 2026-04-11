@@ -778,7 +778,7 @@ class Settings {
      * Render notice when WordPress 7.0 Connectors API is available.
      */
     private function render_connectors_notice() {
-        $connectors_url = admin_url('options-general.php?page=connectors');
+        $connectors_url = admin_url('options-connectors.php');
         $bridge = ai_assistant()->connectors_bridge();
         $config = $bridge ? $bridge->get_providers_config() : ['available' => []];
         $configured_count = 0;
