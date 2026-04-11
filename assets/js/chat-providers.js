@@ -53,6 +53,21 @@
             this.executingToolCount = 0;
             this.processedToolIds = {};
 
+            // In connectors mode, check if the provider is browser-supported
+            if (this.isConnectorsMode() && provider !== 'local') {
+                var providerConfig = aiAssistantProviders.available[provider];
+                if (providerConfig && providerConfig.type === 'server') {
+                    // Server-type providers (e.g. Ollama) — use browser-direct local LLM path
+                    this.callLocalLLM();
+                    return;
+                }
+                if (providerConfig && !providerConfig.browserSupported) {
+                    this.addMessage('error', 'Provider "' + provider + '" is not yet supported for browser-direct calls. Please select a different provider.');
+                    this.setLoading(false);
+                    return;
+                }
+            }
+
             switch (provider) {
                 case 'anthropic':
                     this.callAnthropic();
@@ -141,7 +156,8 @@
             var apiKey = this.getApiKey('anthropic');
 
             try {
-                var response = await fetch('https://api.anthropic.com/v1/messages', {
+                var endpoint = this.getProviderEndpoint('anthropic') || 'https://api.anthropic.com/v1/messages';
+                var response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -290,7 +306,8 @@
                     ...this.sanitizeMessages(this.messages)
                 ];
 
-                var response = await fetch('https://api.openai.com/v1/chat/completions', {
+                var endpoint = this.getProviderEndpoint('openai') || 'https://api.openai.com/v1/chat/completions';
+                var response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -770,8 +787,9 @@
 
         callAnthropicForSummary: function(model, prompt) {
             var apiKey = this.getApiKey('anthropic');
+            var endpoint = this.getProviderEndpoint('anthropic') || 'https://api.anthropic.com/v1/messages';
             return new Promise(function(resolve, reject) {
-                fetch('https://api.anthropic.com/v1/messages', {
+                fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -800,8 +818,9 @@
 
         callOpenAIForSummary: function(model, prompt) {
             var apiKey = this.getApiKey('openai');
+            var endpoint = this.getProviderEndpoint('openai') || 'https://api.openai.com/v1/chat/completions';
             return new Promise(function(resolve, reject) {
-                fetch('https://api.openai.com/v1/chat/completions', {
+                fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

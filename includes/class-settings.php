@@ -394,9 +394,13 @@ class Settings {
     }
 
     /**
-     * Provider section - localStorage-based settings
+     * Provider section - Connectors or localStorage-based settings
      */
     public function provider_section_callback() {
+        if (Connectors_Bridge::is_available()) {
+            $this->render_connectors_notice();
+            return;
+        }
         ?>
         <p><?php esc_html_e('These settings are stored in your browser and not on the server. API keys never leave your device.', 'ai-assistant'); ?></p>
 
@@ -767,6 +771,90 @@ class Settings {
             loadSettings();
         });
         </script>
+        <?php
+    }
+
+    /**
+     * Render notice when WordPress 7.0 Connectors API is available.
+     */
+    private function render_connectors_notice() {
+        $connectors_url = admin_url('options-general.php?page=connectors');
+        $bridge = ai_assistant()->connectors_bridge();
+        $config = $bridge ? $bridge->get_providers_config() : ['available' => []];
+        $configured_count = 0;
+        if (!empty($config['available'])) {
+            foreach ($config['available'] as $provider) {
+                if (!empty($provider['apiKey']) || $provider['type'] === 'server') {
+                    $configured_count++;
+                }
+            }
+        }
+        ?>
+        <div class="ai-connectors-notice">
+            <p>
+                <?php
+                printf(
+                    /* translators: %s: link to Connectors settings page */
+                    esc_html__('LLM providers are managed through %s.', 'ai-assistant'),
+                    '<a href="' . esc_url($connectors_url) . '">' . esc_html__('WordPress Connectors', 'ai-assistant') . '</a>'
+                );
+                ?>
+            </p>
+            <?php if ($configured_count > 0) : ?>
+                <p>
+                    <?php
+                    printf(
+                        /* translators: %d: number of configured providers */
+                        esc_html(_n(
+                            '%d provider is configured and available for the AI Assistant.',
+                            '%d providers are configured and available for the AI Assistant.',
+                            $configured_count,
+                            'ai-assistant'
+                        )),
+                        $configured_count
+                    );
+                    ?>
+                </p>
+                <table class="form-table" role="presentation">
+                    <?php foreach ($config['available'] as $id => $provider) : ?>
+                        <?php if (!empty($provider['apiKey']) || $provider['type'] === 'server') : ?>
+                        <tr>
+                            <th scope="row"><?php echo esc_html($provider['name']); ?></th>
+                            <td>
+                                <?php
+                                $model_count = count($provider['models']);
+                                printf(
+                                    /* translators: %d: number of available models */
+                                    esc_html(_n('%d model available', '%d models available', $model_count, 'ai-assistant')),
+                                    $model_count
+                                );
+                                if (!$provider['browserSupported']) {
+                                    echo ' <em>(' . esc_html__('not yet supported for browser-direct calls', 'ai-assistant') . ')</em>';
+                                }
+                                ?>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                </table>
+            <?php else : ?>
+                <p class="description">
+                    <?php
+                    printf(
+                        /* translators: %s: link to Connectors settings page */
+                        esc_html__('No providers configured yet. Visit %s to connect your LLM providers.', 'ai-assistant'),
+                        '<a href="' . esc_url($connectors_url) . '">' . esc_html__('Settings &rarr; Connectors', 'ai-assistant') . '</a>'
+                    );
+                    ?>
+                </p>
+            <?php endif; ?>
+
+            <?php if ($config['hasLocal'] ?? false) : ?>
+                <p class="description">
+                    <?php esc_html_e('A local LLM provider (e.g. Ollama) is configured on the server. The AI Assistant connects to local LLMs directly from your browser instead.', 'ai-assistant'); ?>
+                </p>
+            <?php endif; ?>
+        </div>
         <?php
     }
 

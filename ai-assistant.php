@@ -69,6 +69,7 @@ final class AI_Assistant {
     private $git_tracker_manager;
     private $plugin_downloads;
     private $changes_admin;
+    private $connectors_bridge;
 
     public static function instance() {
         if (is_null(self::$instance)) {
@@ -90,6 +91,11 @@ final class AI_Assistant {
     public function init() {
         // Load text domain
         load_plugin_textdomain('ai-assistant', false, dirname(AI_ASSISTANT_PLUGIN_BASENAME) . '/languages');
+
+        // Initialize Connectors bridge (WordPress 7.0+)
+        if (AI_Assistant\Connectors_Bridge::is_available()) {
+            $this->connectors_bridge = new AI_Assistant\Connectors_Bridge();
+        }
 
         // Initialize components
         $this->settings = new AI_Assistant\Settings();
@@ -166,6 +172,13 @@ final class AI_Assistant {
      */
     public function deactivate() {
         // Cleanup if needed
+    }
+
+    /**
+     * Get Connectors bridge instance (null on WP < 7.0)
+     */
+    public function connectors_bridge() {
+        return $this->connectors_bridge;
     }
 
     /**
