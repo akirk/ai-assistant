@@ -85,6 +85,8 @@
             }
             var config = aiAssistantProviders.available[id];
             if (!config) return false;
+            // Must have at least one model to be usable
+            if (!config.models || config.models.length === 0) return false;
             if (config.type === 'server') return true;
             return !!(config.apiKey);
         },

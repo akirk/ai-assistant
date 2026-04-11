@@ -784,7 +784,7 @@ class Settings {
         $configured_count = 0;
         if (!empty($config['available'])) {
             foreach ($config['available'] as $provider) {
-                if (!empty($provider['apiKey']) || $provider['type'] === 'server') {
+                if ((!empty($provider['apiKey']) || $provider['type'] === 'server') && !empty($provider['models'])) {
                     $configured_count++;
                 }
             }
@@ -837,7 +837,7 @@ class Settings {
                             'name' => $p['name'],
                             'type' => $p['type'],
                             'modelCount' => count($p['models']),
-                            'available' => !empty($p['apiKey']) || $p['type'] === 'server',
+                            'available' => (!empty($p['apiKey']) || $p['type'] === 'server') && !empty($p['models']),
                         ];
                     }, array_keys($config['available']), array_values($config['available']))); ?>;
 
@@ -865,8 +865,16 @@ class Settings {
                         $list.empty();
                         providers.forEach(function(p) {
                             var statusClass = p.available ? 'available' : 'unavailable';
-                            var statusText = p.available ? '<?php echo esc_js(__('ready', 'ai-assistant')); ?>' : '<?php echo esc_js(__('no key', 'ai-assistant')); ?>';
-                            if (p.type === 'server') statusText = p.available ? '<?php echo esc_js(__('local', 'ai-assistant')); ?>' : statusText;
+                            var statusText;
+                            if (p.modelCount === 0) {
+                                statusText = '<?php echo esc_js(__('no models', 'ai-assistant')); ?>';
+                            } else if (!p.available) {
+                                statusText = '<?php echo esc_js(__('no key', 'ai-assistant')); ?>';
+                            } else if (p.type === 'server') {
+                                statusText = '<?php echo esc_js(__('local', 'ai-assistant')); ?>';
+                            } else {
+                                statusText = '<?php echo esc_js(__('ready', 'ai-assistant')); ?>';
+                            }
                             var modelsText = p.modelCount === 1
                                 ? '<?php echo esc_js(__('1 model', 'ai-assistant')); ?>'
                                 : p.modelCount + ' <?php echo esc_js(__('models', 'ai-assistant')); ?>';
