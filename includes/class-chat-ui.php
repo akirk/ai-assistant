@@ -139,7 +139,9 @@ class Chat_UI {
         // Pass WordPress 7.0 Connectors provider config to JS (or legacy marker)
         $bridge = ai_assistant()->connectors_bridge();
         if ($bridge) {
-            wp_localize_script('ai-assistant-chat-core', 'aiAssistantProviders', $bridge->get_providers_config());
+            $providers_config = $bridge->get_providers_config();
+            $providers_config['connectorsUrl'] = admin_url('options-connectors.php');
+            wp_localize_script('ai-assistant-chat-core', 'aiAssistantProviders', $providers_config);
         } else {
             wp_localize_script('ai-assistant-chat-core', 'aiAssistantProviders', ['source' => 'legacy']);
         }

@@ -64,9 +64,14 @@ class Connectors_Bridge {
 
         $available = [];
         $has_local = false;
+        $current_user = wp_get_current_user();
         $debug = [
             'registered_ids'  => $provider_ids,
             'can_prompt'      => $can_prompt,
+            'can_prompt_ai'   => current_user_can('prompt_ai'),
+            'can_full'        => current_user_can('ai_assistant_full'),
+            'user_id'         => $current_user->ID,
+            'user_roles'      => $current_user->roles,
             'providers'       => [],
         ];
 
