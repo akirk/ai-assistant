@@ -258,7 +258,13 @@
 
         loadWelcomeMessage: function() {
             if (!this.isProviderConfigured()) {
-                this.addMessage('system', 'Welcome! Please configure your API key in [Settings](' + aiAssistantConfig.settingsUrl + ') to start chatting.', 'ai-welcome-message');
+                var settingsUrl = this.isConnectorsMode()
+                    ? aiAssistantConfig.settingsUrl.replace(/options-general\.php.*$/, 'options-connectors.php')
+                    : aiAssistantConfig.settingsUrl;
+                var message = this.isConnectorsMode()
+                    ? 'Welcome! No AI providers with API keys found. Please configure a provider in [Connectors](' + settingsUrl + ') to start chatting.'
+                    : 'Welcome! Please configure your API key in [Settings](' + aiAssistantConfig.settingsUrl + ') to start chatting.';
+                this.addMessage('system', message, 'ai-welcome-message');
             } else {
                 var provider = this.getProvider();
                 var model = this.getModel();

@@ -162,6 +162,7 @@ class Connectors_Bridge {
             }
 
             $provider_debug['endpoint'] = $endpoint;
+            $provider_debug['apiKeyMasked'] = $api_key ? '***' . substr($api_key, -4) : '(empty)';
             $provider_debug['modelCount'] = count($models);
             $provider_debug['browserSupported'] = in_array($id, self::SUPPORTED_BROWSER_PROVIDERS, true);
             $provider_debug['included'] = true;
