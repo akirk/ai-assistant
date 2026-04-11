@@ -274,7 +274,36 @@
                 var modelInfo = model ? ' (' + model + ')' : '';
                 this.addMessage('assistant', 'Hello! I\'m your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?', 'ai-welcome-message');
                 this.addMessage('system', 'You\'re chatting with **' + providerName + '**' + modelInfo, 'ai-model-info');
+                this.showLegacyKeyMigrationNotice();
             }
+        },
+
+        /**
+         * Show a one-time notice when Connectors is available but the user
+         * still has legacy API keys in localStorage from before the upgrade.
+         */
+        showLegacyKeyMigrationNotice: function() {
+            var hasConnectors = typeof aiAssistantProviders !== 'undefined' && aiAssistantProviders.source === 'connectors';
+            if (!hasConnectors) return;
+
+            // Already dismissed?
+            if (this.getSetting('legacyKeyNoticeDismissed')) return;
+
+            // Check for legacy localStorage API keys
+            var hasLegacyKeys = !!(this.getSetting('anthropicApiKey') || this.getSetting('openaiApiKey'));
+            if (!hasLegacyKeys) return;
+
+            var connectorsUrl = aiAssistantProviders.connectorsUrl || aiAssistantConfig.settingsUrl;
+            this.addMessage('system',
+                'Your API keys are stored in this browser from a previous setup. ' +
+                'Your site now supports [WordPress Connectors](' + connectorsUrl + ') — ' +
+                'you can manage providers there instead, and they\'ll work across all your devices. ' +
+                'Once configured, you can clear your browser keys in [Settings](' + aiAssistantConfig.settingsUrl + ').',
+                'ai-migration-notice'
+            );
+
+            // Don't show again
+            this.setSetting('legacyKeyNoticeDismissed', '1');
         },
 
         loadConversationWelcome: function(provider, model) {
