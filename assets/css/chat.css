@@ -63,7 +63,7 @@
     flex-shrink: 0;
 }
 
-.wp-admin .ai-assistant-header {
+.wp-admin #screen-meta .ai-assistant-header {
     padding: 0 14px;
 }
 
@@ -1146,6 +1146,31 @@ body:not(.admin-bar) .ai-assistant-standalone-wrap {
     top: 0;
 }
 
+/* Respect wp-admin sidebar in standalone mode */
+.wp-admin .ai-assistant-standalone-wrap {
+    left: 160px;
+}
+
+.wp-admin.folded .ai-assistant-standalone-wrap {
+    left: 36px;
+}
+
+.wp-admin.auto-fold .ai-assistant-standalone-wrap {
+    left: 160px;
+}
+
+@media screen and (max-width: 960px) {
+    .wp-admin.auto-fold .ai-assistant-standalone-wrap {
+        left: 36px;
+    }
+}
+
+@media screen and (max-width: 782px) {
+    .wp-admin .ai-assistant-standalone-wrap {
+        left: 0;
+    }
+}
+
 /* The panel - matches #screen-meta styling */
 .ai-assistant-standalone-panel {
     display: none; /* jQuery slideDown/slideUp controls visibility */
@@ -1189,11 +1214,13 @@ body:not(.admin-bar) .ai-assistant-standalone-wrap {
 /* The button itself - matches .show-settings button exactly */
 .ai-assistant-standalone-trigger button {
     display: block;
-    padding: 3px 6px 3px 16px;
+    height: auto;
+    min-height: 32px;
+    padding: 0 6px 0 16px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
     font-size: 13px;
     font-weight: 400;
-    line-height: 1.7;
+    line-height: 2.30769231;
     color: #646970;
     background: #fff;
     border: 1px solid #c3c4c7;
@@ -1201,8 +1228,9 @@ body:not(.admin-bar) .ai-assistant-standalone-wrap {
     border-radius: 0 0 4px 4px;
     cursor: pointer;
     text-decoration: none;
-    box-shadow: none;
-    transition: none;
+    margin-bottom: 0;
+    box-shadow: 0 0 0 transparent;
+    transition: box-shadow .1s linear;
 }
 
 /* Ensure frontend themes don't override */
