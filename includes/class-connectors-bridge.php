@@ -101,25 +101,35 @@ class Connectors_Bridge {
                 continue;
             }
 
-            // Check auth availability regardless of isConfigured
+            // Check whether this provider actually has a key value set.
+            // A provider that uses API key auth but has no key configured is treated as
+            // server-type (local/key-free), since WordPress may classify local Ollama as 'cloud'.
+            $has_api_key_value = false;
             try {
                 $auth = $registry->getProviderRequestAuthentication($id);
                 $provider_debug['authClass'] = $auth ? get_class($auth) : null;
-                $provider_debug['hasApiKey'] = ($auth instanceof ApiKeyRequestAuthentication) ? (bool) $auth->getApiKey() : false;
+                $has_api_key_value = ($auth instanceof ApiKeyRequestAuthentication) && (bool) $auth->getApiKey();
+                $provider_debug['hasApiKey'] = $has_api_key_value;
             } catch (\Throwable $e) {
                 $provider_debug['authError'] = $e->getMessage();
             }
 
-            if (!$is_configured) {
+            $type = (string) $meta->getType();
+
+            // Treat as server-type if: declared server, OR configured with no API key value.
+            // The latter catches local Ollama which WordPress registers as 'cloud' type.
+            $effective_type = ($type === 'server' || !$has_api_key_value) ? 'server' : $type;
+            $provider_debug['effectiveType'] = $effective_type;
+
+            // Local/server-type providers don't need an API key — skip the isConfigured check
+            // for them since WordPress returns false when no key is set even for key-free providers.
+            if (!$is_configured && $effective_type !== 'server') {
                 $provider_debug['skipped'] = 'isProviderConfigured() returned false';
                 $debug['providers'][] = $provider_debug;
                 continue;
             }
 
-            $type = (string) $meta->getType();
-
-            // Flag server-type providers (e.g. Ollama) — JS handles these via browser-direct local detection
-            if ($type === 'server') {
+            if ($effective_type === 'server') {
                 $has_local = true;
             }
 
@@ -153,7 +163,7 @@ class Connectors_Bridge {
                 }
             }
             // For server-type providers, try to get the base URL for browser-direct use
-            if ($type === 'server' && !$endpoint) {
+            if ($effective_type === 'server' && !$endpoint) {
                 try {
                     $endpoint = $class_name::url('');
                 } catch (\Throwable $e) {
@@ -179,7 +189,7 @@ class Connectors_Bridge {
             $provider_debug['endpoint'] = $endpoint;
             $provider_debug['apiKeyMasked'] = $api_key ? '***' . substr($api_key, -4) : '(empty)';
             $provider_debug['modelCount'] = count($models);
-            $browser_supported = in_array($id, self::SUPPORTED_BROWSER_PROVIDERS, true) || $type === 'server';
+            $browser_supported = in_array($id, self::SUPPORTED_BROWSER_PROVIDERS, true) || $effective_type === 'server';
 
             $provider_debug['browserSupported'] = $browser_supported;
             $provider_debug['included'] = true;
@@ -187,7 +197,7 @@ class Connectors_Bridge {
 
             $available[$id] = [
                 'name'     => $meta->getName(),
-                'type'     => $type,
+                'type'     => $effective_type,
                 'endpoint' => $endpoint,
                 'apiKey'   => $api_key,
                 'models'   => $models,
