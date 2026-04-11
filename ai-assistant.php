@@ -3,7 +3,7 @@
  * Plugin Name: AI Assistant
  * Plugin URI: https://github.com/akirk/ai-assistant
  * Description: AI-powered chat interface for WordPress. Bring your own key or use a local LLM.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Alex Kirk
  * Author URI: https://alex.kirk.at
  * License: GPL v2 or later
@@ -28,7 +28,7 @@ function ai_assistant_is_playground(): bool {
     return $is_wasm && $is_playground_path && $has_playground_function;
 }
 
-define('AI_ASSISTANT_VERSION', '1.0.0');
+define('AI_ASSISTANT_VERSION', '1.1.0');
 define('AI_ASSISTANT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AI_ASSISTANT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('AI_ASSISTANT_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -69,6 +69,7 @@ final class AI_Assistant {
     private $git_tracker_manager;
     private $plugin_downloads;
     private $changes_admin;
+    private $connectors_bridge;
 
     public static function instance() {
         if (is_null(self::$instance)) {
@@ -90,6 +91,11 @@ final class AI_Assistant {
     public function init() {
         // Load text domain
         load_plugin_textdomain('ai-assistant', false, dirname(AI_ASSISTANT_PLUGIN_BASENAME) . '/languages');
+
+        // Initialize Connectors bridge (WordPress 7.0+)
+        if (AI_Assistant\Connectors_Bridge::is_available()) {
+            $this->connectors_bridge = new AI_Assistant\Connectors_Bridge();
+        }
 
         // Initialize components
         $this->settings = new AI_Assistant\Settings();
@@ -166,6 +172,13 @@ final class AI_Assistant {
      */
     public function deactivate() {
         // Cleanup if needed
+    }
+
+    /**
+     * Get Connectors bridge instance (null on WP < 7.0)
+     */
+    public function connectors_bridge() {
+        return $this->connectors_bridge;
     }
 
     /**

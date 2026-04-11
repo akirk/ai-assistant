@@ -53,6 +53,22 @@
             this.executingToolCount = 0;
             this.processedToolIds = {};
 
+            // In connectors mode, route based on provider type
+            if (this.isConnectorsMode() && provider !== 'local') {
+                var providerConfig = aiAssistantProviders.available[provider];
+                if (providerConfig && providerConfig.type === 'server') {
+                    // Server-type providers (e.g. LM Studio, Ollama) — use browser-direct local LLM path
+                    // with the endpoint from Connectors if available
+                    this.callLocalLLM(providerConfig.endpoint || null);
+                    return;
+                }
+                if (providerConfig && !providerConfig.browserSupported) {
+                    this.addMessage('error', 'Provider "' + provider + '" is not yet supported for browser-direct calls. Please select a different provider.');
+                    this.setLoading(false);
+                    return;
+                }
+            }
+
             switch (provider) {
                 case 'anthropic':
                     this.callAnthropic();
@@ -64,6 +80,14 @@
                     this.callLocalLLM();
                     break;
                 default:
+                    // In connectors mode, unknown providers with cloud type might be OpenAI-compatible
+                    if (this.isConnectorsMode()) {
+                        var config = aiAssistantProviders.available[provider];
+                        if (config && config.type === 'cloud' && config.apiKey) {
+                            this.callOpenAI();
+                            return;
+                        }
+                    }
                     this.addMessage('error', 'Unknown provider: ' + provider);
                     this.setLoading(false);
             }
@@ -141,7 +165,8 @@
             var apiKey = this.getApiKey('anthropic');
 
             try {
-                var response = await fetch('https://api.anthropic.com/v1/messages', {
+                var endpoint = this.getProviderEndpoint('anthropic') || 'https://api.anthropic.com/v1/messages';
+                var response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -290,7 +315,8 @@
                     ...this.sanitizeMessages(this.messages)
                 ];
 
-                var response = await fetch('https://api.openai.com/v1/chat/completions', {
+                var endpoint = this.getProviderEndpoint('openai') || 'https://api.openai.com/v1/chat/completions';
+                var response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -483,9 +509,9 @@
             return messages.slice(cutAt);
         },
 
-        callLocalLLM: async function() {
+        callLocalLLM: async function(endpointOverride) {
             var self = this;
-            var endpoint = this.getLocalEndpoint().replace(/\/$/, '');
+            var endpoint = (endpointOverride || this.getLocalEndpoint()).replace(/\/$/, '');
 
             try {
                 var requestMessages = [
@@ -770,8 +796,9 @@
 
         callAnthropicForSummary: function(model, prompt) {
             var apiKey = this.getApiKey('anthropic');
+            var endpoint = this.getProviderEndpoint('anthropic') || 'https://api.anthropic.com/v1/messages';
             return new Promise(function(resolve, reject) {
-                fetch('https://api.anthropic.com/v1/messages', {
+                fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -800,8 +827,9 @@
 
         callOpenAIForSummary: function(model, prompt) {
             var apiKey = this.getApiKey('openai');
+            var endpoint = this.getProviderEndpoint('openai') || 'https://api.openai.com/v1/chat/completions';
             return new Promise(function(resolve, reject) {
-                fetch('https://api.openai.com/v1/chat/completions', {
+                fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
