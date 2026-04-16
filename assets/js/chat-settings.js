@@ -46,6 +46,7 @@
                 && Object.keys(aiAssistantProviders.available).length > 0;
         },
 
+
         /**
          * Get the provider priority list.
          * Returns an ordered array of provider IDs, highest priority first.
@@ -121,17 +122,15 @@
         },
 
         getProvider: function() {
-            // Direct provider override (set by switching mid-session) takes precedence
+            if (this.isConnectorsMode()) {
+                // In Connectors mode, ignore localStorage overrides — use priority list
+                return this._resolveProvider();
+            }
+
+            // Legacy mode: direct provider override takes precedence
             var override = this.getSetting('provider');
             if (override) {
-                if (this.isConnectorsMode()) {
-                    if (aiAssistantProviders.available[override] || override === 'local') {
-                        return override;
-                    }
-                    this.removeSetting('provider');
-                } else {
-                    return override;
-                }
+                return override;
             }
 
             return this._resolveProvider();
@@ -147,12 +146,6 @@
             if (this.isConnectorsMode()) {
                 var providerConfig = aiAssistantProviders.available[provider];
                 if (providerConfig && providerConfig.models && providerConfig.models.length > 0) {
-                    // Check if the stored model belongs to this provider
-                    var override = this.getSetting('model');
-                    if (override) {
-                        var validForProvider = providerConfig.models.some(function(m) { return m.id === override; });
-                        if (validForProvider) return override;
-                    }
                     return providerConfig.models[0].id;
                 }
             }
