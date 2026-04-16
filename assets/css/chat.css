@@ -255,6 +255,8 @@
     border-radius: 8px;
     line-height: 1.5;
     font-size: 13px;
+    width: fit-content;
+    max-width: 100%;
 }
 
 .ai-message-user .ai-message-content {
