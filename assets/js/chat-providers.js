@@ -324,7 +324,6 @@
                     },
                     body: JSON.stringify({
                         model: model,
-                        max_completion_tokens: 16384,
                         stream: true,
                         messages: requestMessages,
                         tools: this.getToolsOpenAI()
