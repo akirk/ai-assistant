@@ -17,6 +17,9 @@
                 this.conversationTitle = '';
                 this.conversationProvider = this.getProvider();
                 this.conversationModel = this.getModel();
+                this.titleGenerationInProgress = false;
+                this.titleGenerationAttempted = false;
+                this.titleGenerationToken++;
                 this.pendingNewChat = false;
                 this.pendingChatOriginalHtml = null;
                 $('#ai-assistant-messages').empty();
