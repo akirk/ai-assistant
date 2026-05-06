@@ -145,6 +145,9 @@
             this.conversationTitle = '';
             this.conversationProvider = this.getProvider();
             this.conversationModel = this.getModel();
+            this.titleGenerationInProgress = false;
+            this.titleGenerationAttempted = false;
+            this.titleGenerationToken++;
             this.pendingNewChat = false;
             this.updateSendButton();
             this.updateTokenCount();
@@ -206,15 +209,16 @@
                 },
                 success: function(response) {
                     if (response.success) {
-                        var isNew = self.conversationId === 0;
                         self.conversationId = response.data.conversation_id;
-                        self.conversationTitle = response.data.title;
+                        if (!self.conversationTitle) {
+                            self.conversationTitle = response.data.title;
+                        }
                         self.updateSidebarSelection();
                         if (!silent) {
                             self.addMessage('system', 'Conversation saved.');
                         }
 
-                        if (isNew && self.isFullPage) {
+                        if (self.isFullPage) {
                             self.loadSidebarConversations();
                         }
 
@@ -245,7 +249,9 @@
 
         autoSaveConversation: function() {
             if (this.autoSave && this.messages.length > 0) {
-                if (!this.conversationTitle && this.messages.length >= 2) {
+                if (!this.conversationTitle && this.messages.length >= 2 && !this.titleGenerationAttempted && !this.titleGenerationInProgress) {
+                    this.titleGenerationAttempted = true;
+                    this.saveConversation(true);
                     this.generateConversationTitle();
                     return;
                 }
@@ -302,6 +308,9 @@
                 },
                 success: function(response) {
                     if (response.success) {
+                        self.titleGenerationInProgress = false;
+                        self.titleGenerationAttempted = !!response.data.title;
+                        self.titleGenerationToken++;
                         self.conversationId = response.data.conversation_id;
                         self.conversationTitle = response.data.title;
                         try {
@@ -570,7 +579,11 @@
         // Title generation
         generateConversationTitle: function() {
             var self = this;
-            var config = aiAssistantConfig;
+            var provider = this.conversationProvider || this.getProvider();
+            var apiKey = this.getApiKey(provider);
+            var providerConfig = this.isConnectorsMode() && typeof aiAssistantProviders !== 'undefined'
+                ? aiAssistantProviders.available[provider]
+                : null;
 
             var firstUserMsg = this.messages.find(function(m) { return m.role === 'user'; });
             if (!firstUserMsg) return;
@@ -581,14 +594,43 @@
 
             if (!userContent) return;
 
+            this.titleGenerationInProgress = true;
+            this.titleGenerationToken++;
+            var titleGenerationToken = this.titleGenerationToken;
+
             var titlePrompt = 'Generate a very short title (3-6 words max) for a conversation that starts with this message. Return ONLY the title, nothing else. Do not explain or reason - just output the title directly.\n\n' + userContent.substring(0, 500);
 
-            if (config.provider === 'anthropic' && config.apiKey) {
+            function fallbackTitle() {
+                var words = userContent.split(/\s+/).slice(0, 6).join(' ');
+                return words.length > 50 ? words.substring(0, 50) + '...' : words;
+            }
+
+            function finishWithTitle(title) {
+                if (self.titleGenerationToken !== titleGenerationToken) {
+                    return;
+                }
+                title = (title || '').trim().replace(/^["']|["']$/g, '');
+                if (!title) {
+                    title = fallbackTitle();
+                }
+                self.conversationTitle = title;
+                self.titleGenerationInProgress = false;
+                self.saveConversation(true);
+            }
+
+            function finishWithFallback(err) {
+                if (err) {
+                    console.error('[AI Assistant] Title generation failed:', err);
+                }
+                finishWithTitle(fallbackTitle());
+            }
+
+            if (provider === 'anthropic' && apiKey) {
                 fetch('https://api.anthropic.com/v1/messages', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'x-api-key': config.apiKey,
+                        'x-api-key': apiKey,
                         'anthropic-version': '2023-06-01',
                         'anthropic-dangerous-direct-browser-access': 'true'
                     },
@@ -601,20 +643,22 @@
                 .then(function(response) { return response.json(); })
                 .then(function(data) {
                     if (data.content && data.content[0] && data.content[0].text) {
-                        self.conversationTitle = data.content[0].text.trim().replace(/^["']|["']$/g, '');
-                        self.saveConversation(true);
-                        self.loadSidebarConversations();
+                        finishWithTitle(data.content[0].text);
+                    } else {
+                        finishWithFallback();
                     }
                 })
                 .catch(function(err) {
-                    console.error('[AI Assistant] Title generation failed:', err);
+                    finishWithFallback(err);
                 });
-            } else if (config.provider === 'openai' && config.apiKey) {
-                fetch('https://api.openai.com/v1/chat/completions', {
+            } else if ((provider === 'openai' || (providerConfig && providerConfig.type === 'cloud')) && apiKey) {
+                var openAIEndpoint = this.getProviderEndpoint(provider) || 'https://api.openai.com/v1/chat/completions';
+
+                fetch(openAIEndpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + config.apiKey
+                        'Authorization': 'Bearer ' + apiKey
                     },
                     body: JSON.stringify({
                         model: 'gpt-4o-mini',
@@ -625,16 +669,16 @@
                 .then(function(response) { return response.json(); })
                 .then(function(data) {
                     if (data.choices && data.choices[0] && data.choices[0].message) {
-                        self.conversationTitle = data.choices[0].message.content.trim().replace(/^["']|["']$/g, '');
-                        self.saveConversation(true);
-                        self.loadSidebarConversations();
+                        finishWithTitle(data.choices[0].message.content);
+                    } else {
+                        finishWithFallback();
                     }
                 })
                 .catch(function(err) {
-                    console.error('[AI Assistant] Title generation failed:', err);
+                    finishWithFallback(err);
                 });
             } else {
-                var endpoint = self.getLocalEndpoint().replace(/\/$/, '');
+                var endpoint = (self.getProviderEndpoint(provider) || self.getLocalEndpoint()).replace(/\/$/, '');
                 var model = self.conversationModel || self.getModel();
 
                 fetch(endpoint + '/v1/chat/completions', {
@@ -652,17 +696,13 @@
                 .then(function(data) {
                     if (data.choices && data.choices[0] && data.choices[0].message) {
                         var title = self.stripReasoningTokens(data.choices[0].message.content);
-                        self.conversationTitle = title.trim().replace(/^["']|["']$/g, '');
-                        self.saveConversation(true);
-                        self.loadSidebarConversations();
+                        finishWithTitle(title);
+                    } else {
+                        finishWithFallback();
                     }
                 })
                 .catch(function(err) {
-                    console.error('[AI Assistant] Title generation failed:', err);
-                    var words = userContent.split(/\s+/).slice(0, 6).join(' ');
-                    self.conversationTitle = words.length > 50 ? words.substring(0, 50) + '...' : words;
-                    self.saveConversation(true);
-                    self.loadSidebarConversations();
+                    finishWithFallback(err);
                 });
             }
         },
