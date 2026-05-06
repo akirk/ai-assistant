@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title>AI Assistant</title>
+  <desc>A chat bubble with a spark for the AI Assistant app.</desc>
+  <defs>
+    <linearGradient id="bg" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2271b1"/>
+      <stop offset="0.55" stop-color="#3858e9"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="spark" x1="76" y1="72" x2="182" y2="178" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fef08a"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <rect x="54" y="48" width="148" height="112" rx="30" fill="#fff" opacity=".96"/>
+  <path fill="#fff" d="M90 145v42l50-42H90z" opacity=".96"/>
+  <path fill="url(#spark)" d="M128 70l12.1 32.4L172 115l-31.9 12.6L128 160l-12.1-32.4L84 115l31.9-12.6L128 70z"/>
+  <path fill="#111827" d="M128 89l7.2 19.2 18.8 7.4-18.8 7.4L128 142l-7.2-19-18.8-7.4 18.8-7.4L128 89z" opacity=".88"/>
+  <circle cx="90" cy="194" r="10" fill="#22d3ee" opacity=".9"/>
+  <circle cx="165" cy="55" r="7" fill="#fef08a" opacity=".9"/>
+</svg>
