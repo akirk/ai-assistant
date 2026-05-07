@@ -173,20 +173,25 @@ class Settings {
         $settings_url = admin_url('options-general.php?page=ai-assistant-settings');
         ?>
         <style>
+            #wpbody-content { padding-bottom: 0; }
             #wpfooter { display: none; }
             .ai-assistant-page {
-                position: fixed;
-                top: 68px; /* 32px admin bar + 36px screen-meta-links */
                 height: calc(100vh - 68px);
-                margin: 0 !important;
-                padding: 8px;
+                margin: 0 20px 0 0;
+                padding: 8px 0 8px 8px;
                 box-sizing: border-box;
                 display: flex;
                 flex-direction: column;
-                overflow: hidden;
             }
             .ai-chat-layout { flex: 1; min-height: 0; }
             .ai-assistant-chat-container { border: none; border-radius: 0; }
+            @media screen and (max-width: 782px) {
+                .ai-assistant-page {
+                    height: calc(100vh - 82px);
+                    margin-right: 10px;
+                    padding: 8px 0;
+                }
+            }
         </style>
         <div class="wrap ai-assistant-page">
             <div class="ai-chat-layout">
