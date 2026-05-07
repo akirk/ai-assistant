@@ -131,7 +131,7 @@ final class AI_Assistant {
 
         $apps['ai-assistant'] = [
             'name' => __('AI Assistant', 'ai-assistant'),
-            'icon_url' => AI_ASSISTANT_PLUGIN_URL . 'assets/icon.svg',
+            'dashicon' => 'dashicons-format-chat',
             'url' => admin_url('tools.php?page=ai-conversations'),
         ];
 
