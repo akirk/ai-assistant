@@ -84,6 +84,7 @@ final class AI_Assistant {
 
     private function init_hooks() {
         add_action('plugins_loaded', [$this, 'init']);
+        add_filter('my_apps_plugins', [$this, 'register_my_apps_icon']);
         register_activation_hook(__FILE__, [$this, 'activate']);
         register_deactivation_hook(__FILE__, [$this, 'deactivate']);
     }
@@ -107,6 +108,34 @@ final class AI_Assistant {
         $this->api_handler = new AI_Assistant\API_Handler($this->tools, $this->executor);
         $this->plugin_downloads = new AI_Assistant\Plugin_Downloads($this->git_tracker_manager);
         $this->changes_admin = new AI_Assistant\Changes_Admin($this->git_tracker_manager);
+    }
+
+    /**
+     * Register AI Assistant with the My Apps launcher.
+     */
+    public function register_my_apps_icon($apps) {
+        if (!is_array($apps)) {
+            return $apps;
+        }
+
+        if (
+            !current_user_can('edit_posts')
+            || (
+                !current_user_can('ai_assistant_full')
+                && !current_user_can('ai_assistant_read_only')
+                && !current_user_can('ai_assistant_chat_only')
+            )
+        ) {
+            return $apps;
+        }
+
+        $apps['ai-assistant'] = [
+            'name' => __('AI Assistant', 'ai-assistant'),
+            'icon_url' => AI_ASSISTANT_PLUGIN_URL . 'assets/icon.svg',
+            'url' => admin_url('tools.php?page=ai-conversations'),
+        ];
+
+        return $apps;
     }
 
     /**
