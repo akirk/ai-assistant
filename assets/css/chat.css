@@ -251,6 +251,8 @@
 }
 
 .ai-message-content {
+    min-width: 0;
+    box-sizing: border-box;
     padding: 8px 12px;
     border-radius: 8px;
     line-height: 1.5;
@@ -281,23 +283,34 @@
     border: 1px solid #dba617;
 }
 
-/* Message action buttons - overlay style */
+/* Message action buttons */
 .ai-message {
     display: flex;
-    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.ai-message-user {
+    flex-direction: row-reverse;
 }
 
 .ai-message-actions {
     display: flex;
+    flex: 0 0 auto;
     gap: 2px;
     opacity: 0;
-    transition: opacity 0.15s;
-    padding: 2px 0;
+    visibility: hidden;
+    transition: opacity 0.15s, visibility 0s linear 0.15s;
+    padding: 0;
+    margin-bottom: 2px;
 }
 
 .ai-message:hover .ai-message-actions,
+.ai-message:focus-within .ai-message-actions,
 .ai-message-actions:focus-within {
     opacity: 1;
+    visibility: visible;
+    transition-delay: 0s;
 }
 
 .ai-message-streaming .ai-message-actions {
@@ -1462,34 +1475,44 @@ body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
 
 /* Full page message styling overrides */
 .ai-chat-main .ai-message {
-    margin-bottom: 15px;
-    padding: 12px 15px;
-    border-radius: 8px;
+    margin-bottom: 0;
+    padding: 0;
+    border-radius: 0;
     max-width: 85%;
 }
 
 .ai-chat-main .ai-message-user {
-    background: #2271b1;
-    color: #fff;
+    background: transparent;
+    color: inherit;
     margin-left: auto;
     padding: 0;
 }
 
 .ai-chat-main .ai-message-assistant {
-    background: #f0f0f1;
+    background: transparent;
+}
+
+.ai-chat-main .ai-message-assistant .ai-message-content {
+    background: #fff;
+    border: 1px solid #c3c4c7;
 }
 
 .ai-chat-main .ai-message-system {
-    background: #fff8e5;
+    background: transparent;
     font-size: 13px;
     max-width: 100%;
     text-align: center;
 }
 
 .ai-chat-main .ai-message-error {
+    background: transparent;
+    color: inherit;
+    max-width: 100%;
+}
+
+.ai-chat-main .ai-message-error .ai-message-content {
     background: #fcf0f1;
     color: #8a0f0f;
-    max-width: 100%;
 }
 
 .ai-chat-main .ai-message pre {
