@@ -9,7 +9,9 @@ if (!defined('ABSPATH')) {
  * AJAX API Handler for tool execution
  *
  * Note: All LLM communication happens client-side via JavaScript.
- * This handler only executes tools (file operations, DB operations, etc.)
+ * This handler executes WordPress-backed tools. Filesystem tools normally use
+ * the direct file endpoint, but remain supported here for backward
+ * compatibility and internal callers.
  */
 class API_Handler {
 

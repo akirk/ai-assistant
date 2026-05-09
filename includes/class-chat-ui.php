@@ -109,6 +109,12 @@ class Chat_UI {
         wp_localize_script('ai-assistant-chat-core', 'aiAssistantConfig', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('ai_assistant_chat'),
+            'fileToolsUrl' => AI_ASSISTANT_PLUGIN_URL . 'file-tools.php',
+            'fileToolsToken' => File_Tool_Auth::create_token(
+                $settings->get_user_permission_level(),
+                $settings->get_user_enabled_tools(),
+                get_current_user_id()
+            ),
             'userPermission' => $settings->get_user_permission_level(),
             'enabledTools' => $settings->get_user_enabled_tools(),
             'autoApprovedAbilities' => $settings->get_auto_approved_abilities(),

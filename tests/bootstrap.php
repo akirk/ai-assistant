@@ -126,6 +126,8 @@ if (!function_exists('__'))                  { function __($t, $d = '') { return
 // Manual class loading (no Composer autoloader)
 $plugin_dir = dirname(__DIR__);
 require_once $plugin_dir . '/includes/class-tools.php';
+require_once $plugin_dir . '/includes/class-file-tool-auth.php';
+require_once $plugin_dir . '/includes/class-file-tool-executor.php';
 require_once $plugin_dir . '/includes/class-executor.php';
 require_once $plugin_dir . '/includes/class-git-tracker.php';
 require_once $plugin_dir . '/includes/class-git-tracker-manager.php';

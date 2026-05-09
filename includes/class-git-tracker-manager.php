@@ -1,7 +1,7 @@
 <?php
 namespace AI_Assistant;
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH') && !defined('AI_ASSISTANT_FILE_TOOLS_ENDPOINT')) {
     exit;
 }
 
