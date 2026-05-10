@@ -1145,29 +1145,39 @@
 
 /* Standalone Mode - Matches WordPress screen-meta styling exactly */
 
-/* Container for standalone mode - mimics #screen-meta positioning */
+/* Container for standalone mode - mimics #screen-meta positioning.
+   Layout-critical properties use !important because frontend themes
+   may target generic divs/buttons and break alignment. */
 .ai-assistant-standalone-wrap {
-    position: fixed;
-    top: 32px; /* Below admin bar */
-    left: 0;
-    right: 0;
+    position: fixed !important;
+    top: 0;
+    left: 0 !important;
+    right: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
     z-index: 99999;
     pointer-events: none;
+    box-sizing: border-box;
 }
 
-body:not(.admin-bar) .ai-assistant-standalone-wrap {
-    top: 0;
+/* Below admin bar. Use :has() because wp-app templates render #wpadminbar
+   without calling body_class(), so body.admin-bar isn't reliable. */
+body.admin-bar .ai-assistant-standalone-wrap,
+body:has(#wpadminbar) .ai-assistant-standalone-wrap {
+    top: 32px;
 }
 
 /* The panel - matches #screen-meta styling */
 .ai-assistant-standalone-panel {
     display: none; /* jQuery slideDown/slideUp controls visibility */
-    margin: 0 20px -1px 0;
+    margin: 0 20px -1px 0 !important;
+    padding: 0 !important;
     position: relative;
     background-color: #fff;
     border: 1px solid #c3c4c7;
     border-top: none;
     pointer-events: auto;
+    box-sizing: border-box;
 }
 
 .ai-assistant-standalone-panel #ai-assistant-columns {
@@ -1187,38 +1197,55 @@ body:not(.admin-bar) .ai-assistant-standalone-wrap {
 /* Button container - matches #screen-meta-links positioning */
 .ai-assistant-standalone-links {
     float: right;
-    margin: 0 20px 0 0;
+    margin: 0 20px 0 0 !important;
+    padding: 0 !important;
     pointer-events: auto;
+    box-sizing: border-box;
 }
 
 /* Button wrap - matches .screen-meta-toggle */
 .ai-assistant-standalone-trigger {
     float: left;
-    margin: 0 0 0 6px;
+    margin: 0 0 0 6px !important;
+    padding: 0 !important;
     position: relative;
     top: 0;
+    box-sizing: border-box;
 }
 
-/* The button itself - matches .show-settings button exactly */
+/* The button itself - matches .show-settings button exactly.
+   Themes commonly override button padding, text-transform, letter-spacing,
+   line-height, height, and font-* — reset all of those so the chip looks
+   identical regardless of the surrounding theme. */
 .ai-assistant-standalone-trigger button {
     display: block;
-    padding: 3px 6px 3px 16px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-    font-size: 13px;
-    font-weight: 400;
-    line-height: 1.7;
+    margin: 0 !important;
+    padding: 3px 6px 3px 16px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    width: auto !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    font-style: normal !important;
+    line-height: 1.7 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-decoration: none !important;
+    text-align: left !important;
     color: #646970;
     background: #fff;
     border: 1px solid #c3c4c7;
     border-top: none;
     border-radius: 0 0 4px 4px;
     cursor: pointer;
-    text-decoration: none;
-    box-shadow: none;
+    box-shadow: none !important;
     transition: none;
+    box-sizing: border-box;
+    vertical-align: baseline !important;
 }
 
-/* Ensure frontend themes don't override */
+/* Ensure frontend themes don't override colors */
 body:not(.wp-admin) .ai-assistant-standalone-trigger button {
     color: #646970 !important;
     background: #fff !important;
@@ -1274,19 +1301,20 @@ body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
 
     /* Standalone responsive adjustments */
     .ai-assistant-standalone-wrap {
-        top: 46px; /* Mobile admin bar is taller */
-    }
-
-    body:not(.admin-bar) .ai-assistant-standalone-wrap {
         top: 0;
     }
 
+    body.admin-bar .ai-assistant-standalone-wrap,
+    body:has(#wpadminbar) .ai-assistant-standalone-wrap {
+        top: 46px; /* Mobile admin bar is taller */
+    }
+
     .ai-assistant-standalone-panel {
-        margin-right: 10px;
+        margin: 0 10px -1px 0 !important;
     }
 
     .ai-assistant-standalone-links {
-        margin-right: 10px;
+        margin: 0 10px 0 0 !important;
     }
 }
 
