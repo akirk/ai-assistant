@@ -143,6 +143,10 @@
                 return this.executeSummarizeConversation(toolCall);
             }
 
+            if (this.canUseFileToolEndpoint(toolName)) {
+                return this.executeFileToolEndpoint(toolCall);
+            }
+
             return new Promise(function(resolve, reject) {
                 $.ajax({
                     url: aiAssistantConfig.ajaxUrl,
@@ -206,6 +210,100 @@
                         });
                     }
                 });
+            });
+        },
+
+        canUseFileToolEndpoint: function(toolName) {
+            var fileTools = [
+                'read_file',
+                'write_file',
+                'edit_file',
+                'delete_file',
+                'find',
+                'list_directory',
+                'search_files',
+                'search_content'
+            ];
+
+            return !!(
+                aiAssistantConfig &&
+                aiAssistantConfig.fileToolsUrl &&
+                aiAssistantConfig.fileToolsToken &&
+                fileTools.indexOf(toolName) >= 0
+            );
+        },
+
+        executeFileToolEndpoint: function(toolCall) {
+            var toolName = toolCall.name || toolCall.tool;
+            var args = toolCall.arguments || {};
+
+            return fetch(aiAssistantConfig.fileToolsUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    token: aiAssistantConfig.fileToolsToken,
+                    tool: toolName,
+                    arguments: args,
+                    conversation_id: this.conversationId || 0
+                })
+            }).then(function(response) {
+                return response.text().then(function(text) {
+                    var payload = null;
+                    try {
+                        payload = JSON.parse(text);
+                    } catch (e) {
+                        return {
+                            id: toolCall.id,
+                            name: toolName,
+                            input: args,
+                            result: {
+                                error: 'File tool endpoint failed: HTTP ' + response.status + ' non-JSON response: ' + text.substring(0, 500)
+                            },
+                            success: false
+                        };
+                    }
+
+                    if (payload && payload.success) {
+                        var result = payload.data || {};
+                        if (result && typeof result === 'object') {
+                            result.transport = 'direct_file_endpoint';
+                        }
+                        return {
+                            id: toolCall.id,
+                            name: toolName,
+                            input: args,
+                            result: result,
+                            success: true
+                        };
+                    }
+
+                    var message = payload && payload.data && (payload.data.message || payload.data.error);
+                    if (!message) {
+                        message = 'HTTP ' + response.status;
+                    }
+
+                    return {
+                        id: toolCall.id,
+                        name: toolName,
+                        input: args,
+                        result: {
+                            error: 'File tool endpoint failed: ' + message
+                        },
+                        success: false
+                    };
+                });
+            }).catch(function(error) {
+                return {
+                    id: toolCall.id,
+                    name: toolName,
+                    input: args,
+                    result: {
+                        error: 'File tool endpoint failed: ' + error.message
+                    },
+                    success: false
+                };
             });
         },
 

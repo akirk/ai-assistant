@@ -60,6 +60,8 @@ The AI Assistant panel appears in the WordPress admin screen meta area (alongsid
 | `skill` | Load skill documents with specialized WordPress knowledge |
 | `summarize_conversation` | Generate a summary of the current conversation |
 
+Filesystem tools (`read_file`, `write_file`, `edit_file`, `delete_file`, and `find`) use a direct plugin endpoint with a signed token, so they can still run if a previous file edit causes WordPress to fatal during bootstrap. WordPress-backed tools still use AJAX because they need a loaded WordPress environment.
+
 ### Tool Tiering for Local LLMs
 
 When using a local LLM (Ollama, LM Studio), tools are tiered to avoid overwhelming smaller models:
