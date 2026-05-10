@@ -15,10 +15,12 @@ class Chat_UI {
         add_action('admin_footer', [$this, 'render_screen_meta_tab']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
 
-        // Frontend hooks (only if enabled in settings)
+        // Frontend hooks (only if enabled in settings).
+        // Priority 1000 runs after frameworks like wp-app that dequeue
+        // non-whitelisted assets at priority 999.
         if ($this->is_frontend_enabled()) {
             add_action('wp_footer', [$this, 'render_screen_meta_tab']);
-            add_action('wp_enqueue_scripts', [$this, 'enqueue_assets']);
+            add_action('wp_enqueue_scripts', [$this, 'enqueue_assets'], 1000);
         }
     }
 
