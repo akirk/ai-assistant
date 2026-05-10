@@ -272,6 +272,11 @@ class Chat_UI {
                 var $panel = $('#ai-assistant-standalone-panel');
                 var $trigger = $('#ai-assistant-standalone-trigger');
                 var $button = $trigger.find('button');
+                var $masterbar = $('#wpadminbar');
+
+                if ($masterbar.length) {
+                    $wrap.appendTo($masterbar);
+                }
 
                 // Show the standalone wrapper and remove hidden class from inner wrap
                 $wrap.show();

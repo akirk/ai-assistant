@@ -1146,13 +1146,16 @@
 /* Standalone Mode - Matches WordPress screen-meta styling exactly */
 
 /* Container for standalone mode - mimics #screen-meta positioning.
-   Layout-critical properties use !important because frontend themes
-   may target generic divs/buttons and break alignment. */
+   It is appended to #wpadminbar in JS so it stays attached to the
+   masterbar instead of being fixed independently. Layout-critical
+   properties use !important because frontend themes may target generic
+   divs/buttons and break alignment. */
 .ai-assistant-standalone-wrap {
-    position: fixed !important;
-    top: 0;
+    position: absolute !important;
+    top: 0 !important;
     left: 0 !important;
     right: 0 !important;
+    width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     z-index: 99999;
@@ -1160,11 +1163,11 @@
     box-sizing: border-box;
 }
 
-/* Below admin bar. Use :has() because wp-app templates render #wpadminbar
-   without calling body_class(), so body.admin-bar isn't reliable. */
-body.admin-bar .ai-assistant-standalone-wrap,
-body:has(#wpadminbar) .ai-assistant-standalone-wrap {
-    top: 32px;
+/* Attach below the WordPress admin/master bar. */
+#wpadminbar .ai-assistant-standalone-wrap {
+    top: 100% !important;
+    width: 100vw !important;
+    min-width: 0 !important;
 }
 
 /* The panel - matches #screen-meta styling */
@@ -1297,16 +1300,6 @@ body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
 
     .ai-message {
         max-width: 95%;
-    }
-
-    /* Standalone responsive adjustments */
-    .ai-assistant-standalone-wrap {
-        top: 0;
-    }
-
-    body.admin-bar .ai-assistant-standalone-wrap,
-    body:has(#wpadminbar) .ai-assistant-standalone-wrap {
-        top: 46px; /* Mobile admin bar is taller */
     }
 
     .ai-assistant-standalone-panel {
