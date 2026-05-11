@@ -149,6 +149,10 @@
             this.titleGenerationAttempted = false;
             this.titleGenerationToken++;
             this.pendingNewChat = false;
+            this.pendingAttachments = [];
+            if (this.renderPendingAttachments) {
+                this.renderPendingAttachments();
+            }
             this.updateSendButton();
             this.updateTokenCount();
             this.clearToolCards();
@@ -591,6 +595,13 @@
             var userContent = typeof firstUserMsg.content === 'string'
                 ? firstUserMsg.content
                 : (firstUserMsg.content[0]?.text || '');
+
+            if (this.extractFileContextForDisplay) {
+                var fileContext = this.extractFileContextForDisplay(userContent);
+                if (fileContext) {
+                    userContent = fileContext.visibleText || 'Attached files';
+                }
+            }
 
             if (!userContent) return;
 

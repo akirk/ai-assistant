@@ -73,9 +73,17 @@ class Chat_UI {
         );
 
         wp_enqueue_script(
+            'ai-assistant-chat-files',
+            AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-files.js',
+            ['ai-assistant-chat-core'],
+            AI_ASSISTANT_VERSION,
+            true
+        );
+
+        wp_enqueue_script(
             'ai-assistant-chat-providers',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-providers.js',
-            ['ai-assistant-chat-core', 'ai-assistant-chat-settings'],
+            ['ai-assistant-chat-core', 'ai-assistant-chat-settings', 'ai-assistant-chat-files'],
             AI_ASSISTANT_VERSION,
             true
         );
@@ -91,7 +99,7 @@ class Chat_UI {
         wp_enqueue_script(
             'ai-assistant-chat-ui',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-ui.js',
-            ['ai-assistant-chat-core'],
+            ['ai-assistant-chat-core', 'ai-assistant-chat-files'],
             AI_ASSISTANT_VERSION,
             true
         );
@@ -126,6 +134,8 @@ class Chat_UI {
             'restApiUrl' => rest_url(),
             'restApiNonce' => wp_create_nonce('wp_rest'),
             'userDisplayName' => $current_user->display_name,
+            'maxClientFileBytes' => (int) apply_filters('ai_assistant_client_file_context_bytes', 128 * 1024),
+            'compactClientFileBytes' => (int) apply_filters('ai_assistant_client_file_compact_bytes', 32 * 1024),
             'systemPrompt' => $settings->get_system_prompt(),
             'abilityDomains' => apply_filters('ai_assistant_ability_domains', []),
             'strings' => [
@@ -359,12 +369,20 @@ class Chat_UI {
                         </div>
                     </div>
                     <div id="ai-assistant-messages"></div>
+                    <div class="ai-assistant-drop-zone" aria-hidden="true">
+                        <div class="ai-assistant-drop-zone-inner">' . esc_html__('Drop files to attach', 'ai-assistant') . '</div>
+                    </div>
                     <button type="button" id="ai-assistant-scroll-bottom" title="Scroll to bottom" style="display:none">&#8595;</button>
                     <div id="ai-assistant-loading" style="display: none;">
                         <div class="ai-loading-dots"><span></span><span></span><span></span></div>
                     </div>
                     <div id="ai-assistant-pending-actions"></div>
+                    <div id="ai-assistant-attachments" class="ai-assistant-attachments"></div>
                     <div class="ai-assistant-input-area">
+                        <input type="file" id="ai-assistant-file-input" multiple hidden>
+                        <button type="button" id="ai-assistant-attach" class="button" title="' . esc_attr__('Attach files', 'ai-assistant') . '">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21.44 11.05l-8.49 8.49a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.19 9.19a2 2 0 01-2.83-2.83l8.49-8.49"/></svg>
+                        </button>
                         <textarea id="ai-assistant-input" placeholder="' . $placeholder . '" rows="2"></textarea>
                         <button type="button" id="ai-assistant-send" class="button button-primary">' . $send . '</button>
                         <button type="button" id="ai-assistant-stop" class="button" style="display: none;" title="' . esc_attr__('Stop generation', 'ai-assistant') . '">
