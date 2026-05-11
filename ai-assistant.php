@@ -33,6 +33,11 @@ define('AI_ASSISTANT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AI_ASSISTANT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('AI_ASSISTANT_PLUGIN_BASENAME', plugin_basename(__FILE__));
 
+$ai_assistant_vendor_autoload = AI_ASSISTANT_PLUGIN_DIR . 'vendor/autoload.php';
+if (file_exists($ai_assistant_vendor_autoload)) {
+    require_once $ai_assistant_vendor_autoload;
+}
+
 /**
  * Autoloader for plugin classes
  */
@@ -70,6 +75,7 @@ final class AI_Assistant {
     private $plugin_downloads;
     private $changes_admin;
     private $connectors_bridge;
+    private $wp_app_abilities;
 
     public static function instance() {
         if (is_null(self::$instance)) {
@@ -108,6 +114,7 @@ final class AI_Assistant {
         $this->api_handler = new AI_Assistant\API_Handler($this->tools, $this->executor);
         $this->plugin_downloads = new AI_Assistant\Plugin_Downloads($this->git_tracker_manager);
         $this->changes_admin = new AI_Assistant\Changes_Admin($this->git_tracker_manager);
+        $this->wp_app_abilities = new AI_Assistant\Wp_App_Abilities();
     }
 
     /**
