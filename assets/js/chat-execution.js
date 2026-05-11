@@ -677,7 +677,7 @@
         // Process a single tool immediately when it finishes streaming
         processToolCallImmediate: function(toolId, toolName, toolArgs, provider) {
             var self = this;
-            var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'rest_api'];
+            var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'ability', 'rest_api'];
             var alwaysConfirmTools = ['navigate'];
 
             this.currentProvider = provider;
