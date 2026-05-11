@@ -4,7 +4,7 @@
     $.extend(window.aiAssistant, {
         processToolCalls: function(toolCalls, provider, stopReason) {
             var self = this;
-            var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'ability', 'rest_api'];
+            var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'ability', 'execute_ability', 'rest_api'];
             var alwaysConfirmTools = ['navigate'];
 
             var needsConfirmation = [];
@@ -622,11 +622,24 @@
         },
 
         isAbilityAutoApproved: function(toolCall) {
-            if (toolCall.name !== 'ability') return false;
             var args = toolCall.arguments || {};
-            if (args.action !== 'execute' || !args.ability) return false;
+            if (toolCall.name === 'ability' && args.action !== 'execute') return false;
+            if (toolCall.name !== 'ability' && toolCall.name !== 'execute_ability') return false;
+            if (!args.ability) return false;
+            if (this.isAbilityReadonly(toolCall)) return true;
             var autoApproved = (window.aiAssistantConfig && window.aiAssistantConfig.autoApprovedAbilities) || [];
             return autoApproved.indexOf(args.ability) >= 0;
+        },
+
+        isAbilityReadonly: function(toolCall) {
+            var args = toolCall.arguments || {};
+            if (toolCall.name === 'ability' && args.action !== 'execute') return false;
+            if (toolCall.name !== 'ability' && toolCall.name !== 'execute_ability') return false;
+            if (!args.ability) return false;
+            var enabled = (window.aiAssistantConfig && window.aiAssistantConfig.enabledTools) || [];
+            if (enabled.indexOf('execute_ability') < 0) return false;
+            var readonly = (window.aiAssistantConfig && window.aiAssistantConfig.readonlyAbilities) || [];
+            return readonly.indexOf(args.ability) >= 0;
         },
 
         saveAutoApprovedAbility: function(abilityId) {
@@ -677,7 +690,7 @@
         // Process a single tool immediately when it finishes streaming
         processToolCallImmediate: function(toolId, toolName, toolArgs, provider) {
             var self = this;
-            var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'ability', 'rest_api'];
+            var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'ability', 'execute_ability', 'rest_api'];
             var alwaysConfirmTools = ['navigate'];
 
             this.currentProvider = provider;

@@ -4,10 +4,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function loadExecutionMixin() {
+function loadExecutionMixin(config) {
     const aiAssistant = {};
     const context = {
-        window: { aiAssistant },
+        window: {
+            aiAssistant,
+            aiAssistantConfig: config || {}
+        },
         jQuery: {
             extend(target, source) {
                 return Object.assign(target, source);
@@ -26,7 +29,8 @@ function loadExecutionMixin() {
 }
 
 function createAssistant(overrides) {
-    const assistant = loadExecutionMixin();
+    overrides = overrides || {};
+    const assistant = loadExecutionMixin(overrides.config || {});
     const states = [];
 
     Object.assign(assistant, {
@@ -44,17 +48,13 @@ function createAssistant(overrides) {
         },
         setLoading() {},
         showPendingActionsHeader() {},
-        isAbilityAutoApproved() {
-            return false;
-        },
-        isRestApiAutoApproved() {
-            return false;
-        },
         executeSingleTool() {
             throw new Error('Tool should not execute before confirmation');
         },
         _states: states
-    }, overrides || {});
+    }, overrides);
+
+    delete assistant.config;
 
     return assistant;
 }
@@ -102,5 +102,75 @@ describe('processToolCallImmediate', function() {
         assert.strictEqual(executed, true);
         assert.deepStrictEqual(assistant._states[0], { id: 'tool-2', state: 'executing' });
         assert.strictEqual(assistant.pendingActions.length, 0);
+    });
+
+    it('executes readonly abilities without confirmation', function() {
+        let executed = false;
+        const assistant = createAssistant({
+            config: {
+                enabledTools: ['execute_ability'],
+                readonlyAbilities: ['demo/read']
+            },
+            executeSingleTool() {
+                executed = true;
+                return Promise.resolve({
+                    id: 'tool-3',
+                    name: 'ability',
+                    input: { action: 'execute', ability: 'demo/read' },
+                    result: { ok: true },
+                    success: true
+                });
+            },
+            checkAllToolsResolved() {}
+        });
+
+        assistant.processToolCallImmediate(
+            'tool-3',
+            'ability',
+            { action: 'execute', ability: 'demo/read' },
+            'anthropic'
+        );
+
+        assert.strictEqual(executed, true);
+        assert.deepStrictEqual(assistant._states[0], { id: 'tool-3', state: 'executing' });
+        assert.strictEqual(assistant.pendingActions.length, 0);
+    });
+
+    it('requires confirmation before executing legacy ability calls', function() {
+        const assistant = createAssistant();
+
+        assistant.processToolCallImmediate(
+            'tool-4',
+            'execute_ability',
+            { ability: 'demo/write' },
+            'anthropic'
+        );
+
+        assert.deepStrictEqual(assistant._states, [
+            { id: 'tool-4', state: 'pending' }
+        ]);
+        assert.strictEqual(assistant.pendingActions.length, 1);
+        assert.strictEqual(assistant.pendingActions[0].tool, 'execute_ability');
+    });
+
+    it('does not auto-execute readonly abilities when execute_ability is disabled', function() {
+        const assistant = createAssistant({
+            config: {
+                enabledTools: ['list_abilities', 'get_ability'],
+                readonlyAbilities: ['demo/read']
+            }
+        });
+
+        assistant.processToolCallImmediate(
+            'tool-5',
+            'ability',
+            { action: 'execute', ability: 'demo/read' },
+            'anthropic'
+        );
+
+        assert.deepStrictEqual(assistant._states, [
+            { id: 'tool-5', state: 'pending' }
+        ]);
+        assert.strictEqual(assistant.pendingActions.length, 1);
     });
 });

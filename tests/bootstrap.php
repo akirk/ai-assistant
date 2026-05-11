@@ -31,6 +31,7 @@ if (!is_dir(WP_PLUGIN_DIR)) {
 $GLOBALS['wp_test_options'] = [];
 $GLOBALS['wp_test_capabilities'] = [];
 $GLOBALS['wp_test_is_playground'] = false;
+$GLOBALS['wp_test_abilities'] = [];
 
 if (!function_exists('get_option')) {
     function get_option($option, $default = false) {
@@ -121,6 +122,18 @@ if (!function_exists('get_plugins'))    {
     }
 }
 
+if (!function_exists('wp_get_ability')) {
+    function wp_get_ability($ability_id) {
+        return $GLOBALS['wp_test_abilities'][$ability_id] ?? null;
+    }
+}
+
+if (!function_exists('wp_get_abilities')) {
+    function wp_get_abilities() {
+        return $GLOBALS['wp_test_abilities'] ?? [];
+    }
+}
+
 // WordPress hook/admin stubs needed to load Settings class
 if (!function_exists('add_action'))          { function add_action()          {} }
 if (!function_exists('add_filter'))          { function add_filter()          {} }
@@ -161,6 +174,7 @@ if (file_exists($vendor_autoload)) {
 }
 
 require_once $plugin_dir . '/includes/class-tools.php';
+require_once $plugin_dir . '/includes/class-ability-annotations.php';
 require_once $plugin_dir . '/includes/class-file-tool-auth.php';
 require_once $plugin_dir . '/includes/class-file-tool-executor.php';
 require_once $plugin_dir . '/includes/class-executor.php';

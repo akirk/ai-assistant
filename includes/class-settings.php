@@ -305,6 +305,10 @@ class Settings {
     }
 
     public function get_default_enabled_tools() {
+        return self::default_enabled_tools();
+    }
+
+    public static function default_enabled_tools(): array {
         return [
             'read_file', 'list_directory', 'search_files', 'search_content', 'db_query',
             'rest_api', 'environment_info', 'get_plugins', 'get_themes',
@@ -1083,6 +1087,7 @@ class Settings {
                             $auto_approved = $this->get_auto_approved_abilities();
                             $hidden = !in_array('execute_ability', $enabled, true) ? ' style="display:none"' : ''; ?>
                         <div class="ai-tool-sub-items"<?php echo $hidden; ?>>
+                            <p class="description" style="margin:4px 0 8px"><?php esc_html_e('Read-only abilities run without confirmation. Other abilities require approval unless checked below.', 'ai-assistant'); ?></p>
                             <input type="hidden" name="ai_assistant_auto_approved_abilities" value="">
                             <?php if (!function_exists('wp_get_abilities')) : ?>
                             <p class="description" style="margin:4px 0"><?php esc_html_e('No abilities available — requires WordPress 6.9+ with the Abilities API.', 'ai-assistant'); ?></p>
@@ -1094,6 +1099,9 @@ class Settings {
                                     // Group by category
                                     $by_cat = [];
                                     foreach ($abilities as $id => $ability) {
+                                        $annotations = Ability_Annotations::get($ability);
+                                        $readonly    = $annotations['readonly'] && !$annotations['destructive'];
+                                        $destructive = $annotations['destructive'];
                                         if (is_object($ability)) {
                                             $ability_id  = method_exists($ability, 'get_name')        ? $ability->get_name()        : ($ability->name ?? $id);
                                             $label       = method_exists($ability, 'get_label')       ? $ability->get_label()       : ($ability->label ?? $ability_id);
@@ -1105,7 +1113,7 @@ class Settings {
                                             $description = $ability['description'] ?? '';
                                             $category    = $ability['category'] ?? '';
                                         }
-                                        $by_cat[$category][] = compact('ability_id', 'label', 'description');
+                                        $by_cat[$category][] = compact('ability_id', 'label', 'description', 'readonly', 'destructive');
                                     }
                                     foreach ($by_cat as $category => $cat_abilities) : ?>
                                     <?php if ($category) : ?>
@@ -1116,14 +1124,31 @@ class Settings {
                                         <input type="checkbox"
                                                name="ai_assistant_auto_approved_abilities[]"
                                                value="<?php echo esc_attr($a['ability_id']); ?>"
-                                               <?php checked(in_array($a['ability_id'], $auto_approved, true)); ?>>
+                                               <?php checked($a['readonly'] || in_array($a['ability_id'], $auto_approved, true)); ?>
+                                               <?php disabled($a['readonly']); ?>>
                                         <?php if ($a['description']) : ?>
                                         <details class="ai-ability-details">
-                                            <summary><code><?php echo esc_html($a['ability_id']); ?></code></summary>
+                                            <summary>
+                                                <code><?php echo esc_html($a['ability_id']); ?></code>
+                                                <?php if ($a['readonly']) : ?>
+                                                    <span class="ai-ability-badge ai-ability-badge-readonly"><?php esc_html_e('Read-only', 'ai-assistant'); ?></span>
+                                                <?php elseif ($a['destructive']) : ?>
+                                                    <span class="ai-ability-badge ai-ability-badge-destructive"><?php esc_html_e('Destructive', 'ai-assistant'); ?></span>
+                                                <?php elseif (in_array($a['ability_id'], $auto_approved, true)) : ?>
+                                                    <span class="ai-ability-badge ai-ability-badge-approved"><?php esc_html_e('Always approved', 'ai-assistant'); ?></span>
+                                                <?php endif; ?>
+                                            </summary>
                                             <span class="description"><?php echo esc_html($a['description']); ?></span>
                                         </details>
                                         <?php else : ?>
                                         <code><?php echo esc_html($a['ability_id']); ?></code>
+                                        <?php if ($a['readonly']) : ?>
+                                            <span class="ai-ability-badge ai-ability-badge-readonly"><?php esc_html_e('Read-only', 'ai-assistant'); ?></span>
+                                        <?php elseif ($a['destructive']) : ?>
+                                            <span class="ai-ability-badge ai-ability-badge-destructive"><?php esc_html_e('Destructive', 'ai-assistant'); ?></span>
+                                        <?php elseif (in_array($a['ability_id'], $auto_approved, true)) : ?>
+                                            <span class="ai-ability-badge ai-ability-badge-approved"><?php esc_html_e('Always approved', 'ai-assistant'); ?></span>
+                                        <?php endif; ?>
                                         <?php endif; ?>
                                     </div>
                                     <?php endforeach; ?>
@@ -1211,7 +1236,7 @@ class Settings {
                 </tbody>
             </table>
             <p class="description">
-                <?php esc_html_e('Full Access: All enabled tools including file writes, PHP execution, and plugin installation. Read Only: Non-dangerous enabled tools only (read files, search, db queries, REST API, environment info, abilities) — REST API write requests are additionally enforced by WordPress permissions. Chat Only: No tool execution. Tool permissions above apply as a further restriction to all roles.', 'ai-assistant'); ?>
+                <?php esc_html_e('Full Access: All enabled tools including file writes, PHP execution, and plugin installation. Read Only: Non-dangerous enabled tools plus abilities annotated read-only; REST API write requests are additionally enforced by WordPress permissions. Chat Only: No tool execution. Tool permissions above apply as a further restriction to all roles.', 'ai-assistant'); ?>
             </p>
             <p class="description">
                 <?php esc_html_e('To change capabilities, use a role management plugin or add code to assign ai_assistant_full, ai_assistant_read_only, or ai_assistant_chat_only capabilities.', 'ai-assistant'); ?>
@@ -1336,6 +1361,26 @@ class Settings {
                 display: block;
                 font-size: 11px;
                 padding: 3px 0 2px 14px;
+            }
+            .ai-ability-badge {
+                border-radius: 3px;
+                font-size: 10px;
+                font-weight: 600;
+                line-height: 1.4;
+                padding: 1px 5px;
+                white-space: nowrap;
+            }
+            .ai-ability-badge-readonly {
+                background: #e7f5ee;
+                color: #008a20;
+            }
+            .ai-ability-badge-approved {
+                background: #eaf2ff;
+                color: #135e96;
+            }
+            .ai-ability-badge-destructive {
+                background: #fcf0f1;
+                color: #b32d2e;
             }
             .ai-ability-category {
                 font-size: 10px;
