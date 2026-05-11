@@ -230,11 +230,19 @@ class Settings {
                     </div>
                     <div class="ai-assistant-chat-container">
                         <div id="ai-assistant-messages"></div>
+                        <div class="ai-assistant-drop-zone" aria-hidden="true">
+                            <div class="ai-assistant-drop-zone-inner"><?php esc_html_e('Drop files to attach', 'ai-assistant'); ?></div>
+                        </div>
                         <div id="ai-assistant-loading" style="display: none;">
                             <div class="ai-loading-dots"><span></span><span></span><span></span></div>
                         </div>
                         <div id="ai-assistant-pending-actions"></div>
+                        <div id="ai-assistant-attachments" class="ai-assistant-attachments"></div>
                         <div class="ai-assistant-input-area">
+                            <input type="file" id="ai-assistant-file-input" multiple hidden>
+                            <button type="button" id="ai-assistant-attach" class="button" title="<?php esc_attr_e('Attach files', 'ai-assistant'); ?>">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21.44 11.05l-8.49 8.49a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.19 9.19a2 2 0 01-2.83-2.83l8.49-8.49"/></svg>
+                            </button>
                             <textarea id="ai-assistant-input" placeholder="<?php esc_attr_e('Ask me anything about your WordPress site...', 'ai-assistant'); ?>" rows="3"></textarea>
                             <button type="button" id="ai-assistant-send" class="button button-primary"><?php esc_html_e('Send', 'ai-assistant'); ?></button>
                             <button type="button" id="ai-assistant-stop" class="button" style="display: none;" title="<?php esc_attr_e('Stop generation', 'ai-assistant'); ?>">

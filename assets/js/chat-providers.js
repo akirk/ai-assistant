@@ -7,8 +7,10 @@
 
             var $input = $('#ai-assistant-input');
             var message = $input.val().trim();
+            var attachments = (this.pendingAttachments || []).slice();
 
-            if (!message) return;
+            if (this.isUploadingFiles) return;
+            if (!message && attachments.length === 0) return;
 
             if (this.pendingNewChat) {
                 this.messages = [];
@@ -37,8 +39,15 @@
             this.processedToolIds = {};
             this.toolCallRounds = 0;
             this.addToDraftHistory(message);
-            this.addMessage('user', message);
-            this.messages.push({ role: 'user', content: message });
+            var messageContent = this.buildUserMessageContent
+                ? this.buildUserMessageContent(message, attachments)
+                : message;
+            this.addMessage('user', messageContent);
+            this.messages.push({ role: 'user', content: messageContent });
+            this.pendingAttachments = [];
+            if (this.renderPendingAttachments) {
+                this.renderPendingAttachments();
+            }
             $input.val('');
             this.clearDraft();
             this.draftHistoryIndex = -1;

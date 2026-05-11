@@ -9,7 +9,21 @@
             if (extraClass) {
                 messageClass += ' ' + extraClass;
             }
-            var formattedContent = this.formatContent(content);
+            var displayContent = content;
+            var copyContent = content;
+            var fileContext = this.extractFileContextForDisplay
+                ? this.extractFileContextForDisplay(content)
+                : null;
+
+            if (fileContext) {
+                displayContent = fileContext.visibleText || 'Attached files';
+                copyContent = displayContent;
+            }
+
+            var formattedContent = this.formatContent(displayContent);
+            if (fileContext && this.renderFileContextSummary) {
+                formattedContent += this.renderFileContextSummary(fileContext.files);
+            }
 
             var $message = $('<div class="' + messageClass + '">' +
                 '<div class="ai-message-content">' + formattedContent + '</div>' +
@@ -21,6 +35,9 @@
                 this.updateSummarizeVisibility();
             } else if (role === 'user') {
                 $message.attr('data-raw-content', content);
+                if (copyContent !== content) {
+                    $message.attr('data-copy-content', copyContent);
+                }
                 $message.append(this.getUserMessageActions());
             }
 

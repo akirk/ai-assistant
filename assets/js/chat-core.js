@@ -35,6 +35,8 @@
         ajaxErrorThreshold: 2,
         recoveryMessageShown: false,
         abortController: null,
+        pendingAttachments: [],
+        isUploadingFiles: false,
 
         init: function() {
             var self = this;
@@ -209,7 +211,7 @@
             $(document).on('click', '.ai-action-copy', function(e) {
                 e.preventDefault();
                 var $msg = $(this).closest('.ai-message');
-                var text = $msg.attr('data-raw-content') || $msg.find('.ai-message-content').text();
+                var text = $msg.attr('data-copy-content') || $msg.attr('data-raw-content') || $msg.find('.ai-message-content').text();
                 navigator.clipboard.writeText(text).then(function() {
                     var $btn = $(e.currentTarget);
                     $btn.addClass('ai-action-success');
@@ -231,6 +233,9 @@
                 if (self.isLoading) return;
                 var content = $(this).closest('.ai-message').attr('data-raw-content');
                 self.truncateFromUserMessage(content);
+                if (self.getEditableMessageContent) {
+                    content = self.getEditableMessageContent(content);
+                }
                 var $input = $('#ai-assistant-input');
                 $input.val(content).trigger('input').focus();
             });
@@ -351,6 +356,10 @@
                     }
                 });
             });
+
+            if (this.bindFileContextEvents) {
+                this.bindFileContextEvents();
+            }
         },
 
         toggle: function() {
@@ -388,7 +397,7 @@
 
         updateSendButton: function() {
             var $btn = $('#ai-assistant-send');
-            $btn.prop('disabled', !this.isProviderConfigured());
+            $btn.prop('disabled', !this.isProviderConfigured() || this.isUploadingFiles);
         },
 
         setLoading: function(loading) {
@@ -408,7 +417,8 @@
                 this.abortController = null;
                 $loading.hide();
                 $stop.hide();
-                $send.show().prop('disabled', false);
+                $send.show();
+                this.updateSendButton();
                 $input.focus();
                 $(window).off('beforeunload.aiAssistant');
             }

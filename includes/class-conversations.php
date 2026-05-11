@@ -129,7 +129,37 @@ class Conversations {
             }
             $content = $text ?: json_encode($content, JSON_PRETTY_PRINT);
         }
+        $content = $this->strip_file_context_for_display($content);
         return wp_kses_post(nl2br(esc_html($content)));
+    }
+
+    private function strip_file_context_for_display($content) {
+        if (!is_string($content)) {
+            return $content;
+        }
+
+        if (!preg_match('/\n*<ai_assistant_file_context>\n(.*?)\n<\/ai_assistant_file_context>/s', $content, $matches)) {
+            return $content;
+        }
+
+        $visible = trim(str_replace($matches[0], '', $content));
+        $payload = json_decode($matches[1], true);
+        $files = is_array($payload) && isset($payload['files']) && is_array($payload['files'])
+            ? $payload['files']
+            : [];
+
+        if (empty($files)) {
+            return $visible;
+        }
+
+        $summary = "\n\n[Attached files]\n";
+        foreach ($files as $file) {
+            $name = $file['original_name'] ?? $file['filename'] ?? 'Attachment';
+            $path = $file['wp_content_path'] ?? '';
+            $summary .= '- ' . $name . ($path ? ' (' . $path . ')' : '') . "\n";
+        }
+
+        return ($visible ?: __('Attached files', 'ai-assistant')) . rtrim($summary);
     }
 
     public function add_columns($columns) {
@@ -156,6 +186,7 @@ class Conversations {
                 if (!empty($messages)) {
                     $last = end($messages);
                     $content = is_array($last['content']) ? '[Complex content]' : $last['content'];
+                    $content = $this->strip_file_context_for_display($content);
                     echo esc_html(wp_trim_words($content, 10, '...'));
                 }
                 break;
