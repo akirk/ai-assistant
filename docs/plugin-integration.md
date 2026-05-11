@@ -127,6 +127,47 @@ Describe what your `execute_callback` returns. The AI uses this to understand ho
 
 Calling out which fields are IDs for other abilities (as in the `id` description above) is one of the most effective things you can do to help the AI chain calls correctly.
 
+## Image Inputs
+
+If your ability needs an image, prefer accepting a remote image URL as input. The AI Assistant can ask the user to choose an image with the built-in `pick_image` tool, then pass the selected URL and metadata into your ability.
+
+Avoid requiring only an attachment ID unless your UI truly needs an existing Media Library item. When your plugin needs the file to exist locally, sideload the selected remote URL inside your ability and return both the attachment ID and final local URL.
+
+Recommended input shape:
+
+```php
+'input_schema' => [
+    'type'       => 'object',
+    'properties' => [
+        'image_url' => [
+            'type'        => 'string',
+            'description' => 'Remote image URL',
+        ],
+        'image_title' => [
+            'type'        => 'string',
+            'description' => 'Optional image title',
+        ],
+        'attribution' => [
+            'type'        => 'string',
+            'description' => 'Optional attribution text',
+        ],
+    ],
+    'required'             => [ 'image_url' ],
+    'additionalProperties' => false,
+],
+```
+
+Recommended output shape:
+
+```php
+return [
+    'attachment_id' => $attachment_id,
+    'url'           => wp_get_attachment_url( $attachment_id ),
+];
+```
+
+This keeps image search and user choice in the assistant UI, while your plugin owns storage, permissions, and any plugin-specific media rules.
+
 ## Execute Callback
 
 The callback receives the `$input` array and must return a plain PHP value or a `WP_Error`.
@@ -391,6 +432,7 @@ Before shipping your ability integration, verify:
 - [ ] `description` fields explain what data is returned, not just what the ability "does"
 - [ ] `input_schema` uses `additionalProperties: false` on required-parameter abilities
 - [ ] `output_schema` field descriptions identify which fields are IDs for other abilities
+- [ ] Image abilities accept remote URLs and sideload only when local media is required
 - [ ] `meta.annotations.instructions` guides the AI on call ordering, batching, and ambiguity handling
 - [ ] `execute_callback` sanitizes all inputs
 - [ ] `execute_callback` returns `WP_Error` on failure, not exceptions

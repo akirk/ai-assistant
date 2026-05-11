@@ -37,6 +37,7 @@ class Tools {
             $this->tool_get_themes(),
             $this->tool_list_abilities(),
             $this->tool_get_ability(),
+            $this->tool_pick_image(),
             $this->tool_list_skills(),
             $this->tool_get_skill(),
         ];
@@ -77,6 +78,7 @@ class Tools {
             $this->tool_run_php(),
             $this->tool_navigate(),
             $this->tool_get_page_html(),
+            $this->tool_pick_image(),
         ];
     }
 
@@ -346,6 +348,27 @@ class Tools {
                     ],
                 ],
                 'required' => ['selector'],
+            ],
+        ];
+    }
+
+    private function tool_pick_image(): array {
+        return [
+            'name' => 'pick_image',
+            'description' => 'Ask the user to choose an image.',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'query' => [
+                        'type' => 'string',
+                        'description' => 'Initial search.',
+                    ],
+                    'purpose' => [
+                        'type' => 'string',
+                        'description' => 'Image use.',
+                    ],
+                ],
+                'required' => ['query'],
             ],
         ];
     }

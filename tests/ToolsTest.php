@@ -139,6 +139,7 @@ class ToolsTest extends TestCase {
             'install_plugin',
             'run_php',
             'navigate',
+            'pick_image',
             'list_abilities',
             'get_ability',
             'execute_ability',

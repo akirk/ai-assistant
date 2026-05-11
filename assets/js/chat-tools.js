@@ -184,6 +184,18 @@ var aiAssistantToolsMixin = (function() {
                     }
                 },
                 {
+                    name: 'pick_image',
+                    description: 'Ask the user to choose an image.',
+                    input_schema: {
+                        type: 'object',
+                        properties: {
+                            query: { type: 'string', description: 'Initial search.' },
+                            purpose: { type: 'string', description: 'Image use.' }
+                        },
+                        required: ['query']
+                    }
+                },
+                {
                     name: 'summarize_conversation',
                     description: 'Summarize a conversation and store it.',
                     input_schema: {
