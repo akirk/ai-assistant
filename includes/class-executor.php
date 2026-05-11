@@ -49,7 +49,9 @@ class Executor {
             $read_only_tools[] = 'skill';
         }
 
-        if ($permission === 'read_only' && !in_array($tool_name, $read_only_tools)) {
+        $is_readonly_ability_execution = $this->is_readonly_ability_execution($tool_name, $arguments);
+
+        if ($permission === 'read_only' && !in_array($tool_name, $read_only_tools, true) && !$is_readonly_ability_execution) {
             throw new \Exception("Tool '$tool_name' requires full access permission");
         }
 
@@ -58,7 +60,7 @@ class Executor {
         }
 
         // For consolidated tools, check component permissions
-        if (!$this->check_tool_permission($tool_name, $arguments)) {
+        if (!$this->check_tool_permission($tool_name, $arguments, $permission)) {
             throw new \Exception(
                 "Tool '$tool_name' is not enabled. Enable it in AI Assistant → Settings → Tool Permissions."
             );
@@ -131,7 +133,7 @@ class Executor {
     /**
      * Check tool permission, handling consolidated tool name mapping.
      */
-    private function check_tool_permission(string $tool_name, array $arguments): bool {
+    private function check_tool_permission(string $tool_name, array $arguments, string $permission = 'full'): bool {
         // Consolidated tools map to component permissions
         switch ($tool_name) {
             case 'find':
@@ -147,6 +149,9 @@ class Executor {
 
             case 'ability':
                 $action = $arguments['action'] ?? 'list';
+                if ($action === 'execute' && $this->can_execute_readonly_ability($tool_name, $arguments, $permission)) {
+                    return true;
+                }
                 $map = ['list' => 'list_abilities', 'get' => 'get_ability', 'execute' => 'execute_ability'];
                 $cap = $map[$action] ?? 'list_abilities';
                 return current_user_can('ai_assistant_tool_' . $cap);
@@ -162,8 +167,43 @@ class Executor {
                        current_user_can('ai_assistant_tool_run_php');
 
             default:
+                if ($tool_name === 'execute_ability' && $this->can_execute_readonly_ability($tool_name, $arguments, $permission)) {
+                    return true;
+                }
                 return current_user_can('ai_assistant_tool_' . $tool_name);
         }
+    }
+
+    private function is_readonly_ability_execution(string $tool_name, array $arguments): bool {
+        if ($tool_name === 'ability') {
+            return ($arguments['action'] ?? '') === 'execute' &&
+                !empty($arguments['ability']) &&
+                Ability_Annotations::is_readonly_execution((string) $arguments['ability']);
+        }
+
+        if ($tool_name === 'execute_ability') {
+            return !empty($arguments['ability']) &&
+                Ability_Annotations::is_readonly_execution((string) $arguments['ability']);
+        }
+
+        return false;
+    }
+
+    private function can_execute_readonly_ability(string $tool_name, array $arguments, string $permission): bool {
+        if ($permission !== 'read_only' || !$this->is_readonly_ability_execution($tool_name, $arguments)) {
+            return false;
+        }
+
+        return $this->is_tool_enabled_by_option('execute_ability');
+    }
+
+    private function is_tool_enabled_by_option(string $tool_name): bool {
+        if (function_exists('ai_assistant_is_playground') && \ai_assistant_is_playground()) {
+            return true;
+        }
+
+        $enabled = get_option('ai_assistant_enabled_tools', Settings::default_enabled_tools());
+        return in_array($tool_name, (array) $enabled, true);
     }
 
     /**
@@ -553,12 +593,15 @@ class Executor {
 
         $result = [];
         foreach ($abilities as $id => $ability) {
+            $annotations = Ability_Annotations::get($ability);
             if (is_object($ability)) {
                 $result[] = [
                     'id'          => method_exists($ability, 'get_name')        ? $ability->get_name()        : ($ability->name ?? $id),
                     'name'        => method_exists($ability, 'get_label')       ? $ability->get_label()       : ($ability->label ?? $ability->name ?? $id),
                     'description' => method_exists($ability, 'get_description') ? $ability->get_description() : ($ability->description ?? ''),
                     'category'    => method_exists($ability, 'get_category')    ? $ability->get_category()    : ($ability->category ?? 'uncategorized'),
+                    'readonly'    => $annotations['readonly'],
+                    'destructive' => $annotations['destructive'],
                 ];
             } else {
                 $result[] = [
@@ -566,6 +609,8 @@ class Executor {
                     'name'        => $ability['label'] ?? $ability['name'] ?? $id,
                     'description' => $ability['description'] ?? '',
                     'category'    => $ability['category'] ?? 'uncategorized',
+                    'readonly'    => $annotations['readonly'],
+                    'destructive' => $annotations['destructive'],
                 ];
             }
         }
@@ -591,8 +636,9 @@ class Executor {
             throw new \Exception("Ability not found: $ability_id");
         }
 
+        $annotations = Ability_Annotations::get($ability);
+
         if (is_object($ability) && method_exists($ability, 'get_input_schema')) {
-            $meta = $ability->get_meta() ?? [];
             return [
                 'id' => $ability->get_name(),
                 'name' => $ability->get_label(),
@@ -600,7 +646,11 @@ class Executor {
                 'category' => $ability->get_category(),
                 'input_schema' => $ability->get_input_schema(),
                 'output_schema' => $ability->get_output_schema(),
-                'instructions' => $meta['annotations']['instructions'] ?? '',
+                'annotations' => [
+                    'readonly' => $annotations['readonly'],
+                    'destructive' => $annotations['destructive'],
+                ],
+                'instructions' => $annotations['instructions'],
             ];
         }
 
@@ -611,7 +661,11 @@ class Executor {
             'category' => $ability['category'] ?? 'uncategorized',
             'input_schema' => $ability['input_schema'] ?? [],
             'output_schema' => $ability['output_schema'] ?? [],
-            'instructions' => $ability['meta']['annotations']['instructions'] ?? '',
+            'annotations' => [
+                'readonly' => $annotations['readonly'],
+                'destructive' => $annotations['destructive'],
+            ],
+            'instructions' => $annotations['instructions'],
         ];
     }
 

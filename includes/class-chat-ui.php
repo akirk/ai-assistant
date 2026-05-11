@@ -128,6 +128,7 @@ class Chat_UI {
             'userPermission' => $settings->get_user_permission_level(),
             'enabledTools' => $settings->get_user_enabled_tools(),
             'autoApprovedAbilities' => $settings->get_auto_approved_abilities(),
+            'readonlyAbilities' => Ability_Annotations::get_readonly_ability_ids(),
             'autoApprovedRestApis' => $settings->get_auto_approved_rest_apis(),
             'settingsUrl' => admin_url('options-general.php?page=ai-assistant-settings'),
             'homeUrl' => home_url(),

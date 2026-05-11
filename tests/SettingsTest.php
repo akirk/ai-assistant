@@ -205,4 +205,16 @@ class SettingsTest extends TestCase {
             $this->assertContains($tool, $tools, "Expected '$tool' enabled in Playground");
         }
     }
+
+    public function test_system_prompt_guides_post_draft_creation(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
+
+        $prompt = $this->settings->get_system_prompt();
+
+        $this->assertStringContainsString('POST/PAGE DRAFTS: create actual drafts via REST', $prompt);
+        $this->assertStringContainsString('/wp/v2/posts', $prompt);
+        $this->assertStringContainsString('status "draft"', $prompt);
+        $this->assertStringContainsString('Never publish/overwrite or use db_query', $prompt);
+        $this->assertStringContainsString('report title, ID, edit URL.', $prompt);
+    }
 }

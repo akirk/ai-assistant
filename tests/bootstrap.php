@@ -31,6 +31,7 @@ if (!is_dir(WP_PLUGIN_DIR)) {
 $GLOBALS['wp_test_options'] = [];
 $GLOBALS['wp_test_capabilities'] = [];
 $GLOBALS['wp_test_is_playground'] = false;
+$GLOBALS['wp_test_abilities'] = [];
 
 if (!function_exists('get_option')) {
     function get_option($option, $default = false) {
@@ -89,8 +90,16 @@ if (!is_dir(WP_CONTENT_DIR . '/themes')) {
 
 // WordPress function stubs needed for environment_info tool
 if (!function_exists('get_bloginfo'))   { function get_bloginfo($show = '') { return '6.7'; } }
+if (!function_exists('get_site_url'))   { function get_site_url() { return 'http://localhost'; } }
 if (!function_exists('site_url'))       { function site_url() { return 'http://localhost'; } }
 if (!function_exists('home_url'))       { function home_url($path = '') { return 'http://localhost' . $path; } }
+if (!function_exists('wp_parse_url'))   { function wp_parse_url($url, $component = -1) { return parse_url($url, $component); } }
+if (!function_exists('get_template'))   { function get_template() { return 'twentytwentyfive'; } }
+if (!function_exists('wp_get_current_user')) {
+    function wp_get_current_user() {
+        return (object) ['display_name' => 'Test User'];
+    }
+}
 if (!function_exists('is_multisite'))   { function is_multisite() { return false; } }
 if (!function_exists('wp_get_theme'))   {
     function wp_get_theme() {
@@ -113,9 +122,22 @@ if (!function_exists('get_plugins'))    {
     }
 }
 
+if (!function_exists('wp_get_ability')) {
+    function wp_get_ability($ability_id) {
+        return $GLOBALS['wp_test_abilities'][$ability_id] ?? null;
+    }
+}
+
+if (!function_exists('wp_get_abilities')) {
+    function wp_get_abilities() {
+        return $GLOBALS['wp_test_abilities'] ?? [];
+    }
+}
+
 // WordPress hook/admin stubs needed to load Settings class
 if (!function_exists('add_action'))          { function add_action()          {} }
 if (!function_exists('add_filter'))          { function add_filter()          {} }
+if (!function_exists('apply_filters'))       { function apply_filters($tag, $value) { return $value; } }
 if (!function_exists('add_management_page')) { function add_management_page() {} }
 if (!function_exists('add_options_page'))    { function add_options_page()    {} }
 if (!function_exists('register_setting'))    { function register_setting()    {} }
@@ -152,6 +174,7 @@ if (file_exists($vendor_autoload)) {
 }
 
 require_once $plugin_dir . '/includes/class-tools.php';
+require_once $plugin_dir . '/includes/class-ability-annotations.php';
 require_once $plugin_dir . '/includes/class-file-tool-auth.php';
 require_once $plugin_dir . '/includes/class-file-tool-executor.php';
 require_once $plugin_dir . '/includes/class-executor.php';

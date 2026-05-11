@@ -92,7 +92,7 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'run_php',
-                    description: 'Execute PHP in the WordPress environment. No <?php tag. Return a value to get output.',
+                    description: 'Execute PHP in WordPress. Prefer rest_api for post/page drafts. No <?php tag. Return a value.',
                     input_schema: {
                         type: 'object',
                         properties: {
@@ -136,7 +136,7 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'rest_api',
-                    description: 'WordPress REST API. GET / to discover routes. GET and OPTIONS are always allowed; write methods require approval.',
+                    description: 'WordPress REST API. Preferred for post/page drafts: POST /wp/v2/posts or /wp/v2/pages with status "draft". GET / discovers routes; writes require approval.',
                     input_schema: {
                         type: 'object',
                         properties: {

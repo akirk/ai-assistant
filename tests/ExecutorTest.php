@@ -23,6 +23,7 @@ class ExecutorTest extends TestCase {
         $GLOBALS['wp_test_capabilities'] = [];
         $GLOBALS['wp_test_is_playground'] = false;
         $GLOBALS['wp_test_options'] = [];
+        $GLOBALS['wp_test_abilities'] = [];
 
         // Ensure clean test environment
         $this->cleanTestDirectory();
@@ -468,6 +469,47 @@ class ExecutorTest extends TestCase {
         ], 'chat_only');
     }
 
+    public function test_read_only_permission_allows_readonly_ability_execution(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_tool_execute_ability'] = false;
+        $GLOBALS['wp_test_abilities']['demo/read'] = $this->createAbility(true);
+
+        $result = $this->executor->execute_tool('ability', [
+            'action' => 'execute',
+            'ability' => 'demo/read',
+            'arguments' => ['id' => 123],
+        ], 'read_only');
+
+        $this->assertTrue($result['success']);
+        $this->assertEquals('demo/read', $result['ability']);
+        $this->assertEquals(['input' => ['id' => 123]], $result['result']);
+    }
+
+    public function test_read_only_permission_blocks_write_ability_execution(): void {
+        $GLOBALS['wp_test_abilities']['demo/write'] = $this->createAbility(false);
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage("Tool 'ability' requires full access permission");
+
+        $this->executor->execute_tool('ability', [
+            'action' => 'execute',
+            'ability' => 'demo/write',
+        ], 'read_only');
+    }
+
+    public function test_read_only_ability_execution_respects_tool_enabled_option(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_tool_execute_ability'] = false;
+        $GLOBALS['wp_test_options']['ai_assistant_enabled_tools'] = ['list_abilities', 'get_ability'];
+        $GLOBALS['wp_test_abilities']['demo/read'] = $this->createAbility(true);
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage("Tool 'ability' is not enabled");
+
+        $this->executor->execute_tool('ability', [
+            'action' => 'execute',
+            'ability' => 'demo/read',
+        ], 'read_only');
+    }
+
     // ===== PATH SECURITY TESTS =====
 
     public function test_path_traversal_blocked(): void {
@@ -779,5 +821,34 @@ class ExecutorTest extends TestCase {
             $this->assertStringContainsString('PHP syntax error', $e->getMessage());
             $this->assertStringContainsString('line', $e->getMessage());
         }
+    }
+
+    private function createAbility(bool $readonly, bool $destructive = false): object {
+        return new class($readonly, $destructive) {
+            private bool $readonly;
+            private bool $destructive;
+
+            public function __construct(bool $readonly, bool $destructive) {
+                $this->readonly = $readonly;
+                $this->destructive = $destructive;
+            }
+
+            public function get_input_schema(): array {
+                return ['type' => 'object'];
+            }
+
+            public function execute($input) {
+                return ['input' => $input];
+            }
+
+            public function get_meta(): array {
+                return [
+                    'annotations' => [
+                        'readonly' => $this->readonly,
+                        'destructive' => $this->destructive,
+                    ],
+                ];
+            }
+        };
     }
 }
