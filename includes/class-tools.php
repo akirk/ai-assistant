@@ -300,7 +300,7 @@ class Tools {
     private function tool_run_php(): array {
         return [
             'name' => 'run_php',
-            'description' => 'Execute PHP code in the WordPress environment. Use this to call WordPress functions like wp_insert_post(), wp_update_post(), get_option(), update_option(), WP_Query, etc. The code runs with full WordPress context available.',
+            'description' => 'Execute PHP code in the WordPress environment. Prefer rest_api for post/page drafts. Use this to call WordPress functions like wp_insert_post(), wp_update_post(), get_option(), update_option(), WP_Query, etc. The code runs with full WordPress context available.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [

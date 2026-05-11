@@ -53,6 +53,17 @@ describe('getAllToolDefinitions', function() {
         assert.strictEqual(def.input_schema.properties.query.description, 'Initial search.');
         assert.strictEqual(def.input_schema.properties.purpose.description, 'Image use.');
     });
+
+    it('guides native post drafts toward rest_api', function() {
+        const defs = toolsMixin.getAllToolDefinitions();
+        const restApi = defs.find(d => d.name === 'rest_api');
+        const runPhp = defs.find(d => d.name === 'run_php');
+
+        assert.ok(restApi.description.includes('Preferred for post/page drafts'));
+        assert.ok(restApi.description.includes('POST /wp/v2/posts'));
+        assert.ok(restApi.description.includes('status "draft"'));
+        assert.ok(runPhp.description.includes('Prefer rest_api'));
+    });
 });
 
 // ===== isToolEnabled =====

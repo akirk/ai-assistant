@@ -1798,6 +1798,7 @@ PROMPT;
          * @return array<string,string> The filtered domains map.
          */
         $ability_domains = apply_filters('ai_assistant_ability_domains', []);
+        $enabled_tools = $this->get_user_enabled_tools();
 
         $prompt .= <<<'PROMPT'
 
@@ -1818,14 +1819,15 @@ PROMPT;
 
         $prompt .= "For any other plugin-specific data or actions, check abilities first (ability action:list) before reaching for db_query or run_php.\n";
 
-        $enabled_tools = $this->get_user_enabled_tools();
         if (in_array('run_php', $enabled_tools, true)) {
-            $prompt .= "For native WordPress data (posts, options, users) with no matching ability, use run_php with standard WordPress functions.\n";
+            $prompt .= "For native WordPress data or actions with no matching ability or REST route, use run_php with standard WordPress functions.\n";
         }
 
         $prompt .= "Only use db_query for custom reporting or cross-table queries that no ability covers.\n";
 
         $prompt .= <<<'PROMPT'
+
+POST/PAGE DRAFTS: create actual drafts via REST (/wp/v2/posts or /wp/v2/pages, status "draft") when tools allow; use run_php/wp_insert_post only if REST cannot. Never publish/overwrite or use db_query unless asked; use block-editor HTML and report title, ID, edit URL.
 
 FILE EDITING RULES:
 - Use write_file ONLY for creating NEW files
