@@ -187,13 +187,14 @@
                 $('#ai-assistant-scroll-bottom').toggle(!self.isNearBottom(100));
             });
 
-            $(document).on('click', '#ai-assistant-expand', function() {
-                var $container = $('.ai-assistant-chat-container');
-                var isExpanded = $container.toggleClass('expanded').hasClass('expanded');
-                $(this).find('.ai-expand-icon').toggle(!isExpanded);
-                $(this).find('.ai-collapse-icon').toggle(isExpanded);
-                $(this).attr('title', isExpanded ? 'Collapse' : 'Expand');
-            });
+	            $(document).on('click', '#ai-assistant-expand', function() {
+	                var $container = $('.ai-assistant-chat-container');
+	                var isExpanded = $container.toggleClass('expanded').hasClass('expanded');
+	                var expandPath = 'M9.5 13.09l1.41 1.41-4.5 4.5H10v2H4v-6h2v3.59l4.5-4.5zm5-2.18L13.09 9.5l4.5-4.5H14v-2h6v6h-2V5.41l-4.5 4.5z';
+	                var collapsePath = 'M5.41 4l4.5 4.5L8.5 9.91 4 5.41V9H2V3h6v2H4.41zm13.18 16l-4.5-4.5 1.41-1.41 4.5 4.5V15h2v6h-6v-2h3.59z';
+	                $(this).find('.ai-expand-icon path').attr('d', isExpanded ? collapsePath : expandPath);
+	                $(this).attr('title', isExpanded ? 'Collapse' : 'Expand');
+	            });
 
             $(document).on('click', '#ai-assistant-save-chat', function(e) {
                 e.preventDefault();
