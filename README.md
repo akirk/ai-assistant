@@ -57,6 +57,7 @@ The AI Assistant panel appears in the WordPress admin screen meta area (alongsid
 | `ability` | List, inspect, or execute WordPress abilities (plugin-exposed actions) |
 | `navigate` | Navigate the browser to a URL within the site |
 | `get_page_html` | Get HTML of elements on the current page |
+| `pick_image` | Ask the user to choose an image |
 | `skill` | Load skill documents with specialized WordPress knowledge |
 | `summarize_conversation` | Generate a summary of the current conversation |
 
@@ -67,7 +68,7 @@ Filesystem tools (`read_file`, `write_file`, `edit_file`, `delete_file`, and `fi
 When using a local LLM (Ollama, LM Studio), tools are tiered to avoid overwhelming smaller models:
 
 - **Core tools** (always available): `read_file`, `write_file`, `edit_file`, `find`, `run_php`, `environment_info`
-- **Extended tools** (enabled on demand): `delete_file`, `db_query`, `install_plugin`, `ability`, `navigate`, `get_page_html`, `summarize_conversation`, `skill`
+- **Extended tools** (enabled on demand): `delete_file`, `db_query`, `install_plugin`, `ability`, `navigate`, `get_page_html`, `pick_image`, `summarize_conversation`, `skill`
 
 The model can call `enable_tools` to activate specific extended tools when it needs them. Cloud providers (Anthropic, OpenAI) receive all tools upfront.
 
@@ -123,6 +124,8 @@ The recovery screen highlights recently modified plugins to help identify the cu
 ## Plugin Integration
 
 Other plugins can expose their functionality to the AI by registering **WordPress Abilities**. See [docs/plugin-integration.md](docs/plugin-integration.md) for a full guide.
+
+For best results, expose focused abilities with clear input/output schemas instead of requiring the AI to infer database structure or call plugin internals. If your plugin works with images, prefer accepting a remote image URL and sideloading it inside your ability when a local attachment is required. The assistant can ask the user to choose an image with `pick_image`, then pass the selected URL and metadata to your ability.
 
 ## Development
 

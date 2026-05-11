@@ -123,8 +123,357 @@
             this.updateSummarizeVisibility();
         },
 
+        getImageSearchUrl: function(query, page) {
+            var url = new URL('https://api.openverse.org/v1/images/');
+            url.searchParams.set('q', query);
+            url.searchParams.set('page', page || 1);
+            url.searchParams.set('page_size', 12);
+            url.searchParams.set('mature', 'false');
+            url.searchParams.set('license', 'pdm,cc0');
+            url.searchParams.set('excluded_source', 'flickr,inaturalist,wikimedia');
+            return url.toString();
+        },
+
+        formatImageAttribution: function(image) {
+            var parts = [];
+            if (image.title) parts.push(image.title);
+            if (image.creator) parts.push('by ' + image.creator);
+            if (image.license) parts.push(image.license);
+            return parts.join(' - ');
+        },
+
+        normalizeImageResult: function(raw) {
+            raw = raw || {};
+            var title = raw.title || '';
+            if (typeof title === 'string' && title.toLowerCase().indexOf('file:') === 0) {
+                title = title.slice(5);
+            }
+
+            var license = raw.license || '';
+            if (raw.license_version) {
+                license += (license ? ' ' : '') + raw.license_version;
+            }
+
+            var image = {
+                url: raw.url || '',
+                thumbnail: raw.thumbnail || raw.url || '',
+                title: title,
+                creator: raw.creator || '',
+                creator_url: raw.creator_url || '',
+                landing_url: raw.foreign_landing_url || raw.url || '',
+                foreign_landing_url: raw.foreign_landing_url || '',
+                license: license,
+                license_url: raw.license_url || '',
+                source: raw.source || '',
+                width: raw.width ? Number(raw.width) : null,
+                height: raw.height ? Number(raw.height) : null
+            };
+
+            image.attribution = this.formatImageAttribution(image);
+            return image;
+        },
+
+        fetchImageResults: function(query, page) {
+            var self = this;
+            return fetch(this.getImageSearchUrl(query, page), {
+                credentials: 'omit'
+            }).then(function(response) {
+                if (!response.ok) {
+                    throw new Error('Search failed');
+                }
+                return response.json();
+            }).then(function(data) {
+                return (data.results || []).map(function(result) {
+                    return self.normalizeImageResult(result);
+                }).filter(function(image) {
+                    return !!image.url;
+                });
+            });
+        },
+
+        getBroaderImageQuery: function(query) {
+            var normalized = String(query || '')
+                .toLowerCase()
+                .replace(/["'`.,;:!?()[\]{}]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            if (!normalized) return '';
+
+            var synonymQuery = normalized
+                .replace(/\bpalatschinken\b/g, 'crepe')
+                .replace(/\bpalatschinke\b/g, 'crepe')
+                .replace(/\bcrêpes?\b/g, 'crepe');
+
+            if (synonymQuery !== normalized && synonymQuery.indexOf('crepe') >= 0) {
+                return 'crepe';
+            }
+
+            var stopWords = {
+                a: true, an: true, and: true, as: true, at: true, by: true, for: true,
+                from: true, in: true, of: true, on: true, or: true, the: true, to: true,
+                with: true, about: true, image: true, photo: true, picture: true,
+                background: true, wallpaper: true, launcher: true, app: true, apps: true,
+                beautiful: true, cool: true, detailed: true, high: true, minimal: true,
+                modern: true, nice: true, quality: true, realistic: true,
+                black: true, blue: true, brown: true, gray: true, green: true, grey: true,
+                orange: true, pink: true, purple: true, red: true, white: true, yellow: true
+            };
+            var words = synonymQuery.split(/\s+/).filter(function(word) {
+                return word.length > 2 && !stopWords[word];
+            });
+
+            if (words.length > 2) {
+                return words.slice(0, 2).join(' ');
+            }
+            if (words.length === 2) {
+                return words[0];
+            }
+            return '';
+        },
+
+        renderImagePicker: function(toolId, args, onSelect) {
+            var self = this;
+            var query = String((args && args.query) || '').trim();
+            var page = 1;
+            var done = false;
+            var lastFallbackFrom = '';
+            var $card = $('[data-tool-id="' + toolId + '"]');
+
+            if (!$card.length) {
+                this.showToolProgress('pick_image', 0, toolId);
+                $card = $('[data-tool-id="' + toolId + '"]');
+            }
+
+            $card.find('.ai-tool-card-status').text('Choose image');
+            $card.find('.ai-tool-card-spinner').hide();
+            $card.find('.ai-tool-card-size').hide();
+            $card.find('.ai-tool-card-actions').empty();
+
+            var $cardPreview = $card.find('.ai-tool-card-preview').empty();
+            var $cardNote = $('<div class="ai-image-picker-card-note"></div>');
+            var $cardNoteText = $('<span></span>').text('Image picker open');
+            var $reopen = $('<button type="button" class="button button-small ai-image-picker-reopen">Open picker</button>');
+            $cardNote.append($cardNoteText, $reopen);
+            $cardPreview.append($cardNote);
+
+            var $overlay = $('<div class="ai-image-picker-overlay" role="dialog" aria-modal="true"></div>');
+            var $dialog = $('<div class="ai-image-picker-dialog"></div>');
+            var $header = $('<div class="ai-image-picker-header"></div>');
+            var $headingWrap = $('<div class="ai-image-picker-heading"></div>');
+            var $titleText = $('<strong></strong>').text('Choose image');
+            var $subtitle = $('<span></span>').text(args && args.purpose ? args.purpose : 'Pick one result to continue');
+            var $close = $('<button type="button" class="ai-image-picker-close" aria-label="Cancel image selection">&times;</button>');
+            var $picker = $('<div class="ai-image-picker"></div>');
+            var $controls = $('<div class="ai-image-picker-controls"></div>');
+            var $input = $('<input type="search" class="ai-image-picker-query">')
+                .attr('placeholder', 'Search images')
+                .val(query);
+            var $search = $('<button type="button" class="button button-small ai-image-picker-search">Search</button>');
+            var $more = $('<button type="button" class="button button-small ai-image-picker-more">More</button>').hide();
+            var $cancel = $('<button type="button" class="button button-small ai-image-picker-cancel">Cancel</button>');
+            var $status = $('<div class="ai-image-picker-status" aria-live="polite"></div>');
+            var $grid = $('<div class="ai-image-picker-grid"></div>');
+
+            $headingWrap.append($titleText, $subtitle);
+            $header.append($headingWrap, $close);
+            $controls.append($input, $search, $more, $cancel);
+            $picker.append($controls, $status, $grid);
+            $dialog.append($header, $picker);
+            $overlay.append($dialog);
+            $('body').append($overlay);
+
+            $input.trigger('focus');
+
+            function finish(selection) {
+                if (done) return;
+                done = true;
+                $overlay.remove();
+                $cardPreview.empty();
+                onSelect(selection);
+            }
+
+            function renderResults(results, append) {
+                if (!append) {
+                    $grid.empty();
+                }
+
+                results.forEach(function(image) {
+                    var $result = $('<button type="button" class="ai-image-result"></button>');
+                    var $thumb = $('<span class="ai-image-result-thumb"></span>');
+                    var $meta = $('<span class="ai-image-result-meta"></span>');
+                    var $title = $('<span class="ai-image-result-title"></span>').text(image.title || 'Untitled');
+                    var details = [image.creator, image.license].filter(function(part) { return !!part; }).join(' - ');
+                    var $details = $('<span class="ai-image-result-details"></span>').text(details);
+
+                    if (image.thumbnail || image.url) {
+                        $thumb.append($('<img>').attr({
+                            src: image.thumbnail || image.url,
+                            alt: image.title || ''
+                        }));
+                    }
+
+                    $meta.append($title, $details);
+                    $result.append($thumb, $meta);
+                    $result.on('click', function() {
+                        $grid.find('.ai-image-result').prop('disabled', true).removeClass('is-selected');
+                        $result.addClass('is-selected');
+                        $status.text('Selected');
+                        finish(image);
+                    });
+                    $grid.append($result);
+                });
+            }
+
+            function searchImages(nextPage) {
+                if (done) return;
+
+                var nextQuery = $input.val().trim();
+                if (!nextQuery) {
+                    $status.text('Enter a search term.');
+                    return;
+                }
+
+                if (nextPage) {
+                    page++;
+                } else {
+                    page = 1;
+                    $grid.empty();
+                }
+
+                $status.text('Searching...');
+                $search.prop('disabled', true);
+                $more.prop('disabled', true);
+
+                self.fetchImageResults(nextQuery, page).then(function(results) {
+                    if (done) return;
+
+                    if (!nextPage && results.length === 0) {
+                        var broaderQuery = self.getBroaderImageQuery(nextQuery);
+                        if (broaderQuery && broaderQuery !== nextQuery && lastFallbackFrom !== nextQuery) {
+                            lastFallbackFrom = nextQuery;
+                            page = 1;
+                            $input.val(broaderQuery);
+                            $status.text('Trying broader search: ' + broaderQuery);
+                            $more.hide();
+
+                            return self.fetchImageResults(broaderQuery, page).then(function(broaderResults) {
+                                if (done) return;
+                                renderResults(broaderResults, false);
+                                if (broaderResults.length > 0) {
+                                    $status.text('');
+                                    $more.show();
+                                } else {
+                                    $status.text('No images found.');
+                                }
+                            });
+                        }
+                    }
+
+                    renderResults(results, nextPage);
+                    if (results.length > 0) {
+                        $status.text('');
+                        $more.show();
+                    } else {
+                        $status.text(nextPage ? 'No more images.' : 'No images found.');
+                        if (!nextPage) {
+                            $more.hide();
+                        }
+                    }
+                }).catch(function() {
+                    if (!done) {
+                        $status.text('Image search failed.');
+                    }
+                }).then(function() {
+                    if (!done) {
+                        $search.prop('disabled', false);
+                        $more.prop('disabled', false);
+                    }
+                    self.scrollToBottom();
+                });
+            }
+
+            $search.on('click', function() {
+                searchImages(false);
+            });
+
+            $more.on('click', function() {
+                searchImages(true);
+            });
+
+            $cancel.on('click', function() {
+                $status.text('Cancelled');
+                finish({ cancelled: true, message: 'User cancelled image selection' });
+            });
+
+            $close.on('click', function() {
+                $status.text('Cancelled');
+                finish({ cancelled: true, message: 'User cancelled image selection' });
+            });
+
+            $reopen.on('click', function() {
+                $overlay.show();
+                $input.trigger('focus');
+            });
+
+            $overlay.on('keydown', function(e) {
+                if (e.which === 27) {
+                    e.preventDefault();
+                    finish({ cancelled: true, message: 'User cancelled image selection' });
+                }
+            });
+
+            $input.on('keydown', function(e) {
+                if (e.which === 13) {
+                    e.preventDefault();
+                    searchImages(false);
+                } else if (e.which === 27) {
+                    e.preventDefault();
+                    finish({ cancelled: true, message: 'User cancelled image selection' });
+                }
+            });
+
+            searchImages(false);
+        },
+
+        renderPickedImageOutput: function($card, output) {
+            if (!output) return false;
+
+            if (output.cancelled) {
+                $card.append($('<div class="ai-tool-output ai-picked-image-output"></div>').text('No image selected.'));
+                return true;
+            }
+
+            if (!output.url) return false;
+
+            var $output = $('<div class="ai-tool-output ai-picked-image-output"></div>');
+            var $summary = $('<div class="ai-picked-image-summary"></div>');
+            var $meta = $('<div class="ai-picked-image-meta"></div>');
+            var $title = $('<strong></strong>').text(output.title || 'Selected image');
+            var details = [output.creator, output.license].filter(function(part) { return !!part; }).join(' - ');
+            var $details = $('<span></span>').text(details);
+            var $link = $('<a target="_blank" rel="noopener noreferrer">Open image</a>').attr('href', output.landing_url || output.url);
+
+            if (output.thumbnail || output.url) {
+                $summary.append($('<img>').attr({
+                    src: output.thumbnail || output.url,
+                    alt: output.title || ''
+                }));
+            }
+
+            $meta.append($title, $details, $link);
+            $summary.append($meta);
+            $output.append($summary);
+            $card.append($output);
+            return true;
+        },
+
         renderToolResultOutput: function($card, toolName, output) {
             if (!output) return;
+            if (toolName === 'pick_image' && this.renderPickedImageOutput($card, output)) {
+                return;
+            }
+
             var outputText = '';
             if (output.ability !== undefined && output.success !== undefined) {
                 var r = output.result;

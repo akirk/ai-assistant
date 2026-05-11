@@ -143,6 +143,10 @@
                 return this.executeSummarizeConversation(toolCall);
             }
 
+            if (toolName === 'pick_image') {
+                return this.executePickImage(toolCall);
+            }
+
             if (this.canUseFileToolEndpoint(toolName)) {
                 return this.executeFileToolEndpoint(toolCall);
             }
@@ -209,6 +213,34 @@
                             success: false
                         });
                     }
+                });
+            });
+        },
+
+        executePickImage: function(toolCall) {
+            var self = this;
+            var args = toolCall.arguments || {};
+
+            return new Promise(function(resolve) {
+                if (!self.renderImagePicker) {
+                    resolve({
+                        id: toolCall.id,
+                        name: 'pick_image',
+                        input: args,
+                        result: { error: 'Image picker unavailable' },
+                        success: false
+                    });
+                    return;
+                }
+
+                self.renderImagePicker(toolCall.id, args, function(selection) {
+                    resolve({
+                        id: toolCall.id,
+                        name: 'pick_image',
+                        input: args,
+                        result: selection,
+                        success: true
+                    });
                 });
             });
         },

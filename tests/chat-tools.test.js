@@ -9,7 +9,7 @@ const ALL_ENABLED = [
     'run_php', 'db_query', 'rest_api', 'environment_info',
     'get_plugins', 'get_themes', 'install_plugin',
     'list_abilities', 'get_ability', 'execute_ability',
-    'get_page_html', 'summarize_conversation',
+    'get_page_html', 'pick_image', 'summarize_conversation',
     'list_skills', 'get_skill',
 ];
 
@@ -42,6 +42,16 @@ describe('getAllToolDefinitions', function() {
     it('has no duplicate names', function() {
         const names = toolsMixin.getAllToolDefinitions().map(d => d.name);
         assert.deepStrictEqual(names, [...new Set(names)]);
+    });
+
+    it('defines pick_image with compact prompts', function() {
+        const def = toolsMixin.getAllToolDefinitions().find(d => d.name === 'pick_image');
+
+        assert.ok(def);
+        assert.strictEqual(def.description, 'Ask the user to choose an image.');
+        assert.deepStrictEqual(def.input_schema.required, ['query']);
+        assert.strictEqual(def.input_schema.properties.query.description, 'Initial search.');
+        assert.strictEqual(def.input_schema.properties.purpose.description, 'Image use.');
     });
 });
 

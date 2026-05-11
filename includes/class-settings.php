@@ -300,8 +300,8 @@ class Settings {
         return [
             'read_file', 'list_directory', 'search_files', 'search_content', 'db_query',
             'rest_api', 'environment_info', 'get_plugins', 'get_themes',
-            'list_abilities', 'get_ability', 'execute_ability', 'get_page_html',
-            'summarize_conversation', 'list_skills', 'get_skill',
+            'list_abilities', 'get_ability', 'execute_ability', 'navigate', 'get_page_html',
+            'pick_image', 'summarize_conversation', 'list_skills', 'get_skill',
         ];
     }
 
@@ -324,7 +324,9 @@ class Settings {
             'list_abilities'        => ['label' => 'List Abilities',        'group' => 'Abilities',       'dangerous' => false],
             'get_ability'           => ['label' => 'Get Ability',           'group' => 'Abilities',       'dangerous' => false],
             'execute_ability'       => ['label' => 'Execute Ability',       'group' => 'Abilities',       'dangerous' => true],
+            'navigate'              => ['label' => 'Navigate',              'group' => 'Navigation & UI', 'dangerous' => false],
             'get_page_html'         => ['label' => 'Get Page HTML',         'group' => 'Navigation & UI', 'dangerous' => false],
+            'pick_image'            => ['label' => 'Pick Image',            'group' => 'Media',           'dangerous' => false],
             'summarize_conversation'=> ['label' => 'Summarize Conversation','group' => 'Conversation',    'dangerous' => false],
             'list_skills'           => ['label' => 'List Skills',           'group' => 'Conversation',    'dangerous' => false],
             'get_skill'             => ['label' => 'Get Skill',             'group' => 'Conversation',    'dangerous' => false],
