@@ -1,12 +1,14 @@
 ---
-title: Create a WpApp WordPress App
-description: Create a WordPress app plugin through the create-wp-app WordPress Ability API integration
+title: Create a WordPress App Plugin
+description: Create an app-like WordPress plugin through the create-wp-app WordPress Ability API integration
 category: apps
 ---
 
-# Creating a WpApp WordPress App
+# Creating a WordPress App Plugin
 
-Use this when the user asks to create a "wp app", "WordPress app", WpApp app, or WpApp-powered plugin.
+Use this when the user asks to create an app, web app, "wp app", "WordPress app", WpApp app, or app-like WordPress plugin.
+
+Also use it when the user asks to create a plugin that sounds like an app: something with its own URL route, screen, dashboard, workflow, logged-in experience, data UI, or standalone interface. Do not use it for narrow infrastructure plugins that only add hooks, filters, blocks, shortcodes, REST endpoints, or admin settings with no app-style UI.
 
 Do not hand-write the scaffold first. Use the WordPress Ability API integration from `akirk/create-wp-app` so the package owns scaffolding, dependency copying, file layout, and future template changes.
 
