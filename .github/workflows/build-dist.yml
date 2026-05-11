@@ -1,0 +1,50 @@
+name: Build dist branch
+
+on:
+  push:
+    branches:
+      - '**'
+  delete:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.event_name == 'push' && !startsWith(github.ref_name, 'dist/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer
+
+      - name: Install production dependencies
+        run: composer install --no-dev --optimize-autoloader
+
+      - name: Push to dist branch
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f vendor/
+          git commit -m "Build: add vendor"
+          git push origin HEAD:dist/${BRANCH_NAME} --force
+
+  delete-dist:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch' && !startsWith(github.event.ref, 'dist/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Delete dist branch
+        env:
+          BRANCH_NAME: ${{ github.event.ref }}
+        run: |
+          git push origin ":refs/heads/dist/${BRANCH_NAME}" || true

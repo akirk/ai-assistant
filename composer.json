@@ -2,6 +2,10 @@
     "name": "akirk/ai-assistant",
     "description": "AI-powered chat interface for WordPress",
     "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "akirk/create-wp-app": "^1.3"
+    },
     "require-dev": {
         "phpunit/phpunit": "^10.0"
     },

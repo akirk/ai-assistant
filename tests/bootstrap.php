@@ -90,7 +90,7 @@ if (!is_dir(WP_CONTENT_DIR . '/themes')) {
 // WordPress function stubs needed for environment_info tool
 if (!function_exists('get_bloginfo'))   { function get_bloginfo($show = '') { return '6.7'; } }
 if (!function_exists('site_url'))       { function site_url() { return 'http://localhost'; } }
-if (!function_exists('home_url'))       { function home_url() { return 'http://localhost'; } }
+if (!function_exists('home_url'))       { function home_url($path = '') { return 'http://localhost' . $path; } }
 if (!function_exists('is_multisite'))   { function is_multisite() { return false; } }
 if (!function_exists('wp_get_theme'))   {
     function wp_get_theme() {
@@ -122,9 +122,35 @@ if (!function_exists('register_setting'))    { function register_setting()    {}
 if (!function_exists('add_settings_section')){ function add_settings_section(){} }
 if (!function_exists('add_settings_field'))  { function add_settings_field()  {} }
 if (!function_exists('__'))                  { function __($t, $d = '') { return $t; } }
+if (!function_exists('is_wp_error'))         { function is_wp_error($thing) { return $thing instanceof WP_Error; } }
+
+if (!class_exists('WP_Error')) {
+    class WP_Error {
+        private $code;
+        private $message;
+
+        public function __construct($code = '', $message = '') {
+            $this->code = $code;
+            $this->message = $message;
+        }
+
+        public function get_error_code() {
+            return $this->code;
+        }
+
+        public function get_error_message() {
+            return $this->message;
+        }
+    }
+}
 
 // Manual class loading (no Composer autoloader)
 $plugin_dir = dirname(__DIR__);
+$vendor_autoload = $plugin_dir . '/vendor/autoload.php';
+if (file_exists($vendor_autoload)) {
+    require_once $vendor_autoload;
+}
+
 require_once $plugin_dir . '/includes/class-tools.php';
 require_once $plugin_dir . '/includes/class-file-tool-auth.php';
 require_once $plugin_dir . '/includes/class-file-tool-executor.php';
@@ -132,3 +158,4 @@ require_once $plugin_dir . '/includes/class-executor.php';
 require_once $plugin_dir . '/includes/class-git-tracker.php';
 require_once $plugin_dir . '/includes/class-git-tracker-manager.php';
 require_once $plugin_dir . '/includes/class-settings.php';
+require_once $plugin_dir . '/includes/class-wp-app-abilities.php';
