@@ -11,8 +11,18 @@ if (!defined('ABSPATH')) {
 class Wp_App_Abilities {
 
     public function __construct() {
-        add_action('wp_abilities_api_categories_init', [$this, 'register_category']);
-        add_action('wp_abilities_api_init', [$this, 'register_abilities']);
+        if (function_exists('did_action') && did_action('wp_abilities_api_categories_init')) {
+            $this->register_category();
+        } else {
+            add_action('wp_abilities_api_categories_init', [$this, 'register_category']);
+        }
+
+        if (function_exists('did_action') && did_action('wp_abilities_api_init')) {
+            $this->register_abilities();
+        } else {
+            add_action('wp_abilities_api_init', [$this, 'register_abilities']);
+        }
+
         add_filter('ai_assistant_ability_domains', [$this, 'register_ability_domain']);
     }
 

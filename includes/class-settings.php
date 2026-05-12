@@ -1001,15 +1001,13 @@ class Settings {
     }
 
     public function tools_section_callback() {
-        if (ai_assistant_is_playground()) {
-            echo '<div class="ai-collapsible-content" data-section="tools">';
-            echo '<p>' . esc_html__('All tools are automatically enabled in Playground.', 'ai-assistant') . '</p>';
-            echo '</div>';
-            return;
-        }
+        $is_playground = ai_assistant_is_playground();
 
         $all_tools = $this->get_all_tools_with_meta();
-        $enabled = (array) get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools());
+        $stored_enabled = (array) get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools());
+        $enabled = $is_playground
+            ? array_keys($all_tools)
+            : $stored_enabled;
 
         $by_group = [];
         foreach ($all_tools as $name => $meta) {
@@ -1023,8 +1021,15 @@ class Settings {
         $first_group = key($by_group);
         ?>
         <div class="ai-collapsible-content" data-section="tools">
+            <?php if ($is_playground) : ?>
+            <p><?php esc_html_e('All tools are automatically enabled in Playground. The controls below are read-only so you can inspect registered tools, abilities, and schemas.', 'ai-assistant'); ?></p>
+            <?php foreach ($stored_enabled as $tool_name) : ?>
+            <input type="hidden" name="ai_assistant_enabled_tools[]" value="<?php echo esc_attr($tool_name); ?>">
+            <?php endforeach; ?>
+            <?php else : ?>
             <p><?php esc_html_e('Choose which tools the AI can use. ⚠ tools can modify files, run code, or install plugins.', 'ai-assistant'); ?></p>
             <input type="hidden" name="ai_assistant_enabled_tools" value="">
+            <?php endif; ?>
             <div class="ai-tool-tree">
                 <div class="ai-tool-tabs" role="tablist" aria-label="<?php esc_attr_e('Tool permission groups', 'ai-assistant'); ?>">
                     <?php foreach ($group_tabs as $group => $tab_id) :
@@ -1063,6 +1068,7 @@ class Settings {
                     <label class="ai-tool-group-header">
                         <input type="checkbox" class="ai-group-toggle"
                                <?php checked($all_checked); ?>
+                               <?php disabled($is_playground); ?>
                                <?php if ($some_checked) echo 'data-indeterminate="1"'; ?>>
                         <span><?php esc_html_e('Enable all tools in this tab', 'ai-assistant'); ?></span>
                     </label>
@@ -1072,7 +1078,8 @@ class Settings {
                             <input type="checkbox"
                                    name="ai_assistant_enabled_tools[]"
                                    value="<?php echo esc_attr($name); ?>"
-                                   <?php checked(in_array($name, $enabled, true)); ?>>
+                                   <?php checked(in_array($name, $enabled, true)); ?>
+                                   <?php disabled($is_playground); ?>>
                             <code><?php echo esc_html($name); ?></code>
                             <?php if ($meta['dangerous']) : ?>
                                 <span title="<?php esc_attr_e('Dangerous: can modify data or execute code', 'ai-assistant'); ?>">⚠</span>
