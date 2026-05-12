@@ -11,6 +11,8 @@ function loadExecutionMixin(config) {
             aiAssistant,
             aiAssistantConfig: config || {}
         },
+        aiAssistantConfig: config || {},
+        URLSearchParams,
         jQuery: {
             extend(target, source) {
                 return Object.assign(target, source);
@@ -172,5 +174,46 @@ describe('processToolCallImmediate', function() {
             { id: 'tool-5', state: 'pending' }
         ]);
         assert.strictEqual(assistant.pendingActions.length, 1);
+    });
+});
+
+describe('REST API descriptions and results', function() {
+    it('does not describe an empty rest_api call as GET /', function() {
+        const assistant = loadExecutionMixin();
+
+        assert.strictEqual(
+            assistant.getActionDescription('rest_api', {}),
+            'REST API request'
+        );
+    });
+
+    it('describes populated rest_api calls with the requested method and path', function() {
+        const assistant = loadExecutionMixin();
+
+        assert.strictEqual(
+            assistant.getActionDescription('rest_api', {
+                method: 'POST',
+                path: '/wp/v2/posts'
+            }),
+            'POST /wp/v2/posts'
+        );
+    });
+
+    it('adds edit and view URLs to created post REST API results', function() {
+        const assistant = loadExecutionMixin({
+            adminUrl: 'http://example.test/wp-admin/'
+        });
+
+        const result = assistant.enrichRestApiResult(
+            { id: 123, link: 'http://example.test/?p=123' },
+            'POST',
+            '/wp/v2/posts'
+        );
+
+        assert.strictEqual(
+            result.edit_url,
+            'http://example.test/wp-admin/post.php?post=123&action=edit'
+        );
+        assert.strictEqual(result.view_url, 'http://example.test/?p=123');
     });
 });

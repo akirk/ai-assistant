@@ -490,6 +490,9 @@
             if (toolName === 'pick_image' && this.renderPickedImageOutput($card, output)) {
                 return;
             }
+            if (toolName === 'rest_api') {
+                this.renderRestApiResultLinks($card, output);
+            }
 
             var outputText = '';
             if (output.ability !== undefined && output.success !== undefined) {
@@ -521,6 +524,23 @@
                 '</div></div>');
             $output.find('.ai-code-preview').text(outputText);
             $card.append($output);
+        },
+
+        renderRestApiResultLinks: function($card, output) {
+            if (!output || typeof output !== 'object') return;
+
+            var editUrl = output.edit_url || output.editUrl || '';
+            var viewUrl = output.view_url || output.link || '';
+            if (!editUrl && !viewUrl) return;
+
+            var $links = $('<div class="ai-tool-result-links"></div>');
+            if (editUrl) {
+                $links.append($('<a target="_blank" rel="noopener noreferrer">Edit</a>').attr('href', editUrl));
+            }
+            if (viewUrl) {
+                $links.append($('<a target="_blank" rel="noopener noreferrer">View</a>').attr('href', viewUrl));
+            }
+            $card.append($links);
         },
 
         addToolUseMessage: function(toolName, input, $container, result) {
@@ -997,9 +1017,9 @@
             this.updateToolCardProgress(toolId, bytesReceived);
 
             // Try to extract description from partial JSON
-            if (partialInput && !this.toolCardsState[toolId].partialDesc) {
+            if (partialInput) {
                 var desc = this.extractPartialDescription(toolName, partialInput);
-                if (desc) {
+                if (desc && desc !== this.toolCardsState[toolId].partialDesc) {
                     this.toolCardsState[toolId].partialDesc = desc;
                     var $card = $('[data-tool-id="' + toolId + '"]');
                     if ($card.length) {
@@ -1027,6 +1047,13 @@
                 case 'run_php':
                     // Can't really preview code meaningfully
                     return null;
+                case 'rest_api':
+                    var methodMatch = partialJson.match(/"method"\s*:\s*"([^"]+)"/);
+                    pathMatch = partialJson.match(/"path"\s*:\s*"([^"]+)"/);
+                    if (methodMatch && pathMatch) {
+                        return methodMatch[1].toUpperCase() + ' ' + pathMatch[1];
+                    }
+                    break;
                 case 'search_content':
                     match = partialJson.match(/"needle"\s*:\s*"([^"]+)"/);
                     if (match) {
