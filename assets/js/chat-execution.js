@@ -5,7 +5,6 @@
         processToolCalls: function(toolCalls, provider, stopReason) {
             var self = this;
             var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'ability', 'execute_ability', 'rest_api'];
-            var alwaysConfirmTools = ['navigate'];
 
             var needsConfirmation = [];
             var executeImmediately = [];
@@ -56,9 +55,7 @@
                 // Ensure card exists with proper description
                 self.updateToolCardDescription(tc.id, tc.name, tc.arguments);
 
-                if (alwaysConfirmTools.indexOf(tc.name) >= 0) {
-                    needsConfirmation.push(tc);
-                } else if (self.yoloMode || destructiveTools.indexOf(tc.name) < 0 ||
+                if (self.yoloMode || destructiveTools.indexOf(tc.name) < 0 ||
                            (tc.name === 'ability' && tc.arguments && tc.arguments.action !== 'execute') ||
                            self.isAbilityAutoApproved(tc) ||
                            self.isRestApiAutoApproved(tc)) {
@@ -114,7 +111,10 @@
             Promise.all(promises).then(function(results) {
                 results.forEach(function(result) {
                     if (result.success) {
-                        self.setToolCardState(result.id, 'completed', { output: result.result });
+                        var successOptions = result.name === 'navigate'
+                            ? { message: 'Suggestion shown' }
+                            : { output: result.result };
+                        self.setToolCardState(result.id, 'completed', successOptions);
                     } else {
                         var errorMsg = result.result?.error || 'Failed';
                         self.setToolCardState(result.id, 'error', { message: errorMsg });
@@ -725,7 +725,6 @@
         processToolCallImmediate: function(toolId, toolName, toolArgs, provider) {
             var self = this;
             var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'ability', 'execute_ability', 'rest_api'];
-            var alwaysConfirmTools = ['navigate'];
 
             this.currentProvider = provider;
             this.processedToolIds[toolId] = true;
@@ -734,11 +733,10 @@
             this.updateToolCardDescription(toolId, toolName, toolArgs);
 
             // Determine if needs confirmation
-            var needsConfirm = alwaysConfirmTools.indexOf(toolName) >= 0 ||
-                (!this.yoloMode && destructiveTools.indexOf(toolName) >= 0 &&
+            var needsConfirm = !this.yoloMode && destructiveTools.indexOf(toolName) >= 0 &&
                  !(toolName === 'ability' && toolArgs && toolArgs.action !== 'execute') &&
                  !this.isAbilityAutoApproved({ name: toolName, arguments: toolArgs }) &&
-                 !this.isRestApiAutoApproved({ name: toolName, arguments: toolArgs }));
+                 !this.isRestApiAutoApproved({ name: toolName, arguments: toolArgs });
 
             if (needsConfirm) {
                 this.setToolCardState(toolId, 'pending');
@@ -759,7 +757,10 @@
                 this.executeSingleTool({ id: toolId, name: toolName, arguments: toolArgs }).then(function(result) {
                     self.executingToolCount--;
                     if (result.success) {
-                        self.setToolCardState(result.id, 'completed', { output: result.result });
+                        var successOptions = result.name === 'navigate'
+                            ? { message: 'Suggestion shown' }
+                            : { output: result.result };
+                        self.setToolCardState(result.id, 'completed', successOptions);
                     } else {
                         self.setToolCardState(result.id, 'error', { message: result.result?.error || 'Failed' });
                     }
@@ -776,6 +777,35 @@
 
             // All tools resolved, send results to LLM
             this.handleToolResults([], this.currentProvider);
+        },
+
+        getNavigationUrlWithOpenHash: function(url) {
+            url = String(url || '');
+            if (!url || url.indexOf('ai-open') !== -1) {
+                return url;
+            }
+            return url + (url.indexOf('#') === -1 ? '#ai-open' : '&ai-open');
+        },
+
+        getNavigationLinkText: function(result) {
+            var text = result && (result.link_text || result.label);
+            text = String(text || 'Open this page');
+            text = text
+                .replace(/[\r\n\t]+/g, ' ')
+                .replace(/[\[\]\(\)]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            if (text.length > 80) {
+                text = text.substring(0, 77).trim() + '...';
+            }
+            return text || 'Open this page';
+        },
+
+        getNavigationSuggestionContent: function(result) {
+            var url = this.getNavigationUrlWithOpenHash(result && result.url);
+            var linkText = this.getNavigationLinkText(result);
+            var markdownUrl = String(url || '').replace(/\)/g, '%29');
+            return 'You can open [' + linkText + '](' + markdownUrl + ').';
         },
 
         handleToolResults: function(results, provider) {
@@ -836,10 +866,12 @@
             this.updateTokenCount();
 
             if (navigateResult) {
-                var targetUrl = navigateResult.result.url;
-                this.addMessage('system', 'Navigating to: ' + targetUrl);
+                var suggestionContent = this.getNavigationSuggestionContent(navigateResult.result);
+                this.messages.push({ role: 'assistant', content: suggestionContent });
+                this.addMessage('assistant', suggestionContent, 'ai-navigation-suggestion');
+                this.updateTokenCount();
                 this.setLoading(false);
-                this.saveConversationThenNavigate(targetUrl);
+                this.autoSaveConversation();
                 return;
             }
 
@@ -999,7 +1031,7 @@
                     return (args.method || 'REST').toUpperCase() + ' ' + (args.path || '(pending path)') +
                            (args.params ? '?' + new URLSearchParams(args.params).toString() : '');
                 case 'navigate':
-                    return 'Navigate to: ' + (args.url || 'unknown');
+                    return 'Suggest link: ' + (args.link_text || args.url || 'unknown');
                 case 'get_page_html':
                     return 'Get page HTML: ' + (args.selector || 'body');
                 case 'environment_info':

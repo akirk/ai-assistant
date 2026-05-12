@@ -95,7 +95,10 @@ class Executor {
             case 'run_php':
                 return $this->run_php($this->get_string_arg($arguments, 'code', $tool_name));
             case 'navigate':
-                return $this->navigate($this->get_string_arg($arguments, 'url', $tool_name));
+                return $this->navigate(
+                    $this->get_string_arg($arguments, 'url', $tool_name),
+                    $this->get_string_arg($arguments, 'link_text', $tool_name, '')
+                );
 
             // Environment info
             case 'environment_info':
@@ -546,7 +549,7 @@ class Executor {
         ];
     }
 
-    private function navigate(string $url): array {
+    private function navigate(string $url, string $link_text = ''): array {
         $home_url = home_url();
         $validated_url = null;
 
@@ -565,10 +568,22 @@ class Executor {
             throw new \Exception("Cannot navigate to modal/iframe URLs (like plugin information popups) as the AI assistant won't be available there. Try navigating to the main plugin page instead.");
         }
 
+        $link_text = trim(wp_strip_all_tags($link_text));
+        $link_text = preg_replace('/[\r\n\t]+/', ' ', $link_text);
+        $link_text = preg_replace('/[\[\]\(\)]+/', ' ', $link_text);
+        $link_text = preg_replace('/\s+/', ' ', $link_text);
+        if ($link_text === '') {
+            $link_text = 'Open this page';
+        }
+        if (strlen($link_text) > 80) {
+            $link_text = rtrim(substr($link_text, 0, 77)) . '...';
+        }
+
         return [
             'url' => $validated_url,
+            'link_text' => $link_text,
             'action' => 'navigate',
-            'message' => 'Ready to navigate to: ' . $validated_url,
+            'message' => 'Suggested link: ' . $link_text . ' (' . $validated_url . ')',
         ];
     }
 

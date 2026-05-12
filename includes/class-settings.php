@@ -2384,6 +2384,8 @@ TOOL USAGE RULES:
 
 If the user describes something they are seeing on the page, references UI elements, or asks about content visible on screen, use get_page_html to see what they're looking at.
 
+NAVIGATION SUGGESTIONS: When you have finished creating or updating something that has a useful WordPress admin or frontend URL, offer the user a direct link by calling navigate with the final URL and concise link_text. Call navigate only after all requested creation, editing, and checking is complete; do not use it as a progress step or before the destination exists. The tool shows a clickable suggestion to the user instead of opening the page automatically.
+
 PROMPT;
 
         if (!empty($ability_domains)) {

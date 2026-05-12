@@ -59,7 +59,7 @@ class Wp_App_Abilities {
                     'readonly'     => false,
                     'destructive'  => false,
                     'idempotent'   => false,
-                    'instructions' => 'Use this ability instead of manually writing files when creating WpApp-powered WordPress apps. Pass a slug and any user-provided naming details. The ability chooses the target plugin directory and no-Composer dependency mode. Do not call the navigate tool after scaffolding unless the user explicitly asks to open or visually test the generated app; report the returned URL instead and continue the current workflow.',
+                    'instructions' => 'Use this ability instead of manually writing files when creating WpApp-powered WordPress apps. Pass a slug and any user-provided naming details. The ability chooses the target plugin directory and no-Composer dependency mode. After scaffolding and any requested follow-up work are finished, call navigate with the returned app URL and concise link_text to offer opening the generated app.',
                 ],
                 'show_in_rest' => false,
             ],

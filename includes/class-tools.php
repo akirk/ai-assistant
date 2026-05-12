@@ -317,7 +317,7 @@ class Tools {
     private function tool_navigate(): array {
         return [
             'name' => 'navigate',
-            'description' => 'Navigate the user to a URL within the WordPress site. Use this to take the user to specific admin pages, posts, or frontend pages. The URL must be within the current WordPress site. Note: This will reload the page, so it should typically be the last action in a conversation turn.',
+            'description' => 'Suggest that the user open a URL within the WordPress site. Use this to offer a clickable link to specific admin pages, posts, or frontend pages after the requested work is finished. The URL must be within the current WordPress site. This does not open the page automatically.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
@@ -325,8 +325,12 @@ class Tools {
                         'type' => 'string',
                         'description' => 'The URL to navigate to. Can be a full URL (must start with the site\'s home URL) or a relative path (e.g., "/wp-admin/edit.php" or "/sample-page/").',
                     ],
+                    'link_text' => [
+                        'type' => 'string',
+                        'description' => 'Short clickable link text to display to the user (e.g., "Open the draft page" or "View the new plugin").',
+                    ],
                 ],
-                'required' => ['url'],
+                'required' => ['url', 'link_text'],
             ],
         ];
     }

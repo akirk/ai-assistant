@@ -55,7 +55,7 @@ The AI Assistant panel appears in the WordPress admin screen meta area (alongsid
 | `db_query` | Execute SELECT/DESCRIBE/SHOW queries on the database |
 | `install_plugin` | Install a plugin from WordPress.org |
 | `ability` | List, inspect, or execute WordPress abilities (plugin-exposed actions) |
-| `navigate` | Navigate the browser to a URL within the site |
+| `navigate` | Suggest a clickable link to a URL within the site |
 | `get_page_html` | Get HTML of elements on the current page |
 | `pick_image` | Ask the user to choose an image |
 | `skill` | Load skill documents with specialized WordPress knowledge |
