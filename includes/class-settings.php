@@ -2424,7 +2424,7 @@ IMPORTANT: For any destructive operations (file deletion, database modification,
 Always explain what you're about to do before using tools.
 PROMPT;
 
-        $prompt .= $this->load_skills();
+        $prompt .= $this->get_skills_prompt_summary($enabled_tools);
 
         return $prompt;
     }
@@ -2494,18 +2494,40 @@ PROMPT;
     }
 
     /**
-     * Load all skill files from the skills directory
+     * Add compact skill discovery guidance to the system prompt.
+     *
+     * Full skill contents are intentionally loaded on demand via the skill tool
+     * so every request does not pay the context cost for every skill document.
      */
-    private function load_skills() {
-        $skills = Skill_Registry::get_available_skill_documents();
+    private function get_skills_prompt_summary(array $enabled_tools): string {
+        $can_list_skills = in_array('list_skills', $enabled_tools, true);
+        $can_get_skills = in_array('get_skill', $enabled_tools, true);
+
+        if (!$can_list_skills && !$can_get_skills) {
+            return '';
+        }
+
+        $skills = Skill_Registry::get_available_skills();
         if (empty($skills)) {
             return '';
         }
 
-        $skills_content = "\n\n=== SKILLS ===\nThe following skill documents contain important guidance. Follow them carefully.\n";
+        $skills_content = "\n\n=== SKILLS ===\n";
+
+        if ($can_get_skills) {
+            $skills_content .= "Specialized skill documents are available on demand through the skill tool. The full skill contents are not included in this prompt. When a task matches a listed skill, call skill with action \"get\" before implementing.";
+            if ($can_list_skills) {
+                $skills_content .= " Use action \"list\" to discover or filter skills.";
+            }
+        } else {
+            $skills_content .= "Specialized skill documents exist, but full skill loading is not available with the current tool permissions.";
+        }
+
+        $skills_content .= "\n\nAvailable skills:\n";
 
         foreach ($skills as $skill) {
-            $skills_content .= "\n--- SKILL: {$skill['id']} ---\n{$skill['content']}\n";
+            $description = $skill['description'] ? ' - ' . $skill['description'] : '';
+            $skills_content .= "- {$skill['id']} ({$skill['category']}): {$skill['title']}{$description}\n";
         }
 
         return $skills_content;
