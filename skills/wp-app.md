@@ -33,13 +33,15 @@ Infer defaults when reasonable:
 
 | Argument | Default rule |
 |----------|--------------|
-| `slug` | Lowercase kebab-case folder name, e.g. `my-app` |
-| `plugin_name` | Title case from slug, e.g. `My App` |
-| `namespace` | PascalCase from plugin name, e.g. `MyApp` |
+| `slug` | Lowercase kebab-case folder name for the product/domain, e.g. `timetable`; do not include the generic word `app` or use an `-app` suffix |
+| `plugin_name` | Human name from the product/domain, e.g. `Timetable`; do not add the generic word `App` unless the user explicitly names it that way |
+| `namespace` | PascalCase from plugin name, e.g. `Timetable` |
 | `author` | Empty unless the user provides it |
 | `url_path` | Same as slug, without leading slash |
 | `setup_type` | `minimal` unless the user asks for routes/classes/storage |
 | `activate` | `true` when the user wants to try the app immediately |
+
+When the user says "create a {thing} app", treat "app" as the type of work, not part of the name. For example, "create a timetable app" should use `slug: "timetable"`, `plugin_name: "Timetable"`, and `url_path: "timetable"`, not `timetable-app`.
 
 Do not expose arbitrary target paths unless the ability explicitly supports and validates them. Generated apps should live under `wp-content/plugins/{slug}/`.
 
@@ -49,11 +51,11 @@ Typical call:
 
 ```json
 {
-  "slug": "my-app",
-  "plugin_name": "My App",
-  "namespace": "MyApp",
+  "slug": "timetable",
+  "plugin_name": "Timetable",
+  "namespace": "Timetable",
   "author": "",
-  "url_path": "my-app",
+  "url_path": "timetable",
   "setup_type": "minimal",
   "activate": true,
   "overwrite": false
@@ -98,10 +100,10 @@ Example:
 
 ```php
 add_filter( 'my_apps_plugins', function( $apps ) {
-    $apps['my-app'] = [
-        'name'     => __( 'My App', 'my-app' ),
+    $apps['timetable'] = [
+        'name'     => __( 'Timetable', 'timetable' ),
         'icon_url' => plugins_url( 'assets/icon.png', __FILE__ ),
-        'url'      => home_url( '/my-app/' ),
+        'url'      => home_url( '/timetable/' ),
     ];
     return $apps;
 } );

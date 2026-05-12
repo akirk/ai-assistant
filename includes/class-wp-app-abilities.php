@@ -148,12 +148,12 @@ class Wp_App_Abilities {
             'properties'           => [
                 'slug' => [
                     'type'        => 'string',
-                    'description' => 'Plugin slug and directory basename, e.g. my-app.',
+                    'description' => 'Plugin slug and directory basename for the product/domain, e.g. timetable. Do not include the generic word app or use an -app suffix unless the user explicitly named the product that way.',
                     'pattern'     => '^[a-z0-9][a-z0-9-]*$',
                 ],
                 'plugin_name' => [
                     'type'        => 'string',
-                    'description' => 'Human-readable plugin name. Defaults to title case from slug.',
+                    'description' => 'Human-readable plugin name. Defaults to title case from slug. Do not add the generic word App unless the user explicitly named the product that way.',
                 ],
                 'namespace' => [
                     'type'        => 'string',
