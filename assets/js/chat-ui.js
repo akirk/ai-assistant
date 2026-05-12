@@ -487,6 +487,7 @@
 
         renderToolResultOutput: function($card, toolName, output) {
             if (!output) return;
+            if (toolName === 'navigate') return;
             if (toolName === 'pick_image' && this.renderPickedImageOutput($card, output)) {
                 return;
             }

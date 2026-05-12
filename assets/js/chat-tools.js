@@ -162,13 +162,14 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'navigate',
-                    description: 'Navigate the user to a URL (reloads the page).',
+                    description: 'Suggest that the user open an in-site URL. Renders a clickable link; does not open the page automatically.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            url: { type: 'string' }
+                            url: { type: 'string', description: 'The in-site URL to suggest.' },
+                            link_text: { type: 'string', description: 'Short clickable link text to display to the user.' }
                         },
-                        required: ['url']
+                        required: ['url', 'link_text']
                     }
                 },
                 {
