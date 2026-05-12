@@ -2,6 +2,7 @@
 title: Create a WordPress App Plugin
 description: Create an app-like WordPress plugin through the create-wp-app WordPress Ability API integration
 category: apps
+requires_class: \Akirk\CreateWpApp\Scaffolder
 ---
 
 # Creating a WordPress App Plugin
@@ -19,7 +20,10 @@ Do not hand-write the scaffold first. Use the WordPress Ability API integration 
 3. Ask only for required values that cannot be inferred.
 4. Execute the ability with structured arguments.
 5. Activate the generated plugin if requested or if the ability supports `activate`.
-6. Visit `/{url_path}/` to verify the route. If it 404s, flush rewrite rules once.
+6. Continue the current build flow in-place. Do not use the `navigate` tool to visit the generated app route during scaffolding or intermediate implementation work.
+7. In the final response, report the returned `url` so the user can open it when ready.
+
+Navigation changes the browser page and can interrupt the assistant workflow. Only navigate to the generated app when the user explicitly asks to open or visually test it. If route verification is needed later, do it as a separate final verification step after file changes are complete and after confirming that navigation is acceptable.
 
 Expected ability ID: `create-wp-app/scaffold`.
 
@@ -29,13 +33,15 @@ Infer defaults when reasonable:
 
 | Argument | Default rule |
 |----------|--------------|
-| `slug` | Lowercase kebab-case folder name, e.g. `my-app` |
-| `plugin_name` | Title case from slug, e.g. `My App` |
-| `namespace` | PascalCase from plugin name, e.g. `MyApp` |
+| `slug` | Lowercase kebab-case folder name for the product/domain, e.g. `timetable`; do not include the generic word `app` or use an `-app` suffix |
+| `plugin_name` | Human name from the product/domain, e.g. `Timetable`; do not add the generic word `App` unless the user explicitly names it that way |
+| `namespace` | PascalCase from plugin name, e.g. `Timetable` |
 | `author` | Empty unless the user provides it |
 | `url_path` | Same as slug, without leading slash |
 | `setup_type` | `minimal` unless the user asks for routes/classes/storage |
 | `activate` | `true` when the user wants to try the app immediately |
+
+When the user says "create a {thing} app", treat "app" as the type of work, not part of the name. For example, "create a timetable app" should use `slug: "timetable"`, `plugin_name: "Timetable"`, and `url_path: "timetable"`, not `timetable-app`.
 
 Do not expose arbitrary target paths unless the ability explicitly supports and validates them. Generated apps should live under `wp-content/plugins/{slug}/`.
 
@@ -45,11 +51,11 @@ Typical call:
 
 ```json
 {
-  "slug": "my-app",
-  "plugin_name": "My App",
-  "namespace": "MyApp",
+  "slug": "timetable",
+  "plugin_name": "Timetable",
+  "namespace": "Timetable",
   "author": "",
-  "url_path": "my-app",
+  "url_path": "timetable",
   "setup_type": "minimal",
   "activate": true,
   "overwrite": false
@@ -69,6 +75,8 @@ The ability returns:
 - `warnings`
 
 AI Assistant's bridge fixes the generated target to `wp-content/plugins/{slug}` and calls `create-wp-app` in no-Composer mode: `dependency_mode=copy` and `autoload_mode=polyfill`. The generated plugin is self-contained and can later replace the polyfill by running Composer.
+
+Do not immediately navigate to the returned `url`. Treat it as output to report or use after the app build is complete.
 
 ## App Guidance
 
@@ -92,10 +100,10 @@ Example:
 
 ```php
 add_filter( 'my_apps_plugins', function( $apps ) {
-    $apps['my-app'] = [
-        'name'     => __( 'My App', 'my-app' ),
+    $apps['timetable'] = [
+        'name'     => __( 'Timetable', 'timetable' ),
         'icon_url' => plugins_url( 'assets/icon.png', __FILE__ ),
-        'url'      => home_url( '/my-app/' ),
+        'url'      => home_url( '/timetable/' ),
     ];
     return $apps;
 } );

@@ -33,34 +33,15 @@ class Settings {
             wp_send_json_error(['message' => 'Skill ID is required']);
         }
 
-        $skills_dir = plugin_dir_path(__DIR__) . 'skills/';
-        $skill_file = $skills_dir . $skill_id . '.md';
-
-        if (!file_exists($skill_file)) {
+        $skill = Skill_Registry::get_skill($skill_id);
+        if ($skill === null) {
             wp_send_json_error(['message' => 'Skill not found']);
-        }
-
-        $content = file_get_contents($skill_file);
-        if ($content === false) {
-            wp_send_json_error(['message' => 'Failed to read skill']);
-        }
-
-        $frontmatter = [];
-        $body = $content;
-
-        if (preg_match('/^---\s*\n(.*?)\n---\s*\n(.*)$/s', $content, $matches)) {
-            foreach (explode("\n", $matches[1]) as $line) {
-                if (preg_match('/^(\w+):\s*(.+)$/', trim($line), $kv)) {
-                    $frontmatter[$kv[1]] = trim($kv[2], '"\'');
-                }
-            }
-            $body = $matches[2];
         }
 
         wp_send_json_success([
             'id' => $skill_id,
-            'title' => $frontmatter['title'] ?? $skill_id,
-            'content' => $body,
+            'title' => $skill['title'],
+            'content' => $skill['content'],
         ]);
     }
 
@@ -2239,36 +2220,14 @@ class Settings {
             return '<p>' . __('No skills available. Add .md files to the skills/ directory.', 'ai-assistant') . '</p>';
         }
 
-        $files = glob($skills_dir . '*.md');
-        if (empty($files)) {
-            return '<p>' . __('No skills available. Add .md files to the skills/ directory.', 'ai-assistant') . '</p>';
-        }
-
         $skills_by_category = [];
 
-        foreach ($files as $file) {
-            $content = file_get_contents($file);
-            if ($content === false) {
-                continue;
-            }
+        foreach (Skill_Registry::get_available_skills() as $skill) {
+            $skills_by_category[$skill['category']][] = $skill;
+        }
 
-            $frontmatter = [];
-            if (preg_match('/^---\s*\n(.*?)\n---\s*\n/s', $content, $matches)) {
-                foreach (explode("\n", $matches[1]) as $line) {
-                    if (preg_match('/^(\w+):\s*(.+)$/', trim($line), $kv)) {
-                        $frontmatter[$kv[1]] = trim($kv[2], '"\'');
-                    }
-                }
-            }
-
-            $skill_id = basename($file, '.md');
-            $category = $frontmatter['category'] ?? 'general';
-
-            $skills_by_category[$category][] = [
-                'id' => $skill_id,
-                'title' => $frontmatter['title'] ?? $skill_id,
-                'description' => $frontmatter['description'] ?? '',
-            ];
+        if (empty($skills_by_category)) {
+            return '<p>' . __('No skills available. Add .md files to the skills/ directory.', 'ai-assistant') . '</p>';
         }
 
         ksort($skills_by_category);
@@ -2536,23 +2495,15 @@ PROMPT;
      * Load all skill files from the skills directory
      */
     private function load_skills() {
-        $skills_dir = dirname(__DIR__) . '/skills';
-        if (!is_dir($skills_dir)) {
-            return '';
-        }
-
-        $skill_files = glob($skills_dir . '/*.md');
-        if (empty($skill_files)) {
+        $skills = Skill_Registry::get_available_skill_documents();
+        if (empty($skills)) {
             return '';
         }
 
         $skills_content = "\n\n=== SKILLS ===\nThe following skill documents contain important guidance. Follow them carefully.\n";
 
-        foreach ($skill_files as $file) {
-            $content = file_get_contents($file);
-            $content = preg_replace('/^---\s*\n.*?\n---\s*\n/s', '', $content);
-            $skill_name = basename($file, '.md');
-            $skills_content .= "\n--- SKILL: {$skill_name} ---\n{$content}\n";
+        foreach ($skills as $skill) {
+            $skills_content .= "\n--- SKILL: {$skill['id']} ---\n{$skill['content']}\n";
         }
 
         return $skills_content;

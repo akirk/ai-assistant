@@ -759,33 +759,8 @@ class Executor {
 
     // ===== SKILLS OPERATIONS =====
 
-    private function get_skills_directory(): string {
-        return plugin_dir_path(__DIR__) . 'skills/';
-    }
-
-    private function parse_frontmatter(string $content): array {
-        $frontmatter = [];
-        $body = $content;
-
-        if (preg_match('/^---\s*\n(.*?)\n---\s*\n(.*)$/s', $content, $matches)) {
-            $yaml_content = $matches[1];
-            $body = $matches[2];
-
-            foreach (explode("\n", $yaml_content) as $line) {
-                if (preg_match('/^(\w+):\s*(.+)$/', trim($line), $kv)) {
-                    $frontmatter[$kv[1]] = trim($kv[2], '"\'');
-                }
-            }
-        }
-
-        return [
-            'frontmatter' => $frontmatter,
-            'body' => $body,
-        ];
-    }
-
     private function list_skills(string $category = ''): array {
-        $skills_dir = $this->get_skills_directory();
+        $skills_dir = Skill_Registry::get_skills_directory();
 
         if (!is_dir($skills_dir)) {
             return [
@@ -795,32 +770,7 @@ class Executor {
             ];
         }
 
-        $files = glob($skills_dir . '*.md');
-        $skills = [];
-
-        foreach ($files as $file) {
-            $content = file_get_contents($file);
-            if ($content === false) {
-                continue;
-            }
-
-            $parsed = $this->parse_frontmatter($content);
-            $fm = $parsed['frontmatter'];
-
-            $skill_id = basename($file, '.md');
-            $skill_category = $fm['category'] ?? 'general';
-
-            if (!empty($category) && $skill_category !== $category) {
-                continue;
-            }
-
-            $skills[] = [
-                'id' => $skill_id,
-                'title' => $fm['title'] ?? $skill_id,
-                'description' => $fm['description'] ?? '',
-                'category' => $skill_category,
-            ];
-        }
+        $skills = Skill_Registry::get_available_skills($category);
 
         return [
             'skills' => $skills,
@@ -830,26 +780,12 @@ class Executor {
     }
 
     private function get_skill(string $skill_id): array {
-        $skills_dir = $this->get_skills_directory();
-        $skill_file = $skills_dir . $skill_id . '.md';
+        $skill = Skill_Registry::get_skill($skill_id);
 
-        if (!file_exists($skill_file)) {
+        if ($skill === null) {
             throw new \Exception("Skill not found: $skill_id. Use list_skills to see available skills.");
         }
 
-        $content = file_get_contents($skill_file);
-        if ($content === false) {
-            throw new \Exception("Failed to read skill: $skill_id");
-        }
-
-        $parsed = $this->parse_frontmatter($content);
-
-        return [
-            'id' => $skill_id,
-            'title' => $parsed['frontmatter']['title'] ?? $skill_id,
-            'description' => $parsed['frontmatter']['description'] ?? '',
-            'category' => $parsed['frontmatter']['category'] ?? 'general',
-            'content' => trim($parsed['body']),
-        ];
+        return $skill;
     }
 }

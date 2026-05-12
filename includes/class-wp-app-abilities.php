@@ -42,7 +42,7 @@ class Wp_App_Abilities {
             return;
         }
 
-        if (!class_exists('\Akirk\CreateWpApp\Scaffolder')) {
+        if (!$this->has_create_wp_app_dependency()) {
             return;
         }
 
@@ -59,7 +59,7 @@ class Wp_App_Abilities {
                     'readonly'     => false,
                     'destructive'  => false,
                     'idempotent'   => false,
-                    'instructions' => 'Use this ability instead of manually writing files when creating WpApp-powered WordPress apps. Pass a slug and any user-provided naming details. The ability chooses the target plugin directory and no-Composer dependency mode.',
+                    'instructions' => 'Use this ability instead of manually writing files when creating WpApp-powered WordPress apps. Pass a slug and any user-provided naming details. The ability chooses the target plugin directory and no-Composer dependency mode. Do not call the navigate tool after scaffolding unless the user explicitly asks to open or visually test the generated app; report the returned URL instead and continue the current workflow.',
                 ],
                 'show_in_rest' => false,
             ],
@@ -67,6 +67,10 @@ class Wp_App_Abilities {
     }
 
     public function register_ability_domain(array $domains): array {
+        if (!$this->has_create_wp_app_dependency()) {
+            return $domains;
+        }
+
         $domains['create-wp-app'] = 'wp app, wordpress app, wpapp, WpApp, app plugin, create wp app, scaffold app';
         return $domains;
     }
@@ -76,7 +80,7 @@ class Wp_App_Abilities {
     }
 
     public function scaffold_app($input) {
-        if (!class_exists('\Akirk\CreateWpApp\Scaffolder')) {
+        if (!$this->has_create_wp_app_dependency()) {
             return $this->error('missing_dependency', 'The akirk/create-wp-app dependency is not loaded.');
         }
 
@@ -144,12 +148,12 @@ class Wp_App_Abilities {
             'properties'           => [
                 'slug' => [
                     'type'        => 'string',
-                    'description' => 'Plugin slug and directory basename, e.g. my-app.',
+                    'description' => 'Plugin slug and directory basename for the product/domain, e.g. timetable. Do not include the generic word app or use an -app suffix unless the user explicitly named the product that way.',
                     'pattern'     => '^[a-z0-9][a-z0-9-]*$',
                 ],
                 'plugin_name' => [
                     'type'        => 'string',
-                    'description' => 'Human-readable plugin name. Defaults to title case from slug.',
+                    'description' => 'Human-readable plugin name. Defaults to title case from slug. Do not add the generic word App unless the user explicitly named the product that way.',
                 ],
                 'namespace' => [
                     'type'        => 'string',
@@ -209,6 +213,10 @@ class Wp_App_Abilities {
         $slug = preg_replace('/[^a-z0-9-]+/', '-', $slug);
         $slug = trim((string) $slug, '-');
         return preg_match('/^[a-z0-9][a-z0-9-]*$/', $slug) ? $slug : '';
+    }
+
+    private function has_create_wp_app_dependency(): bool {
+        return class_exists('\Akirk\CreateWpApp\Scaffolder');
     }
 
     private function normalize_url_path($path): string {
