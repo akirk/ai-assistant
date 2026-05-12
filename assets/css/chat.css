@@ -2029,10 +2029,62 @@
     border: 1px solid #dba617 !important;
 }
 
+#wpadminbar .ai-assistant-standalone-panel .ai-message-attachments {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    height: auto !important;
+    margin: 8px 0 0 !important;
+    padding: 0 !important;
+}
+
+#wpadminbar .ai-assistant-standalone-panel .ai-message-attachment {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 6px 8px !important;
+    border: 1px solid rgba(255, 255, 255, 0.35) !important;
+    border-radius: 4px !important;
+    background: rgba(255, 255, 255, 0.12) !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+}
+
+#wpadminbar .ai-assistant-standalone-panel .ai-message-attachment-name {
+    font-weight: 600 !important;
+}
+
+#wpadminbar .ai-assistant-standalone-panel .ai-message-attachment-meta {
+    color: rgba(255, 255, 255, 0.8) !important;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace !important;
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+}
+
+#wpadminbar .ai-assistant-standalone-panel .ai-message-attachment code {
+    max-width: 100% !important;
+    overflow-wrap: anywhere !important;
+}
+
 #wpadminbar .ai-assistant-standalone-panel .ai-message-content p,
 #wpadminbar .ai-assistant-standalone-panel .ai-message-content ul,
 #wpadminbar .ai-assistant-standalone-panel .ai-message-content ol {
+    height: auto !important;
+    padding: 0 !important;
+    line-height: 1.5 !important;
+}
+
+#wpadminbar .ai-assistant-standalone-panel .ai-message-content p {
+    margin: 0 0 0.65em !important;
+}
+
+#wpadminbar .ai-assistant-standalone-panel .ai-message-content ul,
+#wpadminbar .ai-assistant-standalone-panel .ai-message-content ol {
     margin-top: 0 !important;
+    margin-bottom: 0.65em !important;
 }
 
 #wpadminbar .ai-assistant-standalone-panel .ai-message-content p:last-child,
