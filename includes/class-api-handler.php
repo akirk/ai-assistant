@@ -53,15 +53,20 @@ class API_Handler {
             wp_send_json_error(['message' => 'Invalid arguments JSON: ' . json_last_error_msg()]);
         }
 
+        if (!is_array($arguments)) {
+            wp_send_json_error(['message' => 'Tool arguments must be a JSON object']);
+        }
+
         try {
             $result = $this->executor->execute_tool($tool_name, $arguments, $permission, $conversation_id);
-            wp_send_json_success($result);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $error_message = $e->getMessage();
             if (empty($error_message)) {
-                $error_message = 'Unknown error (exception class: ' . get_class($e) . ')';
+                $error_message = 'Unknown error (throwable class: ' . get_class($e) . ')';
             }
             wp_send_json_error(['message' => $error_message]);
         }
+
+        wp_send_json_success($result);
     }
 }

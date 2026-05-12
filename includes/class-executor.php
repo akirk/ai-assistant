@@ -112,7 +112,7 @@ class Executor {
                 return $this->get_ability($this->get_string_arg($arguments, 'ability', $tool_name));
             case 'execute_ability':
                 $ability = $this->get_string_arg($arguments, 'ability', $tool_name);
-                $ability_args = $arguments['arguments'] ?? [];
+                $ability_args = $this->get_ability_arguments_arg($arguments, $tool_name);
                 return $this->execute_ability($ability, $ability_args);
 
             // Consolidated skill tool (replaces list_skills, get_skill)
@@ -224,7 +224,7 @@ class Executor {
                 if (empty($arguments['ability'])) {
                     throw new \Exception("ability tool with action 'execute' requires 'ability' argument");
                 }
-                return $this->execute_ability($arguments['ability'], $arguments['arguments'] ?? []);
+                return $this->execute_ability($arguments['ability'], $this->get_ability_arguments_arg($arguments, 'ability'));
             default:
                 throw new \Exception("Unknown ability action: $action");
         }
@@ -291,6 +291,37 @@ class Executor {
             return json_encode($value);
         }
         return (string) $value;
+    }
+
+    private function get_ability_arguments_arg(array $args, string $tool): array {
+        if (!array_key_exists('arguments', $args) || $args['arguments'] === null) {
+            return [];
+        }
+
+        $value = $args['arguments'];
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            $value = trim($value);
+            if ($value === '') {
+                return [];
+            }
+
+            $decoded = json_decode($value, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new \Exception("$tool requires 'arguments' to be an object or valid JSON object: " . json_last_error_msg());
+            }
+
+            if (!is_array($decoded)) {
+                throw new \Exception("$tool requires 'arguments' to be an object or valid JSON object");
+            }
+
+            return $decoded;
+        }
+
+        throw new \Exception("$tool requires 'arguments' to be an object or valid JSON object");
     }
 
     // ===== DATABASE OPERATIONS =====
