@@ -267,6 +267,10 @@
     margin-bottom: 0;
 }
 
+.ai-message-content br {
+    line-height: inherit;
+}
+
 .ai-message-content h2,
 .ai-message-content h3,
 .ai-message-content h4 {
@@ -1801,6 +1805,11 @@
     text-transform: none !important;
 }
 
+#wpadminbar .ai-assistant-standalone-panel *::before,
+#wpadminbar .ai-assistant-standalone-panel *::after {
+    line-height: inherit !important;
+}
+
 #wpadminbar .ai-assistant-standalone-panel {
     max-height: calc(100vh - var(--wp-admin--admin-bar--height, 32px)) !important;
     color: #1d2327 !important;
@@ -2079,6 +2088,11 @@
 
 #wpadminbar .ai-assistant-standalone-panel .ai-message-content p {
     margin: 0 0 0.65em !important;
+}
+
+#wpadminbar .ai-assistant-standalone-panel .ai-message-content br {
+    height: auto !important;
+    line-height: inherit !important;
 }
 
 #wpadminbar .ai-assistant-standalone-panel .ai-message-content ul,
