@@ -1025,7 +1025,7 @@ class Settings {
                     $all_checked = count(array_filter($group_names, fn($n) => in_array($n, $enabled, true))) === count($group_names);
                     $some_checked = !$all_checked && count(array_filter($group_names, fn($n) => in_array($n, $enabled, true))) > 0;
                 ?>
-                <div class="ai-tool-group">
+                <div class="<?php echo esc_attr('ai-tool-group' . ($group === 'Abilities' ? ' ai-tool-group-abilities' : '')); ?>">
                     <label class="ai-tool-group-header">
                         <input type="checkbox" class="ai-group-toggle"
                                <?php checked($all_checked); ?>
@@ -1101,6 +1101,7 @@ class Settings {
                                         $annotations = Ability_Annotations::get($ability);
                                         $readonly    = $annotations['readonly'] && !$annotations['destructive'];
                                         $destructive = $annotations['destructive'];
+                                        $input_schema = $this->get_ability_input_schema($ability);
                                         if (is_object($ability)) {
                                             $ability_id  = method_exists($ability, 'get_name')        ? $ability->get_name()        : ($ability->name ?? $id);
                                             $label       = method_exists($ability, 'get_label')       ? $ability->get_label()       : ($ability->label ?? $ability_id);
@@ -1112,46 +1113,47 @@ class Settings {
                                             $description = $ability['description'] ?? '';
                                             $category    = $ability['category'] ?? '';
                                         }
-                                        $by_cat[$category][] = compact('ability_id', 'label', 'description', 'readonly', 'destructive');
+                                        $by_cat[$category][] = compact('ability_id', 'label', 'description', 'input_schema', 'readonly', 'destructive');
                                     }
-                                    foreach ($by_cat as $category => $cat_abilities) : ?>
-                                    <?php if ($category) : ?>
-                                    <div class="ai-ability-category"><?php echo esc_html($category); ?></div>
-                                    <?php endif; ?>
-                                    <?php foreach ($cat_abilities as $a) : ?>
-                                    <div class="ai-tool-sub-item">
-                                        <input type="checkbox"
-                                               name="ai_assistant_auto_approved_abilities[]"
-                                               value="<?php echo esc_attr($a['ability_id']); ?>"
-                                               <?php checked($a['readonly'] || in_array($a['ability_id'], $auto_approved, true)); ?>
-                                               <?php disabled($a['readonly']); ?>>
-                                        <?php if ($a['description']) : ?>
-                                        <details class="ai-ability-details">
-                                            <summary>
-                                                <code><?php echo esc_html($a['ability_id']); ?></code>
-                                                <?php if ($a['readonly']) : ?>
-                                                    <span class="ai-ability-badge ai-ability-badge-readonly"><?php esc_html_e('Read-only', 'ai-assistant'); ?></span>
-                                                <?php elseif ($a['destructive']) : ?>
-                                                    <span class="ai-ability-badge ai-ability-badge-destructive"><?php esc_html_e('Destructive', 'ai-assistant'); ?></span>
-                                                <?php elseif (in_array($a['ability_id'], $auto_approved, true)) : ?>
-                                                    <span class="ai-ability-badge ai-ability-badge-approved"><?php esc_html_e('Always approved', 'ai-assistant'); ?></span>
-                                                <?php endif; ?>
-                                            </summary>
-                                            <span class="description"><?php echo esc_html($a['description']); ?></span>
-                                        </details>
-                                        <?php else : ?>
-                                        <code><?php echo esc_html($a['ability_id']); ?></code>
-                                        <?php if ($a['readonly']) : ?>
-                                            <span class="ai-ability-badge ai-ability-badge-readonly"><?php esc_html_e('Read-only', 'ai-assistant'); ?></span>
-                                        <?php elseif ($a['destructive']) : ?>
-                                            <span class="ai-ability-badge ai-ability-badge-destructive"><?php esc_html_e('Destructive', 'ai-assistant'); ?></span>
-                                        <?php elseif (in_array($a['ability_id'], $auto_approved, true)) : ?>
-                                            <span class="ai-ability-badge ai-ability-badge-approved"><?php esc_html_e('Always approved', 'ai-assistant'); ?></span>
-                                        <?php endif; ?>
-                                        <?php endif; ?>
+                                    ?>
+                                    <div class="ai-abilities-layout">
+                                        <div class="ai-abilities-list">
+                                            <?php foreach ($by_cat as $category => $cat_abilities) : ?>
+                                            <?php if ($category) : ?>
+                                            <div class="ai-ability-category"><?php echo esc_html($category); ?></div>
+                                            <?php endif; ?>
+                                            <?php foreach ($cat_abilities as $a) :
+                                                $is_approved = in_array($a['ability_id'], $auto_approved, true);
+                                                $details_payload = $this->get_ability_details_payload($a, $is_approved);
+                                            ?>
+                                            <div class="ai-tool-sub-item ai-ability-row">
+                                                <input type="checkbox"
+                                                       name="ai_assistant_auto_approved_abilities[]"
+                                                       value="<?php echo esc_attr($a['ability_id']); ?>"
+                                                       <?php checked($a['readonly'] || $is_approved); ?>
+                                                       <?php disabled($a['readonly']); ?>>
+                                                <button type="button"
+                                                        class="ai-ability-select"
+                                                        data-ability-details="<?php echo esc_attr($this->encode_json($details_payload)); ?>">
+                                                    <code><?php echo esc_html($a['ability_id']); ?></code>
+                                                    <?php if ($a['readonly']) : ?>
+                                                        <span class="ai-ability-badge ai-ability-badge-readonly"><?php esc_html_e('Read-only', 'ai-assistant'); ?></span>
+                                                    <?php elseif ($a['destructive']) : ?>
+                                                        <span class="ai-ability-badge ai-ability-badge-destructive"><?php esc_html_e('Destructive', 'ai-assistant'); ?></span>
+                                                    <?php elseif ($is_approved) : ?>
+                                                        <span class="ai-ability-badge ai-ability-badge-approved"><?php esc_html_e('Always approved', 'ai-assistant'); ?></span>
+                                                    <?php endif; ?>
+                                                </button>
+                                            </div>
+                                            <?php endforeach; ?>
+                                            <?php endforeach; ?>
+                                        </div>
+                                        <aside class="ai-ability-info-panel" aria-live="polite">
+                                            <div class="ai-ability-info-empty">
+                                                <?php esc_html_e('Select an ability to view its description and parameters.', 'ai-assistant'); ?>
+                                            </div>
+                                        </aside>
                                     </div>
-                                    <?php endforeach; ?>
-                                    <?php endforeach; ?>
                                 <?php endif; ?>
                             <?php endif; ?>
                         </div>
@@ -1189,9 +1191,255 @@ class Settings {
             $(document).on('change', 'input[name="ai_assistant_enabled_tools[]"][value="rest_api"]', function() {
                 $(this).closest('.ai-tool-item').next('.ai-tool-sub-items').toggle(this.checked);
             });
+
+            function escapeHtml(value) {
+                return $('<div>').text(value === null || value === undefined ? '' : String(value)).html();
+            }
+
+            function parseAbilityDetails($button) {
+                try {
+                    return JSON.parse($button.attr('data-ability-details') || '{}');
+                } catch (e) {
+                    return {};
+                }
+            }
+
+            function renderAbilityBadge(text, className) {
+                return '<span class="ai-ability-badge ' + className + '">' + escapeHtml(text) + '</span>';
+            }
+
+            function renderAbilityBadges(details) {
+                if (details.readonly) {
+                    return renderAbilityBadge('<?php echo esc_js(__('Read-only', 'ai-assistant')); ?>', 'ai-ability-badge-readonly');
+                }
+                if (details.destructive) {
+                    return renderAbilityBadge('<?php echo esc_js(__('Destructive', 'ai-assistant')); ?>', 'ai-ability-badge-destructive');
+                }
+                if (details.approved) {
+                    return renderAbilityBadge('<?php echo esc_js(__('Always approved', 'ai-assistant')); ?>', 'ai-ability-badge-approved');
+                }
+                return '';
+            }
+
+            function renderAbilityInfo($button) {
+                var details = parseAbilityDetails($button);
+                var $layout = $button.closest('.ai-abilities-layout');
+                var $panel = $layout.find('.ai-ability-info-panel');
+                var parameters = Array.isArray(details.parameters) ? details.parameters : [];
+                var html = '';
+
+                html += '<div class="ai-ability-info-header">';
+                html += '<code>' + escapeHtml(details.id || '') + '</code>';
+                html += renderAbilityBadges(details);
+                html += '</div>';
+
+                if (details.label && details.label !== details.id) {
+                    html += '<div class="ai-ability-info-label">' + escapeHtml(details.label) + '</div>';
+                }
+
+                if (details.description) {
+                    html += '<p class="description ai-ability-info-description">' + escapeHtml(details.description) + '</p>';
+                } else {
+                    html += '<p class="description ai-ability-info-description"><?php echo esc_js(__('No description provided.', 'ai-assistant')); ?></p>';
+                }
+
+                html += '<div class="ai-ability-params-heading"><?php echo esc_js(__('Parameters', 'ai-assistant')); ?></div>';
+                if (!details.has_schema) {
+                    html += '<p class="description ai-ability-no-params"><?php echo esc_js(__('No parameter schema available.', 'ai-assistant')); ?></p>';
+                } else if (!parameters.length) {
+                    html += '<p class="description ai-ability-no-params"><?php echo esc_js(__('No parameters.', 'ai-assistant')); ?></p>';
+                } else {
+                    html += '<div class="ai-ability-param-list">';
+                    parameters.forEach(function(parameter) {
+                        html += '<div class="ai-ability-param">';
+                        html += '<div class="ai-ability-param-head">';
+                        html += '<code>' + escapeHtml(parameter.name || '') + '</code>';
+                        html += '<span class="ai-ability-param-type">' + escapeHtml(parameter.type || 'any') + '</span>';
+                        if (parameter.required) {
+                            html += '<span class="ai-ability-param-required"><?php echo esc_js(__('Required', 'ai-assistant')); ?></span>';
+                        }
+                        html += '</div>';
+                        if (parameter.description) {
+                            html += '<div class="description ai-ability-param-description">' + escapeHtml(parameter.description) + '</div>';
+                        }
+                        if (Array.isArray(parameter.notes) && parameter.notes.length) {
+                            html += '<div class="ai-ability-param-notes">' + escapeHtml(parameter.notes.join('; ')) + '</div>';
+                        }
+                        html += '</div>';
+                    });
+                    html += '</div>';
+                }
+
+                if (details.raw_schema) {
+                    html += '<details class="ai-ability-raw-schema">';
+                    html += '<summary><?php echo esc_js(__('Raw input schema', 'ai-assistant')); ?></summary>';
+                    html += '<pre>' + escapeHtml(details.raw_schema) + '</pre>';
+                    html += '</details>';
+                }
+
+                $layout.find('.ai-ability-select').removeClass('selected').removeAttr('aria-current');
+                $button.addClass('selected').attr('aria-current', 'true');
+                $panel.html(html);
+            }
+
+            $(document).on('click', '.ai-ability-select', function() {
+                renderAbilityInfo($(this));
+            });
         });
         </script>
         <?php
+    }
+
+    private function get_ability_input_schema($ability): ?array {
+        $schema = null;
+        $has_schema = false;
+
+        if (is_object($ability)) {
+            if (method_exists($ability, 'get_input_schema')) {
+                try {
+                    $schema = $ability->get_input_schema();
+                    $has_schema = true;
+                } catch (\Throwable $e) {
+                    return null;
+                }
+            } elseif (isset($ability->input_schema)) {
+                $schema = $ability->input_schema;
+                $has_schema = true;
+            } elseif (isset($ability->parameters)) {
+                $schema = $ability->parameters;
+                $has_schema = true;
+            }
+        } elseif (is_array($ability)) {
+            if (array_key_exists('input_schema', $ability)) {
+                $schema = $ability['input_schema'];
+                $has_schema = true;
+            } elseif (array_key_exists('parameters', $ability)) {
+                $schema = $ability['parameters'];
+                $has_schema = true;
+            }
+        }
+
+        if (!$has_schema) {
+            return null;
+        }
+
+        return is_array($schema) ? $schema : [];
+    }
+
+    private function get_ability_details_payload(array $ability, bool $is_approved): array {
+        $schema = $ability['input_schema'];
+
+        return [
+            'id'          => (string) $ability['ability_id'],
+            'label'       => (string) $ability['label'],
+            'description' => (string) $ability['description'],
+            'readonly'    => (bool) $ability['readonly'],
+            'destructive' => (bool) $ability['destructive'],
+            'approved'    => $is_approved,
+            'has_schema'  => $schema !== null,
+            'parameters'  => $schema !== null ? $this->get_schema_parameters($schema) : [],
+            'raw_schema'  => $schema !== null && !empty($schema) ? $this->encode_json($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : '',
+        ];
+    }
+
+    private function get_schema_parameters(array $schema): array {
+        $properties = $schema['properties'] ?? [];
+        if (!is_array($properties)) {
+            return [];
+        }
+
+        $required = [];
+        foreach ((array) ($schema['required'] ?? []) as $required_name) {
+            if (is_scalar($required_name)) {
+                $required[(string) $required_name] = true;
+            }
+        }
+        $parameters = [];
+
+        foreach ($properties as $name => $property_schema) {
+            $property_schema = is_array($property_schema) ? $property_schema : [];
+            $parameters[] = [
+                'name'        => (string) $name,
+                'type'        => $this->get_schema_type_label($property_schema),
+                'description' => (string) ($property_schema['description'] ?? ''),
+                'required'    => isset($required[(string) $name]),
+                'notes'       => $this->get_schema_notes($property_schema),
+            ];
+        }
+
+        return $parameters;
+    }
+
+    private function get_schema_type_label(array $schema): string {
+        $type = $schema['type'] ?? '';
+        if (is_array($type)) {
+            $type = implode('|', array_map('strval', $type));
+        }
+
+        if ($type === 'array' && isset($schema['items']) && is_array($schema['items'])) {
+            return 'array<' . $this->get_schema_type_label($schema['items']) . '>';
+        }
+
+        if (!$type && isset($schema['enum'])) {
+            return 'enum';
+        }
+
+        return $type ? (string) $type : 'any';
+    }
+
+    private function get_schema_notes(array $schema): array {
+        $notes = [];
+
+        if (!empty($schema['enum']) && is_array($schema['enum'])) {
+            $notes[] = sprintf(
+                /* translators: %s: comma-separated enum values */
+                __('Allowed: %s', 'ai-assistant'),
+                implode(', ', array_map([$this, 'format_schema_value'], $schema['enum']))
+            );
+        }
+
+        if (array_key_exists('default', $schema)) {
+            $notes[] = sprintf(
+                /* translators: %s: JSON schema default value */
+                __('Default: %s', 'ai-assistant'),
+                $this->format_schema_value($schema['default'])
+            );
+        }
+
+        foreach (['format', 'pattern', 'minimum', 'maximum', 'minLength', 'maxLength'] as $key) {
+            if (isset($schema[$key]) && is_scalar($schema[$key])) {
+                $notes[] = sprintf('%s: %s', $key, (string) $schema[$key]);
+            }
+        }
+
+        if (!empty($schema['properties']) && is_array($schema['properties'])) {
+            $notes[] = sprintf(
+                /* translators: %s: comma-separated nested field names */
+                __('Fields: %s', 'ai-assistant'),
+                implode(', ', array_map('strval', array_keys($schema['properties'])))
+            );
+        }
+
+        return $notes;
+    }
+
+    private function format_schema_value($value): string {
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+        if ($value === null) {
+            return 'null';
+        }
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+
+        return $this->encode_json($value);
+    }
+
+    private function encode_json($value, int $flags = 0): string {
+        $json = function_exists('wp_json_encode') ? wp_json_encode($value, $flags) : json_encode($value, $flags);
+        return is_string($json) ? $json : '';
     }
 
     /**
@@ -1280,13 +1528,18 @@ class Settings {
         ?>
         <style>
             .ai-tool-tree {
-                max-width: 520px;
+                max-width: 1100px;
             }
             .ai-tool-group {
                 margin-bottom: 4px;
                 border: 1px solid #dcdcde;
                 border-radius: 3px;
                 overflow: hidden;
+                max-width: 520px;
+            }
+            .ai-tool-group-abilities {
+                max-width: 1100px;
+                overflow: visible;
             }
             .ai-tool-group-header {
                 display: flex;
@@ -1336,30 +1589,151 @@ class Settings {
                 flex-shrink: 0;
                 margin-top: 1px;
             }
-            .ai-ability-details {
-                flex: 1;
+            .ai-abilities-layout {
+                display: grid;
+                grid-template-columns: minmax(280px, 1fr) minmax(320px, 420px);
+                gap: 14px;
+                align-items: start;
             }
-            .ai-ability-details summary {
-                cursor: pointer;
-                list-style: none;
-                display: flex;
+            .ai-abilities-list {
+                min-width: 0;
+            }
+            .ai-ability-row {
+                align-items: flex-start;
+            }
+            .ai-ability-select {
                 align-items: center;
+                background: transparent;
+                border: 1px solid transparent;
+                border-radius: 3px;
+                color: inherit;
+                cursor: pointer;
+                display: flex;
+                flex: 1;
+                flex-wrap: wrap;
+                font: inherit;
+                gap: 4px;
+                line-height: inherit;
+                min-width: 0;
+                padding: 2px 4px;
+                text-align: left;
+            }
+            .ai-ability-select:hover,
+            .ai-ability-select:focus,
+            .ai-ability-select.selected {
+                background: #f6f7f7;
+                border-color: #dcdcde;
+                outline: none;
+            }
+            .ai-ability-select:focus {
+                box-shadow: 0 0 0 1px #2271b1;
+            }
+            .ai-ability-select code,
+            .ai-ability-info-header code,
+            .ai-ability-param code {
+                overflow-wrap: anywhere;
+            }
+            .ai-ability-info-panel {
+                background: #fff;
+                border: 1px solid #c3c4c7;
+                border-radius: 3px;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+                max-height: calc(100vh - 110px);
+                min-height: 120px;
+                overflow: auto;
+                padding: 12px;
+                position: sticky;
+                top: 32px;
+            }
+            .ai-ability-info-empty {
+                color: #646970;
+                font-size: 12px;
+            }
+            .ai-ability-info-header {
+                align-items: center;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 5px;
+                margin-bottom: 5px;
+            }
+            .ai-ability-info-label {
+                color: #1d2327;
+                font-size: 13px;
+                font-weight: 600;
+                margin-bottom: 6px;
+            }
+            .ai-ability-info-description {
+                font-size: 12px;
+                margin: 0 0 10px;
+            }
+            .ai-ability-params-heading {
+                color: #646970;
+                font-size: 10px;
+                font-weight: 600;
+                letter-spacing: 0;
+                margin: 2px 0 4px;
+                text-transform: uppercase;
+            }
+            .ai-ability-no-params {
+                margin: 0;
+            }
+            .ai-ability-param-list {
+                display: flex;
+                flex-direction: column;
                 gap: 4px;
             }
-            .ai-ability-details summary::before {
-                content: '▶';
-                font-size: 9px;
-                color: #787c82;
-                transition: transform 0.15s;
-                flex-shrink: 0;
+            .ai-ability-param {
+                background: #f6f7f7;
+                border: 1px solid #dcdcde;
+                border-radius: 3px;
+                padding: 5px 6px;
             }
-            .ai-ability-details[open] summary::before {
-                transform: rotate(90deg);
+            .ai-ability-param-head {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 5px;
             }
-            .ai-ability-details .description {
-                display: block;
+            .ai-ability-param-type,
+            .ai-ability-param-required {
+                border-radius: 3px;
+                font-size: 10px;
+                line-height: 1.4;
+                padding: 1px 5px;
+            }
+            .ai-ability-param-type {
+                background: #f0f0f1;
+                color: #50575e;
+            }
+            .ai-ability-param-required {
+                background: #fcf0e3;
+                color: #8a5400;
+                font-weight: 600;
+            }
+            .ai-ability-param-description,
+            .ai-ability-param-notes {
+                color: #646970;
                 font-size: 11px;
-                padding: 3px 0 2px 14px;
+                margin-top: 3px;
+            }
+            .ai-ability-raw-schema {
+                margin-top: 6px;
+            }
+            .ai-ability-raw-schema summary {
+                color: #646970;
+                cursor: pointer;
+                font-size: 11px;
+            }
+            .ai-ability-raw-schema pre {
+                background: #fff;
+                border: 1px solid #dcdcde;
+                border-radius: 3px;
+                font-size: 11px;
+                margin: 4px 0 0;
+                max-height: 220px;
+                overflow: auto;
+                padding: 6px;
+                white-space: pre-wrap;
             }
             .ai-ability-badge {
                 border-radius: 3px;
@@ -1385,7 +1759,7 @@ class Settings {
                 font-size: 10px;
                 font-weight: 600;
                 text-transform: uppercase;
-                letter-spacing: 0.05em;
+                letter-spacing: 0;
                 color: #787c82;
                 margin: 6px 0 2px;
             }
@@ -1416,6 +1790,15 @@ class Settings {
             }
             .ai-collapsible-section.expanded .ai-collapsible-content {
                 opacity: 1;
+            }
+            @media screen and (max-width: 960px) {
+                .ai-abilities-layout {
+                    grid-template-columns: 1fr;
+                }
+                .ai-ability-info-panel {
+                    max-height: none;
+                    position: static;
+                }
             }
         </style>
 
@@ -1475,20 +1858,61 @@ class Settings {
                 }
             });
 
+            function getSectionContent($section) {
+                return $section.children('.ai-collapsible-content');
+            }
+
+            function expandSection($section, remember, animate) {
+                var $content = getSectionContent($section);
+                $section.addClass('expanded');
+
+                if (animate === false) {
+                    $content.css({
+                        'max-height': 'none',
+                        'overflow': 'visible'
+                    });
+                } else {
+                    $content.css({
+                        'max-height': $content[0].scrollHeight + 'px',
+                        'overflow': 'hidden'
+                    });
+                    window.setTimeout(function() {
+                        if ($section.hasClass('expanded')) {
+                            $content.css({
+                                'max-height': 'none',
+                                'overflow': 'visible'
+                            });
+                        }
+                    }, 320);
+                }
+
+                if (remember) {
+                    localStorage.setItem('aiAssistant_settings_' + $section.data('section') + '_expanded', '1');
+                }
+            }
+
+            function collapseSection($section) {
+                var $content = getSectionContent($section);
+                var sectionKey = 'aiAssistant_settings_' + $section.data('section') + '_expanded';
+
+                $content.css({
+                    'max-height': $content[0].scrollHeight + 'px',
+                    'overflow': 'hidden'
+                });
+                $content[0].offsetHeight;
+                $section.removeClass('expanded');
+                $content.css('max-height', '');
+                localStorage.removeItem(sectionKey);
+            }
+
             // Collapsible toggle behavior
             $(document).on('click', '.ai-collapsible-section h2', function() {
                 var $section = $(this).closest('.ai-collapsible-section');
-                var $content = $section.find('.ai-collapsible-content');
-                var sectionKey = 'aiAssistant_settings_' + $section.data('section') + '_expanded';
 
                 if ($section.hasClass('expanded')) {
-                    $section.removeClass('expanded');
-                    $content.css('max-height', '');
-                    localStorage.removeItem(sectionKey);
+                    collapseSection($section);
                 } else {
-                    $content.css('max-height', $content[0].scrollHeight + 'px');
-                    $section.addClass('expanded');
-                    localStorage.setItem(sectionKey, '1');
+                    expandSection($section, true, true);
                 }
             });
 
@@ -1496,11 +1920,9 @@ class Settings {
             $('.ai-collapsible-section').each(function() {
                 var $section = $(this);
                 var sectionKey = 'aiAssistant_settings_' + $section.data('section') + '_expanded';
-                var $content = $section.find('.ai-collapsible-content');
 
                 if (localStorage.getItem(sectionKey) === '1') {
-                    $section.addClass('expanded');
-                    $content.css('max-height', $content[0].scrollHeight + 'px');
+                    expandSection($section, false, false);
                 }
             });
         });
