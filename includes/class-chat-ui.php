@@ -131,6 +131,7 @@ class Chat_UI {
             'readonlyAbilities' => Ability_Annotations::get_readonly_ability_ids(),
             'autoApprovedRestApis' => $settings->get_auto_approved_rest_apis(),
             'settingsUrl' => admin_url('options-general.php?page=ai-assistant-settings'),
+            'adminUrl' => admin_url(),
             'homeUrl' => home_url(),
             'restApiUrl' => rest_url(),
             'restApiNonce' => wp_create_nonce('wp_rest'),

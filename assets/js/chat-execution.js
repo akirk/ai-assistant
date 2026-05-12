@@ -439,10 +439,10 @@
         },
 
         executeRestApi: function(toolCall) {
+            var self = this;
             var args = toolCall.arguments || {};
             var method = (args.method || 'GET').toUpperCase();
             var path = args.path || '/';
-
 
             var params = args.params || null;
             var body = args.body || null;
@@ -484,6 +484,8 @@
                             namespaces: data.namespaces || [],
                             routes: Object.keys(data.routes || {})
                         };
+                    } else {
+                        data = self.enrichRestApiResult(data, method, path);
                     }
 
                     return {
@@ -503,6 +505,38 @@
                     success: false
                 };
             });
+        },
+
+        enrichRestApiResult: function(data, method, path) {
+            if (!data || typeof data !== 'object' || Array.isArray(data)) {
+                return data;
+            }
+
+            var upperMethod = (method || 'GET').toUpperCase();
+            if (['POST', 'PUT', 'PATCH'].indexOf(upperMethod) < 0 || !data.id) {
+                return data;
+            }
+
+            var routeMatch = String(path || '').match(/^\/wp\/v2\/(posts|pages|media)(?:\/\d+)?(?:\/.*)?$/);
+            if (!routeMatch) {
+                return data;
+            }
+
+            var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+            var adminBase = (config.adminUrl || '').replace(/\/$/, '');
+            if (!adminBase && config.ajaxUrl) {
+                adminBase = String(config.ajaxUrl).replace(/\/admin-ajax\.php(?:\?.*)?$/, '');
+            }
+
+            if (adminBase && !data.edit_url) {
+                data.edit_url = adminBase + '/post.php?post=' + encodeURIComponent(data.id) + '&action=edit';
+            }
+
+            if (data.link && !data.view_url) {
+                data.view_url = data.link;
+            }
+
+            return data;
         },
 
         executeSummarizeConversation: function(toolCall) {
@@ -959,7 +993,10 @@
                 case 'run_php':
                     return 'Run PHP code';
                 case 'rest_api':
-                    return (args.method || 'GET').toUpperCase() + ' ' + (args.path || '/') +
+                    if (!args.method && !args.path) {
+                        return 'REST API request';
+                    }
+                    return (args.method || 'REST').toUpperCase() + ' ' + (args.path || '(pending path)') +
                            (args.params ? '?' + new URLSearchParams(args.params).toString() : '');
                 case 'navigate':
                     return 'Navigate to: ' + (args.url || 'unknown');
