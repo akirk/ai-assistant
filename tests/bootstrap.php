@@ -46,6 +46,38 @@ if (!function_exists('current_user_can')) {
     }
 }
 
+if (!function_exists('sanitize_text_field')) {
+    function sanitize_text_field($value) {
+        return is_scalar($value) ? trim((string) $value) : '';
+    }
+}
+
+if (!function_exists('check_ajax_referer')) {
+    function check_ajax_referer() {
+        return true;
+    }
+}
+
+if (!function_exists('wp_send_json_error')) {
+    function wp_send_json_error($data = null) {
+        $GLOBALS['wp_test_json_response'] = [
+            'success' => false,
+            'data' => $data,
+        ];
+        throw new \RuntimeException('wp_send_json_error');
+    }
+}
+
+if (!function_exists('wp_send_json_success')) {
+    function wp_send_json_success($data = null) {
+        $GLOBALS['wp_test_json_response'] = [
+            'success' => true,
+            'data' => $data,
+        ];
+        throw new \RuntimeException('wp_send_json_success');
+    }
+}
+
 if (!function_exists('user_can')) {
     function user_can($user_id, $cap) {
         return $GLOBALS['wp_test_capabilities'][$cap] ?? true;
@@ -178,6 +210,7 @@ require_once $plugin_dir . '/includes/class-ability-annotations.php';
 require_once $plugin_dir . '/includes/class-file-tool-auth.php';
 require_once $plugin_dir . '/includes/class-file-tool-executor.php';
 require_once $plugin_dir . '/includes/class-executor.php';
+require_once $plugin_dir . '/includes/class-api-handler.php';
 require_once $plugin_dir . '/includes/class-git-tracker.php';
 require_once $plugin_dir . '/includes/class-git-tracker-manager.php';
 require_once $plugin_dir . '/includes/class-settings.php';

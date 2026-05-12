@@ -510,6 +510,49 @@ class ExecutorTest extends TestCase {
         ], 'read_only');
     }
 
+    public function test_consolidated_ability_decodes_stringified_arguments(): void {
+        $GLOBALS['wp_test_abilities']['demo/write'] = $this->createAbility(false);
+
+        $result = $this->executor->execute_tool('ability', [
+            'action' => 'execute',
+            'ability' => 'demo/write',
+            'arguments' => '{"title":"Bacon Jam","servings":4}',
+        ]);
+
+        $this->assertTrue($result['success']);
+        $this->assertEquals([
+            'input' => [
+                'title' => 'Bacon Jam',
+                'servings' => 4,
+            ],
+        ], $result['result']);
+    }
+
+    public function test_legacy_execute_ability_decodes_stringified_arguments(): void {
+        $GLOBALS['wp_test_abilities']['demo/write'] = $this->createAbility(false);
+
+        $result = $this->executor->execute_tool('execute_ability', [
+            'ability' => 'demo/write',
+            'arguments' => '{"title":"Bacon Jam"}',
+        ]);
+
+        $this->assertTrue($result['success']);
+        $this->assertEquals(['input' => ['title' => 'Bacon Jam']], $result['result']);
+    }
+
+    public function test_ability_rejects_invalid_stringified_arguments(): void {
+        $GLOBALS['wp_test_abilities']['demo/write'] = $this->createAbility(false);
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage("ability requires 'arguments' to be an object or valid JSON object");
+
+        $this->executor->execute_tool('ability', [
+            'action' => 'execute',
+            'ability' => 'demo/write',
+            'arguments' => '{"title":',
+        ]);
+    }
+
     // ===== PATH SECURITY TESTS =====
 
     public function test_path_traversal_blocked(): void {
