@@ -51,6 +51,7 @@
             $input.val('');
             this.clearDraft();
             this.draftHistoryIndex = -1;
+            this.draftHistoryDraft = '';
 
             this.updateTokenCount();
             this.callLLM();

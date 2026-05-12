@@ -63,6 +63,16 @@
                 console.warn('[AI Assistant] Could not load draft history:', e);
                 this.draftHistory = [];
             }
+
+            if (!Array.isArray(this.draftHistory)) {
+                this.draftHistory = [];
+            }
+
+            this.draftHistory = this.draftHistory.filter(function(message) {
+                return typeof message === 'string' && message.trim() !== '';
+            }).slice(0, this.draftHistoryMax);
+
+            this.saveDraftHistory();
         },
 
         saveDraftHistory: function() {
@@ -92,6 +102,11 @@
         navigateDraftHistory: function(direction) {
             if (this.draftHistory.length === 0) return;
 
+            var $input = $('#ai-assistant-input');
+            if (this.draftHistoryIndex === -1) {
+                this.draftHistoryDraft = $input.val();
+            }
+
             var newIndex = this.draftHistoryIndex + direction;
 
             if (newIndex < -1) newIndex = -1;
@@ -101,12 +116,12 @@
 
             this.draftHistoryIndex = newIndex;
 
-            var $input = $('#ai-assistant-input');
             if (newIndex === -1) {
-                $input.val('');
+                $input.val(this.draftHistoryDraft || '');
             } else {
                 $input.val(this.draftHistory[newIndex]);
             }
+            $input.trigger('input');
 
             var input = $input[0];
             input.selectionStart = input.selectionEnd = input.value.length;

@@ -22,7 +22,8 @@
         conversationModel: '',
         draftHistory: [],
         draftHistoryIndex: -1,
-        draftHistoryMax: 50,
+        draftHistoryDraft: '',
+        draftHistoryMax: 10,
         pendingNewChat: false,
         pendingChatOriginalHtml: null,
         saveInProgress: false,
@@ -99,14 +100,14 @@
                     var $input = $(this);
                     if ($input.val() === '' || $input[0].selectionStart === 0) {
                         e.preventDefault();
-                        self.navigateDraftHistory(-1);
+                        self.navigateDraftHistory(1);
                     }
                 } else if (e.which === 40 && !e.shiftKey) {
                     var $input = $(this);
                     var val = $input.val();
                     if (val === '' || $input[0].selectionStart === val.length) {
                         e.preventDefault();
-                        self.navigateDraftHistory(1);
+                        self.navigateDraftHistory(-1);
                     }
                 }
             });
