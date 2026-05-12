@@ -92,6 +92,7 @@
                 if (needsConfirmation.length > 1) {
                     this.showPendingActionsHeader();
                 }
+                this.showToolApprovalModal();
                 // If no tools are executing immediately, stop loading indicator
                 if (executeImmediately.length === 0) {
                     this.setLoading(false);
@@ -750,6 +751,7 @@
                 if (this.pendingActions.length > 1) {
                     this.showPendingActionsHeader();
                 }
+                this.showToolApprovalModal();
                 this.setLoading(false);
             } else {
                 this.setToolCardState(toolId, 'executing');
@@ -906,6 +908,7 @@
             if (this.pendingActions.length === 0) {
                 $('#ai-assistant-pending-actions-header').remove();
             }
+            this.showToolApprovalModal();
 
             if (confirmed) {
                 this.setToolCardState(actionId, 'executing');
@@ -934,8 +937,14 @@
         confirmAllActions: function(confirmed) {
             var self = this;
             var actions = this.pendingActions.slice();
+            if (actions.length === 0) {
+                this.showToolApprovalModal();
+                return;
+            }
+
             this.pendingActions = [];
             $('#ai-assistant-pending-actions-header').remove();
+            this.showToolApprovalModal();
 
             if (confirmed) {
                 actions.forEach(function(action) {
@@ -970,6 +979,139 @@
                 });
                 this.handleToolResults(skippedResults, actions[0].provider);
             }
+        },
+
+        showToolApprovalModal: function() {
+            if (typeof $ !== 'function') {
+                return;
+            }
+
+            var self = this;
+            var actions = this.pendingActions || [];
+            var $overlay = $('#ai-tool-approval-overlay');
+
+            if (actions.length === 0) {
+                $overlay.remove();
+                return;
+            }
+
+            if ($overlay.length === 0) {
+                $overlay = $('<div id="ai-tool-approval-overlay" class="ai-tool-approval-overlay" role="dialog" aria-modal="true"></div>');
+                var $dialog = $('<div class="ai-tool-approval-dialog" tabindex="-1"></div>');
+                var $header = $('<div class="ai-tool-approval-header"></div>');
+                var $heading = $('<div class="ai-tool-approval-heading"></div>');
+                var $title = $('<strong></strong>');
+                var $subtitle = $('<span></span>');
+                var $close = $('<button type="button" class="ai-tool-approval-close" aria-label="Keep approval pending">&times;</button>');
+                var $body = $('<div class="ai-tool-approval-body"></div>');
+
+                $heading.append($title, $subtitle);
+                $header.append($heading, $close);
+                $dialog.append($header, $body);
+                $overlay.append($dialog);
+                $('body').append($overlay);
+            }
+
+            var count = actions.length;
+            var $dialog = $overlay.find('.ai-tool-approval-dialog');
+            var $body = $overlay.find('.ai-tool-approval-body').empty();
+            var $title = $overlay.find('.ai-tool-approval-heading strong');
+            var $subtitle = $overlay.find('.ai-tool-approval-heading span');
+
+            $title.text(count === 1 ? 'Approval required' : count + ' approvals required');
+            $subtitle.text('Review tool requests before the assistant changes the site.');
+
+            actions.forEach(function(action) {
+                var $item = $('<div class="ai-tool-approval-item"></div>').attr('data-tool-id', action.id);
+                var $summary = $('<div class="ai-tool-approval-summary"></div>');
+                var $meta = $('<div class="ai-tool-approval-meta"></div>');
+                var $tool = $('<span class="ai-tool-approval-tool"></span>').text(action.tool || 'tool');
+                var $desc = $('<span class="ai-tool-approval-desc"></span>').text(action.description || self.getActionDescription(action.tool, action.arguments || {}));
+                var $actions = $('<div class="ai-tool-approval-actions"></div>');
+
+                $meta.append($tool, $desc);
+                $summary.append($meta);
+
+                var args = action.arguments || {};
+                var isAbilityExecute = action.tool === 'ability' &&
+                    args.action === 'execute' &&
+                    args.ability;
+                var isRestApiWrite = action.tool === 'rest_api' &&
+                    (args.method || 'GET').toUpperCase() !== 'GET';
+                var restApiPattern = isRestApiWrite
+                    ? (args.method || 'POST').toUpperCase() + ' ' + (args.path || '/')
+                    : '';
+
+                $actions.append(
+                    $('<button type="button" class="ai-tool-skip ai-skip-btn">Skip</button>').attr('data-tool-id', action.id),
+                    $('<button type="button" class="ai-tool-approve ai-approve-btn">Approve</button>').attr('data-tool-id', action.id)
+                );
+
+                if (isAbilityExecute) {
+                    $actions.append(
+                        $('<button type="button" class="ai-tool-approve-always ai-always-approve-btn">Always approve</button>')
+                            .attr('data-tool-id', action.id)
+                            .attr('data-ability', args.ability)
+                    );
+                }
+
+                if (isRestApiWrite) {
+                    $actions.append(
+                        $('<button type="button" class="ai-tool-approve-always ai-always-approve-btn">Always approve</button>')
+                            .attr('data-tool-id', action.id)
+                            .attr('data-rest-api', restApiPattern)
+                    );
+                }
+
+                $summary.append($actions);
+                $item.append($summary);
+
+                var preview = self.getActionContentPreview(action.tool, args);
+                if (preview) {
+                    var contentStr = typeof preview.content === 'string' ? preview.content : String(preview.content || '');
+                    contentStr = contentStr.trim();
+                    var lineCount = (contentStr.match(/\n/g) || []).length + 1;
+                    var autoExpand = lineCount <= 5;
+                    var $preview = $('<div class="ai-action-preview' + (autoExpand ? ' expanded' : '') + '"></div>')
+                        .attr('data-language', preview.language || '')
+                        .attr('data-is-edit', preview.isEdit ? '1' : '0');
+                    var previewLabel = preview.isEdit ? 'Show changes' : 'Show content';
+                    var $toggle = $('<button type="button" class="ai-action-preview-toggle"></button>');
+                    $toggle.append(
+                        $('<span class="dashicons dashicons-arrow-right-alt2"></span>'),
+                        document.createTextNode(previewLabel + ' (' + lineCount + ' line' + (lineCount !== 1 ? 's' : '') + ')')
+                    );
+                    var $content = $('<div class="ai-action-preview-content"><pre class="ai-code-preview"></pre></div>');
+                    $preview.append($toggle, $content);
+                    $item.append($preview);
+
+                    if (typeof self.highlightCode === 'function') {
+                        self.highlightCode($content.find('pre')[0], contentStr, preview.language, preview.isEdit);
+                    } else {
+                        $content.find('pre').text(contentStr);
+                    }
+                } else if (args && Object.keys(args).length > 0) {
+                    var argsJson = JSON.stringify(args, null, 2);
+                    if (argsJson && argsJson !== 'null') {
+                        var $details = $('<details class="ai-tool-approval-params"><summary>Parameters</summary><pre></pre></details>');
+                        $details.find('pre').text(argsJson);
+                        $item.append($details);
+                    }
+                }
+
+                $body.append($item);
+            });
+
+            $overlay.show();
+            $dialog.trigger('focus');
+        },
+
+        hideToolApprovalModal: function() {
+            if (typeof $ !== 'function') {
+                return;
+            }
+
+            $('#ai-tool-approval-overlay').hide();
         },
 
         describeSql: function(sql) {
