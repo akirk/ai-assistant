@@ -608,38 +608,75 @@
         formatContent: function(content) {
             if (!content) return '';
 
-            // Trim trailing whitespace/newlines before processing
-            content = content.replace(/\s+$/, '');
+            var self = this;
+            var codeBlocks = [];
 
-            content = $('<div>').text(content).html();
+            content = String(content).replace(/\r\n?/g, '\n').replace(/\s+$/, '');
 
-            // Code blocks
-            content = content.replace(/```(\w+)?\n([\s\S]*?)```/g, function(match, lang, code) {
-                return '<pre><code class="language-' + (lang || '') + '">' + code.trim() + '</code></pre>';
+            content = content.replace(/```([\w-]+)?[^\S\n]*\n([\s\S]*?)```/g, function(match, lang, code) {
+                var token = '@@AI_ASSISTANT_CODE_BLOCK_' + codeBlocks.length + '@@';
+                codeBlocks.push(
+                    '<pre><code class="language-' + self.escapeHtml(lang || '') + '">' +
+                    self.escapeHtml(code.replace(/^\n+|\n+$/g, '')) +
+                    '</code></pre>'
+                );
+                return '\n\n' + token + '\n\n';
             });
 
-            // Inline code
+            content = this.escapeHtml(content);
+
+            // Inline markdown.
             content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-            // Bold
             content = content.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-
-            // Italic
             content = content.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-
-            // Links
             content = content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
 
-            // Headings (must be before line breaks)
+            // Block markdown.
             content = content.replace(/^### (.+)$/gm, '<h4>$1</h4>');
             content = content.replace(/^## (.+)$/gm, '<h3>$1</h3>');
             content = content.replace(/^# (.+)$/gm, '<h2>$1</h2>');
 
-            // Line breaks (skip after block elements)
-            content = content.replace(/(<\/h[234]>)\n/g, '$1');
-            content = content.replace(/\n/g, '<br>');
+            content = this.renderMarkdownBlocks(content);
+            content = content.replace(/@@AI_ASSISTANT_CODE_BLOCK_(\d+)@@/g, function(match, index) {
+                return codeBlocks[Number(index)] || '';
+            });
 
             return content;
+        },
+
+        renderMarkdownBlocks: function(content) {
+            var html = [];
+            var blocks = content.split(/\n{2,}/);
+
+            blocks.forEach(function(block) {
+                var lines = block.trim().split('\n');
+                var paragraphLines = [];
+
+                function flushParagraph() {
+                    if (!paragraphLines.length) return;
+                    html.push('<p>' + paragraphLines.join('<br>') + '</p>');
+                    paragraphLines = [];
+                }
+
+                lines.forEach(function(line) {
+                    if (!line.trim()) {
+                        flushParagraph();
+                        return;
+                    }
+
+                    if (/^<h[234]>.*<\/h[234]>$/.test(line) || /^@@AI_ASSISTANT_CODE_BLOCK_\d+@@$/.test(line)) {
+                        flushParagraph();
+                        html.push(line);
+                        return;
+                    }
+
+                    paragraphLines.push(line);
+                });
+
+                flushParagraph();
+            });
+
+            return html.join('');
         },
 
         loadWelcomeMessage: function() {
