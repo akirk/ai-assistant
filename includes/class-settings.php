@@ -1015,22 +1015,56 @@ class Settings {
         foreach ($all_tools as $name => $meta) {
             $by_group[$meta['group']][$name] = $meta;
         }
+        $group_tabs = [];
+        foreach (array_keys($by_group) as $group) {
+            $slug = trim((string) preg_replace('/[^a-z0-9]+/', '-', strtolower($group)), '-');
+            $group_tabs[$group] = 'ai-tool-tab-' . ($slug ?: 'group');
+        }
+        $first_group = key($by_group);
         ?>
         <div class="ai-collapsible-content" data-section="tools">
             <p><?php esc_html_e('Choose which tools the AI can use. ⚠ tools can modify files, run code, or install plugins.', 'ai-assistant'); ?></p>
             <input type="hidden" name="ai_assistant_enabled_tools" value="">
             <div class="ai-tool-tree">
+                <div class="ai-tool-tabs" role="tablist" aria-label="<?php esc_attr_e('Tool permission groups', 'ai-assistant'); ?>">
+                    <?php foreach ($group_tabs as $group => $tab_id) :
+                        $is_active = $group === $first_group;
+                    ?>
+                    <button type="button"
+                            id="<?php echo esc_attr($tab_id . '-button'); ?>"
+                            class="<?php echo esc_attr('ai-tool-tab' . ($is_active ? ' active' : '')); ?>"
+                            role="tab"
+                            aria-selected="<?php echo $is_active ? 'true' : 'false'; ?>"
+                            aria-controls="<?php echo esc_attr($tab_id); ?>"
+                            tabindex="<?php echo $is_active ? '0' : '-1'; ?>"
+                            data-tool-tab="<?php echo esc_attr($tab_id); ?>">
+                        <?php echo esc_html($group); ?>
+                    </button>
+                    <?php endforeach; ?>
+                </div>
+                <div class="ai-tool-tab-panels">
                 <?php foreach ($by_group as $group => $tools) :
                     $group_names = array_keys($tools);
                     $all_checked = count(array_filter($group_names, fn($n) => in_array($n, $enabled, true))) === count($group_names);
                     $some_checked = !$all_checked && count(array_filter($group_names, fn($n) => in_array($n, $enabled, true))) > 0;
+                    $tab_id = $group_tabs[$group];
+                    $is_active = $group === $first_group;
                 ?>
+                <div id="<?php echo esc_attr($tab_id); ?>"
+                     class="<?php echo esc_attr('ai-tool-tab-panel' . ($is_active ? ' active' : '')); ?>"
+	                     role="tabpanel"
+	                     aria-labelledby="<?php echo esc_attr($tab_id . '-button'); ?>"
+	                     <?php if (!$is_active) echo 'hidden'; ?>>
+                <?php if ($group === 'Abilities') : ?>
+                <div class="ai-abilities-tab-layout">
+                    <div class="ai-abilities-main">
+                <?php endif; ?>
                 <div class="<?php echo esc_attr('ai-tool-group' . ($group === 'Abilities' ? ' ai-tool-group-abilities' : '')); ?>">
                     <label class="ai-tool-group-header">
                         <input type="checkbox" class="ai-group-toggle"
                                <?php checked($all_checked); ?>
                                <?php if ($some_checked) echo 'data-indeterminate="1"'; ?>>
-                        <strong><?php echo esc_html($group); ?></strong>
+                        <span><?php esc_html_e('Enable all tools in this tab', 'ai-assistant'); ?></span>
                     </label>
                     <div class="ai-tool-group-items">
                         <?php foreach ($tools as $name => $meta) : ?>
@@ -1116,11 +1150,10 @@ class Settings {
                                         $by_cat[$category][] = compact('ability_id', 'label', 'description', 'input_schema', 'readonly', 'destructive');
                                     }
                                     ?>
-                                    <div class="ai-abilities-layout">
-                                        <div class="ai-abilities-list">
-                                            <?php foreach ($by_cat as $category => $cat_abilities) : ?>
-                                            <?php if ($category) : ?>
-                                            <div class="ai-ability-category"><?php echo esc_html($category); ?></div>
+	                                    <div class="ai-abilities-list">
+	                                            <?php foreach ($by_cat as $category => $cat_abilities) : ?>
+	                                            <?php if ($category) : ?>
+	                                            <div class="ai-ability-category"><?php echo esc_html($category); ?></div>
                                             <?php endif; ?>
                                             <?php foreach ($cat_abilities as $a) :
                                                 $is_approved = in_array($a['ability_id'], $auto_approved, true);
@@ -1145,23 +1178,28 @@ class Settings {
                                                     <?php endif; ?>
                                                 </button>
                                             </div>
-                                            <?php endforeach; ?>
-                                            <?php endforeach; ?>
-                                        </div>
-                                        <aside class="ai-ability-info-panel" aria-live="polite">
-                                            <div class="ai-ability-info-empty">
-                                                <?php esc_html_e('Select an ability to view its description and parameters.', 'ai-assistant'); ?>
-                                            </div>
-                                        </aside>
-                                    </div>
-                                <?php endif; ?>
-                            <?php endif; ?>
+	                                            <?php endforeach; ?>
+	                                            <?php endforeach; ?>
+	                                    </div>
+	                                <?php endif; ?>
+	                            <?php endif; ?>
                         </div>
                         <?php endif; ?>
                         <?php endforeach; ?>
+	                    </div>
+	                </div>
+                <?php if ($group === 'Abilities') : ?>
                     </div>
+                    <aside class="ai-ability-info-panel" aria-live="polite">
+                        <div class="ai-ability-info-empty">
+                            <?php esc_html_e('Select an ability to view its description and parameters.', 'ai-assistant'); ?>
+                        </div>
+                    </aside>
                 </div>
-                <?php endforeach; ?>
+                <?php endif; ?>
+	                </div>
+	                <?php endforeach; ?>
+                </div>
             </div>
         </div>
         <script>
@@ -1190,6 +1228,68 @@ class Settings {
             });
             $(document).on('change', 'input[name="ai_assistant_enabled_tools[]"][value="rest_api"]', function() {
                 $(this).closest('.ai-tool-item').next('.ai-tool-sub-items').toggle(this.checked);
+            });
+
+            var toolTabStorageKey = 'aiAssistant_settings_tool_permissions_tab';
+
+            function activateToolTab($tab, remember) {
+                var target = $tab.attr('data-tool-tab');
+                var $tree = $tab.closest('.ai-tool-tree');
+                if (!target || !$tree.length) {
+                    return;
+                }
+
+                $tree.find('.ai-tool-tab').removeClass('active').attr({
+                    'aria-selected': 'false',
+                    'tabindex': '-1'
+                });
+                $tab.addClass('active').attr({
+                    'aria-selected': 'true',
+                    'tabindex': '0'
+                });
+
+                $tree.find('.ai-tool-tab-panel').removeClass('active').attr('hidden', true);
+                $tree.find('#' + target).addClass('active').removeAttr('hidden');
+
+                if (remember) {
+                    localStorage.setItem(toolTabStorageKey, target);
+                }
+            }
+
+            $('.ai-tool-tree').each(function() {
+                var $tree = $(this);
+                var savedTab = localStorage.getItem(toolTabStorageKey);
+                var $saved = savedTab ? $tree.find('.ai-tool-tab[data-tool-tab="' + savedTab + '"]') : $();
+                if ($saved.length) {
+                    activateToolTab($saved, false);
+                }
+            });
+
+            $(document).on('click', '.ai-tool-tab', function() {
+                activateToolTab($(this), true);
+            });
+
+            $(document).on('keydown', '.ai-tool-tab', function(e) {
+                var keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+                if (keys.indexOf(e.key) === -1) {
+                    return;
+                }
+
+                e.preventDefault();
+                var $tabs = $(this).closest('.ai-tool-tabs').find('.ai-tool-tab');
+                var index = $tabs.index(this);
+                if (e.key === 'Home') {
+                    index = 0;
+                } else if (e.key === 'End') {
+                    index = $tabs.length - 1;
+                } else if (e.key === 'ArrowLeft') {
+                    index = index <= 0 ? $tabs.length - 1 : index - 1;
+                } else {
+                    index = index >= $tabs.length - 1 ? 0 : index + 1;
+                }
+
+                activateToolTab($tabs.eq(index), true);
+                $tabs.eq(index).trigger('focus');
             });
 
             function escapeHtml(value) {
@@ -1223,7 +1323,7 @@ class Settings {
 
             function renderAbilityInfo($button) {
                 var details = parseAbilityDetails($button);
-                var $layout = $button.closest('.ai-abilities-layout');
+                var $layout = $button.closest('.ai-tool-tab-panel');
                 var $panel = $layout.find('.ai-ability-info-panel');
                 var parameters = Array.isArray(details.parameters) ? details.parameters : [];
                 var html = '';
@@ -1530,34 +1630,76 @@ class Settings {
             .ai-tool-tree {
                 max-width: 1100px;
             }
+            .ai-tool-tabs {
+                align-items: flex-end;
+                border-bottom: 1px solid #c3c4c7;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+                margin: 0;
+            }
+            .ai-tool-tab {
+                background: #f6f7f7;
+                border: 1px solid #c3c4c7;
+                border-radius: 3px 3px 0 0;
+                color: #2c3338;
+                cursor: pointer;
+                font: inherit;
+                margin: 0 0 -1px;
+                padding: 7px 10px;
+            }
+            .ai-tool-tab:hover,
+            .ai-tool-tab:focus {
+                background: #fff;
+                color: #1d2327;
+                outline: none;
+            }
+            .ai-tool-tab:focus {
+                box-shadow: 0 0 0 1px #2271b1;
+            }
+            .ai-tool-tab.active {
+                background: #fff;
+                border-bottom-color: #fff;
+                color: #1d2327;
+                font-weight: 600;
+            }
+            .ai-tool-tab-panel[hidden] {
+                display: none;
+            }
+            .ai-tool-tab-panels {
+                background: #fff;
+                border: 1px solid #c3c4c7;
+                border-top: none;
+                max-width: 1100px;
+                padding: 12px;
+            }
             .ai-tool-group {
-                margin-bottom: 4px;
-                border: 1px solid #dcdcde;
-                border-radius: 3px;
-                overflow: hidden;
+                margin: 0;
                 max-width: 520px;
+                overflow: visible;
             }
             .ai-tool-group-abilities {
                 max-width: 1100px;
-                overflow: visible;
             }
             .ai-tool-group-header {
                 display: flex;
                 align-items: center;
                 gap: 8px;
-                padding: 7px 10px;
-                background: #f6f7f7;
+                margin: 0 0 8px;
+                padding: 0 0 9px;
+                border-bottom: 1px solid #dcdcde;
+                color: #50575e;
                 cursor: pointer;
-                font-weight: 600;
+                font-size: 12px;
             }
             .ai-tool-group-header:hover {
-                background: #f0f0f1;
+                color: #1d2327;
             }
             .ai-tool-group-items {
-                padding: 4px 10px 6px 32px;
                 display: flex;
                 flex-direction: column;
                 gap: 3px;
+                padding: 0;
             }
             .ai-tool-item {
                 display: flex;
@@ -1589,11 +1731,16 @@ class Settings {
                 flex-shrink: 0;
                 margin-top: 1px;
             }
-            .ai-abilities-layout {
+            .ai-abilities-tab-layout {
                 display: grid;
                 grid-template-columns: minmax(280px, 1fr) minmax(320px, 420px);
-                gap: 14px;
-                align-items: start;
+                gap: 0;
+                align-items: stretch;
+                min-height: 100%;
+            }
+            .ai-abilities-main {
+                min-width: 0;
+                padding-right: 14px;
             }
             .ai-abilities-list {
                 min-width: 0;
@@ -1634,16 +1781,12 @@ class Settings {
                 overflow-wrap: anywhere;
             }
             .ai-ability-info-panel {
-                background: #fff;
-                border: 1px solid #c3c4c7;
-                border-radius: 3px;
-                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-                max-height: calc(100vh - 110px);
+                background: transparent;
+                border-left: 1px solid #dcdcde;
+                box-shadow: none;
                 min-height: 120px;
                 overflow: auto;
-                padding: 12px;
-                position: sticky;
-                top: 32px;
+                padding: 0 0 0 14px;
             }
             .ai-ability-info-empty {
                 color: #646970;
@@ -1792,12 +1935,14 @@ class Settings {
                 opacity: 1;
             }
             @media screen and (max-width: 960px) {
-                .ai-abilities-layout {
+                .ai-abilities-tab-layout {
                     grid-template-columns: 1fr;
                 }
+                .ai-abilities-main {
+                    padding-right: 0;
+                }
                 .ai-ability-info-panel {
-                    max-height: none;
-                    position: static;
+                    margin-top: 12px;
                 }
             }
         </style>
