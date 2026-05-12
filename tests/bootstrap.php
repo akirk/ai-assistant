@@ -207,6 +207,7 @@ if (file_exists($vendor_autoload)) {
 
 require_once $plugin_dir . '/includes/class-tools.php';
 require_once $plugin_dir . '/includes/class-ability-annotations.php';
+require_once $plugin_dir . '/includes/class-skill-registry.php';
 require_once $plugin_dir . '/includes/class-file-tool-auth.php';
 require_once $plugin_dir . '/includes/class-file-tool-executor.php';
 require_once $plugin_dir . '/includes/class-executor.php';

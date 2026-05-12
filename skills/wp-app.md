@@ -2,6 +2,7 @@
 title: Create a WordPress App Plugin
 description: Create an app-like WordPress plugin through the create-wp-app WordPress Ability API integration
 category: apps
+requires_class: \Akirk\CreateWpApp\Scaffolder
 ---
 
 # Creating a WordPress App Plugin
@@ -19,7 +20,10 @@ Do not hand-write the scaffold first. Use the WordPress Ability API integration 
 3. Ask only for required values that cannot be inferred.
 4. Execute the ability with structured arguments.
 5. Activate the generated plugin if requested or if the ability supports `activate`.
-6. Visit `/{url_path}/` to verify the route. If it 404s, flush rewrite rules once.
+6. Continue the current build flow in-place. Do not use the `navigate` tool to visit the generated app route during scaffolding or intermediate implementation work.
+7. In the final response, report the returned `url` so the user can open it when ready.
+
+Navigation changes the browser page and can interrupt the assistant workflow. Only navigate to the generated app when the user explicitly asks to open or visually test it. If route verification is needed later, do it as a separate final verification step after file changes are complete and after confirming that navigation is acceptable.
 
 Expected ability ID: `create-wp-app/scaffold`.
 
@@ -69,6 +73,8 @@ The ability returns:
 - `warnings`
 
 AI Assistant's bridge fixes the generated target to `wp-content/plugins/{slug}` and calls `create-wp-app` in no-Composer mode: `dependency_mode=copy` and `autoload_mode=polyfill`. The generated plugin is self-contained and can later replace the polyfill by running Composer.
+
+Do not immediately navigate to the returned `url`. Treat it as output to report or use after the app build is complete.
 
 ## App Guidance
 
