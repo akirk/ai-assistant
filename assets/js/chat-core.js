@@ -132,6 +132,11 @@
                 self.confirmAllActions(false);
             });
 
+            $(document).on('click', '.ai-tool-approval-close', function(e) {
+                e.preventDefault();
+                self.hideToolApprovalModal();
+            });
+
             $(document).on('click', '.ai-tool-approve', function(e) {
                 e.preventDefault();
                 var toolId = $(this).attr('data-tool-id');
@@ -159,6 +164,10 @@
 
             $(document).on('keydown', function(e) {
                 if (e.which === 27 && self.isOpen) {
+                    if ($('#ai-tool-approval-overlay:visible').length) {
+                        self.hideToolApprovalModal();
+                        return;
+                    }
                     self.close();
                 }
             });

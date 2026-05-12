@@ -156,6 +156,9 @@
         startNewChat: function() {
             this.messages = [];
             this.pendingActions = [];
+            if (this.showToolApprovalModal) {
+                this.showToolApprovalModal();
+            }
             this.conversationId = 0;
             this.conversationTitle = '';
             this.conversationProvider = this.getProvider();
@@ -332,6 +335,12 @@
                         self.titleGenerationToken++;
                         self.conversationId = response.data.conversation_id;
                         self.conversationTitle = response.data.title;
+                        self.pendingActions = [];
+                        self.pendingToolResults = [];
+                        self.executingToolCount = 0;
+                        if (self.showToolApprovalModal) {
+                            self.showToolApprovalModal();
+                        }
                         try {
                             var base64 = response.data.messages_base64 || '';
                             if (base64) {

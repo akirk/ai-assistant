@@ -12,9 +12,20 @@
             if (this.isUploadingFiles) return;
             if (!message && attachments.length === 0) return;
 
+            if (this.pendingActions && this.pendingActions.length > 0) {
+                this.setLoading(false);
+                if (this.showToolApprovalModal) {
+                    this.showToolApprovalModal();
+                }
+                return;
+            }
+
             if (this.pendingNewChat) {
                 this.messages = [];
                 this.pendingActions = [];
+                if (this.showToolApprovalModal) {
+                    this.showToolApprovalModal();
+                }
                 this.conversationId = 0;
                 this.conversationTitle = '';
                 this.conversationProvider = this.getProvider();
@@ -59,6 +70,14 @@
 
         callLLM: function() {
             var provider = this.conversationProvider || this.getProvider();
+
+            if (this.pendingActions && this.pendingActions.length > 0) {
+                this.setLoading(false);
+                if (this.showToolApprovalModal) {
+                    this.showToolApprovalModal();
+                }
+                return;
+            }
 
             this.hideToolProgress();
             this.setLoading(true);
@@ -172,12 +191,130 @@
             }
         },
 
+        getAnthropicToolUseIds: function(message) {
+            var ids = [];
+            if (!message || message.role !== 'assistant' || !Array.isArray(message.content)) {
+                return ids;
+            }
+
+            message.content.forEach(function(block) {
+                if (block && block.type === 'tool_use' && block.id) {
+                    ids.push(block.id);
+                }
+            });
+            return ids;
+        },
+
+        isAnthropicToolResultMessage: function(message, toolUseIds) {
+            if (!message || message.role !== 'user' || !Array.isArray(message.content)) {
+                return false;
+            }
+
+            var required = {};
+            var found = {};
+            toolUseIds.forEach(function(id) {
+                required[id] = true;
+            });
+
+            for (var i = 0; i < message.content.length; i++) {
+                var block = message.content[i];
+                if (!block || block.type !== 'tool_result') {
+                    break;
+                }
+
+                if (!required[block.tool_use_id]) {
+                    return false;
+                }
+
+                if (block.tool_use_id) {
+                    found[block.tool_use_id] = true;
+                }
+            }
+
+            return toolUseIds.every(function(id) {
+                return !!found[id];
+            });
+        },
+
+        buildSkippedAnthropicToolResultMessage: function(toolUseIds) {
+            return {
+                role: 'user',
+                content: toolUseIds.map(function(id) {
+                    return {
+                        type: 'tool_result',
+                        tool_use_id: id,
+                        content: JSON.stringify({
+                            skipped: true,
+                            message: 'Tool request was not executed because its approval was no longer pending.'
+                        })
+                    };
+                })
+            };
+        },
+
+        repairAnthropicMessages: function(messages) {
+            var repaired = false;
+            var result = [];
+
+            for (var i = 0; i < messages.length; i++) {
+                var message = messages[i];
+                var toolUseIds = this.getAnthropicToolUseIds(message);
+
+                if (toolUseIds.length > 0) {
+                    result.push(message);
+
+                    var nextMessage = messages[i + 1];
+                    if (this.isAnthropicToolResultMessage(nextMessage, toolUseIds)) {
+                        result.push(nextMessage);
+                        i++;
+                    } else {
+                        result.push(this.buildSkippedAnthropicToolResultMessage(toolUseIds));
+                        repaired = true;
+                    }
+                    continue;
+                }
+
+                if (message && message.role === 'user' && Array.isArray(message.content)) {
+                    var contentWithoutOrphanResults = message.content.filter(function(block) {
+                        return !(block && block.type === 'tool_result');
+                    });
+                    if (contentWithoutOrphanResults.length !== message.content.length) {
+                        repaired = true;
+                        if (contentWithoutOrphanResults.length === 0) {
+                            continue;
+                        }
+                        message = Object.assign({}, message, { content: contentWithoutOrphanResults });
+                    }
+                }
+
+                result.push(message);
+            }
+
+            return {
+                messages: result,
+                repaired: repaired
+            };
+        },
+
+        prepareAnthropicMessages: function() {
+            var prepared = this.repairAnthropicMessages(this.messages);
+
+            if (prepared.repaired) {
+                this.messages = prepared.messages;
+                this.updateTokenCount();
+                this.autoSaveConversation();
+            }
+
+            return prepared.messages;
+        },
+
         callAnthropic: async function() {
             var self = this;
             var model = this.conversationModel || this.getModel();
             var apiKey = this.getApiKey('anthropic');
 
             try {
+                var requestMessages = this.prepareAnthropicMessages();
                 var endpoint = this.getProviderEndpoint('anthropic') || 'https://api.anthropic.com/v1/messages';
                 var response = await fetch(endpoint, {
                     method: 'POST',
@@ -192,7 +329,7 @@
                         max_tokens: 16384,
                         stream: true,
                         system: this.systemPrompt,
-                        messages: this.messages,
+                        messages: requestMessages,
                         tools: this.getTools()
                     }),
                     signal: this.abortController ? this.abortController.signal : undefined
@@ -310,6 +447,9 @@
                 this.hideToolProgress();
                 this.pendingToolResults = [];
                 this.pendingActions = [];
+                if (this.showToolApprovalModal) {
+                    this.showToolApprovalModal();
+                }
                 this.setLoading(false);
                 if (error.name !== 'AbortError') {
                     this.addMessage('error', 'Anthropic API error: ' + error.message);
@@ -447,6 +587,9 @@
                 this.hideToolProgress();
                 this.pendingToolResults = [];
                 this.pendingActions = [];
+                if (this.showToolApprovalModal) {
+                    this.showToolApprovalModal();
+                }
                 this.setLoading(false);
                 if (error.name !== 'AbortError') {
                     this.addMessage('error', 'OpenAI API error: ' + error.message);
@@ -776,6 +919,9 @@
                 this.hideToolProgress();
                 this.pendingToolResults = [];
                 this.pendingActions = [];
+                if (this.showToolApprovalModal) {
+                    this.showToolApprovalModal();
+                }
                 this.setLoading(false);
                 if (error.name !== 'AbortError') {
                     this.addMessage('error', 'Local LLM error: ' + error.message);
