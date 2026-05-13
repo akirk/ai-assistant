@@ -1,11 +1,6 @@
 # Integrating Plugins with AI Assistant
 
-AI Assistant discovers and executes plugin functionality through the [WordPress Abilities API](https://developer.wordpress.org/apis/abilities-api/). Use the official WordPress handbook for the shared API surface:
-
-- [Abilities API overview](https://developer.wordpress.org/apis/abilities-api/)
-- [Getting started](https://developer.wordpress.org/apis/abilities-api/getting-started/)
-- [PHP reference](https://developer.wordpress.org/apis/abilities-api/php-reference/)
-- [REST API endpoints](https://developer.wordpress.org/apis/abilities-api/rest-api-endpoints/)
+AI Assistant discovers and executes plugin functionality through the [WordPress Abilities API](https://developer.wordpress.org/apis/abilities-api/).
 
 This document covers only the AI Assistant-specific integration points: how the assistant chooses abilities, how to guide its behavior, how to refresh browser UI after ability execution, and how to add conversation export formats.
 
@@ -29,6 +24,13 @@ Register abilities with the WordPress Abilities API. Once registered, AI Assista
 - `execute` runs an ability with structured arguments, subject to the assistant's confirmation and permission flow.
 
 For best results, expose focused abilities with clear input/output schemas instead of requiring the assistant to infer database structure or call plugin internals with `run_php` or `db_query`.
+
+Use the official WordPress handbook for the shared API surface:
+
+- [Abilities API overview](https://developer.wordpress.org/apis/abilities-api/)
+- [Getting started](https://developer.wordpress.org/apis/abilities-api/getting-started/)
+- [PHP reference](https://developer.wordpress.org/apis/abilities-api/php-reference/)
+- [REST API endpoints](https://developer.wordpress.org/apis/abilities-api/rest-api-endpoints/)
 
 ## Authoring for AI Use
 
