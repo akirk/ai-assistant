@@ -1285,6 +1285,78 @@
     cursor: default !important;
 }
 
+.ai-image-picker-upload {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 44px;
+    padding: 10px;
+    border: 1px dashed #c3c4c7;
+    border-radius: 4px;
+    background: #f6f7f7;
+    color: #50575e;
+    font-size: 12px;
+    text-align: center;
+}
+
+.ai-image-picker-upload.is-drag-over {
+    border-color: #2271b1;
+    background: #f0f6fc;
+    color: #1d2327;
+}
+
+.ai-image-picker-upload.is-uploading {
+    opacity: 0.75;
+}
+
+.ai-image-picker-upload-text {
+    font-weight: 500;
+}
+
+.ai-image-picker-browse {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    height: 28px !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 10px !important;
+    border: 1px solid #c3c4c7 !important;
+    border-radius: 3px !important;
+    background: #fff !important;
+    color: #1d2327 !important;
+    box-shadow: none !important;
+    font: inherit !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+}
+
+.ai-image-picker-browse:hover,
+.ai-image-picker-browse:focus {
+    border-color: #8c8f94 !important;
+    background: #f0f0f1 !important;
+    color: #1d2327 !important;
+    outline: none !important;
+}
+
+.ai-image-picker-browse:disabled,
+.ai-image-picker-browse:disabled:hover {
+    border-color: #dcdcde !important;
+    background: #f6f7f7 !important;
+    color: #a7aaad !important;
+    cursor: default !important;
+}
+
+.ai-image-picker-file-input {
+    display: none !important;
+}
+
 .ai-image-picker-status {
     min-height: 16px;
     color: #646970;

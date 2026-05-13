@@ -105,9 +105,9 @@ Use `instructions` when the raw schema is not enough:
 
 ## Image Inputs
 
-If your ability needs an image that should live in WordPress, prefer accepting a Media Library attachment ID as input. AI Assistant can ask the user to choose an image with the built-in `pick_image` tool. The picker fetches the selected image in the browser, uploads it through the WordPress media endpoint, then returns the attachment ID, local URL, attribution, and source metadata.
+If your ability needs an image that should live in WordPress, prefer accepting a Media Library attachment ID as input. AI Assistant can ask the user to choose an image with the built-in `pick_image` tool. The picker can search images or accept a dropped local photo, uploads selected files through the WordPress media endpoint, then returns the attachment ID, local URL, attribution, and source metadata.
 
-Remote URL fallback is opt-in. Only ask `pick_image` for external fallback when your ability can safely store or render an external image URL if the Media Library upload fails.
+If browser download or Media Library upload fails for a search result, the picker offers the selected remote image URL as a fallback.
 
 Recommended input shape:
 
@@ -121,7 +121,7 @@ Recommended input shape:
         ],
         'image_url' => [
             'type'        => 'string',
-            'description' => 'Optional local or explicitly allowed external image URL.',
+            'description' => 'Optional local or external image URL.',
         ],
         'attribution' => [
             'type'        => 'string',

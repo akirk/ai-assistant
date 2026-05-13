@@ -60,6 +60,22 @@ describe('pick_image media upload helpers', function() {
         );
     });
 
+    it('builds upload data from a dropped image file', async function() {
+        const assistant = loadUiMixin({ maxMediaUploadBytes: 1024 });
+        const file = {
+            name: 'My Vacation.PNG',
+            type: 'image/png',
+            size: 64
+        };
+
+        const fileData = await assistant.getPickedImageFileData(file);
+
+        assert.strictEqual(fileData.blob, file);
+        assert.strictEqual(fileData.contentType, 'image/png');
+        assert.strictEqual(fileData.filename, 'my-vacation.png');
+        assert.strictEqual(assistant.getPickedImageFileTitle(file), 'My Vacation');
+    });
+
     it('builds uploaded image results with attachment_id and local URL', function() {
         const assistant = loadUiMixin();
         const result = assistant.buildPickedImageResult({
@@ -93,23 +109,7 @@ describe('pick_image media upload helpers', function() {
         assert.strictEqual(result.external, false);
     });
 
-    it('does not expose a remote URL as url when upload fails without fallback', function() {
-        const assistant = loadUiMixin();
-        const result = assistant.buildPickedImageUploadError({
-            url: 'https://cdn.example.test/remote.jpg',
-            thumbnail: 'https://cdn.example.test/thumb.jpg',
-            title: 'Selected image'
-        }, new Error('Failed to fetch'));
-
-        assert.strictEqual(result.attachment_id, null);
-        assert.strictEqual(result.url, '');
-        assert.strictEqual(result.remote_url, 'https://cdn.example.test/remote.jpg');
-        assert.strictEqual(result.upload_failed, true);
-        assert.strictEqual(result.external_fallback_allowed, false);
-        assert.ok(result.error.includes('Failed to fetch'));
-    });
-
-    it('uses remote URL after upload failure only when fallback is allowed', async function() {
+    it('offers remote URL after upload failure', async function() {
         const assistant = loadUiMixin();
         const image = {
             url: 'https://cdn.example.test/remote.jpg',
@@ -120,18 +120,58 @@ describe('pick_image media upload helpers', function() {
             return Promise.reject(new Error('Failed to fetch'));
         };
 
-        const noFallback = await assistant.preparePickedImageSelection(image, {});
-        assert.strictEqual(noFallback.success, false);
-        assert.strictEqual(noFallback.selection.url, '');
-        assert.strictEqual(noFallback.selection.remote_url, image.url);
-
-        const fallback = await assistant.preparePickedImageSelection(image, {
-            allow_external_fallback: true
-        });
-        assert.strictEqual(fallback.success, true);
+        const fallback = await assistant.preparePickedImageSelection(image, {});
+        assert.strictEqual(fallback.success, false);
+        assert.strictEqual(fallback.can_use_external, true);
         assert.strictEqual(fallback.selection.url, image.url);
         assert.strictEqual(fallback.selection.external, true);
         assert.strictEqual(fallback.selection.upload_failed, true);
+    });
+
+    it('uploads a dropped image file through the Media Library path', async function() {
+        const assistant = loadUiMixin();
+        const signal = { aborted: false };
+        const statuses = [];
+        const file = {
+            name: 'Dropped Photo.jpg',
+            type: 'image/jpeg',
+            size: 128
+        };
+        let uploadedFileData = null;
+        let uploadedImage = null;
+        let uploadSignal = null;
+
+        assistant.uploadPickedImageToMediaLibrary = function(fileData, image, passedSignal) {
+            uploadedFileData = fileData;
+            uploadedImage = image;
+            uploadSignal = passedSignal;
+            return Promise.resolve({
+                id: 654,
+                source_url: 'http://example.test/wp-content/uploads/dropped-photo.jpg',
+                media_details: {
+                    sizes: {
+                        thumbnail: {
+                            source_url: 'http://example.test/wp-content/uploads/dropped-photo-150x150.jpg'
+                        }
+                    }
+                }
+            });
+        };
+
+        const result = await assistant.preparePickedImageFileSelection(file, function(message) {
+            statuses.push(message);
+        }, signal);
+
+        assert.strictEqual(result.success, true);
+        assert.strictEqual(result.selection.attachment_id, 654);
+        assert.strictEqual(result.selection.url, 'http://example.test/wp-content/uploads/dropped-photo.jpg');
+        assert.strictEqual(result.selection.remote_url, '');
+        assert.strictEqual(result.selection.title, 'Dropped Photo');
+        assert.strictEqual(uploadedFileData.blob, file);
+        assert.strictEqual(uploadedFileData.filename, 'dropped-photo.jpg');
+        assert.strictEqual(uploadedImage.source, 'local_upload');
+        assert.strictEqual(uploadSignal, signal);
+        assert.ok(statuses.includes('Uploading dropped image to Media Library...'));
     });
 
     it('passes abort signals through image fetch and media upload', async function() {

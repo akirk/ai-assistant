@@ -48,12 +48,12 @@ describe('getAllToolDefinitions', function() {
         const def = toolsMixin.getAllToolDefinitions().find(d => d.name === 'pick_image');
 
         assert.ok(def);
-        assert.ok(def.description.includes('Media Library'));
+        assert.ok(def.description.includes('choose or upload an image'));
+        assert.ok(def.description.includes('selected image details'));
         assert.deepStrictEqual(def.input_schema.required, ['query']);
         assert.strictEqual(def.input_schema.properties.query.description, 'Initial search.');
         assert.strictEqual(def.input_schema.properties.purpose.description, 'Image use.');
-        assert.strictEqual(def.input_schema.properties.allow_external_fallback.type, 'boolean');
-        assert.ok(def.input_schema.properties.allow_external_fallback.description.includes('remote image URL'));
+        assert.ok(!Object.hasOwn(def.input_schema.properties, 'allow_external_fallback'));
     });
 
     it('guides native post drafts toward rest_api', function() {
