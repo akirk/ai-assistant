@@ -371,11 +371,6 @@ class Chat_UI {
 	                            <button type="button" id="ai-assistant-expand" class="ai-header-link" title="' . esc_attr__('Expand', 'ai-assistant') . '">
 	                                <svg class="ai-expand-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 13.09l1.41 1.41-4.5 4.5H10v2H4v-6h2v3.59l4.5-4.5zm5-2.18L13.09 9.5l4.5-4.5H14v-2h6v6h-2V5.41l-4.5 4.5z"/></svg>
 	                            </button>
-                            <span class="ai-header-sep ai-export-header-sep">|</span>
-                            <span class="ai-export-menu-wrap">
-                                <button type="button" id="ai-assistant-export" class="ai-header-link ai-export-toggle" aria-haspopup="true" aria-expanded="false">' . esc_html__('Export', 'ai-assistant') . '</button>
-                                <span id="ai-assistant-export-menu" class="ai-export-menu" role="menu" hidden></span>
-                            </span>
                         </div>
                     </div>
                     <div id="ai-assistant-messages"></div>
