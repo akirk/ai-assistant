@@ -1,7 +1,12 @@
 (function($) {
     'use strict';
 
-    window.aiAssistant = {
+    var existingAiAssistant = window.aiAssistant || {};
+    var queuedToolCallbacks = Array.isArray(window.aiAssistantToolCallbacks)
+        ? window.aiAssistantToolCallbacks.slice()
+        : [];
+
+    window.aiAssistant = $.extend(existingAiAssistant, {
         // State
         isOpen: false,
         conversationId: 0,
@@ -38,6 +43,8 @@
         abortController: null,
         pendingAttachments: [],
         isUploadingFiles: false,
+        toolCallSubscriptions: existingAiAssistant.toolCallSubscriptions || [],
+        nextToolCallSubscriptionId: existingAiAssistant.nextToolCallSubscriptionId || 1,
 
         init: function() {
             var self = this;
@@ -516,6 +523,203 @@
             return div.innerHTML;
         },
 
+        onToolCall: function(criteria, callback) {
+            var self = this;
+
+            if (typeof criteria === 'function' && callback === undefined) {
+                callback = criteria;
+                criteria = {};
+            }
+
+            if (typeof callback !== 'function') {
+                console.warn('[AI Assistant] Tool call callback registration requires a callback function.');
+                return function() {};
+            }
+
+            var subscription = {
+                id: this.nextToolCallSubscriptionId++,
+                criteria: criteria || {},
+                callback: callback
+            };
+
+            this.toolCallSubscriptions.push(subscription);
+
+            return function() {
+                self.offToolCall(subscription.id);
+            };
+        },
+
+        registerToolCallCallback: function(criteria, callback) {
+            return this.onToolCall(criteria, callback);
+        },
+
+        offToolCall: function(idOrCallback) {
+            var originalLength = this.toolCallSubscriptions.length;
+            this.toolCallSubscriptions = this.toolCallSubscriptions.filter(function(subscription) {
+                if (typeof idOrCallback === 'function') {
+                    return subscription.callback !== idOrCallback;
+                }
+                return subscription.id !== idOrCallback;
+            });
+            return this.toolCallSubscriptions.length !== originalLength;
+        },
+
+        notifyToolCallCallbacks: function(result, provider) {
+            var self = this;
+            var subscriptions = (this.toolCallSubscriptions || []).slice();
+
+            if (!subscriptions.length || !result) {
+                return;
+            }
+
+            var context = {
+                id: result.id,
+                name: result.name,
+                tool: result.name,
+                arguments: result.input || {},
+                input: result.input || {},
+                result: result.result,
+                output: result.result,
+                success: !!result.success,
+                provider: provider || this.currentProvider || ''
+            };
+
+            subscriptions.forEach(function(subscription) {
+                var matches = false;
+
+                try {
+                    matches = self.matchesToolCallCriteria(subscription.criteria, context);
+                } catch (e) {
+                    console.error('[AI Assistant] Tool call callback criteria failed:', e);
+                    return;
+                }
+
+                if (!matches) {
+                    return;
+                }
+
+                try {
+                    var callbackResult = subscription.callback(context);
+                    if (callbackResult && typeof callbackResult.then === 'function') {
+                        callbackResult.catch(function(error) {
+                            console.error('[AI Assistant] Tool call callback failed:', error);
+                        });
+                    }
+                } catch (e) {
+                    console.error('[AI Assistant] Tool call callback failed:', e);
+                }
+            });
+        },
+
+        matchesToolCallCriteria: function(criteria, context) {
+            if (!criteria) {
+                return true;
+            }
+
+            if (typeof criteria === 'function') {
+                return !!criteria(context);
+            }
+
+            if (typeof criteria === 'string') {
+                return context.name === criteria;
+            }
+
+            if (typeof criteria !== 'object') {
+                return false;
+            }
+
+            if (criteria.tool && context.name !== criteria.tool) {
+                return false;
+            }
+
+            if (criteria.name && context.name !== criteria.name) {
+                return false;
+            }
+
+            if (Object.prototype.hasOwnProperty.call(criteria, 'success') && !!criteria.success !== context.success) {
+                return false;
+            }
+
+            if (criteria.provider && context.provider !== criteria.provider) {
+                return false;
+            }
+
+            if (criteria.ability && !this.matchesAbilityToolCall(criteria.ability, context)) {
+                return false;
+            }
+
+            if (criteria.action && (context.arguments || {}).action !== criteria.action) {
+                return false;
+            }
+
+            if (criteria.arguments && !this.matchesPartialObject(criteria.arguments, context.arguments || {})) {
+                return false;
+            }
+
+            if (criteria.input && !this.matchesPartialObject(criteria.input, context.input || {})) {
+                return false;
+            }
+
+            if (criteria.result && !this.matchesPartialObject(criteria.result, context.result || {})) {
+                return false;
+            }
+
+            return true;
+        },
+
+        matchesAbilityToolCall: function(ability, context) {
+            var args = context.arguments || {};
+
+            if (context.name === 'ability') {
+                return args.action === 'execute' && args.ability === ability;
+            }
+
+            if (context.name === 'execute_ability') {
+                return args.ability === ability;
+            }
+
+            return false;
+        },
+
+        matchesPartialObject: function(expected, actual) {
+            var self = this;
+
+            if (typeof expected === 'function') {
+                return !!expected(actual);
+            }
+
+            if (!expected || typeof expected !== 'object') {
+                return expected === actual;
+            }
+
+            if (!actual || typeof actual !== 'object') {
+                return false;
+            }
+
+            if (Array.isArray(expected)) {
+                return JSON.stringify(expected) === JSON.stringify(actual);
+            }
+
+            return Object.keys(expected).every(function(key) {
+                var expectedValue = expected[key];
+                var actualValue = actual[key];
+
+                if (
+                    expectedValue &&
+                    typeof expectedValue === 'object' &&
+                    !Array.isArray(expectedValue)
+                ) {
+                    return self.matchesPartialObject(expectedValue, actualValue);
+                }
+
+                if (Array.isArray(expectedValue)) {
+                    return JSON.stringify(expectedValue) === JSON.stringify(actualValue);
+                }
+
+                return actualValue === expectedValue;
+            });
+        },
+
         stripReasoningTokens: function(text) {
             if (!text) return text;
             // Strip [THINK]...[/THINK] blocks (Ministral and similar reasoning models)
@@ -573,7 +777,25 @@
 
             $lastError[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
+    });
+
+    window.aiAssistantToolCallbacks = [];
+    window.aiAssistantToolCallbacks.push = function() {
+        for (var i = 0; i < arguments.length; i++) {
+            var entry = arguments[i];
+            if (entry && typeof entry === 'object') {
+                window.aiAssistant.onToolCall(entry.criteria || entry.match || {}, entry.callback || entry.handler);
+            }
+        }
+        return Array.prototype.push.apply(this, arguments);
     };
+    window.aiAssistantOnToolCall = function(criteria, callback) {
+        return window.aiAssistant.onToolCall(criteria, callback);
+    };
+
+    queuedToolCallbacks.forEach(function(entry) {
+        window.aiAssistantToolCallbacks.push(entry);
+    });
 
     $(document).ready(function() {
         window.aiAssistant.init();

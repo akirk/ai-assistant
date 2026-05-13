@@ -127,6 +127,8 @@ Other plugins can expose their functionality to the AI by registering **WordPres
 
 For best results, expose focused abilities with clear input/output schemas instead of requiring the AI to infer database structure or call plugin internals. If your plugin works with images, prefer accepting a remote image URL and sideloading it inside your ability when a local attachment is required. The assistant can ask the user to choose an image with `pick_image`, then pass the selected URL and metadata to your ability.
 
+Plugins with browser UI can also register JavaScript callbacks for completed tool calls. For example, a page script can listen for its own `ability` execution and refresh visible UI after the server-side ability succeeds.
+
 ## Development
 
 To run the plugin locally using WordPress Playground:

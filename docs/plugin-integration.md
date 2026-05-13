@@ -272,6 +272,65 @@ function myplugin_ability_instructions( $instructions, $ability_id, $args, $resu
 
 Parameters: `$instructions` (current instructions string), `$ability_id` (e.g. `my-plugin/get-invoice`), `$args` (what the AI passed), `$result` (what your callback returned).
 
+## Browser Callbacks After Tool Calls
+
+Some abilities change data that is already visible in a browser UI. For example, an app launcher ability might save a new background color server-side, but the current apps page needs JavaScript to repaint itself after the ability succeeds.
+
+Use the browser callback API for this. It does not expose a new tool to the AI. Instead, your page script subscribes to completed tool calls and reacts when the AI Assistant executes your ability.
+
+```js
+(function() {
+    function refreshAppsBackground(context) {
+        // context.result is the ability result returned to the assistant.
+        // context.arguments.arguments is the input passed to the ability.
+        if (window.MyApps && typeof window.MyApps.reloadBackground === 'function') {
+            window.MyApps.reloadBackground(context.result);
+        }
+    }
+
+    var subscription = {
+        criteria: {
+            ability: 'my-apps/set-background-color',
+            success: true
+        },
+        callback: refreshAppsBackground
+    };
+
+    if (window.aiAssistant && typeof window.aiAssistant.onToolCall === 'function') {
+        window.aiAssistant.onToolCall(subscription.criteria, subscription.callback);
+    } else {
+        window.aiAssistantToolCallbacks = window.aiAssistantToolCallbacks || [];
+        window.aiAssistantToolCallbacks.push(subscription);
+    }
+})();
+```
+
+`criteria` can be a tool name string, a predicate function, or an object. Object criteria support:
+
+- `tool`: tool name, e.g. `ability`, `execute_ability`, `rest_api`
+- `ability`: shorthand for a completed ability execution; matches both `ability { action: "execute" }` and legacy `execute_ability`
+- `success`: `true` or `false`
+- `arguments` / `input`: partial nested match against tool input
+- `result`: partial nested match against tool output
+
+The callback receives:
+
+```js
+{
+    id: 'tool-call-id',
+    tool: 'ability',
+    name: 'ability',
+    arguments: { action: 'execute', ability: 'my-apps/set-background-color', arguments: {} },
+    input: { action: 'execute', ability: 'my-apps/set-background-color', arguments: {} },
+    result: {},
+    output: {},
+    success: true,
+    provider: 'anthropic'
+}
+```
+
+When you can declare a dependency on the AI Assistant script, depend on `ai-assistant-chat-core` and call `window.aiAssistant.onToolCall(...)` directly. The queued `window.aiAssistantToolCallbacks` form is useful when your script may load before the assistant panel script.
+
 ## Complete Example
 
 ```php
