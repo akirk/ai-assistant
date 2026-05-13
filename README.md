@@ -151,7 +151,7 @@ The recovery screen highlights recently modified plugins to help identify the cu
 
 ## Plugin Integration
 
-Other plugins can expose their functionality to the AI by registering **WordPress Abilities**. See [docs/plugin-integration.md](docs/plugin-integration.md) for a full guide.
+Other plugins can expose their functionality to the AI by registering **WordPress Abilities**. See the [WordPress Abilities API handbook](https://developer.wordpress.org/apis/abilities-api/) for the core API, and [docs/plugin-integration.md](docs/plugin-integration.md) for AI Assistant-specific hooks and guidance.
 
 For best results, expose focused abilities with clear input/output schemas instead of requiring the AI to infer database structure or call plugin internals. If your plugin works with images, prefer accepting a remote image URL and sideloading it inside your ability when a local attachment is required. The assistant can ask the user to choose an image with `pick_image`, then pass the selected URL and metadata to your ability.
 
