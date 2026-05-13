@@ -2,6 +2,7 @@
 namespace AI_Assistant\Tests;
 
 use AI_Assistant\Wp_App_Abilities;
+use AI_Assistant\Git_Tracker_Manager;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -56,6 +57,33 @@ class WpAppAbilitiesTest extends TestCase {
 
         $this->assertInstanceOf(\WP_Error::class, $result);
         $this->assertSame('plugin_exists', $result->get_error_code());
+    }
+
+    public function test_scaffold_app_tracks_created_files_when_tracker_available(): void {
+        if (!class_exists('\Akirk\CreateWpApp\Scaffolder')) {
+            $this->markTestSkipped('akirk/create-wp-app is not installed.');
+        }
+
+        $tracker_manager = new Git_Tracker_Manager();
+        $abilities = new Wp_App_Abilities($tracker_manager);
+        $result = $abilities->scaffold_app([
+            'slug' => 'sample-app',
+            'plugin_name' => 'Sample App',
+            'namespace' => 'SampleApp',
+            'setup_type' => 'minimal',
+            'activate' => false,
+        ]);
+
+        $this->assertIsArray($result);
+        $this->assertNotContains('.git/HEAD', $result['created_files']);
+
+        $changes = $tracker_manager->get_all_changes_by_plugin();
+        $this->assertArrayHasKey('plugins/sample-app', $changes);
+
+        $paths = array_column($changes['plugins/sample-app']['files'], 'path');
+        $this->assertContains('plugins/sample-app/sample-app.php', $paths);
+        $this->assertContains('plugins/sample-app/vendor/autoload.php', $paths);
+        $this->assertFileExists($this->plugins_dir . '/sample-app/.git/refs/heads/ai-changes');
     }
 
     private function removeDirectory(string $dir): void {
