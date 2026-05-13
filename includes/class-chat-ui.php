@@ -140,6 +140,7 @@ class Chat_UI {
             'userDisplayName' => $current_user->display_name,
             'maxClientFileBytes' => (int) apply_filters('ai_assistant_client_file_context_bytes', 128 * 1024),
             'compactClientFileBytes' => (int) apply_filters('ai_assistant_client_file_compact_bytes', 32 * 1024),
+            'maxMediaUploadBytes' => (int) wp_max_upload_size(),
             'systemPrompt' => $settings->get_system_prompt(),
             'abilityDomains' => apply_filters('ai_assistant_ability_domains', []),
             'strings' => [

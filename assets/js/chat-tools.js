@@ -186,12 +186,16 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'pick_image',
-                    description: 'Ask the user to choose an image.',
+                    description: 'Ask the user to choose an image. Uploads the selected image to the Media Library first and returns attachment_id plus local url on success.',
                     input_schema: {
                         type: 'object',
                         properties: {
                             query: { type: 'string', description: 'Initial search.' },
-                            purpose: { type: 'string', description: 'Image use.' }
+                            purpose: { type: 'string', description: 'Image use.' },
+                            allow_external_fallback: {
+                                type: 'boolean',
+                                description: 'Only set true when using a remote image URL is acceptable if Media Library upload fails.'
+                            }
                         },
                         required: ['query']
                     }

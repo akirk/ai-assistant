@@ -219,6 +219,26 @@ describe('tool call callbacks', function() {
     });
 });
 
+describe('executePickImage', function() {
+    it('preserves picker failure status when upload cannot complete', async function() {
+        const assistant = loadExecutionMixin();
+        assistant.renderImagePicker = function(toolId, args, onSelect) {
+            assert.strictEqual(toolId, 'tool-pick');
+            assert.deepStrictEqual(args, { query: 'mountains' });
+            onSelect({ error: 'Could not upload selected image' }, false);
+        };
+
+        const result = await assistant.executePickImage({
+            id: 'tool-pick',
+            name: 'pick_image',
+            arguments: { query: 'mountains' }
+        });
+
+        assert.strictEqual(result.success, false);
+        assert.strictEqual(result.result.error, 'Could not upload selected image');
+    });
+});
+
 describe('REST API descriptions and results', function() {
     it('does not describe an empty rest_api call as GET /', function() {
         const assistant = loadExecutionMixin();

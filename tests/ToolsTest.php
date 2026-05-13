@@ -83,6 +83,16 @@ class ToolsTest extends TestCase {
         $this->assertContains('needle', $search_content['parameters']['required']);
     }
 
+    public function test_pick_image_returns_media_library_attachment_contract(): void {
+        $tools = $this->tools->get_all_tools();
+        $pick_image = $this->findToolByName($tools, 'pick_image');
+
+        $this->assertNotNull($pick_image);
+        $this->assertStringContainsString('Media Library', $pick_image['description']);
+        $this->assertSame('boolean', $pick_image['parameters']['properties']['allow_external_fallback']['type']);
+        $this->assertContains('query', $pick_image['parameters']['required']);
+    }
+
     public function test_get_read_only_tools_returns_subset(): void {
         $all_tools = $this->tools->get_all_tools();
         $read_only_tools = $this->tools->get_read_only_tools();

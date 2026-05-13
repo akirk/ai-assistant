@@ -208,6 +208,314 @@
             });
         },
 
+        shouldAllowExternalImageFallback: function(args) {
+            return !!(args && args.allow_external_fallback === true);
+        },
+
+        getPickedImageUploadLimit: function() {
+            var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+            var limit = Number(config.maxMediaUploadBytes || 0);
+            return limit > 0 ? limit : 0;
+        },
+
+        getPickedImageUploadUrl: function() {
+            if (typeof aiAssistantConfig === 'undefined' || !aiAssistantConfig.restApiUrl) {
+                return '';
+            }
+            return String(aiAssistantConfig.restApiUrl).replace(/\/+$/, '') + '/wp/v2/media';
+        },
+
+        getPickedImageFileExtension: function(url, contentType) {
+            var mime = String(contentType || '').split(';')[0].toLowerCase();
+            var mimeExtensions = {
+                'image/jpeg': 'jpg',
+                'image/png': 'png',
+                'image/gif': 'gif',
+                'image/webp': 'webp',
+                'image/avif': 'avif',
+                'image/svg+xml': 'svg'
+            };
+            var cleanUrl = String(url || '').split('?')[0].split('#')[0];
+            var match = cleanUrl.match(/\.([a-z0-9]{2,5})$/i);
+            var extension = match ? match[1].toLowerCase() : '';
+            var allowedExtensions = {
+                jpg: true,
+                jpeg: true,
+                png: true,
+                gif: true,
+                webp: true,
+                avif: true,
+                svg: true
+            };
+
+            if (extension && allowedExtensions[extension]) {
+                return extension === 'jpeg' ? 'jpg' : extension;
+            }
+
+            return mimeExtensions[mime] || 'jpg';
+        },
+
+        getPickedImageMimeType: function(url, contentType) {
+            var mime = String(contentType || '').split(';')[0].toLowerCase();
+            var extensionTypes = {
+                jpg: 'image/jpeg',
+                jpeg: 'image/jpeg',
+                png: 'image/png',
+                gif: 'image/gif',
+                webp: 'image/webp',
+                avif: 'image/avif',
+                svg: 'image/svg+xml'
+            };
+
+            if (mime.indexOf('image/') === 0) {
+                return mime;
+            }
+
+            var cleanUrl = String(url || '').split('?')[0].split('#')[0];
+            var match = cleanUrl.match(/\.([a-z0-9]{2,5})$/i);
+            var extension = match ? match[1].toLowerCase() : '';
+            return extensionTypes[extension] || '';
+        },
+
+        getPickedImageFileName: function(image, contentType) {
+            image = image || {};
+            var title = String(image.title || 'openverse-image')
+                .replace(/^file:/i, '')
+                .replace(/\.[a-z0-9]{2,5}$/i, '');
+            var baseName = title
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '')
+                .substring(0, 80);
+
+            if (!baseName) {
+                baseName = 'openverse-image';
+            }
+
+            return baseName + '.' + this.getPickedImageFileExtension(image.url, contentType);
+        },
+
+        getPickedImageMetadata: function(image) {
+            image = image || {};
+            return {
+                title: image.title || '',
+                creator: image.creator || '',
+                creator_url: image.creator_url || '',
+                attribution: image.attribution || this.formatImageAttribution(image),
+                license: image.license || '',
+                license_url: image.license_url || '',
+                source: image.source || '',
+                landing_url: image.landing_url || image.foreign_landing_url || image.url || '',
+                foreign_landing_url: image.foreign_landing_url || '',
+                remote_url: image.url || '',
+                width: image.width || null,
+                height: image.height || null
+            };
+        },
+
+        getPickedImageThumbnailUrl: function(attachment, fallback) {
+            var details = attachment && attachment.media_details;
+            var sizes = details && details.sizes;
+            if (sizes) {
+                if (sizes.thumbnail && sizes.thumbnail.source_url) {
+                    return sizes.thumbnail.source_url;
+                }
+                if (sizes.medium && sizes.medium.source_url) {
+                    return sizes.medium.source_url;
+                }
+            }
+            return (attachment && attachment.source_url) || fallback || '';
+        },
+
+        fetchPickedImageBlob: function(image, signal) {
+            var self = this;
+            if (!image || !image.url) {
+                return Promise.reject(new Error('Selected image has no URL.'));
+            }
+
+            var options = { credentials: 'omit' };
+            if (signal) {
+                options.signal = signal;
+            }
+
+            return fetch(image.url, options).then(function(response) {
+                if (!response.ok) {
+                    throw new Error('Image fetch failed with HTTP ' + response.status + '.');
+                }
+
+                var responseType = String(response.headers.get('content-type') || '').split(';')[0].toLowerCase();
+                if (responseType &&
+                    responseType.indexOf('image/') !== 0 &&
+                    responseType !== 'application/octet-stream' &&
+                    responseType !== 'binary/octet-stream') {
+                    throw new Error('Selected URL did not return an image.');
+                }
+
+                return response.blob().then(function(blob) {
+                    var contentType = self.getPickedImageMimeType(image.url, blob.type || responseType);
+                    var limit = self.getPickedImageUploadLimit();
+
+                    if (!contentType || contentType.indexOf('image/') !== 0) {
+                        throw new Error('Selected file is not an image.');
+                    }
+
+                    if (!blob.size) {
+                        throw new Error('Selected image was empty.');
+                    }
+
+                    if (limit && blob.size > limit) {
+                        throw new Error('Selected image is larger than this site allows for uploads.');
+                    }
+
+                    return {
+                        blob: blob,
+                        contentType: contentType,
+                        filename: self.getPickedImageFileName(image, contentType)
+                    };
+                });
+            });
+        },
+
+        uploadPickedImageToMediaLibrary: function(fileData, image, signal) {
+            var uploadUrl = this.getPickedImageUploadUrl();
+            var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+
+            if (!uploadUrl) {
+                return Promise.reject(new Error('WordPress media upload URL is unavailable.'));
+            }
+            if (typeof FormData === 'undefined') {
+                return Promise.reject(new Error('This browser cannot upload files from the image picker.'));
+            }
+
+            var formData = new FormData();
+            var title = (image && image.title) || fileData.filename;
+            var attribution = image ? (image.attribution || this.formatImageAttribution(image)) : '';
+            var headers = {};
+
+            formData.append('file', fileData.blob, fileData.filename);
+            if (title) {
+                formData.append('title', title);
+                formData.append('alt_text', title);
+            }
+            if (attribution) {
+                formData.append('caption', attribution);
+            }
+
+            if (config.restApiNonce) {
+                headers['X-WP-Nonce'] = config.restApiNonce;
+            }
+
+            var options = {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: headers,
+                body: formData
+            };
+            if (signal) {
+                options.signal = signal;
+            }
+
+            return fetch(uploadUrl, options).then(function(response) {
+                return response.text().then(function(text) {
+                    var data = null;
+                    try {
+                        data = text ? JSON.parse(text) : null;
+                    } catch (e) {
+                        throw new Error('Media upload returned a non-JSON response.');
+                    }
+
+                    if (!response.ok) {
+                        throw new Error((data && data.message) || ('Media upload failed with HTTP ' + response.status + '.'));
+                    }
+                    if (!data || !data.id) {
+                        throw new Error('Media upload did not return an attachment ID.');
+                    }
+
+                    return data;
+                });
+            });
+        },
+
+        buildPickedImageResult: function(image, attachment, uploadError) {
+            var metadata = this.getPickedImageMetadata(image);
+            var localUrl = attachment && (attachment.source_url || attachment.link);
+            var result = $.extend({}, metadata, {
+                attachment_id: attachment ? Number(attachment.id) : null,
+                id: attachment ? Number(attachment.id) : null,
+                url: localUrl || metadata.remote_url,
+                source_url: localUrl || '',
+                thumbnail: this.getPickedImageThumbnailUrl(attachment, image && image.thumbnail),
+                uploaded: !!attachment,
+                external: !attachment,
+                media: attachment ? {
+                    id: Number(attachment.id),
+                    link: attachment.link || '',
+                    mime_type: attachment.mime_type || '',
+                    media_type: attachment.media_type || ''
+                } : null
+            });
+
+            if (uploadError) {
+                result.upload_failed = true;
+                result.upload_error = uploadError.message || String(uploadError);
+            }
+
+            return result;
+        },
+
+        buildPickedImageUploadError: function(image, error) {
+            var metadata = this.getPickedImageMetadata(image);
+            var message = error && error.message ? error.message : String(error || 'Upload failed.');
+            return $.extend({}, metadata, {
+                attachment_id: null,
+                id: null,
+                url: '',
+                source_url: '',
+                thumbnail: image && image.thumbnail ? image.thumbnail : '',
+                uploaded: false,
+                external: false,
+                upload_failed: true,
+                external_fallback_allowed: false,
+                error: 'Could not upload selected image to the Media Library: ' + message
+            });
+        },
+
+        preparePickedImageSelection: function(image, args, onStatus, signal) {
+            var self = this;
+            var allowExternalFallback = this.shouldAllowExternalImageFallback(args);
+            var setStatus = typeof onStatus === 'function' ? onStatus : function() {};
+
+            setStatus('Fetching selected image...');
+
+            return this.fetchPickedImageBlob(image, signal)
+                .then(function(fileData) {
+                    setStatus('Uploading to Media Library...');
+                    return self.uploadPickedImageToMediaLibrary(fileData, image, signal);
+                })
+                .then(function(attachment) {
+                    setStatus('Uploaded to Media Library');
+                    return {
+                        selection: self.buildPickedImageResult(image, attachment),
+                        success: true
+                    };
+                })
+                .catch(function(error) {
+                    if (allowExternalFallback) {
+                        setStatus('Using external image URL');
+                        return {
+                            selection: self.buildPickedImageResult(image, null, error),
+                            success: true
+                        };
+                    }
+
+                    setStatus('Upload failed. Choose another image or cancel.');
+                    return {
+                        selection: self.buildPickedImageUploadError(image, error),
+                        success: false
+                    };
+                });
+        },
+
         getBroaderImageQuery: function(query) {
             var normalized = String(query || '')
                 .toLowerCase()
@@ -255,6 +563,7 @@
             var page = 1;
             var done = false;
             var lastFallbackFrom = '';
+            var activeSelectionController = null;
             var $card = $('[data-tool-id="' + toolId + '"]');
 
             if (!$card.length) {
@@ -302,12 +611,16 @@
 
             $input.trigger('focus');
 
-            function finish(selection) {
+            function finish(selection, success) {
                 if (done) return;
                 done = true;
+                if (activeSelectionController) {
+                    activeSelectionController.abort();
+                    activeSelectionController = null;
+                }
                 $overlay.remove();
                 $cardPreview.empty();
-                onSelect(selection);
+                onSelect(selection, success !== false);
             }
 
             function renderResults(results, append) {
@@ -335,8 +648,29 @@
                     $result.on('click', function() {
                         $grid.find('.ai-image-result').prop('disabled', true).removeClass('is-selected');
                         $result.addClass('is-selected');
-                        $status.text('Selected');
-                        finish(image);
+                        $search.prop('disabled', true);
+                        $more.prop('disabled', true);
+                        $input.prop('disabled', true);
+                        activeSelectionController = typeof AbortController !== 'undefined'
+                            ? new AbortController()
+                            : null;
+                        self.preparePickedImageSelection(image, args, function(message) {
+                            $status.text(message);
+                        }, activeSelectionController ? activeSelectionController.signal : null).then(function(outcome) {
+                            if (done) return;
+                            activeSelectionController = null;
+
+                            if (outcome.success) {
+                                finish(outcome.selection, true);
+                                return;
+                            }
+
+                            $grid.find('.ai-image-result').prop('disabled', false);
+                            $result.removeClass('is-selected');
+                            $search.prop('disabled', false);
+                            $more.prop('disabled', false);
+                            $input.prop('disabled', false).trigger('focus');
+                        });
                     });
                     $grid.append($result);
                 });
@@ -467,9 +801,17 @@
             var $summary = $('<div class="ai-picked-image-summary"></div>');
             var $meta = $('<div class="ai-picked-image-meta"></div>');
             var $title = $('<strong></strong>').text(output.title || 'Selected image');
-            var details = [output.creator, output.license].filter(function(part) { return !!part; }).join(' - ');
+            var detailsParts = [];
+            if (output.attachment_id) {
+                detailsParts.push('Attachment #' + output.attachment_id);
+            } else if (output.external) {
+                detailsParts.push('External URL');
+            }
+            if (output.creator) detailsParts.push(output.creator);
+            if (output.license) detailsParts.push(output.license);
+            var details = detailsParts.join(' - ');
             var $details = $('<span></span>').text(details);
-            var $link = $('<a target="_blank" rel="noopener noreferrer">Open image</a>').attr('href', output.landing_url || output.url);
+            var $link = $('<a target="_blank" rel="noopener noreferrer">Open image</a>').attr('href', output.source_url || output.url || output.landing_url);
 
             if (output.thumbnail || output.url) {
                 $summary.append($('<img>').attr({

@@ -105,9 +105,9 @@ Use `instructions` when the raw schema is not enough:
 
 ## Image Inputs
 
-If your ability needs an image, prefer accepting a remote image URL as input. AI Assistant can ask the user to choose an image with the built-in `pick_image` tool, then pass the selected URL and metadata into your ability.
+If your ability needs an image that should live in WordPress, prefer accepting a Media Library attachment ID as input. AI Assistant can ask the user to choose an image with the built-in `pick_image` tool. The picker fetches the selected image in the browser, uploads it through the WordPress media endpoint, then returns the attachment ID, local URL, attribution, and source metadata.
 
-Avoid requiring only an attachment ID unless your UI truly needs an existing Media Library item. When your plugin needs the file to exist locally, sideload the selected remote URL inside your ability and return both the attachment ID and final local URL.
+Remote URL fallback is opt-in. Only ask `pick_image` for external fallback when your ability can safely store or render an external image URL if the Media Library upload fails.
 
 Recommended input shape:
 
@@ -115,20 +115,20 @@ Recommended input shape:
 'input_schema' => [
     'type'       => 'object',
     'properties' => [
+        'background' => [
+            'type'        => 'string',
+            'description' => 'Media Library attachment ID.',
+        ],
         'image_url' => [
             'type'        => 'string',
-            'description' => 'Remote image URL.',
-        ],
-        'image_title' => [
-            'type'        => 'string',
-            'description' => 'Optional image title.',
+            'description' => 'Optional local or explicitly allowed external image URL.',
         ],
         'attribution' => [
             'type'        => 'string',
             'description' => 'Optional attribution text.',
         ],
     ],
-    'required'             => [ 'image_url' ],
+    'required'             => [ 'background' ],
     'additionalProperties' => false,
 ],
 ```
@@ -142,7 +142,7 @@ return [
 ];
 ```
 
-This keeps image search and user choice in the assistant UI, while your plugin owns storage, permissions, and plugin-specific media rules.
+This keeps image search, user choice, and browser-side media upload in the assistant UI, while your plugin owns the plugin-specific setting or rendering rules.
 
 ## AI Assistant Filters
 

@@ -237,13 +237,13 @@
                     return;
                 }
 
-                self.renderImagePicker(toolCall.id, args, function(selection) {
+                self.renderImagePicker(toolCall.id, args, function(selection, success) {
                     resolve({
                         id: toolCall.id,
                         name: 'pick_image',
                         input: args,
                         result: selection,
-                        success: true
+                        success: success !== false
                     });
                 });
             });
