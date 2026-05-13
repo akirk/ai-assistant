@@ -10,7 +10,11 @@ if (!defined('ABSPATH')) {
  */
 class Wp_App_Abilities {
 
-    public function __construct() {
+    private ?Git_Tracker_Manager $git_tracker_manager;
+
+    public function __construct(?Git_Tracker_Manager $git_tracker_manager = null) {
+        $this->git_tracker_manager = $git_tracker_manager;
+
         if (function_exists('did_action') && did_action('wp_abilities_api_categories_init')) {
             $this->register_category();
         } else {
@@ -94,8 +98,9 @@ class Wp_App_Abilities {
         $target_dir = $plugins_dir . DIRECTORY_SEPARATOR . $slug;
         $plugin_file = $slug . '.php';
         $overwrite = !empty($input['overwrite']);
+        $target_existed = is_dir($target_dir);
 
-        if (is_dir($target_dir) && !$overwrite) {
+        if ($target_existed && !$overwrite) {
             return $this->error('plugin_exists', "The plugin directory already exists: {$slug}");
         }
 
@@ -128,6 +133,10 @@ class Wp_App_Abilities {
         }
 
         $url_path = $result['config']['url_path'] ?? $slug;
+        $created_files = $this->relative_created_files($target_dir);
+        if (!$target_existed) {
+            $this->track_created_files($slug, $created_files, $plugin_name);
+        }
 
         return [
             'plugin_dir'   => $target_dir,
@@ -136,7 +145,7 @@ class Wp_App_Abilities {
             'url_path'     => $url_path,
             'url'          => function_exists('home_url') ? home_url('/' . trim($url_path, '/') . '/') : '/' . trim($url_path, '/') . '/',
             'activated'    => $activated,
-            'created_files'=> $this->relative_created_files($target_dir),
+            'created_files'=> $created_files,
             'messages'     => $result['messages'] ?? [],
             'warnings'     => $warnings,
         ];
@@ -310,6 +319,23 @@ class Wp_App_Abilities {
 
         sort($files);
         return $files;
+    }
+
+    private function track_created_files(string $slug, array $created_files, string $plugin_name): void {
+        if ($this->git_tracker_manager === null || empty($created_files)) {
+            return;
+        }
+
+        $reason = sprintf('Scaffold %s WpApp plugin', $plugin_name);
+
+        foreach ($created_files as $file) {
+            $file = ltrim(str_replace('\\', '/', (string) $file), '/');
+            if ($file === '' || strpos($file, "\0") !== false) {
+                continue;
+            }
+
+            $this->git_tracker_manager->track_change('plugins/' . $slug . '/' . $file, 'created', null, $reason);
+        }
     }
 
     private function error(string $code, string $message) {
