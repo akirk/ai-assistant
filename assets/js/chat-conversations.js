@@ -537,6 +537,12 @@
             }
 
             var includeToolCalls = $('#ai-export-include-tool-calls').is(':checked');
+
+            if (this.conversationId) {
+                this.startConversationExportDownload(this.buildConversationExportUrl(format, includeToolCalls));
+                return;
+            }
+
             this.saveConversation(true, function(success) {
                 if (!success || !self.conversationId) {
                     self.addMessage('error', 'Failed to save conversation before export.');

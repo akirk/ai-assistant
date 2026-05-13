@@ -38,9 +38,11 @@ class ConversationsTest extends TestCase {
 
         $this->assertStringContainsString('# Test Conversation', $markdown);
         $this->assertStringContainsString('- Conversation ID: 123', $markdown);
+        $this->assertStringContainsString('- Author: Ada Lovelace', $markdown);
         $this->assertStringContainsString('## Summary', $markdown);
         $this->assertStringContainsString('Short summary.', $markdown);
-        $this->assertStringContainsString('### User', $markdown);
+        $this->assertStringContainsString('### Ada Lovelace', $markdown);
+        $this->assertStringNotContainsString('### User', $markdown);
         $this->assertStringContainsString('Please inspect this.', $markdown);
         $this->assertStringContainsString('[Tool: read_file]', $markdown);
         $this->assertStringContainsString('read_file content omitted from export', $markdown);
@@ -67,6 +69,8 @@ class ConversationsTest extends TestCase {
 
         $this->assertStringStartsWith('<!doctype html>', $html);
         $this->assertStringContainsString('<title>Test Conversation</title>', $html);
+        $this->assertStringContainsString('<dt>Author</dt><dd>Ada Lovelace</dd>', $html);
+        $this->assertStringContainsString('<p class="role">Ada Lovelace</p>', $html);
         $this->assertStringContainsString('Short summary.', $html);
         $this->assertStringContainsString('Please inspect this.', $html);
         $this->assertStringNotContainsString('[Tool: read_file]', $html);
@@ -85,6 +89,7 @@ class ConversationsTest extends TestCase {
         $decoded = json_decode($payload['content'], true);
         $this->assertSame('ai-assistant-conversation-export/v1', $decoded['schema']);
         $this->assertSame(123, $decoded['conversation']['id']);
+        $this->assertSame('Ada Lovelace', $decoded['conversation']['author_display_name']);
     }
 
     private function sampleConversation(): array {
@@ -121,6 +126,7 @@ class ConversationsTest extends TestCase {
             'created' => '2026-05-13 10:00:00',
             'modified' => '2026-05-13 10:05:00',
             'author_id' => 1,
+            'author_display_name' => 'Ada Lovelace',
         ];
     }
 }

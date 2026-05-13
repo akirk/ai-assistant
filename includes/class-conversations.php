@@ -376,6 +376,14 @@ class Conversations {
         }
 
         $messages = $this->get_messages($post);
+        $author_id = intval($post->post_author);
+        $author_display_name = '';
+        if ($author_id > 0 && function_exists('get_userdata')) {
+            $author = get_userdata($author_id);
+            if ($author && !empty($author->display_name)) {
+                $author_display_name = $this->single_line_text($author->display_name);
+            }
+        }
 
         return [
             'id' => $conversation_id,
@@ -387,7 +395,8 @@ class Conversations {
             'model' => get_post_meta($conversation_id, '_ai_model', true) ?: '',
             'created' => $post->post_date_gmt ?: $post->post_date,
             'modified' => $post->post_modified_gmt ?: $post->post_modified,
-            'author_id' => intval($post->post_author),
+            'author_id' => $author_id,
+            'author_display_name' => $author_display_name,
             'include_tool_calls' => false,
         ];
     }
@@ -455,6 +464,9 @@ class Conversations {
         $lines[] = '- Conversation ID: ' . $conversation['id'];
         $lines[] = '- Messages: ' . $conversation['message_count'];
 
+        if (!empty($conversation['author_display_name'])) {
+            $lines[] = '- Author: ' . $this->single_line_text($conversation['author_display_name']);
+        }
         if (!empty($conversation['provider'])) {
             $lines[] = '- Provider: ' . $conversation['provider'];
         }
@@ -479,14 +491,14 @@ class Conversations {
         $lines[] = '## Messages';
 
         foreach ($this->get_transcript_export_messages($conversation, $format) as $message) {
-            $role = $this->get_export_message_role($message);
+            $role_label = $this->get_export_message_role_label($message, $conversation);
             $content = $this->message_to_plain_text($message, $include_tool_calls);
             if ($content === '' && !$include_tool_calls) {
                 continue;
             }
 
             $lines[] = '';
-            $lines[] = '### ' . ucfirst($role);
+            $lines[] = '### ' . $role_label;
             $lines[] = '';
             $lines[] = $content !== '' ? $content : '_No text content_';
         }
@@ -502,6 +514,9 @@ class Conversations {
             __('Messages', 'ai-assistant') => $conversation['message_count'],
         ];
 
+        if (!empty($conversation['author_display_name'])) {
+            $meta[__('Author', 'ai-assistant')] = $this->single_line_text($conversation['author_display_name']);
+        }
         if (!empty($conversation['provider'])) {
             $meta[__('Provider', 'ai-assistant')] = $conversation['provider'];
         }
@@ -525,7 +540,7 @@ class Conversations {
             .meta dt{font-weight:600}
             .meta dd{margin:0}
             .message{padding:16px 0;border-top:1px solid #dcdcde}
-            .role{font-weight:700;margin:0 0 8px;text-transform:capitalize}
+            .role{font-weight:700;margin:0 0 8px}
             .content{white-space:pre-wrap}
             .summary{padding:14px 16px;background:#f6f7f7;border-radius:4px}
         </style></head><body>';
@@ -544,12 +559,13 @@ class Conversations {
         $html .= '<h2>' . $this->html_escape(__('Messages', 'ai-assistant')) . '</h2>';
         foreach ($this->get_transcript_export_messages($conversation, $format) as $message) {
             $role = $this->get_export_message_role($message);
+            $role_label = $this->get_export_message_role_label($message, $conversation);
             $content = $this->message_to_plain_text($message, $include_tool_calls);
             if ($content === '' && !$include_tool_calls) {
                 continue;
             }
             $html .= '<section class="message message-' . $this->html_class($role) . '">';
-            $html .= '<p class="role">' . $this->html_escape($role) . '</p>';
+            $html .= '<p class="role">' . $this->html_escape($role_label) . '</p>';
             $html .= '<div class="content">' . nl2br($this->html_escape($content !== '' ? $content : __('No text content', 'ai-assistant'))) . '</div>';
             $html .= '</section>';
         }
@@ -565,6 +581,18 @@ class Conversations {
             $role .= ': ' . $this->single_line_text($message['name']);
         }
         return $role;
+    }
+
+    private function get_export_message_role_label($message, array $conversation = []) {
+        $role = $this->get_export_message_role($message);
+        if (strtolower($role) === 'user') {
+            $display_name = $this->single_line_text($conversation['author_display_name'] ?? '');
+            if ($display_name !== '') {
+                return $display_name;
+            }
+        }
+
+        return ucfirst($role);
     }
 
     private function message_to_plain_text($message, $include_tool_calls = false) {
