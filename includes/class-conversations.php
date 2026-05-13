@@ -541,7 +541,12 @@ class Conversations {
             .meta dd{margin:0}
             .message{padding:16px 0;border-top:1px solid #dcdcde}
             .role{font-weight:700;margin:0 0 8px}
-            .content{white-space:pre-wrap}
+            .content,.summary{overflow-wrap:anywhere}
+            .content p,.summary p{margin:0 0 12px}
+            .content p:last-child,.summary p:last-child{margin-bottom:0}
+            .content code,.summary code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#f0f0f1;border-radius:3px;padding:1px 4px}
+            .content pre,.summary pre{overflow-x:auto;background:#1d2327;color:#f6f7f7;border-radius:4px;padding:12px;white-space:pre}
+            .content pre code,.summary pre code{background:transparent;color:inherit;padding:0}
             .summary{padding:14px 16px;background:#f6f7f7;border-radius:4px}
         </style></head><body>';
         $html .= '<h1>' . $this->html_escape($title) . '</h1>';
@@ -553,7 +558,7 @@ class Conversations {
 
         if (!empty($conversation['summary'])) {
             $html .= '<h2>' . $this->html_escape(__('Summary', 'ai-assistant')) . '</h2>';
-            $html .= '<div class="summary">' . nl2br($this->html_escape(trim($conversation['summary']))) . '</div>';
+            $html .= '<div class="summary">' . $this->render_export_markdown_content(trim($conversation['summary'])) . '</div>';
         }
 
         $html .= '<h2>' . $this->html_escape(__('Messages', 'ai-assistant')) . '</h2>';
@@ -566,7 +571,7 @@ class Conversations {
             }
             $html .= '<section class="message message-' . $this->html_class($role) . '">';
             $html .= '<p class="role">' . $this->html_escape($role_label) . '</p>';
-            $html .= '<div class="content">' . nl2br($this->html_escape($content !== '' ? $content : __('No text content', 'ai-assistant'))) . '</div>';
+            $html .= '<div class="content">' . $this->render_export_markdown_content($content !== '' ? $content : __('No text content', 'ai-assistant')) . '</div>';
             $html .= '</section>';
         }
 
@@ -617,6 +622,105 @@ class Conversations {
         }
 
         return trim(implode("\n\n", $parts));
+    }
+
+    private function render_export_markdown_content($content) {
+        if ($content === null || $content === '') {
+            return '';
+        }
+
+        $code_blocks = [];
+        $content = preg_replace("/\r\n?/", "\n", (string) $content);
+        $content = preg_replace('/\s+$/', '', $content);
+
+        $content = preg_replace_callback('/```([\w-]+)?[^\S\n]*\n([\s\S]*?)```/', function($matches) use (&$code_blocks) {
+            $token = '@@AI_ASSISTANT_CODE_BLOCK_' . count($code_blocks) . '@@';
+            $code_blocks[] = '<pre><code class="language-' . $this->html_escape($matches[1] ?? '') . '">' .
+                $this->html_escape(preg_replace('/^\n+|\n+$/', '', $matches[2] ?? '')) .
+                '</code></pre>';
+            return "\n\n" . $token . "\n\n";
+        }, $content);
+
+        $content = $this->html_escape($content);
+
+        // Inline markdown.
+        $content = preg_replace('/`([^`]+)`/', '<code>$1</code>', $content);
+        $content = preg_replace('/\*\*([^*]+)\*\*/', '<strong>$1</strong>', $content);
+        $content = preg_replace('/\*([^*]+)\*/', '<em>$1</em>', $content);
+        $content = preg_replace_callback('/\[([^\]]+)\]\(([^)]+)\)/', function($matches) {
+            return '<a href="' . $matches[2] . '">' . $matches[1] . '</a>';
+        }, $content);
+
+        // Block markdown.
+        $content = preg_replace('/^### (.+)$/m', '<h4>$1</h4>', $content);
+        $content = preg_replace('/^## (.+)$/m', '<h3>$1</h3>', $content);
+        $content = preg_replace('/^# (.+)$/m', '<h2>$1</h2>', $content);
+
+        $content = $this->render_export_markdown_blocks($content);
+        $content = preg_replace_callback('/@@AI_ASSISTANT_CODE_BLOCK_(\d+)@@/', function($matches) use ($code_blocks) {
+            $index = intval($matches[1]);
+            return $code_blocks[$index] ?? '';
+        }, $content);
+
+        return $this->sanitize_export_markdown_html($content);
+    }
+
+    private function render_export_markdown_blocks($content) {
+        $html = [];
+        $blocks = preg_split('/\n{2,}/', (string) $content);
+
+        foreach ($blocks as $block) {
+            $lines = explode("\n", trim($block));
+            $paragraph_lines = [];
+
+            $flush_paragraph = function() use (&$html, &$paragraph_lines) {
+                if (empty($paragraph_lines)) {
+                    return;
+                }
+                $html[] = '<p>' . implode('<br>', $paragraph_lines) . '</p>';
+                $paragraph_lines = [];
+            };
+
+            foreach ($lines as $line) {
+                if (trim($line) === '') {
+                    $flush_paragraph();
+                    continue;
+                }
+
+                if (preg_match('/^<h[234]>.*<\/h[234]>$/', $line) || preg_match('/^@@AI_ASSISTANT_CODE_BLOCK_\d+@@$/', $line)) {
+                    $flush_paragraph();
+                    $html[] = $line;
+                    continue;
+                }
+
+                $paragraph_lines[] = $line;
+            }
+
+            $flush_paragraph();
+        }
+
+        return implode('', $html);
+    }
+
+    private function sanitize_export_markdown_html($html) {
+        $allowed_html = [
+            'a' => [
+                'href' => true,
+            ],
+            'br' => [],
+            'code' => [
+                'class' => true,
+            ],
+            'em' => [],
+            'h2' => [],
+            'h3' => [],
+            'h4' => [],
+            'p' => [],
+            'pre' => [],
+            'strong' => [],
+        ];
+
+        return wp_kses($html, $allowed_html);
     }
 
     private function message_content_to_plain_text($content, $include_tool_calls = false) {

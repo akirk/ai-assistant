@@ -73,6 +73,12 @@ class ConversationsTest extends TestCase {
         $this->assertStringContainsString('<p class="role">Ada Lovelace</p>', $html);
         $this->assertStringContainsString('Short summary.', $html);
         $this->assertStringContainsString('Please inspect this.', $html);
+        $this->assertStringContainsString('<h2>Export Heading</h2>', $html);
+        $this->assertStringContainsString('<strong>bold</strong>', $html);
+        $this->assertStringContainsString('<em>emphasis</em>', $html);
+        $this->assertStringContainsString('<code>inline</code>', $html);
+        $this->assertStringContainsString('<a href="https://example.com/docs">docs</a>', $html);
+        $this->assertStringContainsString('<pre><code class="language-php">echo &quot;safe&quot;;</code></pre>', $html);
         $this->assertStringNotContainsString('[Tool: read_file]', $html);
     }
 
@@ -100,7 +106,7 @@ class ConversationsTest extends TestCase {
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Please inspect this.',
+                    'content' => "Please inspect this.\n\n# Export Heading\n\nUse **bold**, *emphasis*, `inline`, and [docs](https://example.com/docs).\n\n```php\necho \"safe\";\n```",
                 ],
                 [
                     'role' => 'assistant',
