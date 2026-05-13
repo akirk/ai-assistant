@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 class APIHandlerTest extends TestCase {
 
     protected function setUp(): void {
-        $GLOBALS['wp_test_capabilities'] = [];
+        $GLOBALS['wp_test_capabilities'] = ['ai_assistant_full' => true];
         $GLOBALS['wp_test_json_response'] = null;
         $_POST = [];
     }

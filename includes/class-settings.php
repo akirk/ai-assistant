@@ -265,6 +265,14 @@ class Settings {
         if (strpos($cap, 'ai_assistant_tool_') !== 0) {
             return $caps;
         }
+
+        $has_full_access = user_can($user_id, 'ai_assistant_full');
+        $has_read_only_access = user_can($user_id, 'ai_assistant_read_only');
+
+        if (!$has_full_access && !$has_read_only_access) {
+            return ['do_not_allow'];
+        }
+
         if (ai_assistant_is_playground()) {
             return ['exist'];
         }
@@ -276,12 +284,12 @@ class Settings {
             return ['do_not_allow'];
         }
 
-        if (user_can($user_id, 'ai_assistant_full')) {
+        if ($has_full_access) {
             return ['exist'];
         }
 
         // read_only users get non-dangerous tools only
-        if (user_can($user_id, 'ai_assistant_read_only')) {
+        if ($has_read_only_access) {
             $all_meta = $this->get_all_tools_with_meta();
             if (isset($all_meta[$tool_name]) && !$all_meta[$tool_name]['dangerous']) {
                 return ['exist'];
@@ -2162,6 +2170,7 @@ class Settings {
      */
     private function get_page_selector_hints(): string {
         global $pagenow;
+        $pagenow = is_string($pagenow) ? $pagenow : '';
         $hints = [];
 
         // Get current screen if available
