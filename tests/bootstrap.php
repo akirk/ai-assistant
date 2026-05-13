@@ -32,6 +32,7 @@ $GLOBALS['wp_test_options'] = [];
 $GLOBALS['wp_test_capabilities'] = [];
 $GLOBALS['wp_test_is_playground'] = false;
 $GLOBALS['wp_test_abilities'] = [];
+$GLOBALS['wp_test_filters'] = [];
 
 if (!function_exists('get_option')) {
     function get_option($option, $default = false) {
@@ -49,6 +50,30 @@ if (!function_exists('current_user_can')) {
 if (!function_exists('sanitize_text_field')) {
     function sanitize_text_field($value) {
         return is_scalar($value) ? trim((string) $value) : '';
+    }
+}
+
+if (!function_exists('sanitize_key')) {
+    function sanitize_key($key) {
+        return strtolower(preg_replace('/[^a-z0-9_\-]/', '', (string) $key));
+    }
+}
+
+if (!function_exists('sanitize_file_name')) {
+    function sanitize_file_name($filename) {
+        return preg_replace('/[^A-Za-z0-9._-]/', '-', (string) $filename);
+    }
+}
+
+if (!function_exists('wp_json_encode')) {
+    function wp_json_encode($data, $options = 0, $depth = 512) {
+        return json_encode($data, $options, $depth);
+    }
+}
+
+if (!function_exists('get_current_user_id')) {
+    function get_current_user_id() {
+        return 1;
     }
 }
 
@@ -168,8 +193,37 @@ if (!function_exists('wp_get_abilities')) {
 
 // WordPress hook/admin stubs needed to load Settings class
 if (!function_exists('add_action'))          { function add_action()          {} }
-if (!function_exists('add_filter'))          { function add_filter()          {} }
-if (!function_exists('apply_filters'))       { function apply_filters($tag, $value) { return $value; } }
+if (!function_exists('add_filter')) {
+    function add_filter($tag, $callback, $priority = 10, $accepted_args = 1) {
+        $supported = [
+            'ai_assistant_conversation_export_formats',
+            'ai_assistant_conversation_export_shrink_tool_calls',
+        ];
+        if (!in_array($tag, $supported, true)) {
+            return true;
+        }
+        $GLOBALS['wp_test_filters'][$tag][$priority][] = [
+            'callback' => $callback,
+            'accepted_args' => $accepted_args,
+        ];
+        return true;
+    }
+}
+if (!function_exists('apply_filters')) {
+    function apply_filters($tag, $value, ...$args) {
+        if (empty($GLOBALS['wp_test_filters'][$tag])) {
+            return $value;
+        }
+        ksort($GLOBALS['wp_test_filters'][$tag]);
+        foreach ($GLOBALS['wp_test_filters'][$tag] as $callbacks) {
+            foreach ($callbacks as $entry) {
+                $call_args = array_slice(array_merge([$value], $args), 0, $entry['accepted_args']);
+                $value = call_user_func_array($entry['callback'], $call_args);
+            }
+        }
+        return $value;
+    }
+}
 if (!function_exists('add_management_page')) { function add_management_page() {} }
 if (!function_exists('add_options_page'))    { function add_options_page()    {} }
 if (!function_exists('register_setting'))    { function register_setting()    {} }
@@ -214,5 +268,6 @@ require_once $plugin_dir . '/includes/class-executor.php';
 require_once $plugin_dir . '/includes/class-api-handler.php';
 require_once $plugin_dir . '/includes/class-git-tracker.php';
 require_once $plugin_dir . '/includes/class-git-tracker-manager.php';
+require_once $plugin_dir . '/includes/class-conversations.php';
 require_once $plugin_dir . '/includes/class-settings.php';
 require_once $plugin_dir . '/includes/class-wp-app-abilities.php';

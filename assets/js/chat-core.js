@@ -34,6 +34,7 @@
         saveInProgress: false,
         savePending: false,
         savePendingSilent: true,
+        savePendingCallbacks: [],
         titleGenerationInProgress: false,
         titleGenerationAttempted: false,
         titleGenerationToken: 0,
@@ -59,6 +60,12 @@
             this.conversationModel = this.getModel();
             this.updateSendButton();
             this.updateTokenCount();
+            if (this.renderConversationExportMenu) {
+                this.renderConversationExportMenu();
+            }
+            if (this.updateExportButton) {
+                this.updateExportButton();
+            }
 
             if (typeof aiAssistantPageConfig !== 'undefined') {
                 this.isFullPage = aiAssistantPageConfig.isFullPage || false;
@@ -223,6 +230,22 @@
             $(document).on('click', '#ai-assistant-summarize', function(e) {
                 e.preventDefault();
                 self.manualSummarizeConversation();
+            });
+
+            $(document).on('click', '#ai-assistant-export', function(e) {
+                e.preventDefault();
+                self.toggleConversationExportMenu();
+            });
+
+            $(document).on('click', '.ai-export-format', function(e) {
+                e.preventDefault();
+                self.exportConversation($(this).data('format'));
+            });
+
+            $(document).on('click', function(e) {
+                if ($(e.target).closest('.ai-export-menu-wrap').length === 0) {
+                    self.hideConversationExportMenu();
+                }
             });
 
             $(document).on('click', '.ai-action-copy', function(e) {
@@ -515,6 +538,9 @@
             this.messages = this.messages.slice(0, msgIndex);
             this.rebuildMessagesUI();
             this.updateSummarizeVisibility();
+            if (this.updateExportButton) {
+                this.updateExportButton();
+            }
         },
 
         escapeHtml: function(text) {
