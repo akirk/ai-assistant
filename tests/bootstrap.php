@@ -71,6 +71,45 @@ if (!function_exists('wp_json_encode')) {
     }
 }
 
+if (!function_exists('wp_kses')) {
+    function wp_kses($content, $allowed_html, $allowed_protocols = []) {
+        $allowed_protocols = $allowed_protocols ?: ['http', 'https', 'mailto'];
+
+        return preg_replace_callback('/<\/?([a-z0-9]+)([^>]*)>/i', function($matches) use ($allowed_html, $allowed_protocols) {
+            $tag = strtolower($matches[1]);
+            if (!isset($allowed_html[$tag])) {
+                return '';
+            }
+
+            if (strpos($matches[0], '</') === 0) {
+                return '</' . $tag . '>';
+            }
+
+            $attrs = '';
+            preg_match_all('/\s+([a-z0-9_-]+)(?:=(["\'])(.*?)\2)?/i', $matches[2], $attr_matches, PREG_SET_ORDER);
+            foreach ($attr_matches as $attr_match) {
+                $name = strtolower($attr_match[1]);
+                $allowed_attrs = $allowed_html[$tag] ?: [];
+                if (!is_array($allowed_attrs) || !array_key_exists($name, $allowed_attrs)) {
+                    continue;
+                }
+
+                $value = $attr_match[3] ?? '';
+                if ($name === 'href') {
+                    $decoded = trim(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                    if (preg_match('/^([a-z][a-z0-9+.-]*):/i', $decoded, $protocol_match) && !in_array(strtolower($protocol_match[1]), $allowed_protocols, true)) {
+                        continue;
+                    }
+                }
+
+                $attrs .= ' ' . $name . '="' . htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+            }
+
+            return '<' . $tag . $attrs . '>';
+        }, (string) $content);
+    }
+}
+
 if (!function_exists('get_current_user_id')) {
     function get_current_user_id() {
         return 1;
