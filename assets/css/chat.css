@@ -91,6 +91,98 @@
     text-decoration: underline;
 }
 
+.ai-header-link:disabled {
+    color: #8c8f94;
+    cursor: default;
+    text-decoration: none;
+}
+
+.ai-export-menu-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.ai-export-toggle {
+    cursor: pointer;
+}
+
+.ai-header-link.ai-export-toggle {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+}
+
+.ai-export-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 10020;
+    min-width: 190px;
+    padding: 4px;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.ai-export-menu[hidden] {
+    display: none;
+}
+
+.ai-export-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    color: #1d2327;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.ai-export-option input {
+    margin: 0;
+}
+
+.ai-export-format {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: #1d2327;
+    cursor: pointer;
+    font-size: 13px;
+    text-align: left;
+}
+
+.ai-export-format:hover,
+.ai-export-format:focus {
+    background: #f0f0f1;
+    outline: none;
+}
+
+.ai-export-format-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ai-export-format-extension {
+    color: #646970;
+    font-family: Consolas, Monaco, monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
 #ai-assistant-expand {
     background: none;
     border: none;
@@ -158,6 +250,33 @@
     background: #e0e0e0;
 }
 
+.ai-header-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.ai-header-btn:disabled:hover {
+    background: #f6f7f7;
+    border-color: #c3c4c7;
+}
+
+.ai-header-btn.ai-export-toggle {
+    background: transparent;
+    border-color: transparent;
+}
+
+.ai-header-btn.ai-export-toggle:hover,
+.ai-header-btn.ai-export-toggle:focus {
+    background: #f0f0f1;
+    border-color: transparent;
+    outline: none;
+}
+
+.ai-header-btn.ai-export-toggle:disabled:hover {
+    background: transparent;
+    border-color: transparent;
+}
+
 .ai-header-btn .dashicons {
     font-size: 16px;
     width: 16px;
@@ -205,6 +324,22 @@
     padding: 8px 16px;
     border-bottom: 1px solid #c3c4c7;
     background: #f6f7f7;
+}
+
+.ai-chat-main-header .ai-conversation-header-actions {
+    flex: 1;
+    margin-left: 16px;
+}
+
+.ai-header-right-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+}
+
+.ai-chat-main-header .ai-header-right-actions .ai-yolo-label {
+    margin-left: 0;
 }
 
 /* Messages container */

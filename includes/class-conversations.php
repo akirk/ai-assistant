@@ -18,6 +18,9 @@ class Conversations {
         add_action('wp_ajax_ai_assistant_rename_conversation', [$this, 'ajax_rename_conversation']);
         add_action('wp_ajax_ai_assistant_save_summary', [$this, 'ajax_save_summary']);
         add_action('wp_ajax_ai_assistant_get_conversation_for_summary', [$this, 'ajax_get_conversation_for_summary']);
+        add_action('admin_post_ai_assistant_export_conversation', [$this, 'admin_post_export_conversation']);
+        add_filter('ai_assistant_conversation_export_formats', [$this, 'register_default_export_formats'], 10, 2);
+        add_filter('ai_assistant_conversation_export_shrink_tool_calls', [$this, 'shrink_file_tool_calls_for_export'], 10, 3);
         add_action('add_meta_boxes', [$this, 'add_meta_boxes']);
         add_filter('manage_' . self::POST_TYPE . '_posts_columns', [$this, 'add_columns']);
         add_action('manage_' . self::POST_TYPE . '_posts_custom_column', [$this, 'render_columns'], 10, 2);
@@ -72,6 +75,638 @@ class Conversations {
         }
         $json = base64_decode($post->post_content);
         return json_decode($json, true) ?: [];
+    }
+
+    public function register_default_export_formats($formats, $conversation = null) {
+        $formats = (array) $formats;
+
+        if (!isset($formats['markdown'])) {
+            $formats['markdown'] = [
+                'label' => __('Markdown', 'ai-assistant'),
+                'description' => __('Readable plain-text transcript.', 'ai-assistant'),
+                'extension' => 'md',
+                'mime' => 'text/markdown',
+                'callback' => [$this, 'export_conversation_as_markdown'],
+            ];
+        }
+
+        if (!isset($formats['html'])) {
+            $formats['html'] = [
+                'label' => __('HTML', 'ai-assistant'),
+                'description' => __('Standalone web page transcript.', 'ai-assistant'),
+                'extension' => 'html',
+                'mime' => 'text/html',
+                'callback' => [$this, 'export_conversation_as_html'],
+            ];
+        }
+
+        if (!isset($formats['json'])) {
+            $formats['json'] = [
+                'label' => __('JSON', 'ai-assistant'),
+                'description' => __('Raw messages and metadata for backup or import workflows.', 'ai-assistant'),
+                'extension' => 'json',
+                'mime' => 'application/json',
+                'callback' => [$this, 'export_conversation_as_json'],
+            ];
+        }
+
+        return $formats;
+    }
+
+    /**
+     * Get registered export formats for conversations.
+     *
+     * Other plugins can add formats such as EPUB by filtering
+     * `ai_assistant_conversation_export_formats`. Each format needs:
+     * - label: Human-readable label for the UI.
+     * - description: Optional tooltip/help text.
+     * - extension: File extension without a leading dot.
+     * - mime: Download MIME type.
+     * - callback: Callable receiving ($conversation, $format).
+     *
+     * The callback may return a string download body, a WP_Error, or an array
+     * with content, filename, and/or mime keys.
+     */
+    public function get_export_formats($conversation = null) {
+        $formats = [];
+
+        /**
+         * Filters conversation export formats.
+         *
+         * @param array      $formats      Export format definitions keyed by format slug.
+         * @param array|null $conversation Conversation export data during download, null while building UI config.
+         */
+        $formats = apply_filters('ai_assistant_conversation_export_formats', $formats, $conversation);
+
+        return $this->normalize_export_formats($formats);
+    }
+
+    public function get_transcript_export_messages(array $conversation, array $format) {
+        $messages = isset($conversation['messages']) && is_array($conversation['messages'])
+            ? $conversation['messages']
+            : [];
+
+        /**
+         * Filters messages before transcript-style exports render them.
+         *
+         * The built-in filter shrinks tool calls by removing provider IDs and
+         * redacting full read_file/write_file contents. Plugins that export
+         * readable formats such as EPUB can apply this same filter.
+         *
+         * @param array $messages     Conversation messages.
+         * @param array $conversation Full conversation export data.
+         * @param array $format       Export format definition.
+         */
+        return apply_filters('ai_assistant_conversation_export_shrink_tool_calls', $messages, $conversation, $format);
+    }
+
+    public function get_export_formats_for_config() {
+        $config = [];
+        foreach ($this->get_export_formats() as $slug => $format) {
+            $config[] = [
+                'format' => $slug,
+                'label' => $format['label'],
+                'description' => $format['description'],
+                'extension' => $format['extension'],
+            ];
+        }
+        return $config;
+    }
+
+    public function shrink_file_tool_calls_for_export($messages, $conversation, $format) {
+        if (!is_array($messages)) {
+            return [];
+        }
+
+        $tool_names_by_id = $this->collect_tool_names_by_id($messages);
+        $redacted_messages = [];
+
+        foreach ($messages as $message) {
+            if (!is_array($message)) {
+                $redacted_messages[] = $message;
+                continue;
+            }
+
+            if (isset($message['tool_calls']) && is_array($message['tool_calls'])) {
+                foreach ($message['tool_calls'] as &$tool_call) {
+                    if (!is_array($tool_call)) {
+                        continue;
+                    }
+
+                    $tool_name = $tool_call['function']['name'] ?? '';
+                    unset($tool_call['id']);
+
+                    if ($this->is_file_content_tool($tool_name) && isset($tool_call['function']['arguments'])) {
+                        $tool_call['function']['arguments'] = $this->redact_file_tool_content_value(
+                            $tool_call['function']['arguments'],
+                            $tool_name,
+                            'arguments'
+                        );
+                    }
+                }
+                unset($tool_call);
+            }
+
+            if (isset($message['tool_call_id'])) {
+                $tool_name = $tool_names_by_id[$message['tool_call_id']] ?? '';
+                unset($message['tool_call_id']);
+
+                if ($tool_name !== '' && empty($message['name'])) {
+                    $message['name'] = $tool_name;
+                }
+
+                if ($this->is_file_content_tool($tool_name) && isset($message['content'])) {
+                    $message['content'] = $this->redact_file_tool_content_value(
+                        $message['content'],
+                        $tool_name,
+                        'result'
+                    );
+                }
+            }
+
+            if (isset($message['content']) && is_array($message['content'])) {
+                foreach ($message['content'] as &$block) {
+                    if (!is_array($block)) {
+                        continue;
+                    }
+
+                    if (($block['type'] ?? '') === 'tool_use') {
+                        $tool_name = $block['name'] ?? '';
+                        unset($block['id']);
+
+                        if ($this->is_file_content_tool($tool_name) && isset($block['input'])) {
+                            $block['input'] = $this->redact_file_tool_content_value(
+                                $block['input'],
+                                $tool_name,
+                                'arguments'
+                            );
+                        }
+                    } elseif (($block['type'] ?? '') === 'tool_result') {
+                        $tool_name = $tool_names_by_id[$block['tool_use_id'] ?? ''] ?? '';
+                        unset($block['tool_use_id']);
+
+                        if ($this->is_file_content_tool($tool_name) && isset($block['content'])) {
+                            $block['content'] = $this->redact_file_tool_content_value(
+                                $block['content'],
+                                $tool_name,
+                                'result'
+                            );
+                        }
+                    }
+                }
+                unset($block);
+            }
+
+            $redacted_messages[] = $message;
+        }
+
+        return $redacted_messages;
+    }
+
+    private function collect_tool_names_by_id(array $messages) {
+        $tool_names_by_id = [];
+
+        foreach ($messages as $message) {
+            if (!is_array($message)) {
+                continue;
+            }
+
+            if (isset($message['tool_calls']) && is_array($message['tool_calls'])) {
+                foreach ($message['tool_calls'] as $tool_call) {
+                    if (!is_array($tool_call) || empty($tool_call['id'])) {
+                        continue;
+                    }
+                    $tool_names_by_id[$tool_call['id']] = $tool_call['function']['name'] ?? '';
+                }
+            }
+
+            if (!isset($message['content']) || !is_array($message['content'])) {
+                continue;
+            }
+
+            foreach ($message['content'] as $block) {
+                if (is_array($block) && ($block['type'] ?? '') === 'tool_use' && !empty($block['id'])) {
+                    $tool_names_by_id[$block['id']] = $block['name'] ?? '';
+                }
+            }
+        }
+
+        return $tool_names_by_id;
+    }
+
+    private function is_file_content_tool($tool_name) {
+        return in_array($tool_name, ['read_file', 'write_file'], true);
+    }
+
+    private function redact_file_tool_content_value($value, $tool_name, $context) {
+        if (is_array($value)) {
+            return $this->redact_file_tool_content_array($value, $tool_name);
+        }
+
+        if (!is_string($value)) {
+            return $value;
+        }
+
+        $decoded = json_decode($value, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            return $this->json_encode($this->redact_file_tool_content_array($decoded, $tool_name));
+        }
+
+        if ($context === 'result' && $tool_name === 'read_file') {
+            return '[' . $tool_name . ' content omitted from export]';
+        }
+
+        return $value;
+    }
+
+    private function redact_file_tool_content_array(array $value, $tool_name) {
+        foreach ($value as $key => $item) {
+            if (in_array($key, ['content', 'contents'], true)) {
+                $value[$key] = '[' . $tool_name . ' content omitted from export]';
+            } elseif (is_array($item)) {
+                $value[$key] = $this->redact_file_tool_content_array($item, $tool_name);
+            }
+        }
+
+        return $value;
+    }
+
+    private function normalize_export_formats($formats) {
+        $normalized = [];
+
+        foreach ((array) $formats as $slug => $format) {
+            if (!is_array($format)) {
+                continue;
+            }
+
+            $slug = sanitize_key(is_string($slug) ? $slug : ($format['format'] ?? ''));
+            if ($slug === '' || empty($format['callback']) || !is_callable($format['callback'])) {
+                continue;
+            }
+
+            $extension = isset($format['extension']) ? (string) $format['extension'] : $slug;
+            $extension = preg_replace('/[^a-zA-Z0-9._-]/', '', $extension);
+            $extension = $extension !== '' ? ltrim($extension, '.') : 'txt';
+
+            $normalized[$slug] = array_merge($format, [
+                'label' => sanitize_text_field($format['label'] ?? ucfirst($slug)),
+                'description' => sanitize_text_field($format['description'] ?? ''),
+                'extension' => $extension,
+                'mime' => sanitize_text_field($format['mime'] ?? 'application/octet-stream'),
+                'callback' => $format['callback'],
+            ]);
+        }
+
+        return $normalized;
+    }
+
+    public function get_conversation_export_data($conversation_id) {
+        $conversation_id = intval($conversation_id);
+        if ($conversation_id <= 0) {
+            return new \WP_Error('invalid_conversation', __('Invalid conversation ID', 'ai-assistant'));
+        }
+
+        $post = get_post($conversation_id);
+        if (!$post || $post->post_type !== self::POST_TYPE) {
+            return new \WP_Error('conversation_not_found', __('Conversation not found', 'ai-assistant'));
+        }
+
+        if ($post->post_author != get_current_user_id() && !current_user_can('edit_others_posts')) {
+            return new \WP_Error('permission_denied', __('Permission denied', 'ai-assistant'));
+        }
+
+        $messages = $this->get_messages($post);
+
+        return [
+            'id' => $conversation_id,
+            'title' => $post->post_title,
+            'summary' => $post->post_excerpt ?: '',
+            'messages' => $messages,
+            'message_count' => count($messages),
+            'provider' => get_post_meta($conversation_id, '_ai_provider', true) ?: '',
+            'model' => get_post_meta($conversation_id, '_ai_model', true) ?: '',
+            'created' => $post->post_date_gmt ?: $post->post_date,
+            'modified' => $post->post_modified_gmt ?: $post->post_modified,
+            'author_id' => intval($post->post_author),
+            'include_tool_calls' => false,
+        ];
+    }
+
+    public function admin_post_export_conversation() {
+        check_admin_referer('ai_assistant_chat');
+
+        $conversation_id = intval($_GET['conversation_id'] ?? 0);
+        $format_slug = sanitize_key($_GET['format'] ?? 'markdown');
+        $conversation = $this->get_conversation_export_data($conversation_id);
+
+        if (is_wp_error($conversation)) {
+            wp_die(esc_html($conversation->get_error_message()), '', ['response' => 403]);
+        }
+
+        $conversation['include_tool_calls'] = isset($_GET['include_tool_calls']) && $_GET['include_tool_calls'] === '1';
+
+        $formats = $this->get_export_formats($conversation);
+        if (empty($formats[$format_slug])) {
+            wp_die(esc_html__('Export format not found.', 'ai-assistant'), '', ['response' => 400]);
+        }
+
+        $format = $formats[$format_slug];
+        $result = call_user_func($format['callback'], $conversation, $format);
+
+        if (is_wp_error($result)) {
+            wp_die(esc_html($result->get_error_message()), '', ['response' => 500]);
+        }
+
+        if (is_array($result)) {
+            if (!array_key_exists('content', $result)) {
+                wp_die(esc_html__('Export callback did not return content.', 'ai-assistant'), '', ['response' => 500]);
+            }
+            $content = (string) $result['content'];
+            $mime = sanitize_text_field($result['mime'] ?? $format['mime']);
+            $filename = sanitize_file_name($result['filename'] ?? $this->build_export_filename($conversation, $format));
+        } else {
+            $content = (string) $result;
+            $mime = $format['mime'];
+            $filename = $this->build_export_filename($conversation, $format);
+        }
+
+        $this->send_export_download($content, $filename, $mime);
+    }
+
+    public function export_conversation_as_json(array $conversation, array $format) {
+        return [
+            'filename' => $this->build_export_filename($conversation, $format),
+            'mime' => $format['mime'],
+            'content' => $this->json_encode([
+                'schema' => 'ai-assistant-conversation-export/v1',
+                'exported_at' => gmdate('c'),
+                'conversation' => $conversation,
+            ]),
+        ];
+    }
+
+    public function export_conversation_as_markdown(array $conversation, array $format) {
+        $lines = [];
+        $include_tool_calls = !empty($conversation['include_tool_calls']);
+        $title = $this->single_line_text($conversation['title'] ?: __('Conversation', 'ai-assistant'));
+
+        $lines[] = '# ' . $title;
+        $lines[] = '';
+        $lines[] = '- Conversation ID: ' . $conversation['id'];
+        $lines[] = '- Messages: ' . $conversation['message_count'];
+
+        if (!empty($conversation['provider'])) {
+            $lines[] = '- Provider: ' . $conversation['provider'];
+        }
+        if (!empty($conversation['model'])) {
+            $lines[] = '- Model: ' . $conversation['model'];
+        }
+        if (!empty($conversation['created'])) {
+            $lines[] = '- Created: ' . $conversation['created'];
+        }
+        if (!empty($conversation['modified'])) {
+            $lines[] = '- Modified: ' . $conversation['modified'];
+        }
+
+        if (!empty($conversation['summary'])) {
+            $lines[] = '';
+            $lines[] = '## Summary';
+            $lines[] = '';
+            $lines[] = trim($conversation['summary']);
+        }
+
+        $lines[] = '';
+        $lines[] = '## Messages';
+
+        foreach ($this->get_transcript_export_messages($conversation, $format) as $message) {
+            $role = $this->get_export_message_role($message);
+            $content = $this->message_to_plain_text($message, $include_tool_calls);
+            if ($content === '' && !$include_tool_calls) {
+                continue;
+            }
+
+            $lines[] = '';
+            $lines[] = '### ' . ucfirst($role);
+            $lines[] = '';
+            $lines[] = $content !== '' ? $content : '_No text content_';
+        }
+
+        return implode("\n", $lines) . "\n";
+    }
+
+    public function export_conversation_as_html(array $conversation, array $format) {
+        $include_tool_calls = !empty($conversation['include_tool_calls']);
+        $title = $this->single_line_text($conversation['title'] ?: __('Conversation', 'ai-assistant'));
+        $meta = [
+            __('Conversation ID', 'ai-assistant') => $conversation['id'],
+            __('Messages', 'ai-assistant') => $conversation['message_count'],
+        ];
+
+        if (!empty($conversation['provider'])) {
+            $meta[__('Provider', 'ai-assistant')] = $conversation['provider'];
+        }
+        if (!empty($conversation['model'])) {
+            $meta[__('Model', 'ai-assistant')] = $conversation['model'];
+        }
+        if (!empty($conversation['created'])) {
+            $meta[__('Created', 'ai-assistant')] = $conversation['created'];
+        }
+        if (!empty($conversation['modified'])) {
+            $meta[__('Modified', 'ai-assistant')] = $conversation['modified'];
+        }
+
+        $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
+        $html .= '<title>' . $this->html_escape($title) . '</title>';
+        $html .= '<style>
+            body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5;color:#1d2327;max-width:860px;margin:32px auto;padding:0 20px;background:#fff}
+            h1{font-size:28px;line-height:1.2;margin:0 0 16px}
+            h2{font-size:18px;margin:32px 0 12px}
+            .meta{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:0 0 28px;color:#50575e;font-size:14px}
+            .meta dt{font-weight:600}
+            .meta dd{margin:0}
+            .message{padding:16px 0;border-top:1px solid #dcdcde}
+            .role{font-weight:700;margin:0 0 8px;text-transform:capitalize}
+            .content{white-space:pre-wrap}
+            .summary{padding:14px 16px;background:#f6f7f7;border-radius:4px}
+        </style></head><body>';
+        $html .= '<h1>' . $this->html_escape($title) . '</h1>';
+        $html .= '<dl class="meta">';
+        foreach ($meta as $label => $value) {
+            $html .= '<dt>' . $this->html_escape($label) . '</dt><dd>' . $this->html_escape($value) . '</dd>';
+        }
+        $html .= '</dl>';
+
+        if (!empty($conversation['summary'])) {
+            $html .= '<h2>' . $this->html_escape(__('Summary', 'ai-assistant')) . '</h2>';
+            $html .= '<div class="summary">' . nl2br($this->html_escape(trim($conversation['summary']))) . '</div>';
+        }
+
+        $html .= '<h2>' . $this->html_escape(__('Messages', 'ai-assistant')) . '</h2>';
+        foreach ($this->get_transcript_export_messages($conversation, $format) as $message) {
+            $role = $this->get_export_message_role($message);
+            $content = $this->message_to_plain_text($message, $include_tool_calls);
+            if ($content === '' && !$include_tool_calls) {
+                continue;
+            }
+            $html .= '<section class="message message-' . $this->html_class($role) . '">';
+            $html .= '<p class="role">' . $this->html_escape($role) . '</p>';
+            $html .= '<div class="content">' . nl2br($this->html_escape($content !== '' ? $content : __('No text content', 'ai-assistant'))) . '</div>';
+            $html .= '</section>';
+        }
+
+        $html .= '</body></html>';
+
+        return $html;
+    }
+
+    private function get_export_message_role($message) {
+        $role = $this->single_line_text($message['role'] ?? 'message');
+        if ($role === 'tool' && !empty($message['name'])) {
+            $role .= ': ' . $this->single_line_text($message['name']);
+        }
+        return $role;
+    }
+
+    private function message_to_plain_text($message, $include_tool_calls = false) {
+        $parts = [];
+        $content = $this->message_content_to_plain_text($message['content'] ?? '', $include_tool_calls);
+        if ($content !== '') {
+            $parts[] = $content;
+        }
+
+        if ($include_tool_calls && !empty($message['tool_calls']) && is_array($message['tool_calls'])) {
+            foreach ($message['tool_calls'] as $tool_call) {
+                if (!is_array($tool_call)) {
+                    continue;
+                }
+                $tool_name = $tool_call['function']['name'] ?? 'unknown';
+                $text = '[Tool: ' . $tool_name . ']';
+                if (isset($tool_call['function']['arguments']) && $tool_call['function']['arguments'] !== '') {
+                    $text .= "\n" . $this->format_jsonish_text($tool_call['function']['arguments']);
+                }
+                $parts[] = $text;
+            }
+        }
+
+        return trim(implode("\n\n", $parts));
+    }
+
+    private function message_content_to_plain_text($content, $include_tool_calls = false) {
+        if (is_string($content)) {
+            return trim($this->strip_file_context_for_display($content));
+        }
+
+        if (!is_array($content)) {
+            return '';
+        }
+
+        $parts = [];
+        foreach ($content as $block) {
+            if (is_string($block)) {
+                $parts[] = $this->strip_file_context_for_display($block);
+                continue;
+            }
+
+            if (!is_array($block)) {
+                continue;
+            }
+
+            $type = $block['type'] ?? '';
+            if ($type === 'text' && isset($block['text'])) {
+                $parts[] = $this->strip_file_context_for_display((string) $block['text']);
+            } elseif ($type === 'tool_use') {
+                if (!$include_tool_calls) {
+                    continue;
+                }
+                $tool = $block['name'] ?? 'unknown';
+                $text = '[Tool: ' . $tool . ']';
+                if (isset($block['input'])) {
+                    $text .= "\n" . (is_string($block['input'])
+                        ? $this->format_jsonish_text($block['input'])
+                        : $this->json_encode($block['input']));
+                }
+                $parts[] = $text;
+            } elseif ($type === 'tool_result') {
+                if (!$include_tool_calls) {
+                    continue;
+                }
+                $text = '[Tool Result]';
+                if (isset($block['content'])) {
+                    $result_text = $this->message_content_to_plain_text($block['content'], $include_tool_calls);
+                    if ($result_text !== '') {
+                        $text .= "\n" . $result_text;
+                    }
+                }
+                $parts[] = $text;
+            } else {
+                $parts[] = $this->json_encode($block);
+            }
+        }
+
+        return trim(implode("\n\n", array_filter($parts, function($part) {
+            return trim((string) $part) !== '';
+        })));
+    }
+
+    private function format_jsonish_text($text) {
+        $decoded = json_decode((string) $text, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $this->json_encode($decoded);
+        }
+        return (string) $text;
+    }
+
+    private function build_export_filename(array $conversation, array $format) {
+        $title = sanitize_file_name($conversation['title'] ?: 'conversation');
+        if ($title === '') {
+            $title = 'conversation';
+        }
+        return sprintf('ai-conversation-%d-%s.%s', $conversation['id'], $title, $format['extension']);
+    }
+
+    private function single_line_text($text) {
+        return trim(preg_replace('/\s+/', ' ', (string) $text));
+    }
+
+    private function html_escape($text) {
+        return htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    private function html_class($text) {
+        return preg_replace('/[^a-z0-9_-]/', '-', strtolower((string) $text));
+    }
+
+    private function json_encode($value) {
+        if (function_exists('wp_json_encode')) {
+            return wp_json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        }
+        return json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    }
+
+    private function send_export_download($content, $filename, $mime) {
+        $filename = sanitize_file_name($filename ?: 'ai-conversation-export.txt');
+        if ($filename === '') {
+            $filename = 'ai-conversation-export.txt';
+        }
+
+        if (!headers_sent()) {
+            nocache_headers();
+            $content_type = $mime ?: 'application/octet-stream';
+            if ($this->is_text_mime_type($content_type)) {
+                $content_type .= '; charset=utf-8';
+            }
+            header('Content-Type: ' . $content_type);
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Content-Length: ' . strlen($content));
+        }
+
+        echo $content;
+        exit;
+    }
+
+    private function is_text_mime_type($mime) {
+        return strpos($mime, 'text/') === 0
+            || in_array($mime, ['application/json', 'application/xml'], true);
     }
 
     public function render_messages_meta_box($post) {

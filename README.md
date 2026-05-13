@@ -76,6 +76,34 @@ The model can call `enable_tools` to activate specific extended tools when it ne
 
 Enable the YOLO checkbox to skip confirmation dialogs for tool execution. Use with caution.
 
+### Conversation Exports
+
+Use the export button in a conversation to download the current chat. Built-in formats are Markdown, HTML, and JSON, all registered through the same export filter API that other plugins use. The export dropdown also includes an "Include tool calls" checkbox for generating a fuller technical transcript.
+
+Other plugins can add formats with `ai_assistant_conversation_export_formats`. This supports binary formats such as EPUB because the callback runs server-side and controls the MIME type, extension, filename, and content.
+
+```php
+add_filter('ai_assistant_conversation_export_formats', function($formats) {
+    $formats['epub'] = [
+        'label' => __('EPUB', 'my-plugin'),
+        'description' => __('E-reader friendly conversation export.', 'my-plugin'),
+        'extension' => 'epub',
+        'mime' => 'application/epub+zip',
+        'callback' => 'my_plugin_export_ai_conversation_epub',
+    ];
+
+    return $formats;
+});
+
+function my_plugin_export_ai_conversation_epub(array $conversation, array $format) {
+    return [
+        'filename' => sanitize_file_name($conversation['title']) . '.epub',
+        'mime' => 'application/epub+zip',
+        'content' => My_Plugin_Epub_Builder::from_ai_conversation($conversation),
+    ];
+}
+```
+
 ## AI Changes
 
 Find this under **Tools > AI Changes**. Every file the AI creates or modifies is tracked using a git-compatible structure stored in `wp-content/.git`.

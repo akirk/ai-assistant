@@ -181,6 +181,7 @@
             this.updateSidebarSelection();
             this.loadWelcomeMessage();
             this.updateSummarizeButton();
+            this.updateExportButton();
             $('#ai-assistant-input').focus();
         },
 
@@ -199,24 +200,41 @@
         },
 
         // Conversation persistence
-        saveConversation: function(silent) {
+        saveConversation: function(silent, callback) {
             var self = this;
+
+            if (typeof silent === 'function') {
+                callback = silent;
+                silent = true;
+            }
+
+            function finishCallback(success, response) {
+                if (typeof callback === 'function') {
+                    callback(success, response);
+                }
+            }
 
             if (this.messages.length === 0) {
                 if (!silent) {
                     this.addMessage('system', 'No messages to save.');
                 }
+                finishCallback(false, null);
                 return;
             }
 
             // Prevent concurrent saves - queue if one is in progress
             if (this.saveInProgress) {
                 this.savePending = true;
-                this.savePendingSilent = silent;
+                this.savePendingSilent = this.savePendingSilent && silent;
+                if (typeof callback === 'function') {
+                    this.savePendingCallbacks.push(callback);
+                }
                 return;
             }
 
             this.saveInProgress = true;
+            var saveSucceeded = false;
+            var saveResponse = null;
             $.ajax({
                 url: aiAssistantConfig.ajaxUrl,
                 type: 'POST',
@@ -230,7 +248,9 @@
                     model: this.conversationModel || this.getModel()
                 },
                 success: function(response) {
+                    saveResponse = response;
                     if (response.success) {
+                        saveSucceeded = true;
                         self.conversationId = response.data.conversation_id;
                         if (!self.conversationTitle) {
                             self.conversationTitle = response.data.title;
@@ -245,6 +265,7 @@
                         }
 
                         self.updateSummarizeButton();
+                        self.updateExportButton();
                     } else {
                         console.error('[AI Assistant] Save failed:', response.data);
                         if (!silent) {
@@ -260,10 +281,19 @@
                 },
                 complete: function() {
                     self.saveInProgress = false;
+                    finishCallback(saveSucceeded, saveResponse);
                     // Process queued save if any
                     if (self.savePending) {
+                        var pendingSilent = self.savePendingSilent;
+                        var pendingCallbacks = self.savePendingCallbacks.slice();
+                        self.savePendingCallbacks = [];
                         self.savePending = false;
-                        self.saveConversation(self.savePendingSilent);
+                        self.savePendingSilent = true;
+                        self.saveConversation(pendingSilent, function(success, response) {
+                            pendingCallbacks.forEach(function(pendingCallback) {
+                                pendingCallback(success, response);
+                            });
+                        });
                     }
                 }
             });
@@ -372,6 +402,7 @@
                         self.updateSidebarSelection();
                         $('#ai-assistant-input').focus();
                         self.updateSummarizeButton();
+                        self.updateExportButton();
 
                     } else {
                         self.addMessage('error', 'Failed to load: ' + (response.data.message || 'Unknown error'));
@@ -407,6 +438,7 @@
                         $messages.empty();
                         self.loadWelcomeMessage();
                         $messages.css('visibility', 'visible');
+                        self.updateExportButton();
                     }
                 },
                 error: function() {
@@ -415,8 +447,131 @@
                     $messages.empty();
                     self.loadWelcomeMessage();
                     $messages.css('visibility', 'visible');
+                    self.updateExportButton();
                 }
             });
+        },
+
+        getConversationExportFormats: function() {
+            var formats = (typeof aiAssistantConfig !== 'undefined' && aiAssistantConfig.conversationExportFormats) || [];
+            return Array.isArray(formats) ? formats.filter(function(format) {
+                return format && format.format && format.label;
+            }) : [];
+        },
+
+        renderConversationExportMenu: function() {
+            var formats = this.getConversationExportFormats();
+            var $menu = $('#ai-assistant-export-menu');
+            var self = this;
+
+            if ($menu.length === 0) {
+                return;
+            }
+
+            if (formats.length === 0) {
+                $menu.empty();
+                this.updateExportButton();
+                return;
+            }
+
+            var html = '<label class="ai-export-option">' +
+                '<input type="checkbox" id="ai-export-include-tool-calls" value="1">' +
+                '<span>Include tool calls</span>' +
+                '</label>';
+            formats.forEach(function(format) {
+                html += '<button type="button" class="ai-export-format" role="menuitem" data-format="' + self.escapeHtml(format.format) + '" title="' + self.escapeHtml(format.description || '') + '">';
+                html += '<span class="ai-export-format-label">' + self.escapeHtml(format.label) + '</span>';
+                html += '<span class="ai-export-format-extension">.' + self.escapeHtml(format.extension || format.format) + '</span>';
+                html += '</button>';
+            });
+
+            $menu.html(html);
+            this.updateExportButton();
+        },
+
+        toggleConversationExportMenu: function() {
+            var $button = $('#ai-assistant-export');
+            var $menu = $('#ai-assistant-export-menu');
+
+            if ($button.prop('disabled') || $menu.length === 0) {
+                return;
+            }
+
+            var isOpen = !$menu.prop('hidden');
+            $menu.prop('hidden', isOpen);
+            $button.attr('aria-expanded', isOpen ? 'false' : 'true');
+        },
+
+        hideConversationExportMenu: function() {
+            $('#ai-assistant-export-menu').prop('hidden', true);
+            $('#ai-assistant-export').attr('aria-expanded', 'false');
+        },
+
+        updateExportButton: function() {
+            var formats = this.getConversationExportFormats();
+            var hasFormats = formats.length > 0;
+            var hasMessages = this.messages && this.messages.length > 0;
+
+            $('.ai-export-menu-wrap').toggle(hasFormats);
+            $('.ai-export-header-sep').toggle(hasFormats);
+            $('#ai-assistant-export').prop('disabled', !hasMessages || !hasFormats);
+
+            if (!hasMessages || !hasFormats) {
+                this.hideConversationExportMenu();
+            }
+        },
+
+        exportConversation: function(format) {
+            var self = this;
+
+            this.hideConversationExportMenu();
+
+            if (!format) {
+                return;
+            }
+
+            if (!this.messages || this.messages.length === 0) {
+                this.addMessage('system', 'No messages to export.');
+                this.updateExportButton();
+                return;
+            }
+
+            var includeToolCalls = $('#ai-export-include-tool-calls').is(':checked');
+            this.saveConversation(true, function(success) {
+                if (!success || !self.conversationId) {
+                    self.addMessage('error', 'Failed to save conversation before export.');
+                    return;
+                }
+
+                self.startConversationExportDownload(self.buildConversationExportUrl(format, includeToolCalls));
+            });
+        },
+
+        startConversationExportDownload: function(url) {
+            var iframeId = 'ai-assistant-export-frame';
+            var $iframe = $('#' + iframeId);
+
+            if ($iframe.length === 0) {
+                $iframe = $('<iframe>', {
+                    id: iframeId,
+                    name: iframeId,
+                    title: 'Conversation export download'
+                }).css('display', 'none').appendTo('body');
+            }
+
+            $iframe.attr('src', url);
+        },
+
+        buildConversationExportUrl: function(format, includeToolCalls) {
+            var baseUrl = (typeof aiAssistantConfig !== 'undefined' && aiAssistantConfig.conversationExportUrl) || '';
+            var separator = baseUrl.indexOf('?') === -1 ? '?' : '&';
+            var url = baseUrl + separator +
+                'conversation_id=' + encodeURIComponent(this.conversationId) +
+                '&format=' + encodeURIComponent(format);
+            if (includeToolCalls) {
+                url += '&include_tool_calls=1';
+            }
+            return url + '&_wpnonce=' + encodeURIComponent(aiAssistantConfig.nonce);
         },
         // Sidebar management
         loadSidebarConversations: function() {

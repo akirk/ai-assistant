@@ -50,7 +50,7 @@ function createJQuery(input) {
     return $;
 }
 
-function loadConversationMixin(initialStorage) {
+function loadConversationMixin(initialStorage, config) {
     const input = {
         value: '',
         selectionStart: 0,
@@ -68,6 +68,7 @@ function loadConversationMixin(initialStorage) {
     const context = {
         window: { aiAssistant },
         jQuery: createJQuery(input),
+        aiAssistantConfig: config || {},
         localStorage: storage,
         console
     };
@@ -122,5 +123,43 @@ describe('draft history', function() {
         assistant.navigateDraftHistory(-1);
         assert.strictEqual(input.value, 'unsent draft');
         assert.strictEqual(assistant.draftHistoryIndex, -1);
+    });
+});
+
+describe('conversation exports', function() {
+    it('reads export formats from localized config', function() {
+        const { assistant } = loadConversationMixin(null, {
+            conversationExportFormats: [
+                { format: 'markdown', label: 'Markdown', extension: 'md' },
+                { format: 'html', label: 'HTML', extension: 'html' },
+                { format: 'json', label: 'JSON', extension: 'json' },
+                { label: 'Broken' }
+            ]
+        });
+
+        assert.deepStrictEqual(assistant.getConversationExportFormats(), [
+            { format: 'markdown', label: 'Markdown', extension: 'md' },
+            { format: 'html', label: 'HTML', extension: 'html' },
+            { format: 'json', label: 'JSON', extension: 'json' }
+        ]);
+    });
+
+    it('builds a nonce-protected export download URL', function() {
+        const { assistant } = loadConversationMixin(null, {
+            conversationExportUrl: 'http://example.test/wp-admin/admin-post.php?action=ai_assistant_export_conversation',
+            nonce: 'nonce value'
+        });
+
+        assistant.conversationId = 42;
+
+        assert.strictEqual(
+            assistant.buildConversationExportUrl('markdown'),
+            'http://example.test/wp-admin/admin-post.php?action=ai_assistant_export_conversation&conversation_id=42&format=markdown&_wpnonce=nonce%20value'
+        );
+
+        assert.strictEqual(
+            assistant.buildConversationExportUrl('html', true),
+            'http://example.test/wp-admin/admin-post.php?action=ai_assistant_export_conversation&conversation_id=42&format=html&include_tool_calls=1&_wpnonce=nonce%20value'
+        );
     });
 });

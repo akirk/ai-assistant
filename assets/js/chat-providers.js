@@ -55,6 +55,9 @@
                 : message;
             this.addMessage('user', messageContent);
             this.messages.push({ role: 'user', content: messageContent });
+            if (this.updateExportButton) {
+                this.updateExportButton();
+            }
             this.pendingAttachments = [];
             if (this.renderPendingAttachments) {
                 this.renderPendingAttachments();

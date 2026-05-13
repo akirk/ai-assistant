@@ -4,6 +4,108 @@ The AI Assistant discovers and executes plugin functionality through the **WordP
 
 This document covers everything you need to write a well-behaved ability integration.
 
+## Conversation Export Formats
+
+Plugins can add export formats to the conversation export menu with `ai_assistant_conversation_export_formats`. The built-in Markdown, HTML, and JSON formats use this same filter. The callback runs on the server and can return text or binary content, so formats like EPUB are supported.
+
+```php
+add_filter( 'ai_assistant_conversation_export_formats', function ( array $formats ) {
+    $formats['epub'] = [
+        'label'       => __( 'EPUB', 'my-plugin' ),
+        'description' => __( 'E-reader friendly conversation export.', 'my-plugin' ),
+        'extension'   => 'epub',
+        'mime'        => 'application/epub+zip',
+        'callback'    => 'myplugin_export_ai_conversation_epub',
+    ];
+
+    return $formats;
+} );
+
+function myplugin_export_ai_conversation_epub( array $conversation, array $format ) {
+    $messages = apply_filters(
+        'ai_assistant_conversation_export_shrink_tool_calls',
+        $conversation['messages'],
+        $conversation,
+        $format
+    );
+
+    return [
+        'filename' => sanitize_file_name( $conversation['title'] ) . '.epub',
+        'mime'     => 'application/epub+zip',
+        'content'  => MyPlugin_Epub_Builder::from_ai_conversation( $conversation, $messages ),
+    ];
+}
+```
+
+The `$conversation` array includes `id`, `title`, `summary`, `messages`, `message_count`, `provider`, `model`, `created`, `modified`, `author_id`, and `include_tool_calls`. The `include_tool_calls` value reflects the checkbox in the export dropdown. Readable exporters should pass messages through `ai_assistant_conversation_export_shrink_tool_calls`; it strips provider tool IDs and removes full `read_file` / `write_file` content payloads.
+
+Text-only conversation example:
+
+```php
+$conversation = [
+    'id'                 => 123,
+    'title'              => 'Homepage copy edits',
+    'summary'            => 'The user asked for a shorter hero headline.',
+    'message_count'      => 2,
+    'provider'           => 'openai',
+    'model'              => 'gpt-4o',
+    'created'            => '2026-05-13 10:00:00',
+    'modified'           => '2026-05-13 10:04:00',
+    'author_id'          => 1,
+    'include_tool_calls' => false,
+    'messages'           => [
+        [
+            'role'    => 'user',
+            'content' => 'Make the homepage hero headline shorter.',
+        ],
+        [
+            'role'    => 'assistant',
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => 'Try "Build faster with WordPress" as the headline.',
+                ],
+            ],
+        ],
+    ],
+];
+```
+
+Conversation with tool blocks example:
+
+```php
+$conversation['include_tool_calls'] = true;
+$conversation['messages'] = [
+    [
+        'role'    => 'assistant',
+        'content' => [
+            [
+                'type'  => 'text',
+                'text'  => 'I will inspect the template first.',
+            ],
+            [
+                'type'  => 'tool_use',
+                'id'    => 'toolu_01',
+                'name'  => 'read_file',
+                'input' => [
+                    'path' => 'themes/example/front-page.php',
+                ],
+            ],
+        ],
+    ],
+    [
+        'role'    => 'user',
+        'content' => [
+            [
+                'type'        => 'tool_result',
+                'tool_use_id' => 'toolu_01',
+                'content'     => '<?php get_header(); ?>...',
+            ],
+        ],
+    ],
+];
+```
+
 ## Prerequisites
 
 Abilities require the WordPress Abilities API plugin. Guard your registration code so it silently no-ops when the API is not present:

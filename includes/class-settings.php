@@ -200,13 +200,20 @@ class Settings {
                         <button type="button" class="ai-sidebar-toggle" id="ai-sidebar-toggle">
                             <span class="dashicons dashicons-menu"></span> <?php esc_html_e('Chats', 'ai-assistant'); ?>
                         </button>
-                        <div class="ai-header-actions">
+                        <div class="ai-header-actions ai-conversation-header-actions">
                             <span id="ai-token-count" class="ai-token-count" title="<?php esc_attr_e('Estimated token usage', 'ai-assistant'); ?>">0 tokens</span>
-                            <span class="ai-header-sep">|</span>
                             <button type="button" id="ai-assistant-summarize" class="ai-header-btn" title="<?php esc_attr_e('Generate conversation summary', 'ai-assistant'); ?>" style="display: none;">
                                 <span class="dashicons dashicons-media-text"></span>
                             </button>
-                            <label class="ai-yolo-label" title="<?php esc_attr_e('Skip confirmation prompts for destructive actions', 'ai-assistant'); ?>"><input type="checkbox" id="ai-assistant-yolo"> YOLO Mode</label>
+                            <span class="ai-header-right-actions">
+                                <label class="ai-yolo-label" title="<?php esc_attr_e('Skip confirmation prompts for destructive actions', 'ai-assistant'); ?>"><input type="checkbox" id="ai-assistant-yolo"> YOLO Mode</label>
+                                <span class="ai-export-menu-wrap">
+                                    <button type="button" id="ai-assistant-export" class="ai-header-btn ai-export-toggle" title="<?php esc_attr_e('Export conversation', 'ai-assistant'); ?>" aria-haspopup="true" aria-expanded="false">
+                                        <span class="dashicons dashicons-download"></span>
+                                    </button>
+                                    <span id="ai-assistant-export-menu" class="ai-export-menu" role="menu" hidden></span>
+                                </span>
+                            </span>
                         </div>
                     </div>
                     <div class="ai-assistant-chat-container">
