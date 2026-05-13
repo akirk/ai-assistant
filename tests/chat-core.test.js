@@ -1,0 +1,167 @@
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+function loadCore(options) {
+    options = options || {};
+
+    function jQueryStub() {
+        return {
+            ready() {}
+        };
+    }
+    jQueryStub.extend = function(target, source) {
+        return Object.assign(target, source);
+    };
+
+    const context = {
+        window: {
+            aiAssistantToolCallbacks: options.queuedCallbacks || []
+        },
+        document: {},
+        jQuery: jQueryStub,
+        console
+    };
+
+    vm.createContext(context);
+    const source = fs.readFileSync(
+        path.join(__dirname, '../assets/js/chat-core.js'),
+        'utf8'
+    );
+    vm.runInContext(source, context);
+    return context.window.aiAssistant;
+}
+
+describe('tool call callback API', function() {
+    it('runs callbacks that match completed ability executions', function() {
+        const assistant = loadCore();
+        const calls = [];
+
+        assistant.onToolCall(
+            { ability: 'my-apps/set-background-color', success: true },
+            function(context) {
+                calls.push(context);
+            }
+        );
+
+        assistant.notifyToolCallCallbacks({
+            id: 'tool-1',
+            name: 'ability',
+            input: {
+                action: 'execute',
+                ability: 'my-apps/set-background-color',
+                arguments: { color: '#112233' }
+            },
+            result: { ok: true },
+            success: true
+        }, 'anthropic');
+
+        assert.strictEqual(calls.length, 1);
+        assert.strictEqual(calls[0].tool, 'ability');
+        assert.strictEqual(calls[0].arguments.arguments.color, '#112233');
+        assert.deepStrictEqual(calls[0].result, { ok: true });
+    });
+
+    it('does not run ability shorthand callbacks for schema lookups', function() {
+        const assistant = loadCore();
+        let count = 0;
+
+        assistant.onToolCall({ ability: 'my-apps/set-background-color' }, function() {
+            count++;
+        });
+
+        assistant.notifyToolCallCallbacks({
+            id: 'tool-1',
+            name: 'ability',
+            input: {
+                action: 'get',
+                ability: 'my-apps/set-background-color'
+            },
+            result: { name: 'my-apps/set-background-color' },
+            success: true
+        }, 'anthropic');
+
+        assert.strictEqual(count, 0);
+    });
+
+    it('matches nested argument subsets', function() {
+        const assistant = loadCore();
+        let matched = false;
+
+        assistant.onToolCall({
+            tool: 'ability',
+            arguments: {
+                action: 'execute',
+                arguments: { color: '#112233' }
+            }
+        }, function() {
+            matched = true;
+        });
+
+        assistant.notifyToolCallCallbacks({
+            id: 'tool-1',
+            name: 'ability',
+            input: {
+                action: 'execute',
+                ability: 'my-apps/set-background-color',
+                arguments: {
+                    color: '#112233',
+                    source: 'assistant'
+                }
+            },
+            result: { ok: true },
+            success: true
+        }, 'anthropic');
+
+        assert.strictEqual(matched, true);
+    });
+
+    it('supports unregistering callbacks', function() {
+        const assistant = loadCore();
+        let count = 0;
+
+        const unregister = assistant.onToolCall('read_file', function() {
+            count++;
+        });
+        unregister();
+
+        assistant.notifyToolCallCallbacks({
+            id: 'tool-1',
+            name: 'read_file',
+            input: { path: 'plugins/demo/demo.php' },
+            result: { content: '<?php' },
+            success: true
+        }, 'anthropic');
+
+        assert.strictEqual(count, 0);
+    });
+
+    it('replays callbacks queued before chat-core loads', function() {
+        const calls = [];
+        const assistant = loadCore({
+            queuedCallbacks: [
+                {
+                    criteria: { ability: 'my-apps/set-background-color' },
+                    callback: function(context) {
+                        calls.push(context.id);
+                    }
+                }
+            ]
+        });
+
+        assistant.notifyToolCallCallbacks({
+            id: 'tool-1',
+            name: 'ability',
+            input: {
+                action: 'execute',
+                ability: 'my-apps/set-background-color'
+            },
+            result: { ok: true },
+            success: true
+        }, 'anthropic');
+
+        assert.deepStrictEqual(calls, ['tool-1']);
+    });
+});

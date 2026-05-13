@@ -120,6 +120,9 @@
                         var errorMsg = result.result?.error || 'Failed';
                         self.setToolCardState(result.id, 'error', { message: errorMsg });
                     }
+                    if (self.notifyToolCallCallbacks) {
+                        self.notifyToolCallCallbacks(result, provider);
+                    }
                 });
                 self.handleToolResults(results, provider);
             }).catch(function(error) {
@@ -766,6 +769,9 @@
                     } else {
                         self.setToolCardState(result.id, 'error', { message: result.result?.error || 'Failed' });
                     }
+                    if (self.notifyToolCallCallbacks) {
+                        self.notifyToolCallCallbacks(result, provider);
+                    }
                     self.pendingToolResults.push(result);
                     self.checkAllToolsResolved();
                 });
@@ -919,6 +925,9 @@
                         var errorMsg = result.result?.error || 'Failed';
                         self.setToolCardState(result.id, 'error', { message: errorMsg });
                     }
+                    if (self.notifyToolCallCallbacks) {
+                        self.notifyToolCallCallbacks(result, action.provider);
+                    }
                     self.handleToolResults([result], action.provider);
                 });
             } else {
@@ -962,6 +971,9 @@
                         } else {
                             var errorMsg = result.result?.error || 'Failed';
                             self.setToolCardState(result.id, 'error', { message: errorMsg });
+                        }
+                        if (self.notifyToolCallCallbacks) {
+                            self.notifyToolCallCallbacks(result, actions[0].provider);
                         }
                     });
                     self.handleToolResults(results, actions[0].provider);

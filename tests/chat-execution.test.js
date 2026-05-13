@@ -177,6 +177,48 @@ describe('processToolCallImmediate', function() {
     });
 });
 
+describe('tool call callbacks', function() {
+    it('notifies subscribers after executing tools', async function() {
+        const notifications = [];
+        let handled = false;
+        const assistant = createAssistant({
+            executeSingleTool(toolCall) {
+                return Promise.resolve({
+                    id: toolCall.id,
+                    name: toolCall.name,
+                    input: toolCall.arguments,
+                    result: { ok: true },
+                    success: true
+                });
+            },
+            notifyToolCallCallbacks(result, provider) {
+                notifications.push({ result, provider });
+            },
+            handleToolResults() {
+                handled = true;
+            }
+        });
+
+        assistant.executeTools([
+            {
+                id: 'tool-1',
+                name: 'ability',
+                arguments: {
+                    action: 'execute',
+                    ability: 'my-apps/set-background-color'
+                }
+            }
+        ], 'anthropic');
+
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        assert.strictEqual(notifications.length, 1);
+        assert.strictEqual(notifications[0].result.name, 'ability');
+        assert.strictEqual(notifications[0].provider, 'anthropic');
+        assert.strictEqual(handled, true);
+    });
+});
+
 describe('REST API descriptions and results', function() {
     it('does not describe an empty rest_api call as GET /', function() {
         const assistant = loadExecutionMixin();
