@@ -265,22 +265,13 @@ add_filter( 'ai_assistant_conversation_export_formats', function ( array $format
 } );
 
 function myplugin_export_ai_conversation_epub( array $conversation, array $format ) {
-    $messages = apply_filters(
-        'ai_assistant_conversation_export_shrink_tool_calls',
-        $conversation['messages'],
-        $conversation,
-        $format
-    );
-
     return [
         'filename' => sanitize_file_name( $conversation['title'] ) . '.epub',
         'mime'     => 'application/epub+zip',
-        'content'  => MyPlugin_Epub_Builder::from_ai_conversation( $conversation, $messages ),
+        'content'  => MyPlugin_Epub_Builder::from_ai_conversation( $conversation ),
     ];
 }
 ```
-
-The `$conversation` array includes `id`, `title`, `summary`, `messages`, `message_count`, `provider`, `model`, `created`, `modified`, `author_id`, `author_display_name`, and `include_tool_calls`. The `include_tool_calls` value reflects the checkbox in the export dropdown. Readable exporters should pass messages through `ai_assistant_conversation_export_shrink_tool_calls`; it strips provider tool IDs and removes full `read_file` / `write_file` content payloads.
 
 Text-only conversation example:
 
@@ -299,17 +290,21 @@ $conversation = [
     'include_tool_calls' => false,
     'messages'           => [
         [
-            'role'    => 'user',
-            'content' => 'Make the homepage hero headline shorter.',
+            'role'     => 'user',
+            'content'  => 'Make the homepage hero headline shorter.',
+            'markdown' => 'Make the homepage hero headline shorter.',
+            'html'     => '<p>Make the homepage hero headline shorter.</p>',
         ],
         [
-            'role'    => 'assistant',
-            'content' => [
+            'role'     => 'assistant',
+            'content'  => [
                 [
                     'type' => 'text',
                     'text' => 'Try "Build faster with WordPress" as the headline.',
                 ],
             ],
+            'markdown' => 'Try "Build faster with WordPress" as the headline.',
+            'html'     => '<p>Try &quot;Build faster with WordPress&quot; as the headline.</p>',
         ],
     ],
 ];
@@ -363,4 +358,4 @@ Before shipping an AI Assistant integration, verify:
 - [ ] `ai_assistant_ability_domains` registers the terms users use for your plugin so AI Assistant considers these abilities for domain-specific requests.
 - [ ] Image-related abilities accept remote URLs unless an existing attachment ID is required.
 - [ ] Browser UI registers an `onToolCall` callback when it needs to refresh after ability execution.
-- [ ] Custom conversation exporters pass readable formats through `ai_assistant_conversation_export_shrink_tool_calls`.
+- [ ] Custom conversation exporters use prepared `markdown` / `html` message fields for readable output, or pass raw message content through `ai_assistant_conversation_export_shrink_tool_calls`.

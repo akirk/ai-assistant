@@ -160,6 +160,69 @@ class Conversations {
         return apply_filters('ai_assistant_conversation_export_shrink_tool_calls', $messages, $conversation, $format);
     }
 
+    /**
+     * Adds transcript-safe Markdown and HTML fragments to each export message.
+     *
+     * The original provider message payload stays intact in `content`; derived
+     * fields are built from the filtered transcript view.
+     */
+    public function prepare_conversation_messages_for_export(array $conversation, array $format) {
+        $raw_messages = isset($conversation['messages']) && is_array($conversation['messages'])
+            ? $conversation['messages']
+            : [];
+        $raw_messages = array_map([$this, 'remove_export_message_representations'], $raw_messages);
+
+        $render_conversation = array_merge($conversation, [
+            'messages' => $raw_messages,
+        ]);
+        $render_messages = $this->get_transcript_export_messages($render_conversation, $format);
+        $include_tool_calls = !empty($conversation['include_tool_calls']);
+        $prepared_messages = [];
+
+        foreach ($raw_messages as $index => $message) {
+            if (!is_array($message)) {
+                $prepared_messages[] = $message;
+                continue;
+            }
+
+            $render_message = isset($render_messages[$index]) && is_array($render_messages[$index])
+                ? $render_messages[$index]
+                : $message;
+            $markdown = $this->message_to_plain_text($render_message, $include_tool_calls);
+
+            $message['markdown'] = $markdown;
+            $message['html'] = $markdown !== '' ? $this->render_export_markdown_content($markdown) : '';
+            $prepared_messages[] = $message;
+        }
+
+        $conversation['messages'] = $prepared_messages;
+
+        return $conversation;
+    }
+
+    private function remove_export_message_representations($message) {
+        if (is_array($message)) {
+            unset($message['markdown'], $message['html']);
+        }
+
+        return $message;
+    }
+
+    private function remove_html_from_json_export(array $conversation) {
+        if (empty($conversation['messages']) || !is_array($conversation['messages'])) {
+            return $conversation;
+        }
+
+        foreach ($conversation['messages'] as &$message) {
+            if (is_array($message)) {
+                unset($message['html']);
+            }
+        }
+        unset($message);
+
+        return $conversation;
+    }
+
     public function get_export_formats_for_config() {
         $config = [];
         foreach ($this->get_export_formats() as $slug => $format) {
@@ -413,6 +476,11 @@ class Conversations {
         }
 
         $conversation['include_tool_calls'] = isset($_GET['include_tool_calls']) && $_GET['include_tool_calls'] === '1';
+        $conversation = $this->prepare_conversation_messages_for_export($conversation, [
+            'format' => $format_slug,
+            'extension' => $format_slug,
+            'mime' => '',
+        ]);
 
         $formats = $this->get_export_formats($conversation);
         if (empty($formats[$format_slug])) {
@@ -420,6 +488,7 @@ class Conversations {
         }
 
         $format = $formats[$format_slug];
+        $conversation = $this->prepare_conversation_messages_for_export($conversation, $format);
         $result = call_user_func($format['callback'], $conversation, $format);
 
         if (is_wp_error($result)) {
@@ -443,6 +512,8 @@ class Conversations {
     }
 
     public function export_conversation_as_json(array $conversation, array $format) {
+        $conversation = $this->remove_html_from_json_export($conversation);
+
         return [
             'filename' => $this->build_export_filename($conversation, $format),
             'mime' => $format['mime'],
