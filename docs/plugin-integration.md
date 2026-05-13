@@ -1,6 +1,6 @@
 # Integrating Plugins with AI Assistant
 
-AI Assistant discovers and executes plugin functionality through the [WordPress Abilities API](https://developer.wordpress.org/apis/abilities-api/).
+AI Assistant discovers and executes plugin functionality through the [WordPress Abilities API](https://developer.wordpress.org/apis/abilities-api/) and decides whether to use them based on the [ability domains](#ai_assistant_ability_domains) expressed in your plugin.
 
 This document covers only the AI Assistant-specific integration points: how the assistant chooses abilities, how to guide its behavior, how to refresh browser UI after ability execution, and how to add conversation export formats.
 
