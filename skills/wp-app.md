@@ -87,7 +87,7 @@ When extending the generated app, keep it friendly to AI Assistant, My Apps, and
 - For app-specific data and actions, register WordPress Abilities instead of making AI Assistant use `run_php` or `db_query`.
 - Follow the WordPress Abilities API handbook for ability categories, schemas, and permission callbacks.
 - Follow `wp-content/plugins/ai-assistant/docs/plugin-integration.md` for AI Assistant-specific domains, annotations, browser callbacks, and post-result instructions.
-- Register an `ai_assistant_ability_domains` filter with the app's domain keywords so AI Assistant prefers the app's abilities.
+- Register an `ai_assistant_ability_domains` filter with the app's domain keywords so AI Assistant considers the app's abilities specifically for relevant requests.
 - Use `ai_assistant_ability_instructions` when ability results need a specific presentation or follow-up workflow.
 - Return structured arrays or `WP_Error`; include input/output schemas and mark abilities with `readonly`, `destructive`, and `idempotent` annotations.
 

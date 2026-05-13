@@ -1,6 +1,6 @@
 # Integrating Plugins with AI Assistant
 
-AI Assistant discovers and executes plugin functionality through the **WordPress Abilities API**. Use the official WordPress handbook for the shared API surface:
+AI Assistant discovers and executes plugin functionality through the [WordPress Abilities API](https://developer.wordpress.org/apis/abilities-api/). Use the official WordPress handbook for the shared API surface:
 
 - [Abilities API overview](https://developer.wordpress.org/apis/abilities-api/)
 - [Getting started](https://developer.wordpress.org/apis/abilities-api/getting-started/)
@@ -8,6 +8,17 @@ AI Assistant discovers and executes plugin functionality through the **WordPress
 - [REST API endpoints](https://developer.wordpress.org/apis/abilities-api/rest-api-endpoints/)
 
 This document covers only the AI Assistant-specific integration points: how the assistant chooses abilities, how to guide its behavior, how to refresh browser UI after ability execution, and how to add conversation export formats.
+
+## Table of Contents
+
+- [Abilities in AI Assistant](#abilities-in-ai-assistant)
+- [Authoring for AI Use](#authoring-for-ai-use)
+- [Annotations](#annotations)
+- [Image Inputs](#image-inputs)
+- [AI Assistant Filters](#ai-assistant-filters)
+- [Browser Callbacks After Tool Calls](#browser-callbacks-after-tool-calls)
+- [Conversation Export Formats](#conversation-export-formats)
+- [Checklist](#checklist)
 
 ## Abilities in AI Assistant
 
@@ -137,7 +148,9 @@ The AI Assistant plugin provides filters that help steer the assistant toward yo
 
 ### `ai_assistant_ability_domains`
 
-Use this filter to tell the assistant which topics belong to your plugin. The assistant includes these terms in its tool description so it prefers your abilities over generic tools for related requests.
+Use this filter to tell the assistant which topics belong to your plugin. This is the main way to make AI Assistant consider your plugin's abilities specifically when a user asks about your domain.
+
+AI Assistant can discover all registered abilities, but it does not know which plugin should handle words like "invoice", "reservation", "member", or "gallery" unless you connect those terms to your ability namespace. The assistant includes these domain terms in its `ability` tool description so it reaches for your abilities before generic tools like `run_php` or `db_query`.
 
 ```php
 add_filter( 'ai_assistant_ability_domains', 'myplugin_ability_domains' );
@@ -148,7 +161,7 @@ function myplugin_ability_domains( $domains ) {
 }
 ```
 
-The key should match your plugin or ability namespace. The value is a comma-separated list of terms users naturally use when asking about your plugin.
+The key should match your plugin or ability namespace. The value is a comma-separated list of terms users naturally use when asking about your plugin. Include product names, content types, business objects, UI labels, and common synonyms.
 
 ### `ai_assistant_ability_instructions`
 
@@ -344,7 +357,7 @@ Before shipping an AI Assistant integration, verify:
 - [ ] Input schemas are strict where appropriate.
 - [ ] `readonly`, `destructive`, and `idempotent` annotations are accurate.
 - [ ] `instructions` annotations or `ai_assistant_ability_instructions` explain presentation, batching, ambiguity, or follow-up behavior when needed.
-- [ ] `ai_assistant_ability_domains` registers the terms users use for your plugin.
+- [ ] `ai_assistant_ability_domains` registers the terms users use for your plugin so AI Assistant considers these abilities for domain-specific requests.
 - [ ] Image-related abilities accept remote URLs unless an existing attachment ID is required.
 - [ ] Browser UI registers an `onToolCall` callback when it needs to refresh after ability execution.
 - [ ] Custom conversation exporters pass readable formats through `ai_assistant_conversation_export_shrink_tool_calls`.
