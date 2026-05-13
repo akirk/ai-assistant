@@ -257,19 +257,11 @@ class Executor {
      */
     private function get_environment_info(bool $include_inactive = false): array {
         $theme = wp_get_theme();
-        $wp_version = get_bloginfo('version');
-        $php_version = PHP_VERSION;
-        $theme_slug = $theme->get_template();
         $info = [
-            'wordpress_version' => $wp_version,
-            'php_version'       => $php_version,
-            'theme'             => $theme_slug,
-            'active_plugins'    => [],
-            'inactive_plugins'  => [],
-            // Back-compat aliases for existing callers.
-            'wp'                => $wp_version,
-            'php'               => $php_version,
-            'plugins'           => [],
+            'wp'      => get_bloginfo('version'),
+            'php'     => PHP_VERSION,
+            'theme'   => $theme->get_template(),
+            'plugins' => [],
         ];
 
         if (!function_exists('get_plugins')) {
@@ -281,15 +273,10 @@ class Executor {
         foreach ($all_plugins as $file => $data) {
             $slug = dirname($file) === '.' ? basename($file, '.php') : dirname($file);
             if (in_array($file, $active_slugs)) {
-                $info['active_plugins'][$slug] = $data['Name'];
                 $info['plugins'][$slug] = $data['Name'];
             } elseif ($include_inactive) {
-                $info['inactive_plugins'][$slug] = $data['Name'];
+                $info['inactive'][$slug] = $data['Name'];
             }
-        }
-
-        if ($include_inactive) {
-            $info['inactive'] = $info['inactive_plugins'];
         }
 
         return $info;

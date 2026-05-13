@@ -840,16 +840,27 @@ class ExecutorTest extends TestCase {
         $result = $this->executor->execute_tool('environment_info', []);
 
         $this->assertIsArray($result);
-        $this->assertArrayHasKey('php_version', $result);
-        $this->assertArrayHasKey('active_plugins', $result);
-        $this->assertArrayHasKey('inactive_plugins', $result);
+        $this->assertArrayHasKey('wp', $result);
+        $this->assertArrayHasKey('php', $result);
+        $this->assertArrayHasKey('theme', $result);
+        $this->assertArrayHasKey('plugins', $result);
+        $this->assertArrayNotHasKey('inactive', $result);
+    }
+
+    public function test_environment_info_can_include_inactive_plugins(): void {
+        $result = $this->executor->execute_tool('environment_info', [
+            'include_inactive' => true,
+        ]);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('inactive', $result);
     }
 
     public function test_environment_info_read_only_permission(): void {
         $result = $this->executor->execute_tool('environment_info', [], 'read_only');
 
         $this->assertIsArray($result);
-        $this->assertArrayHasKey('php_version', $result);
+        $this->assertArrayHasKey('php', $result);
     }
 
     public function test_write_file_lint_error_includes_line_number(): void {
