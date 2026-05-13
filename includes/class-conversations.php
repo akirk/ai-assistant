@@ -527,13 +527,16 @@ class Conversations {
 
     public function export_conversation_as_markdown(array $conversation, array $format) {
         $lines = [];
-        $include_tool_calls = !empty($conversation['include_tool_calls']);
         $title = $this->single_line_text($conversation['title'] ?: __('Conversation', 'ai-assistant'));
+        $transcript = $this->get_export_transcript($conversation, $format);
 
         $lines[] = '# ' . $title;
         $lines[] = '';
         $lines[] = '- Conversation ID: ' . $conversation['id'];
-        $lines[] = '- Messages: ' . $conversation['message_count'];
+        $lines[] = '- Messages: ' . $transcript['message_count'];
+        if ($transcript['tool_call_count'] > 0) {
+            $lines[] = '- Tool calls: ' . $transcript['tool_call_count'];
+        }
 
         if (!empty($conversation['author_display_name'])) {
             $lines[] = '- Author: ' . $this->single_line_text($conversation['author_display_name']);
@@ -561,29 +564,27 @@ class Conversations {
         $lines[] = '';
         $lines[] = '## Messages';
 
-        foreach ($this->get_transcript_export_messages($conversation, $format) as $message) {
-            $role_label = $this->get_export_message_role_label($message, $conversation);
-            $content = $this->message_to_plain_text($message, $include_tool_calls);
-            if ($content === '' && !$include_tool_calls) {
-                continue;
-            }
-
+        foreach ($transcript['messages'] as $message) {
             $lines[] = '';
-            $lines[] = '### ' . $role_label;
+            $lines[] = '### ' . $message['role_label'];
             $lines[] = '';
-            $lines[] = $content !== '' ? $content : '_No text content_';
+            $lines[] = $message['content'] !== '' ? $message['content'] : '_No text content_';
         }
 
         return implode("\n", $lines) . "\n";
     }
 
     public function export_conversation_as_html(array $conversation, array $format) {
-        $include_tool_calls = !empty($conversation['include_tool_calls']);
         $title = $this->single_line_text($conversation['title'] ?: __('Conversation', 'ai-assistant'));
+        $transcript = $this->get_export_transcript($conversation, $format);
         $meta = [
             __('Conversation ID', 'ai-assistant') => $conversation['id'],
-            __('Messages', 'ai-assistant') => $conversation['message_count'],
+            __('Messages', 'ai-assistant') => $transcript['message_count'],
         ];
+
+        if ($transcript['tool_call_count'] > 0) {
+            $meta[__('Tool calls', 'ai-assistant')] = $transcript['tool_call_count'];
+        }
 
         if (!empty($conversation['author_display_name'])) {
             $meta[__('Author', 'ai-assistant')] = $this->single_line_text($conversation['author_display_name']);
@@ -595,60 +596,247 @@ class Conversations {
             $meta[__('Model', 'ai-assistant')] = $conversation['model'];
         }
         if (!empty($conversation['created'])) {
-            $meta[__('Created', 'ai-assistant')] = $conversation['created'];
-        }
-        if (!empty($conversation['modified'])) {
-            $meta[__('Modified', 'ai-assistant')] = $conversation['modified'];
+            $meta[__('Created', 'ai-assistant')] = $this->format_export_datetime($conversation['created']);
         }
 
         $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
+        $html .= '<meta name="viewport" content="width=device-width, initial-scale=1">';
         $html .= '<title>' . $this->html_escape($title) . '</title>';
-        $html .= '<style>
-            body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5;color:#1d2327;max-width:860px;margin:32px auto;padding:0 20px;background:#fff}
-            h1{font-size:28px;line-height:1.2;margin:0 0 16px}
-            h2{font-size:18px;margin:32px 0 12px}
-            .meta{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:0 0 28px;color:#50575e;font-size:14px}
-            .meta dt{font-weight:600}
-            .meta dd{margin:0}
-            .message{padding:16px 0;border-top:1px solid #dcdcde}
-            .role{font-weight:700;margin:0 0 8px}
-            .content,.summary{overflow-wrap:anywhere}
-            .content p,.summary p{margin:0 0 12px}
-            .content p:last-child,.summary p:last-child{margin-bottom:0}
-            .content code,.summary code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#f0f0f1;border-radius:3px;padding:1px 4px}
-            .content pre,.summary pre{overflow-x:auto;background:#1d2327;color:#f6f7f7;border-radius:4px;padding:12px;white-space:pre}
-            .content pre code,.summary pre code{background:transparent;color:inherit;padding:0}
-            .summary{padding:14px 16px;background:#f6f7f7;border-radius:4px}
-        </style></head><body>';
+        $html .= '<style>' . $this->get_export_html_conversation_view_styles() . '</style>';
+        $html .= '</head><body>';
+        $html .= '<main class="ai-export-shell">';
+        $html .= '<header class="ai-export-header">';
+        $html .= '<div class="ai-export-title-group">';
+        $html .= '<p class="ai-export-kicker">' . $this->html_escape(__('AI Assistant Transcript', 'ai-assistant')) . '</p>';
         $html .= '<h1>' . $this->html_escape($title) . '</h1>';
-        $html .= '<dl class="meta">';
+        $html .= '</div>';
+        $html .= '<dl class="ai-export-meta">';
         foreach ($meta as $label => $value) {
-            $html .= '<dt>' . $this->html_escape($label) . '</dt><dd>' . $this->html_escape($value) . '</dd>';
+            $html .= '<div><dt>' . $this->html_escape($label) . '</dt><dd>' . $this->html_escape($value) . '</dd></div>';
         }
         $html .= '</dl>';
+        $html .= '</header>';
+        $html .= '<div id="ai-assistant-messages" class="ai-export-messages">';
 
         if (!empty($conversation['summary'])) {
-            $html .= '<h2>' . $this->html_escape(__('Summary', 'ai-assistant')) . '</h2>';
-            $html .= '<div class="summary">' . $this->render_export_markdown_content(trim($conversation['summary'])) . '</div>';
-        }
-
-        $html .= '<h2>' . $this->html_escape(__('Messages', 'ai-assistant')) . '</h2>';
-        foreach ($this->get_transcript_export_messages($conversation, $format) as $message) {
-            $role = $this->get_export_message_role($message);
-            $role_label = $this->get_export_message_role_label($message, $conversation);
-            $content = $this->message_to_plain_text($message, $include_tool_calls);
-            if ($content === '' && !$include_tool_calls) {
-                continue;
-            }
-            $html .= '<section class="message message-' . $this->html_class($role) . '">';
-            $html .= '<p class="role">' . $this->html_escape($role_label) . '</p>';
-            $html .= '<div class="content">' . $this->render_export_markdown_content($content !== '' ? $content : __('No text content', 'ai-assistant')) . '</div>';
+            $html .= '<section class="ai-conversation-summary">';
+            $html .= '<div class="ai-summary-header">';
+            $html .= '<span class="ai-summary-title">' . $this->html_escape(__('Conversation Summary', 'ai-assistant')) . '</span>';
+            $html .= '</div>';
+            $html .= '<div class="ai-summary-content">' . $this->render_export_markdown_content(trim($conversation['summary'])) . '</div>';
             $html .= '</section>';
         }
 
-        $html .= '</body></html>';
+        foreach ($transcript['messages'] as $message) {
+            $role = $message['role'];
+            $base_role = $message['base_role'];
+            $role_class = $this->html_class($role);
+            $message_classes = 'ai-message ai-message-' . $base_role;
+            if ($role_class !== $base_role) {
+                $message_classes .= ' ai-message-' . $role_class;
+            }
+            $html .= '<section class="' . $this->html_escape($message_classes) . '" aria-label="' . $this->html_escape($message['role_label']) . '">';
+            $html .= '<span class="ai-message-role">' . $this->html_escape($message['role_label']) . '</span>';
+            $html .= '<div class="ai-message-content">' . $this->render_export_markdown_content($message['content'] !== '' ? $message['content'] : __('No text content', 'ai-assistant')) . '</div>';
+            $html .= '</section>';
+        }
+
+        $html .= '</div></main></body></html>';
 
         return $html;
+    }
+
+    private function get_export_transcript(array $conversation, array $format) {
+        $include_tool_calls = !empty($conversation['include_tool_calls']);
+        $rows = [];
+        $message_count = 0;
+        $tool_call_count = 0;
+
+        foreach ($this->get_transcript_export_messages($conversation, $format) as $message) {
+            if (!is_array($message)) {
+                continue;
+            }
+
+            $visible_message_text = $this->message_to_visible_export_message_text($message);
+            $has_visible_message = $visible_message_text !== '';
+            $has_tool_payload = $this->message_has_export_tool_payload($message);
+            $tool_call_count += $this->count_export_tool_calls($message);
+
+            if ($has_visible_message) {
+                $message_count++;
+            }
+
+            if (!$include_tool_calls && !$has_visible_message) {
+                continue;
+            }
+
+            $content = $this->message_to_plain_text($message, $include_tool_calls);
+            if ($content === '' && !$has_tool_payload) {
+                continue;
+            }
+
+            $role = $this->get_export_message_role($message);
+            $base_role = $this->html_class($message['role'] ?? 'message') ?: 'message';
+
+            if (!$has_visible_message && $has_tool_payload) {
+                $role = $this->message_has_export_tool_result_payload($message)
+                    ? __('Tool result', 'ai-assistant')
+                    : __('Tool call', 'ai-assistant');
+                $base_role = 'tool';
+            }
+
+            $rows[] = [
+                'message' => $message,
+                'role' => $role,
+                'base_role' => $base_role,
+                'role_label' => $this->get_export_message_role_label(array_merge($message, [
+                    'role' => $role,
+                ]), $conversation),
+                'content' => $content,
+            ];
+        }
+
+        return [
+            'messages' => $rows,
+            'message_count' => $message_count,
+            'tool_call_count' => $tool_call_count,
+        ];
+    }
+
+    private function message_to_visible_export_message_text(array $message) {
+        $role = strtolower($this->single_line_text($message['role'] ?? ''));
+        if ($role === 'tool') {
+            return '';
+        }
+
+        return $this->message_content_to_plain_text($message['content'] ?? '', false);
+    }
+
+    private function count_export_tool_calls(array $message) {
+        $count = 0;
+
+        if (!empty($message['tool_calls']) && is_array($message['tool_calls'])) {
+            foreach ($message['tool_calls'] as $tool_call) {
+                if (is_array($tool_call)) {
+                    $count++;
+                }
+            }
+        }
+
+        foreach ($this->get_export_message_content_blocks($message) as $block) {
+            if (($block['type'] ?? '') === 'tool_use') {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    private function message_has_export_tool_payload(array $message) {
+        $role = strtolower($this->single_line_text($message['role'] ?? ''));
+        if ($role === 'tool') {
+            return true;
+        }
+
+        if (!empty($message['tool_calls']) && is_array($message['tool_calls'])) {
+            return true;
+        }
+
+        foreach ($this->get_export_message_content_blocks($message) as $block) {
+            $type = $block['type'] ?? '';
+            if ($type === 'tool_use' || $type === 'tool_result') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function message_has_export_tool_result_payload(array $message) {
+        $role = strtolower($this->single_line_text($message['role'] ?? ''));
+        if ($role === 'tool') {
+            return true;
+        }
+
+        foreach ($this->get_export_message_content_blocks($message) as $block) {
+            if (($block['type'] ?? '') === 'tool_result') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function get_export_message_content_blocks(array $message) {
+        if (empty($message['content']) || !is_array($message['content'])) {
+            return [];
+        }
+
+        return array_filter($message['content'], function($block) {
+            return is_array($block);
+        });
+    }
+
+    private function get_export_html_conversation_view_styles() {
+        return '
+            html{height:100%}
+            body{min-height:100%;margin:0;background:#f0f0f1;color:#1d2327;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif;font-size:13px;line-height:1.4}
+            a{color:#2271b1;text-decoration:none}
+            a:hover{text-decoration:underline}
+            .ai-export-shell{max-width:1100px;min-height:100vh;margin:0 auto;display:flex;flex-direction:column}
+            .ai-export-header{padding:28px 24px 20px;background:#fff}
+            .ai-export-title-group{min-width:0;max-width:780px}
+            .ai-export-kicker{margin:0 0 7px;color:#2271b1;font-size:11px;font-weight:700;line-height:1.3;text-transform:uppercase}
+            h1{margin:0;color:#1d2327;font-size:26px;font-weight:600;line-height:1.2}
+            .ai-export-meta{display:flex;flex-wrap:wrap;gap:7px;margin:16px 0 0;padding:0;color:#50575e;font-size:12px}
+            .ai-export-meta div{display:flex;gap:5px;min-width:0;padding:4px 8px;background:#f6f7f7;border-radius:4px}
+            .ai-export-meta dt{font-weight:600}
+            .ai-export-meta dd{margin:0;overflow-wrap:anywhere}
+            #ai-assistant-messages{flex:1;padding:20px;display:flex;flex-direction:column;gap:10px;background:#f0f0f1}
+            .ai-message{max-width:85%;display:flex;flex-direction:column;gap:4px}
+            .ai-message-user{align-self:flex-end;align-items:flex-end}
+            .ai-message-assistant,.ai-message-error,.ai-message-system,.ai-message-tool,.ai-message-message{align-self:flex-start;align-items:flex-start}
+            .ai-message-role{margin:0 4px;color:#646970;font-size:11px;line-height:1.2}
+            .ai-message-content{min-width:0;box-sizing:border-box;padding:8px 12px;border-radius:8px;line-height:1.5;font-size:13px;overflow-wrap:anywhere}
+            .ai-message-user .ai-message-content{background:#2271b1;color:#fff;border-bottom-right-radius:4px}
+            .ai-message-assistant .ai-message-content,.ai-message-message .ai-message-content{background:#fff;color:#1d2327;border:1px solid #c3c4c7;border-bottom-left-radius:4px}
+            .ai-message-tool .ai-message-content{background:#fff;color:#1d2327;border:1px solid #c3c4c7;border-bottom-left-radius:4px}
+            .ai-message-system .ai-message-content{background:#fff8e5;color:#1d2327;border:1px solid #dba617}
+            .ai-message-error .ai-message-content{background:#fcf0f1;color:#8a0f0f;border:1px solid #d63638}
+            .ai-message-content p,.ai-summary-content p{margin:0 0 .65em}
+            .ai-message-content p:last-child,.ai-summary-content p:last-child{margin-bottom:0}
+            .ai-message-content h2,.ai-message-content h3,.ai-message-content h4,.ai-summary-content h2,.ai-summary-content h3,.ai-summary-content h4{font-size:13px;font-weight:600;line-height:1.4;margin:.8em 0 .35em}
+            .ai-message-content h2:first-child,.ai-message-content h3:first-child,.ai-message-content h4:first-child,.ai-summary-content h2:first-child,.ai-summary-content h3:first-child,.ai-summary-content h4:first-child{margin-top:0}
+            .ai-message-content code,.ai-summary-content code{background:rgba(0,0,0,.08);padding:2px 5px;border-radius:3px;font-family:Consolas,Monaco,monospace;font-size:12px}
+            .ai-message-user .ai-message-content code{background:rgba(255,255,255,.2)}
+            .ai-message-content pre,.ai-summary-content pre{background:#1d2327;color:#f0f0f1;padding:10px;border-radius:4px;overflow-x:auto;margin:6px 0;white-space:pre}
+            .ai-message-content pre code,.ai-summary-content pre code{background:none;padding:0;color:inherit}
+            .ai-conversation-summary{background:#f0f6fc;border:1px solid #c3d9ed;border-radius:8px;margin-bottom:10px}
+            .ai-summary-header{display:flex;align-items:center;gap:8px;padding:10px 12px}
+            .ai-summary-title{font-weight:600;font-size:12px;color:#1d2327;flex:1}
+            .ai-summary-content{padding:10px 12px 12px;font-size:13px;line-height:1.5;color:#1d2327;border-top:1px solid #c3d9ed;overflow-wrap:anywhere}
+            @media screen and (max-width:782px){.ai-export-header{padding:22px 15px 16px}h1{font-size:22px}#ai-assistant-messages{padding:15px}.ai-message{max-width:95%}}
+            @media print{body{background:#fff}.ai-export-shell{max-width:none;min-height:0;border:0}#ai-assistant-messages{background:#fff;padding:16px 0}.ai-message{break-inside:avoid}}
+        ';
+    }
+
+    private function format_export_datetime($datetime) {
+        $datetime = $this->single_line_text($datetime);
+        if ($datetime === '') {
+            return '';
+        }
+
+        $timestamp = strtotime($datetime);
+        if ($timestamp === false) {
+            return $datetime;
+        }
+
+        $format = 'F j, Y \a\t g:i A';
+        if (function_exists('wp_date')) {
+            return wp_date($format, $timestamp);
+        }
+
+        return date($format, $timestamp);
     }
 
     private function get_export_message_role($message) {

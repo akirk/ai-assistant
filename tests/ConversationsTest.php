@@ -38,11 +38,14 @@ class ConversationsTest extends TestCase {
 
         $this->assertStringContainsString('# Test Conversation', $markdown);
         $this->assertStringContainsString('- Conversation ID: 123', $markdown);
+        $this->assertStringContainsString('- Messages: 2', $markdown);
+        $this->assertStringContainsString('- Tool calls: 1', $markdown);
         $this->assertStringContainsString('- Author: Ada Lovelace', $markdown);
         $this->assertStringContainsString('## Summary', $markdown);
         $this->assertStringContainsString('Short summary.', $markdown);
         $this->assertStringContainsString('### Ada Lovelace', $markdown);
         $this->assertStringNotContainsString('### User', $markdown);
+        $this->assertStringContainsString('### Tool result', $markdown);
         $this->assertStringContainsString('Please inspect this.', $markdown);
         $this->assertStringContainsString('[Tool: read_file]', $markdown);
         $this->assertStringContainsString('read_file content omitted from export', $markdown);
@@ -57,6 +60,8 @@ class ConversationsTest extends TestCase {
         ]);
 
         $this->assertStringContainsString('I will check the file.', $markdown);
+        $this->assertStringContainsString('- Messages: 2', $markdown);
+        $this->assertStringContainsString('- Tool calls: 1', $markdown);
         $this->assertStringNotContainsString('[Tool: read_file]', $markdown);
         $this->assertStringNotContainsString('secret file contents', $markdown);
     }
@@ -69,8 +74,17 @@ class ConversationsTest extends TestCase {
 
         $this->assertStringStartsWith('<!doctype html>', $html);
         $this->assertStringContainsString('<title>Test Conversation</title>', $html);
+        $this->assertStringContainsString('<main class="ai-export-shell">', $html);
+        $this->assertStringContainsString('<div id="ai-assistant-messages" class="ai-export-messages">', $html);
+        $this->assertStringContainsString('<dt>Messages</dt><dd>2</dd>', $html);
+        $this->assertStringContainsString('<dt>Tool calls</dt><dd>1</dd>', $html);
         $this->assertStringContainsString('<dt>Author</dt><dd>Ada Lovelace</dd>', $html);
-        $this->assertStringContainsString('<p class="role">Ada Lovelace</p>', $html);
+        $this->assertStringContainsString('<dt>Created</dt><dd>May 13, 2026 at 10:00 AM</dd>', $html);
+        $this->assertStringNotContainsString('<dt>Modified</dt>', $html);
+        $this->assertStringContainsString('<section class="ai-message ai-message-user" aria-label="Ada Lovelace">', $html);
+        $this->assertStringContainsString('<span class="ai-message-role">Ada Lovelace</span>', $html);
+        $this->assertStringContainsString('<div class="ai-message-content"><p>Please inspect this.</p>', $html);
+        $this->assertStringContainsString('<section class="ai-message ai-message-assistant" aria-label="Assistant">', $html);
         $this->assertStringContainsString('Short summary.', $html);
         $this->assertStringContainsString('Please inspect this.', $html);
         $this->assertStringContainsString('<h2>Export Heading</h2>', $html);
