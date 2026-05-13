@@ -417,7 +417,7 @@ class Settings {
             <tr class="ai-provider-row" data-provider="anthropic">
                 <th scope="row"><label for="ai_anthropic_key"><?php esc_html_e('Anthropic API Key', 'ai-assistant'); ?></label></th>
                 <td>
-                    <input type="password" id="ai_anthropic_key" class="regular-text ai-localstorage-setting" data-setting="anthropicApiKey" placeholder="sk-ant-..." autocomplete="new-password">
+                    <input type="text" id="ai_anthropic_key" class="regular-text ai-localstorage-setting ai-api-key-input" data-setting="anthropicApiKey" placeholder="sk-ant-..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
                     <button type="button" class="button ai-test-connection" data-provider="anthropic"><?php esc_html_e('Test Connection', 'ai-assistant'); ?></button>
                     <span class="ai-connection-status"></span>
                 </td>
@@ -425,7 +425,7 @@ class Settings {
             <tr class="ai-provider-row" data-provider="openai">
                 <th scope="row"><label for="ai_openai_key"><?php esc_html_e('OpenAI API Key', 'ai-assistant'); ?></label></th>
                 <td>
-                    <input type="password" id="ai_openai_key" class="regular-text ai-localstorage-setting" data-setting="openaiApiKey" placeholder="sk-..." autocomplete="new-password">
+                    <input type="text" id="ai_openai_key" class="regular-text ai-localstorage-setting ai-api-key-input" data-setting="openaiApiKey" placeholder="sk-..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
                     <button type="button" class="button ai-test-connection" data-provider="openai"><?php esc_html_e('Test Connection', 'ai-assistant'); ?></button>
                     <span class="ai-connection-status"></span>
                 </td>
@@ -462,6 +462,9 @@ class Settings {
         <style>
             .ai-provider-row { display: none; }
             .ai-provider-row.active { display: table-row; }
+            .ai-api-key-input {
+                -webkit-text-security: disc;
+            }
             .ai-connection-status { margin-left: 10px; }
             .ai-connection-status.success { color: green; }
             .ai-connection-status.error { color: red; }
@@ -486,6 +489,34 @@ class Settings {
                 }
             }
 
+            function isApiKeyInput($el) {
+                return $el.hasClass('ai-api-key-input');
+            }
+
+            function getFieldValue($el) {
+                if (isApiKeyInput($el)) {
+                    var actualValue = $el.data('actualValue');
+                    return typeof actualValue === 'undefined' ? $el.val() : actualValue;
+                }
+                return $el.val();
+            }
+
+            function maskApiKey(value) {
+                return value ? new Array(Math.min(value.length, 32) + 1).join('*') : '';
+            }
+
+            function setApiKeyInputValue($el, value) {
+                value = value || '';
+                $el.data('actualValue', value);
+
+                if ($el.is(':focus')) {
+                    $el.val(value).removeClass('ai-api-key-masked');
+                    return;
+                }
+
+                $el.val(maskApiKey(value)).toggleClass('ai-api-key-masked', !!value);
+            }
+
             // Load settings into form
             function loadSettings() {
                 $('.ai-localstorage-setting').each(function() {
@@ -493,7 +524,11 @@ class Settings {
                     var key = $el.data('setting');
                     var value = getSetting(key);
                     if (value) {
-                        $el.val(value);
+                        if (isApiKeyInput($el)) {
+                            setApiKeyInputValue($el, value);
+                        } else {
+                            $el.val(value);
+                        }
                     }
                 });
                 updateProviderVisibility();
@@ -525,12 +560,12 @@ class Settings {
                 var models = [];
 
                 if (provider === 'anthropic') {
-                    var apiKey = $('#ai_anthropic_key').val() || getSetting('anthropicApiKey');
+                    var apiKey = getFieldValue($('#ai_anthropic_key')) || getSetting('anthropicApiKey');
                     if (apiKey) {
                         models = await fetchAnthropicModels(apiKey);
                     }
                 } else if (provider === 'openai') {
-                    var apiKey = $('#ai_openai_key').val() || getSetting('openaiApiKey');
+                    var apiKey = getFieldValue($('#ai_openai_key')) || getSetting('openaiApiKey');
                     if (apiKey) {
                         models = await fetchOpenAIModels(apiKey);
                     }
@@ -682,7 +717,7 @@ class Settings {
                 var message = '';
 
                 if (provider === 'anthropic') {
-                    var apiKey = $('#ai_anthropic_key').val();
+                    var apiKey = getFieldValue($('#ai_anthropic_key'));
                     if (!apiKey) { $status.text('<?php echo esc_js(__('Enter API key first', 'ai-assistant')); ?>').addClass('error'); return; }
                     try {
                         var response = await fetch('https://api.anthropic.com/v1/models', {
@@ -692,7 +727,7 @@ class Settings {
                         message = success ? '<?php echo esc_js(__('Connected!', 'ai-assistant')); ?>' : '<?php echo esc_js(__('Invalid API key', 'ai-assistant')); ?>';
                     } catch (e) { message = e.message; }
                 } else if (provider === 'openai') {
-                    var apiKey = $('#ai_openai_key').val();
+                    var apiKey = getFieldValue($('#ai_openai_key'));
                     if (!apiKey) { $status.text('<?php echo esc_js(__('Enter API key first', 'ai-assistant')); ?>').addClass('error'); return; }
                     try {
                         var response = await fetch('https://api.openai.com/v1/models', {
@@ -765,6 +800,22 @@ class Settings {
 
             // Reload models when API key changes
             $('#ai_anthropic_key, #ai_openai_key, #ai_local_endpoint').on('change', function() { loadModels(); });
+
+            $('.ai-api-key-input')
+                .on('focus', function() {
+                    var $el = $(this);
+                    $el.val($el.data('actualValue') || '').removeClass('ai-api-key-masked');
+                })
+                .on('input', function() {
+                    var $el = $(this);
+                    if (!$el.hasClass('ai-api-key-masked')) {
+                        $el.data('actualValue', $el.val());
+                    }
+                })
+                .on('blur', function() {
+                    var $el = $(this);
+                    setApiKeyInputValue($el, $el.val());
+                });
 
             // Initialize
             loadSettings();
@@ -1938,7 +1989,7 @@ class Settings {
         <div class="wrap">
             <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
 
-            <form action="options.php" method="post" id="ai-assistant-settings-form">
+            <form action="options.php" method="post" id="ai-assistant-settings-form" autocomplete="off">
                 <?php
                 settings_fields('ai_assistant_settings');
                 do_settings_sections('ai-assistant-settings');
@@ -1968,7 +2019,13 @@ class Settings {
                 $('.ai-localstorage-setting').each(function() {
                     var $el = $(this);
                     var key = $el.data('setting');
-                    var value = $el.val();
+                    var value;
+                    if ($el.hasClass('ai-api-key-input')) {
+                        var actualValue = $el.data('actualValue');
+                        value = typeof actualValue === 'undefined' ? $el.val() : actualValue;
+                    } else {
+                        value = $el.val();
+                    }
                     var storageKey = 'aiAssistant_' + key;
                     if (value) {
                         localStorage.setItem(storageKey, value);
