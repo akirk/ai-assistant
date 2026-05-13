@@ -22,13 +22,24 @@ function createStorage(initial) {
 }
 
 function createJQuery(input) {
-    function $(selector) {
-        assert.strictEqual(selector, '#ai-assistant-input');
+    const elements = new Map();
+
+    function createElement(selector) {
+        const state = {
+            attrs: {},
+            props: {},
+            checked: false,
+            html: ''
+        };
 
         return {
-            0: input,
+            0: selector === '#ai-assistant-input' ? input : {},
             length: 1,
             val(value) {
+                if (selector !== '#ai-assistant-input') {
+                    return arguments.length === 0 ? undefined : this;
+                }
+
                 if (arguments.length === 0) {
                     return input.value;
                 }
@@ -37,10 +48,50 @@ function createJQuery(input) {
                 return this;
             },
             trigger(event) {
-                input.triggered.push(event);
+                if (selector === '#ai-assistant-input') {
+                    input.triggered.push(event);
+                }
+                return this;
+            },
+            prop(name, value) {
+                if (arguments.length === 1) {
+                    return state.props[name];
+                }
+                state.props[name] = value;
+                return this;
+            },
+            attr(name, value) {
+                if (arguments.length === 1) {
+                    return state.attrs[name];
+                }
+                state.attrs[name] = value;
+                return this;
+            },
+            is(query) {
+                return query === ':checked' ? state.checked : false;
+            },
+            html(value) {
+                if (arguments.length === 0) {
+                    return state.html;
+                }
+                state.html = value;
+                return this;
+            },
+            empty() {
+                state.html = '';
+                return this;
+            },
+            toggle() {
                 return this;
             }
         };
+    }
+
+    function $(selector) {
+        if (!elements.has(selector)) {
+            elements.set(selector, createElement(selector));
+        }
+        return elements.get(selector);
     }
 
     $.extend = function(target, source) {
@@ -160,6 +211,60 @@ describe('conversation exports', function() {
         assert.strictEqual(
             assistant.buildConversationExportUrl('html', true),
             'http://example.test/wp-admin/admin-post.php?action=ai_assistant_export_conversation&conversation_id=42&format=html&include_tool_calls=1&_wpnonce=nonce%20value'
+        );
+    });
+
+    it('downloads an existing conversation export without saving first', function() {
+        const { assistant } = loadConversationMixin(null, {
+            conversationExportUrl: 'http://example.test/wp-admin/admin-post.php?action=ai_assistant_export_conversation',
+            nonce: 'nonce value'
+        });
+        let saveCalled = false;
+        let downloadUrl = '';
+
+        assistant.messages = [{ role: 'user', content: 'Export this.' }];
+        assistant.conversationId = 42;
+        assistant.saveConversation = function() {
+            saveCalled = true;
+        };
+        assistant.startConversationExportDownload = function(url) {
+            downloadUrl = url;
+        };
+
+        assistant.exportConversation('markdown');
+
+        assert.strictEqual(saveCalled, false);
+        assert.strictEqual(
+            downloadUrl,
+            'http://example.test/wp-admin/admin-post.php?action=ai_assistant_export_conversation&conversation_id=42&format=markdown&_wpnonce=nonce%20value'
+        );
+    });
+
+    it('saves a new unsaved conversation before export', function() {
+        const { assistant } = loadConversationMixin(null, {
+            conversationExportUrl: 'http://example.test/wp-admin/admin-post.php?action=ai_assistant_export_conversation',
+            nonce: 'nonce value'
+        });
+        let saveCalled = false;
+        let downloadUrl = '';
+
+        assistant.messages = [{ role: 'user', content: 'Export this.' }];
+        assistant.conversationId = 0;
+        assistant.saveConversation = function(silent, callback) {
+            saveCalled = silent;
+            this.conversationId = 99;
+            callback(true);
+        };
+        assistant.startConversationExportDownload = function(url) {
+            downloadUrl = url;
+        };
+
+        assistant.exportConversation('json');
+
+        assert.strictEqual(saveCalled, true);
+        assert.strictEqual(
+            downloadUrl,
+            'http://example.test/wp-admin/admin-post.php?action=ai_assistant_export_conversation&conversation_id=99&format=json&_wpnonce=nonce%20value'
         );
     });
 });

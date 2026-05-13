@@ -280,7 +280,7 @@ function myplugin_export_ai_conversation_epub( array $conversation, array $forma
 }
 ```
 
-The `$conversation` array includes `id`, `title`, `summary`, `messages`, `message_count`, `provider`, `model`, `created`, `modified`, `author_id`, and `include_tool_calls`. The `include_tool_calls` value reflects the checkbox in the export dropdown. Readable exporters should pass messages through `ai_assistant_conversation_export_shrink_tool_calls`; it strips provider tool IDs and removes full `read_file` / `write_file` content payloads.
+The `$conversation` array includes `id`, `title`, `summary`, `messages`, `message_count`, `provider`, `model`, `created`, `modified`, `author_id`, `author_display_name`, and `include_tool_calls`. The `include_tool_calls` value reflects the checkbox in the export dropdown. Readable exporters should pass messages through `ai_assistant_conversation_export_shrink_tool_calls`; it strips provider tool IDs and removes full `read_file` / `write_file` content payloads.
 
 Text-only conversation example:
 
@@ -295,6 +295,7 @@ $conversation = [
     'created'            => '2026-05-13 10:00:00',
     'modified'           => '2026-05-13 10:04:00',
     'author_id'          => 1,
+    'author_display_name' => 'Ada Lovelace',
     'include_tool_calls' => false,
     'messages'           => [
         [
