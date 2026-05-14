@@ -433,6 +433,102 @@ describe('activation health verification', function() {
     });
 });
 
+describe('plugin change recovery candidates', function() {
+    it('records plugin file mutations as deferred recovery candidates', function() {
+        const assistant = createAssistant();
+
+        assistant.rememberPluginRecoveryCandidateFromFileResult({
+            name: 'edit_file',
+            success: true,
+            result: {
+                path: 'plugins/school-timetable/src/App.php'
+            }
+        });
+
+        assert.strictEqual(assistant.pendingPluginRecoveryCandidate.plugin_slug, 'school-timetable');
+        assert.strictEqual(assistant.pendingPluginRecoveryCandidate.changed_path, 'plugins/school-timetable/src/App.php');
+    });
+
+    it('does not record ai-assistant plugin mutations as recovery candidates', function() {
+        const assistant = createAssistant();
+
+        assistant.rememberPluginRecoveryCandidateFromFileResult({
+            name: 'edit_file',
+            success: true,
+            result: {
+                path: 'plugins/ai-assistant/includes/class-settings.php'
+            }
+        });
+
+        assert.strictEqual(assistant.pendingPluginRecoveryCandidate, undefined);
+    });
+
+    it('clears deferred candidates when WordPress health succeeds at a boundary', async function() {
+        const assistant = createAssistant({
+            verifyWordPressHealth() {
+                return Promise.resolve(true);
+            }
+        });
+
+        assistant.pendingPluginRecoveryCandidate = {
+            plugin_slug: 'school-timetable',
+            plugin_file: '',
+            changed_path: 'plugins/school-timetable/src/App.php'
+        };
+
+        const result = await assistant.verifyPendingPluginRecoveryCandidate();
+
+        assert.strictEqual(result, null);
+        assert.strictEqual(assistant.pendingPluginRecoveryCandidate, null);
+    });
+
+    it('deactivates deferred candidates when WordPress health fails at a boundary', async function() {
+        const messages = [];
+        const assistant = createAssistant({
+            verifyWordPressHealth() {
+                return Promise.resolve(false);
+            },
+            emergencyDeactivateActivatedPlugin(candidate) {
+                assert.strictEqual(candidate.plugin_slug, 'school-timetable');
+                return Promise.resolve({
+                    old_path: 'plugins/school-timetable',
+                    new_path: 'plugins/school-timetable.disabled'
+                });
+            },
+            addMessage(role, content) {
+                messages.push({ role, content });
+            }
+        });
+
+        assistant.pendingPluginRecoveryCandidate = {
+            plugin_slug: 'school-timetable',
+            plugin_file: '',
+            changed_path: 'plugins/school-timetable/src/App.php'
+        };
+
+        const recovery = await assistant.verifyPendingPluginRecoveryCandidate();
+
+        assert.strictEqual(recovery.new_path, 'plugins/school-timetable.disabled');
+        assert.strictEqual(assistant.pendingPluginRecoveryCandidate, null);
+        assert.strictEqual(messages[0].role, 'system');
+        assert.match(messages[0].content, /automatically deactivated/);
+    });
+
+    it('treats WordPress-backed tools as recovery boundaries', function() {
+        const assistant = createAssistant({
+            config: {
+                fileToolsUrl: '/file-tools.php',
+                fileToolsToken: 'token'
+            }
+        });
+
+        assert.strictEqual(assistant.isWordPressBackedToolCall({ name: 'run_php' }), true);
+        assert.strictEqual(assistant.isWordPressBackedToolCall({ name: 'ability' }), true);
+        assert.strictEqual(assistant.isWordPressBackedToolCall({ name: 'edit_file' }), false);
+        assert.strictEqual(assistant.isWordPressBackedToolCall({ name: 'get_page_html' }), false);
+    });
+});
+
 describe('executePickImage', function() {
     it('preserves picker failure status when upload cannot complete', async function() {
         const assistant = loadExecutionMixin();

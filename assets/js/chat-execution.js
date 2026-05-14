@@ -113,7 +113,11 @@
                     }
                 });
             } else if (executeImmediately.length === 0) {
-                this.setLoading(false);
+                this.verifyPendingPluginRecoveryCandidate().then(function() {
+                    self.setLoading(false);
+                }).catch(function() {
+                    self.setLoading(false);
+                });
             } else {
                 executeImmediately.forEach(function(tc) {
                     self.setToolCardState(tc.id, 'executing');
@@ -126,10 +130,18 @@
             var self = this;
             var promises = toolCalls.map(function(tc) {
                 self.setToolCardState(tc.id, 'executing');
-                return self.executeSingleTool(tc);
+                var beforeExecute = self.isWordPressBackedToolCall(tc)
+                    ? self.verifyPendingPluginRecoveryCandidate()
+                    : Promise.resolve(null);
+                return beforeExecute.then(function() {
+                    return self.executeSingleTool(tc);
+                });
             });
 
             Promise.all(promises).then(function(results) {
+                results.forEach(function(result) {
+                    self.rememberPluginRecoveryCandidateFromFileResult(result);
+                });
                 return self.verifyActivatedPluginResults(results);
             }).then(function(results) {
                 results.forEach(function(result) {
@@ -150,6 +162,95 @@
             }).catch(function(error) {
                 self.setLoading(false);
                 self.addMessage('error', 'Tool execution error: ' + error.message);
+            });
+        },
+
+        isWordPressBackedToolCall: function(toolCall) {
+            var toolName = toolCall && (toolCall.name || toolCall.tool);
+            if (!toolName) {
+                return false;
+            }
+
+            if (
+                toolName === 'get_page_html' ||
+                toolName === 'summarize_conversation' ||
+                toolName === 'pick_image' ||
+                this.canUseFileToolEndpoint(toolName)
+            ) {
+                return false;
+            }
+
+            return true;
+        },
+
+        rememberPluginRecoveryCandidateFromFileResult: function(result) {
+            if (!result || !result.success) {
+                return;
+            }
+
+            var toolName = result.name || result.tool;
+            if (['write_file', 'edit_file', 'delete_file'].indexOf(toolName) < 0) {
+                return;
+            }
+
+            var path = result.result && result.result.path;
+            var candidate = this.getPluginCandidateFromPath(path);
+            if (!candidate) {
+                return;
+            }
+
+            candidate.changed_path = path;
+            candidate.source_tool = toolName;
+            candidate.recorded_at = Date.now();
+            this.pendingPluginRecoveryCandidate = candidate;
+        },
+
+        getPluginCandidateFromPath: function(path) {
+            path = String(path || '').replace(/\\/g, '/').replace(/^\/+/, '');
+            var match = path.match(/^plugins\/([^/]+)(?:\/|$)/);
+            if (!match) {
+                return null;
+            }
+
+            var pluginSlug = this.extractPluginSlug(match[1], '');
+            if (!pluginSlug || pluginSlug === 'ai-assistant') {
+                return null;
+            }
+
+            return {
+                plugin_slug: pluginSlug,
+                plugin_file: ''
+            };
+        },
+
+        verifyPendingPluginRecoveryCandidate: function() {
+            var self = this;
+            var candidate = this.pendingPluginRecoveryCandidate;
+            if (!candidate) {
+                return Promise.resolve(null);
+            }
+
+            return this.verifyWordPressHealth().then(function(healthy) {
+                if (healthy) {
+                    self.pendingPluginRecoveryCandidate = null;
+                    return null;
+                }
+
+                return self.emergencyDeactivateActivatedPlugin(candidate).then(function(recovery) {
+                    self.pendingPluginRecoveryCandidate = null;
+                    if (self.addMessage) {
+                        self.addMessage(
+                            'system',
+                            'WordPress failed to load after changes to `' + candidate.changed_path + '`, so `' + candidate.plugin_slug + '` was automatically deactivated by renaming `' + recovery.old_path + '` to `' + recovery.new_path + '`.'
+                        );
+                    }
+                    return recovery;
+                }).catch(function(error) {
+                    if (self.addMessage) {
+                        self.addMessage('error', 'WordPress failed to load after plugin changes, and automatic deactivation failed: ' + error.message);
+                    }
+                    throw error;
+                });
             });
         },
 
@@ -298,7 +399,7 @@
                     arguments: {
                         plugin_slug: candidate.plugin_slug,
                         plugin_file: candidate.plugin_file || '',
-                        reason: 'Emergency deactivate after activation failed WordPress health check'
+                        reason: 'Emergency deactivate after plugin failed WordPress health check'
                     },
                     conversation_id: this.conversationId || 0
                 })
