@@ -134,10 +134,18 @@ class File_Tool_Executor {
         }
 
         if (is_array($edits) && isset($edits['search']) && isset($edits['replace'])) {
-            return [$edits];
+            $edits = [$edits];
         }
 
         if (is_array($edits) && isset($edits[0]) && is_array($edits[0])) {
+            foreach ($edits as $index => $edit) {
+                if (!is_array($edit) || !array_key_exists('search', $edit) || !array_key_exists('replace', $edit)) {
+                    throw new \Exception("edit_file 'edits' must be an array of {search, replace} objects");
+                }
+                $edits[$index]['search'] = (string) $edit['search'];
+                $edits[$index]['replace'] = (string) $edit['replace'];
+            }
+
             return $edits;
         }
 
