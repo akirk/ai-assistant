@@ -66,6 +66,22 @@ describe('getAllToolDefinitions', function() {
         assert.ok(restApi.description.includes('status "draft"'));
         assert.ok(runPhp.description.includes('Prefer rest_api'));
     });
+
+    it('explains ability domains are not executable IDs', function() {
+        global.aiAssistantConfig = {
+            abilityDomains: {
+                'create-wp-app': 'wp app, app plugin',
+            },
+        };
+
+        const description = toolsMixin.getAbilityToolDescription();
+
+        delete global.aiAssistantConfig;
+        assert.ok(description.includes('Ability domain slugs are categories, not executable ability IDs'));
+        assert.ok(description.includes('list by category'));
+        assert.ok(description.includes('get the exact ability ID before execute'));
+        assert.ok(description.includes('create-wp-app (wp app, app plugin)'));
+    });
 });
 
 // ===== isToolEnabled =====

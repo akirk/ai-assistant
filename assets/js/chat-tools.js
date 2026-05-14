@@ -7,11 +7,12 @@ var aiAssistantToolsMixin = (function() {
         getAbilityToolDescription: function() {
             var domains = (typeof aiAssistantConfig !== 'undefined' && aiAssistantConfig.abilityDomains) || {};
             var keys = Object.keys(domains);
+            var base = 'Plugin abilities: list, get, or execute. Ability domain slugs are categories, not executable ability IDs; list by category and get the exact ability ID before execute.';
             if (keys.length === 0) {
-                return 'Plugin abilities: list, get, or execute. Use for plugin-specific data and actions.';
+                return base + ' Use for plugin-specific data and actions.';
             }
             var domainParts = keys.map(function(slug) { return slug + ' (' + domains[slug] + ')'; });
-            return 'Plugin abilities: list, get, or execute. ALWAYS use this for: ' + domainParts.join('; ') + '. Do not use db_query or find for these topics.';
+            return base + ' ALWAYS use this for: ' + domainParts.join('; ') + '. Do not use db_query or find for these topics.';
         },
 
         getAllToolDefinitions: function() {

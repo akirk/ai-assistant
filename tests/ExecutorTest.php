@@ -313,6 +313,24 @@ class ExecutorTest extends TestCase {
         ]);
     }
 
+    public function test_edit_file_accepts_json_encoded_edits_array(): void {
+        $result = $this->executor->execute_tool('edit_file', [
+            'path' => 'plugins/test-plugin/test-plugin.php',
+            'edits' => json_encode([
+                [
+                    'search' => 'Test Plugin',
+                    'replace' => 'JSON Encoded Plugin',
+                ],
+            ]),
+            'reason' => 'Test JSON encoded edits',
+        ]);
+
+        $this->assertEquals(1, $result['edits_applied']);
+
+        $content = file_get_contents($this->test_dir . '/plugins/test-plugin/test-plugin.php');
+        $this->assertStringContainsString('JSON Encoded Plugin', $content);
+    }
+
     public function test_edit_file_not_found_throws_exception(): void {
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage('File not found');

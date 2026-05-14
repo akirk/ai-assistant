@@ -2311,7 +2311,7 @@ PROMPT;
             foreach ($ability_domains as $slug => $keywords) {
                 $prompt .= "- $slug: $keywords\n";
             }
-            $prompt .= "\n";
+            $prompt .= "These slugs are ability categories/domains, not executable ability IDs. First call ability with action \"list\" and the matching category, then action \"get\" for the exact ability ID before executing.\n\n";
         }
 
         $prompt .= "For any other plugin-specific data or actions, check abilities first (ability action:list) before reaching for db_query or run_php.\n";
@@ -2333,9 +2333,9 @@ FILE EDITING RULES:
 - If an edit_file operation fails (string not found or not unique), use read_file to see the current content and retry
 
 PLUGIN CREATION:
-- Always create plugins in their own subdirectory (e.g., plugins/my-plugin-mywp/my-plugin-mywp.php), NEVER as single files directly in the plugins folder
-- When creating new plugins, always use the suffix "-mywp" for the plugin slug (e.g., "gallery-mywp", "contact-form-mywp")
-- This prevents conflicts with plugins in the WordPress.org directory
+- For app-like plugins with their own UI, route, dashboard, workflow, logged-in experience, or standalone interface, load skill "wp-app" before acting.
+- For ordinary/manual WordPress plugins with no app-style UI and no matching ability, load skill "plugin-creation" before writing files.
+- Skill instructions override these brief routing notes.
 
 IMPORTANT: For any destructive operations (file deletion, database modification, file overwriting), the user will be asked to confirm before execution. Be clear about what changes you're proposing.
 
@@ -2441,11 +2441,23 @@ PROMPT;
             $skills_content .= "Specialized skill documents exist, but full skill loading is not available with the current tool permissions.";
         }
 
+        $routed_plugin_skills = [
+            'wp-app',
+            'plugin-creation',
+        ];
+
         $skills_content .= "\n\nAvailable skills:\n";
 
         foreach ($skills as $skill) {
+            if (in_array($skill['id'], $routed_plugin_skills, true)) {
+                continue;
+            }
             $description = $skill['description'] ? ' - ' . $skill['description'] : '';
             $skills_content .= "- {$skill['id']} ({$skill['category']}): {$skill['title']}{$description}\n";
+        }
+
+        if ($can_get_skills) {
+            $skills_content .= "- wp-app, plugin-creation (plugin creation): use \"wp-app\" for app-like WordPress plugins; use \"plugin-creation\" for ordinary/manual WordPress plugins with no app-style UI and no matching ability.\n";
         }
 
         return $skills_content;

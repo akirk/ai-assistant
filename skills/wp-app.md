@@ -19,9 +19,10 @@ Do not hand-write the scaffold first. Use the WordPress Ability API integration 
 2. Load `create-wp-app/scaffold`.
 3. Ask only for required values that cannot be inferred.
 4. Execute the ability with structured arguments.
-5. Activate the generated plugin if requested or if the ability supports `activate`.
-6. Continue the current build flow in-place. Do not use the `navigate` tool to visit the generated app route during scaffolding or intermediate implementation work.
-7. In the final response, report the returned `url` so the user can open it when ready.
+5. After scaffolding, read the generated main plugin file, `src/App.php`, and relevant template files before modifying them. Follow the generated lifecycle and extension points instead of guessing where code should run.
+6. Activate the generated plugin if requested or if the ability supports `activate`.
+7. Continue the current build flow in-place. Do not use the `navigate` tool to visit the generated app route during scaffolding or intermediate implementation work.
+8. In the final response, report the returned `url` so the user can open it when ready.
 
 Navigation changes the browser page and can interrupt the assistant workflow. Only navigate to the generated app when the user explicitly asks to open or visually test it. If route verification is needed later, do it as a separate final verification step after file changes are complete and after confirming that navigation is acceptable.
 
@@ -38,7 +39,7 @@ Infer defaults when reasonable:
 | `namespace` | PascalCase from plugin name, e.g. `Timetable` |
 | `author` | Empty unless the user provides it |
 | `url_path` | Same as slug, without leading slash |
-| `setup_type` | `minimal` unless the user asks for routes/classes/storage |
+| `setup_type` | Prefer `full` for AI-built apps when the ability exposes this option |
 | `activate` | `true` when the user wants to try the app immediately |
 
 When the user says "create a {thing} app", treat "app" as the type of work, not part of the name. For example, "create a timetable app" should use `slug: "timetable"`, `plugin_name: "Timetable"`, and `url_path: "timetable"`, not `timetable-app`.
@@ -56,7 +57,7 @@ Typical call:
   "namespace": "Timetable",
   "author": "",
   "url_path": "timetable",
-  "setup_type": "minimal",
+  "setup_type": "full",
   "activate": true,
   "overwrite": false
 }
@@ -81,6 +82,39 @@ Do not immediately navigate to the returned `url`. Treat it as output to report 
 ## App Guidance
 
 When extending the generated app, keep it friendly to AI Assistant, My Apps, and WordPress admin color schemes.
+
+### Lifecycle
+
+- Read the generated files before editing. The scaffold may already include the right lifecycle hooks, route setup, template structure, and storage comments.
+- Keep `__construct()` limited to creating/configuring `WpApp`, setting object properties, and attaching WordPress hooks. Do not perform WordPress registration work directly in the constructor.
+- Flush rewrite rules only on activation/deactivation, not on every request.
+- After modifying PHP, use an available lint/runtime check before navigating to or testing the generated app.
+
+Hook placement:
+
+- CPTs: `init`
+- Taxonomies: `init`
+- Rewrite tags/rules: `init`
+- Shortcodes: `init`
+- Blocks: `init`
+- REST routes: `rest_api_init`
+- Dashboard widgets: `wp_dashboard_setup`
+- Admin menus/pages: `admin_menu`
+- Admin assets: `admin_enqueue_scripts`
+- Frontend assets: `wp_enqueue_scripts`
+- Activation setup: plugin activation hook
+- Deactivation cleanup: plugin deactivation hook
+- Never: CPTs, taxonomies, rewrite rules, REST routes, dashboard widgets, or menus directly in `__construct()`
+
+### Storage
+
+Prefer WordPress-native storage before custom database tables:
+
+- Use Custom Post Types plus post meta for user-created records with titles, status, author, dates, and arbitrary metadata.
+- Use taxonomies plus term meta for reusable labels, categories, grouping, or type systems shared by multiple records.
+- Use user meta for per-user settings and preferences.
+- Use options only for small site-wide settings.
+- Use custom tables or `BaseStorage` only when native WordPress storage does not fit, such as high-volume rows, strongly relational data, reporting-heavy records, or data that does not map cleanly to posts, terms, users, or options.
 
 ### AI Assistant
 
