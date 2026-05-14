@@ -34,6 +34,36 @@ function loadProvidersMixin(extraContext) {
     return aiAssistant;
 }
 
+function createInputJQuery(initialValue) {
+    const state = { value: initialValue || '' };
+
+    function jQueryStub(selector) {
+        if (selector !== '#ai-assistant-input') {
+            return {
+                val() {
+                    return '';
+                }
+            };
+        }
+
+        return {
+            val(value) {
+                if (arguments.length === 0) {
+                    return state.value;
+                }
+                state.value = value;
+                return this;
+            }
+        };
+    }
+
+    jQueryStub.extend = function(target, source) {
+        return Object.assign(target, source);
+    };
+
+    return { jQueryStub, state };
+}
+
 describe('Anthropic message repair', function() {
     it('inserts an unavailable tool_result before later user text when a tool_use was left unresolved', function() {
         const assistant = loadProvidersMixin();
@@ -246,5 +276,116 @@ describe('Pending approval send guard', function() {
         assert.equal(assistant.providerCalled, false);
         assert.equal(assistant.setLoadingCalled, false);
         assert.equal(assistant.pendingToolChecks, 1);
+    });
+});
+
+describe('queued user messages', function() {
+    it('queues input instead of starting a second request while loading', function() {
+        const input = createInputJQuery('Please do this next.');
+        const assistant = Object.assign(loadProvidersMixin({
+            jQuery: input.jQueryStub
+        }), {
+            isLoading: true,
+            pendingAttachments: [],
+            isUploadingFiles: false,
+            queuedMessages: [],
+            providerCalled: false,
+            isProviderConfigured() {
+                return true;
+            },
+            addToDraftHistory(message) {
+                this.lastDraftHistoryMessage = message;
+            },
+            clearDraft() {
+                this.draftCleared = true;
+            },
+            updateSendButton() {},
+            updateLoadingStatus() {},
+            callLLM() {
+                this.providerCalled = true;
+            }
+        });
+
+        assistant.sendMessage();
+
+        assert.equal(assistant.providerCalled, false);
+        assert.equal(assistant.queuedMessages.length, 1);
+        assert.equal(assistant.queuedMessages[0].content, 'Please do this next.');
+        assert.equal(input.state.value, '');
+        assert.equal(assistant.lastDraftHistoryMessage, 'Please do this next.');
+        assert.equal(assistant.draftCleared, true);
+    });
+
+    it('appends queued text to the Anthropic tool-result turn before continuing', function() {
+        const assistant = Object.assign(loadProvidersMixin(), {
+            queuedMessages: [
+                { content: 'Also update the heading.' },
+                { content: 'Then summarize the change.' }
+            ],
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'tool_result', tool_use_id: 'toolu_1', content: '{"ok":true}' }
+                    ]
+                }
+            ],
+            displayed: [],
+            addMessage(role, content) {
+                this.displayed.push({ role, content });
+            },
+            updateSendButton() {},
+            updateLoadingStatus() {},
+            updateTokenCount() {},
+            updateExportButton() {}
+        });
+
+        const flushed = assistant.flushQueuedMessages('anthropic', {
+            appendToLastToolResultMessage: true
+        });
+
+        assert.equal(flushed, true);
+        assert.equal(assistant.queuedMessages.length, 0);
+        assert.equal(assistant.messages.length, 1);
+        assert.equal(JSON.stringify(assistant.messages[0].content.slice(1)), JSON.stringify([
+            { type: 'text', text: 'Also update the heading.' },
+            { type: 'text', text: 'Then summarize the change.' }
+        ]));
+        assert.equal(JSON.stringify(assistant.displayed), JSON.stringify([
+            { role: 'user', content: 'Also update the heading.' },
+            { role: 'user', content: 'Then summarize the change.' }
+        ]));
+    });
+
+    it('continues with queued messages instead of stopping after a text-only response', function() {
+        let saved = false;
+        let called = false;
+        const assistant = Object.assign(loadProvidersMixin(), {
+            queuedMessages: [{ content: 'Next request.' }],
+            messages: [{ role: 'assistant', content: 'Done.' }],
+            toolCallRounds: 5,
+            addMessage() {},
+            updateSendButton() {},
+            updateLoadingStatus() {},
+            updateTokenCount() {},
+            updateExportButton() {},
+            autoSaveConversation() {
+                saved = true;
+            },
+            callLLM() {
+                called = true;
+            }
+        });
+
+        const sent = assistant.sendQueuedMessagesIfAvailable('openai');
+
+        assert.equal(sent, true);
+        assert.equal(saved, true);
+        assert.equal(called, true);
+        assert.equal(assistant.toolCallRounds, 0);
+        assert.equal(JSON.stringify(assistant.messages[1]), JSON.stringify({
+            role: 'user',
+            content: 'Next request.'
+        }));
     });
 });

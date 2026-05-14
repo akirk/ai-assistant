@@ -18,6 +18,7 @@
         systemPrompt: '',
         isFullPage: false,
         autoSave: true,
+        queuedMessages: [],
         draftStorageKey: 'aiAssistant_draftMessage',
         draftHistoryKey: 'aiAssistant_draftHistory',
         yoloStorageKey: 'aiAssistant_yoloMode',
@@ -197,6 +198,7 @@
 
             $(document).on('input', '#ai-assistant-input', function() {
                 self.saveDraft();
+                self.updateSendButton();
             });
 
             $(document).on('mouseenter', '#ai-assistant-link-wrap', function() {
@@ -449,10 +451,56 @@
 
         updateSendButton: function() {
             var $btn = $('#ai-assistant-send');
-            $btn.prop('disabled', !this.isProviderConfigured() || this.isUploadingFiles);
+            if (!$btn.length) return;
+
+            if (!$btn.data('default-text')) {
+                $btn.data('default-text', $btn.text());
+            }
+
+            var isQueueing = this.shouldQueueUserMessage && this.shouldQueueUserMessage();
+            $btn
+                .text(isQueueing ? 'Queue' : $btn.data('default-text'))
+                .attr('title', isQueueing ? 'Queue message' : '')
+                .prop('disabled', !this.isProviderConfigured() || this.isUploadingFiles);
+        },
+
+        getQueuedMessageCount: function() {
+            return Array.isArray(this.queuedMessages) ? this.queuedMessages.length : 0;
+        },
+
+        getQueuedMessageStatusText: function() {
+            var count = this.getQueuedMessageCount();
+            if (count === 0) {
+                return '';
+            }
+            if (count === 1) {
+                return 'Your queued message will be sent after the next tool call finishes.';
+            }
+            return count + ' queued messages will be sent after the next tool call finishes.';
+        },
+
+        updateLoadingStatus: function() {
+            var $loading = $('#ai-assistant-loading');
+            if (!$loading.length) return;
+
+            var $status = $loading.find('.ai-loading-status');
+            if (!$status.length) {
+                $status = $('<div class="ai-loading-status" aria-live="polite"></div>');
+                $loading.append($status);
+            }
+
+            var statusText = this.getQueuedMessageStatusText();
+            $status.text(statusText).toggle(!!statusText);
+
+            if (this.isLoading || statusText) {
+                $loading.show();
+            } else {
+                $loading.hide();
+            }
         },
 
         setLoading: function(loading) {
+            var self = this;
             this.isLoading = loading;
             var $loading = $('#ai-assistant-loading');
             var $send = $('#ai-assistant-send');
@@ -462,15 +510,21 @@
             if (loading) {
                 this.abortController = new AbortController();
                 $loading.show();
-                $send.hide();
+                $send.show();
                 $stop.show();
+                this.updateSendButton();
+                this.updateLoadingStatus();
+                this.scrollToBottom(true);
+                setTimeout(function() {
+                    self.scrollToBottom(true);
+                }, 0);
                 $(window).on('beforeunload.aiAssistant', this.beforeUnloadHandler);
             } else {
                 this.abortController = null;
-                $loading.hide();
                 $stop.hide();
                 $send.show();
                 this.updateSendButton();
+                this.updateLoadingStatus();
                 $input.focus();
                 $(window).off('beforeunload.aiAssistant');
             }
@@ -481,6 +535,9 @@
                 this.abortController.abort();
             }
             this.hideToolProgress();
+            if (this.clearQueuedMessages) {
+                this.clearQueuedMessages();
+            }
             this.setLoading(false);
 
             var $streaming = $('#ai-assistant-messages .ai-message-streaming');

@@ -223,6 +223,7 @@ class Settings {
                         </div>
                         <div id="ai-assistant-loading" style="display: none;">
                             <div class="ai-loading-dots"><span></span><span></span><span></span></div>
+                            <div class="ai-loading-status" aria-live="polite" style="display: none;"></div>
                         </div>
                         <div id="ai-assistant-pending-actions"></div>
                         <div id="ai-assistant-attachments" class="ai-assistant-attachments"></div>

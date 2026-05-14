@@ -157,6 +157,9 @@
             this.messages = [];
             this.pendingActions = [];
             this.pendingToolChecks = 0;
+            if (this.clearQueuedMessages) {
+                this.clearQueuedMessages();
+            }
             if (this.showToolApprovalModal) {
                 this.showToolApprovalModal();
             }
@@ -385,6 +388,9 @@
                         self.pendingToolResults = [];
                         self.pendingToolChecks = 0;
                         self.executingToolCount = 0;
+                        if (self.clearQueuedMessages) {
+                            self.clearQueuedMessages();
+                        }
                         if (self.showToolApprovalModal) {
                             self.showToolApprovalModal();
                         }
