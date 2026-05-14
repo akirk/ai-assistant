@@ -29,6 +29,7 @@ if (!is_dir(WP_PLUGIN_DIR)) {
 
 // WordPress function stubs for testing
 $GLOBALS['wp_test_options'] = [];
+$GLOBALS['wp_test_user_options'] = [];
 $GLOBALS['wp_test_capabilities'] = [];
 $GLOBALS['wp_test_is_playground'] = false;
 $GLOBALS['wp_test_abilities'] = [];
@@ -37,6 +38,12 @@ $GLOBALS['wp_test_filters'] = [];
 if (!function_exists('get_option')) {
     function get_option($option, $default = false) {
         return $GLOBALS['wp_test_options'][$option] ?? $default;
+    }
+}
+
+if (!function_exists('get_user_option')) {
+    function get_user_option($option, $user = 0, $deprecated = '') {
+        return $GLOBALS['wp_test_user_options'][$option] ?? false;
     }
 }
 
@@ -365,6 +372,7 @@ require_once $plugin_dir . '/includes/class-executor.php';
 require_once $plugin_dir . '/includes/class-api-handler.php';
 require_once $plugin_dir . '/includes/class-git-tracker.php';
 require_once $plugin_dir . '/includes/class-git-tracker-manager.php';
+require_once $plugin_dir . '/includes/class-admin-colors.php';
 require_once $plugin_dir . '/includes/class-conversations.php';
 require_once $plugin_dir . '/includes/class-settings.php';
 require_once $plugin_dir . '/includes/class-wp-app-abilities.php';

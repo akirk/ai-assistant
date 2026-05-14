@@ -50,6 +50,7 @@ describe('getAllToolDefinitions', function() {
         assert.ok(def);
         assert.ok(def.description.includes('choose or upload an image'));
         assert.ok(def.description.includes('selected image details'));
+        assert.ok(def.description.includes('Do not call this tool multiple times'));
         assert.deepStrictEqual(def.input_schema.required, ['query']);
         assert.strictEqual(def.input_schema.properties.query.description, 'Initial search.');
         assert.strictEqual(def.input_schema.properties.purpose.description, 'Image use.');

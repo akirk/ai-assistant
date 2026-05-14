@@ -24,6 +24,27 @@
                 if (self.toolCardsState) delete self.toolCardsState[id];
             });
 
+            var pickImageSeen = false;
+            var deniedPickImageResults = [];
+            toolCalls = toolCalls.filter(function(tc) {
+                if (tc.name !== 'pick_image') {
+                    return true;
+                }
+                if (!pickImageSeen) {
+                    pickImageSeen = true;
+                    return true;
+                }
+
+                var result = self.getMultiplePickImageToolResult(tc.id, tc.arguments || {});
+                deniedPickImageResults.push(result);
+                self.updateToolCardDescription(tc.id, tc.name, tc.arguments);
+                self.setToolCardState(tc.id, 'error', { message: result.result.error });
+                return false;
+            });
+            if (deniedPickImageResults.length > 0) {
+                this.pendingToolResults = this.pendingToolResults.concat(deniedPickImageResults);
+            }
+
             // Build set of valid tool IDs from this batch
             var validToolIds = {};
             toolCalls.forEach(function(tc) {
@@ -113,6 +134,10 @@
                     }
                 });
             } else if (executeImmediately.length === 0) {
+                if (deniedPickImageResults.length > 0) {
+                    this.handleToolResults([], provider);
+                    return;
+                }
                 this.verifyPendingPluginRecoveryCandidate().then(function() {
                     self.setLoading(false);
                 }).catch(function() {
@@ -124,6 +149,20 @@
                 });
                 this.executeTools(executeImmediately, provider);
             }
+        },
+
+        getMultiplePickImageToolResult: function(toolId, args) {
+            return {
+                id: toolId,
+                name: 'pick_image',
+                input: args || {},
+                result: {
+                    error: 'Multiple image picker requests in one response are not supported because they ask the user to make several interactive choices at once.',
+                    code: 'multiple_pick_image_calls',
+                    instruction: 'Call pick_image once, wait for the selected image result, then decide whether another image is actually needed.'
+                },
+                success: false
+            };
         },
 
         executeTools: function(toolCalls, provider) {
@@ -1153,6 +1192,17 @@
 
             // Update card description
             this.updateToolCardDescription(toolId, toolName, toolArgs);
+
+            if (toolName === 'pick_image') {
+                if (this.pickImageToolCallInCurrentResponse && this.pickImageToolCallInCurrentResponse !== toolId) {
+                    var pickImageResult = this.getMultiplePickImageToolResult(toolId, toolArgs);
+                    this.setToolCardState(toolId, 'error', { message: pickImageResult.result.error });
+                    this.pendingToolResults.push(pickImageResult);
+                    this.checkAllToolsResolved();
+                    return;
+                }
+                this.pickImageToolCallInCurrentResponse = toolId;
+            }
 
             // Determine if needs confirmation
             var needsConfirm = !this.yoloMode && destructiveTools.indexOf(toolName) >= 0 &&

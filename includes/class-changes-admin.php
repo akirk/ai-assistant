@@ -80,7 +80,7 @@ class Changes_Admin {
         );
         wp_add_inline_style(
             'ai-assistant-changes',
-            Admin_Colors::get_current_scheme_css('.ai-changes-wrap')
+            Admin_Colors::get_current_scheme_css(':root, body, .ai-changes-wrap')
         );
 
         wp_enqueue_script('wp-codemirror');

@@ -445,9 +445,28 @@
             return (attachment && attachment.source_url) || fallback || '';
         },
 
-        fetchPickedImageBlob: function(image, signal) {
+        getPickedImageFetchUrls: function(image) {
+            image = image || {};
+            var urls = [];
+            var seen = {};
+
+            [image.url, image.thumbnail].forEach(function(url) {
+                url = String(url || '').trim();
+                if (!url || seen[url]) {
+                    return;
+                }
+                seen[url] = true;
+                urls.push(url);
+            });
+
+            return urls;
+        },
+
+        fetchPickedImageBlob: function(image, signal, onStatus) {
             var self = this;
-            if (!image || !image.url) {
+            var urls = this.getPickedImageFetchUrls(image);
+
+            if (!urls.length) {
                 return Promise.reject(new Error('Selected image has no URL.'));
             }
 
@@ -456,42 +475,65 @@
                 options.signal = signal;
             }
 
-            return fetch(image.url, options).then(function(response) {
-                if (!response.ok) {
-                    throw new Error('Image fetch failed with HTTP ' + response.status + '.');
+            function fetchUrl(index, lastError) {
+                if (index >= urls.length) {
+                    return Promise.reject(lastError || new Error('Selected image could not be fetched.'));
                 }
 
-                var responseType = String(response.headers.get('content-type') || '').split(';')[0].toLowerCase();
-                if (responseType &&
-                    responseType.indexOf('image/') !== 0 &&
-                    responseType !== 'application/octet-stream' &&
-                    responseType !== 'binary/octet-stream') {
-                    throw new Error('Selected URL did not return an image.');
+                if (index > 0 && typeof onStatus === 'function') {
+                    onStatus('Full image unavailable. Trying preview image...');
                 }
 
-                return response.blob().then(function(blob) {
-                    var contentType = self.getPickedImageMimeType(image.url, blob.type || responseType);
-                    var limit = self.getPickedImageUploadLimit();
-
-                    if (!contentType || contentType.indexOf('image/') !== 0) {
-                        throw new Error('Selected file is not an image.');
+                return fetch(urls[index], options).then(function(response) {
+                    if (!response.ok) {
+                        throw new Error('Image fetch failed with HTTP ' + response.status + '.');
                     }
 
-                    if (!blob.size) {
-                        throw new Error('Selected image was empty.');
+                    var responseType = String(response.headers.get('content-type') || '').split(';')[0].toLowerCase();
+                    if (responseType &&
+                        responseType.indexOf('image/') !== 0 &&
+                        responseType !== 'application/octet-stream' &&
+                        responseType !== 'binary/octet-stream') {
+                        throw new Error('Selected URL did not return an image.');
                     }
 
-                    if (limit && blob.size > limit) {
-                        throw new Error('Selected image is larger than this site allows for uploads.');
-                    }
+                    return response.blob().then(function(blob) {
+                        var contentType = self.getPickedImageMimeType(urls[index], blob.type || responseType);
+                        var limit = self.getPickedImageUploadLimit();
 
-                    return {
-                        blob: blob,
-                        contentType: contentType,
-                        filename: self.getPickedImageFileName(image, contentType)
-                    };
+                        if (!contentType && index > 0) {
+                            contentType = 'image/jpeg';
+                        }
+
+                        if (!contentType || contentType.indexOf('image/') !== 0) {
+                            throw new Error('Selected file is not an image.');
+                        }
+
+                        if (!blob.size) {
+                            throw new Error('Selected image was empty.');
+                        }
+
+                        if (limit && blob.size > limit) {
+                            throw new Error('Selected image is larger than this site allows for uploads.');
+                        }
+
+                        return {
+                            blob: blob,
+                            contentType: contentType,
+                            filename: self.getPickedImageFileName(image, contentType),
+                            sourceUrl: urls[index],
+                            usedThumbnailFallback: index > 0
+                        };
+                    });
+                }).catch(function(error) {
+                    if (signal && signal.aborted) {
+                        throw error;
+                    }
+                    return fetchUrl(index + 1, error);
                 });
-            });
+            }
+
+            return fetchUrl(0);
         },
 
         uploadPickedImageToMediaLibrary: function(fileData, image, signal) {
@@ -554,7 +596,8 @@
             });
         },
 
-        buildPickedImageResult: function(image, attachment, uploadError) {
+        buildPickedImageResult: function(image, attachment, uploadError, options) {
+            options = options || {};
             var metadata = this.getPickedImageMetadata(image);
             var localUrl = attachment && (attachment.source_url || attachment.link);
             var result = $.extend({}, metadata, {
@@ -578,6 +621,12 @@
                 result.upload_error = uploadError.message || String(uploadError);
             }
 
+            if (options.usedThumbnailFallback) {
+                result.low_resolution = true;
+                result.uploaded_from_thumbnail = true;
+                result.note = 'low resolution image';
+            }
+
             return result;
         },
 
@@ -587,15 +636,20 @@
 
             setStatus('Fetching selected image...');
 
-            return this.fetchPickedImageBlob(image, signal)
+            var selectedFileData = null;
+
+            return this.fetchPickedImageBlob(image, signal, setStatus)
                 .then(function(fileData) {
+                    selectedFileData = fileData;
                     setStatus('Uploading to Media Library...');
                     return self.uploadPickedImageToMediaLibrary(fileData, image, signal);
                 })
                 .then(function(attachment) {
                     setStatus('Uploaded to Media Library');
                     return {
-                        selection: self.buildPickedImageResult(image, attachment),
+                        selection: self.buildPickedImageResult(image, attachment, null, {
+                            usedThumbnailFallback: !!(selectedFileData && selectedFileData.usedThumbnailFallback)
+                        }),
                         success: true
                     };
                 })
@@ -733,7 +787,7 @@
                 .attr('placeholder', 'Search images')
                 .val(query);
             var $search = $('<button type="button" class="button button-small ai-image-picker-search">Search</button>');
-            var $more = $('<button type="button" class="button button-small ai-image-picker-more">More</button>').hide();
+            var $more = $('<button type="button" class="button button-small ai-image-picker-more">More</button>').prop('hidden', true);
             var $cancel = $('<button type="button" class="button button-small ai-image-picker-cancel">Cancel</button>');
             var $upload = $('<div class="ai-image-picker-upload" tabindex="0"></div>');
             var $uploadText = $('<span class="ai-image-picker-upload-text"></span>').text('Drop a photo here');
@@ -941,14 +995,14 @@
                             page = 1;
                             $input.val(broaderQuery);
                             $status.text('Trying broader search: ' + broaderQuery);
-                            $more.hide();
+                            $more.prop('hidden', true);
 
                             return self.fetchImageResults(broaderQuery, page).then(function(broaderResults) {
                                 if (done) return;
                                 renderResults(broaderResults, false);
                                 if (broaderResults.length > 0) {
                                     $status.text('');
-                                    $more.show();
+                                    $more.prop('hidden', false);
                                 } else {
                                     $status.text('No images found.');
                                 }
@@ -959,11 +1013,11 @@
                     renderResults(results, nextPage);
                     if (results.length > 0) {
                         $status.text('');
-                        $more.show();
+                        $more.prop('hidden', false);
                     } else {
                         $status.text(nextPage ? 'No more images.' : 'No images found.');
                         if (!nextPage) {
-                            $more.hide();
+                            $more.prop('hidden', true);
                         }
                     }
                 }).catch(function() {
@@ -1092,6 +1146,7 @@
             }
             if (output.creator) detailsParts.push(output.creator);
             if (output.license) detailsParts.push(output.license);
+            if (output.note) detailsParts.push(output.note);
             var details = detailsParts.join(' - ');
             var $details = $('<span></span>').text(details);
             var $link = $('<a target="_blank" rel="noopener noreferrer">Open image</a>').attr('href', output.source_url || output.url || output.landing_url);

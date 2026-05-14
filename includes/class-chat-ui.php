@@ -47,7 +47,7 @@ class Chat_UI {
         );
         wp_add_inline_style(
             'ai-assistant-chat',
-            Admin_Colors::get_current_scheme_css('#ai-assistant-wrap, .ai-assistant-standalone-wrap, .ai-assistant-page, .ai-assistant-chat-container')
+            Admin_Colors::get_current_scheme_css(':root, body, #ai-assistant-wrap, .ai-assistant-standalone-wrap, .ai-assistant-page, .ai-assistant-chat-container')
         );
 
         wp_enqueue_script('wp-codemirror');
