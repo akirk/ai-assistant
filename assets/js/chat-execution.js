@@ -126,20 +126,11 @@
             var self = this;
             var promises = toolCalls.map(function(tc) {
                 self.setToolCardState(tc.id, 'executing');
-                if (self.clearPluginActivationCandidateForToolCall) {
-                    self.clearPluginActivationCandidateForToolCall(tc);
-                }
-                if (self.recordPotentialPluginActivation) {
-                    self.recordPotentialPluginActivation(tc);
-                }
                 return self.executeSingleTool(tc);
             });
 
             Promise.all(promises).then(function(results) {
                 results.forEach(function(result) {
-                    if (self.recordRecentPluginActivation) {
-                        self.recordRecentPluginActivation(result);
-                    }
                     if (result.success) {
                         var successOptions = result.name === 'navigate'
                             ? { message: 'Suggestion shown' }

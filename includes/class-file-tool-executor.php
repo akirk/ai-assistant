@@ -54,12 +54,6 @@ class File_Tool_Executor {
                 );
             case 'find':
                 return $this->execute_find($arguments);
-            case 'emergency_deactivate_plugin':
-                return $this->emergency_deactivate_plugin(
-                    $this->get_string_arg($arguments, 'plugin_slug', $tool_name, ''),
-                    $this->get_string_arg($arguments, 'plugin_file', $tool_name, ''),
-                    $this->get_string_arg($arguments, 'reason', $tool_name, 'Emergency deactivate plugin')
-                );
             case 'list_directory':
                 return $this->list_directory($this->get_string_arg($arguments, 'path', $tool_name));
             case 'search_files':
@@ -399,83 +393,6 @@ class File_Tool_Executor {
             is_dir($path) ? $this->delete_directory_recursive($path) : unlink($path);
         }
         rmdir($dir);
-    }
-
-    private function emergency_deactivate_plugin(string $plugin_slug, string $plugin_file, string $reason): array {
-        $plugin_slug = $this->normalize_plugin_slug($plugin_slug);
-        $plugin_file = ltrim(str_replace('\\', '/', $plugin_file), '/');
-
-        if ($plugin_file !== '') {
-            if (
-                strpos($plugin_file, "\0") !== false ||
-                preg_match('#(^|/)\.\.(/|$)#', $plugin_file) ||
-                substr_count($plugin_file, '/') > 1
-            ) {
-                throw new \Exception('Invalid plugin file');
-            }
-
-            if (strpos($plugin_file, '/') !== false) {
-                $plugin_slug = $this->normalize_plugin_slug(strtok($plugin_file, '/'));
-            } elseif ($plugin_slug === '') {
-                $plugin_slug = $this->normalize_plugin_slug(pathinfo($plugin_file, PATHINFO_FILENAME));
-            }
-        }
-
-        if ($plugin_slug === '') {
-            throw new \Exception('A valid plugin slug or plugin file is required');
-        }
-
-        if ($plugin_slug === 'ai-assistant') {
-            throw new \Exception('Refusing to emergency deactivate AI Assistant');
-        }
-
-        $relative_path = 'plugins/' . $plugin_slug;
-        if ($plugin_file !== '' && strpos($plugin_file, '/') === false) {
-            $relative_path = 'plugins/' . $plugin_file;
-        }
-
-        $full_path = $this->resolve_path($relative_path);
-        if (!file_exists($full_path)) {
-            throw new \Exception("Plugin path not found: $relative_path");
-        }
-
-        $disabled_relative_path = $this->next_disabled_plugin_path($relative_path);
-        $disabled_full_path = $this->resolve_path($disabled_relative_path);
-
-        if (!rename($full_path, $disabled_full_path)) {
-            throw new \Exception("Failed to emergency deactivate plugin: $relative_path");
-        }
-
-        return [
-            'action'       => 'emergency_deactivated',
-            'plugin_slug'  => $plugin_slug,
-            'old_path'     => $relative_path,
-            'new_path'     => $disabled_relative_path,
-            'reason'       => $reason,
-            'recover_hint' => 'Fix the plugin files, then rename the disabled path back to restore the plugin.',
-        ];
-    }
-
-    private function normalize_plugin_slug(string $slug): string {
-        $slug = strtolower(trim($slug));
-        return preg_match('/^[a-z0-9][a-z0-9-]*$/', $slug) ? $slug : '';
-    }
-
-    private function next_disabled_plugin_path(string $relative_path): string {
-        $candidate = $relative_path . '.disabled';
-        if (!file_exists($this->wp_content_path . '/' . $candidate)) {
-            return $candidate;
-        }
-
-        $timestamp = gmdate('Ymd-His');
-        $candidate = $relative_path . '.disabled-' . $timestamp;
-        $counter = 2;
-        while (file_exists($this->wp_content_path . '/' . $candidate)) {
-            $candidate = $relative_path . '.disabled-' . $timestamp . '-' . $counter;
-            $counter++;
-        }
-
-        return $candidate;
     }
 
     private function list_directory(string $path): array {
