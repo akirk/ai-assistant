@@ -369,9 +369,9 @@ describe('activation health verification', function() {
             emergencyDeactivateActivatedPlugin(candidate) {
                 assert.strictEqual(candidate.plugin_slug, 'school-timetable');
                 return Promise.resolve({
-                    action: 'emergency_deactivated',
-                    old_path: 'plugins/school-timetable',
-                    new_path: 'plugins/school-timetable.disabled'
+                    action: 'emergency_guarded',
+                    plugin_file: 'school-timetable/school-timetable.php',
+                    guarded_path: 'plugins/school-timetable/school-timetable.php'
                 });
             }
         });
@@ -395,8 +395,8 @@ describe('activation health verification', function() {
         ]);
 
         assert.strictEqual(results[0].success, false);
-        assert.match(results[0].result.error, /automatically deactivated/);
-        assert.strictEqual(results[0].result.recovery.action, 'emergency_deactivated');
+        assert.match(results[0].result.error, /automatically emergency-disabled/);
+        assert.strictEqual(results[0].result.recovery.action, 'emergency_guarded');
     });
 
     it('extracts activated plugin candidates from install_plugin and create-wp-app results', function() {
@@ -482,7 +482,7 @@ describe('plugin change recovery candidates', function() {
         assert.strictEqual(assistant.pendingPluginRecoveryCandidate, null);
     });
 
-    it('deactivates deferred candidates when WordPress health fails at a boundary', async function() {
+    it('emergency-disables deferred candidates when WordPress health fails at a boundary', async function() {
         const assistant = createAssistant({
             verifyWordPressHealth() {
                 return Promise.resolve(false);
@@ -490,8 +490,9 @@ describe('plugin change recovery candidates', function() {
             emergencyDeactivateActivatedPlugin(candidate) {
                 assert.strictEqual(candidate.plugin_slug, 'school-timetable');
                 return Promise.resolve({
-                    old_path: 'plugins/school-timetable',
-                    new_path: 'plugins/school-timetable.disabled'
+                    action: 'emergency_guarded',
+                    plugin_file: 'school-timetable/school-timetable.php',
+                    guarded_path: 'plugins/school-timetable/school-timetable.php'
                 });
             }
         });
@@ -504,7 +505,7 @@ describe('plugin change recovery candidates', function() {
 
         const recovery = await assistant.verifyPendingPluginRecoveryCandidate();
 
-        assert.strictEqual(recovery.new_path, 'plugins/school-timetable.disabled');
+        assert.strictEqual(recovery.guarded_path, 'plugins/school-timetable/school-timetable.php');
         assert.strictEqual(recovery.changed_path, 'plugins/school-timetable/src/App.php');
         assert.strictEqual(assistant.pendingPluginRecoveryCandidate, null);
     });
@@ -518,9 +519,9 @@ describe('plugin change recovery candidates', function() {
             emergencyDeactivateActivatedPlugin(candidate) {
                 assert.strictEqual(candidate.plugin_slug, 'school-timetable');
                 return Promise.resolve({
-                    action: 'emergency_deactivated',
-                    old_path: 'plugins/school-timetable',
-                    new_path: 'plugins/school-timetable.disabled'
+                    action: 'emergency_guarded',
+                    plugin_file: 'school-timetable/school-timetable.php',
+                    guarded_path: 'plugins/school-timetable/school-timetable.php'
                 });
             },
             executeSingleTool() {
@@ -559,8 +560,55 @@ describe('plugin change recovery candidates', function() {
         assert.strictEqual(executed, false);
         assert.strictEqual(assistant._handledResults[0].success, false);
         assert.strictEqual(assistant._handledResults[0].name, 'run_php');
-        assert.strictEqual(assistant._handledResults[0].result.recovery.action, 'emergency_deactivated');
+        assert.strictEqual(assistant._handledResults[0].result.recovery.action, 'emergency_guarded');
         assert.strictEqual(assistant._handledResults[0].result.skipped, true);
+    });
+
+    it('runs the boundary tool when later edits have restored WordPress health', async function() {
+        let executed = false;
+        const assistant = createAssistant({
+            verifyWordPressHealth() {
+                return Promise.resolve(true);
+            },
+            emergencyDeactivateActivatedPlugin() {
+                throw new Error('Should not emergency-disable a healthy plugin');
+            },
+            executeSingleTool() {
+                executed = true;
+                return Promise.resolve({
+                    id: 'tool-run',
+                    name: 'run_php',
+                    input: { code: 'return true;' },
+                    result: { result: true },
+                    success: true
+                });
+            },
+            handleToolResults(results) {
+                this._handledResults = results;
+            },
+            notifyToolCallCallbacks() {}
+        });
+
+        assistant.pendingPluginRecoveryCandidate = {
+            plugin_slug: 'school-timetable',
+            plugin_file: '',
+            changed_path: 'plugins/school-timetable/src/App.php'
+        };
+
+        assistant.executeTools([
+            {
+                id: 'tool-run',
+                name: 'run_php',
+                arguments: { code: 'return true;' }
+            }
+        ], 'anthropic');
+
+        await flushPromises();
+        await flushPromises();
+
+        assert.strictEqual(executed, true);
+        assert.strictEqual(assistant._handledResults[0].success, true);
+        assert.strictEqual(assistant.pendingPluginRecoveryCandidate, null);
     });
 
     it('treats WordPress-backed tools as recovery boundaries', function() {

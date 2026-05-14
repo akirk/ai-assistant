@@ -310,6 +310,11 @@ if (!function_exists('register_setting'))    { function register_setting()    {}
 if (!function_exists('add_settings_section')){ function add_settings_section(){} }
 if (!function_exists('add_settings_field'))  { function add_settings_field()  {} }
 if (!function_exists('__'))                  { function __($t, $d = '') { return $t; } }
+if (!function_exists('esc_html__'))          { function esc_html__($text, $domain = '') { return htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); } }
+if (!function_exists('esc_html'))            { function esc_html($text) { return htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); } }
+if (!function_exists('esc_url'))             { function esc_url($url) { return (string) $url; } }
+if (!function_exists('admin_url'))           { function admin_url($path = '') { return 'http://example.test/wp-admin/' . ltrim($path, '/'); } }
+if (!function_exists('wp_nonce_url'))        { function wp_nonce_url($url, $action = -1) { return $url . (strpos($url, '?') === false ? '?' : '&') . '_wpnonce=test'; } }
 if (!function_exists('is_wp_error'))         { function is_wp_error($thing) { return $thing instanceof WP_Error; } }
 
 if (!function_exists('activate_plugin')) {
@@ -353,7 +358,9 @@ require_once $plugin_dir . '/includes/class-tools.php';
 require_once $plugin_dir . '/includes/class-ability-annotations.php';
 require_once $plugin_dir . '/includes/class-skill-registry.php';
 require_once $plugin_dir . '/includes/class-file-tool-auth.php';
+require_once $plugin_dir . '/includes/class-emergency-plugin-guard.php';
 require_once $plugin_dir . '/includes/class-file-tool-executor.php';
+require_once $plugin_dir . '/includes/class-plugin-recovery-admin.php';
 require_once $plugin_dir . '/includes/class-executor.php';
 require_once $plugin_dir . '/includes/class-api-handler.php';
 require_once $plugin_dir . '/includes/class-git-tracker.php';
