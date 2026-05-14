@@ -133,7 +133,20 @@
                 var beforeExecute = self.isWordPressBackedToolCall(tc)
                     ? self.verifyPendingPluginRecoveryCandidate()
                     : Promise.resolve(null);
-                return beforeExecute.then(function() {
+                return beforeExecute.then(function(recovery) {
+                    if (recovery) {
+                        return {
+                            id: tc.id,
+                            name: tc.name || tc.tool,
+                            input: tc.arguments || {},
+                            success: false,
+                            result: {
+                                error: 'WordPress failed after plugin file changes; the plugin was automatically deactivated before running this tool.',
+                                skipped: true,
+                                recovery: recovery
+                            }
+                        };
+                    }
                     return self.executeSingleTool(tc);
                 });
             });
@@ -238,17 +251,10 @@
 
                 return self.emergencyDeactivateActivatedPlugin(candidate).then(function(recovery) {
                     self.pendingPluginRecoveryCandidate = null;
-                    if (self.addMessage) {
-                        self.addMessage(
-                            'system',
-                            'WordPress failed to load after changes to `' + candidate.changed_path + '`, so `' + candidate.plugin_slug + '` was automatically deactivated by renaming `' + recovery.old_path + '` to `' + recovery.new_path + '`.'
-                        );
-                    }
+                    recovery.changed_path = candidate.changed_path;
+                    recovery.source_tool = candidate.source_tool;
                     return recovery;
                 }).catch(function(error) {
-                    if (self.addMessage) {
-                        self.addMessage('error', 'WordPress failed to load after plugin changes, and automatic deactivation failed: ' + error.message);
-                    }
                     throw error;
                 });
             });

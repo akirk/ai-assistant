@@ -483,7 +483,6 @@ describe('plugin change recovery candidates', function() {
     });
 
     it('deactivates deferred candidates when WordPress health fails at a boundary', async function() {
-        const messages = [];
         const assistant = createAssistant({
             verifyWordPressHealth() {
                 return Promise.resolve(false);
@@ -494,9 +493,6 @@ describe('plugin change recovery candidates', function() {
                     old_path: 'plugins/school-timetable',
                     new_path: 'plugins/school-timetable.disabled'
                 });
-            },
-            addMessage(role, content) {
-                messages.push({ role, content });
             }
         });
 
@@ -509,9 +505,62 @@ describe('plugin change recovery candidates', function() {
         const recovery = await assistant.verifyPendingPluginRecoveryCandidate();
 
         assert.strictEqual(recovery.new_path, 'plugins/school-timetable.disabled');
+        assert.strictEqual(recovery.changed_path, 'plugins/school-timetable/src/App.php');
         assert.strictEqual(assistant.pendingPluginRecoveryCandidate, null);
-        assert.strictEqual(messages[0].role, 'system');
-        assert.match(messages[0].content, /automatically deactivated/);
+    });
+
+    it('returns recovery as the boundary tool result instead of running that tool', async function() {
+        let executed = false;
+        const assistant = createAssistant({
+            verifyWordPressHealth() {
+                return Promise.resolve(false);
+            },
+            emergencyDeactivateActivatedPlugin(candidate) {
+                assert.strictEqual(candidate.plugin_slug, 'school-timetable');
+                return Promise.resolve({
+                    action: 'emergency_deactivated',
+                    old_path: 'plugins/school-timetable',
+                    new_path: 'plugins/school-timetable.disabled'
+                });
+            },
+            executeSingleTool() {
+                executed = true;
+                return Promise.resolve({
+                    id: 'tool-run',
+                    name: 'run_php',
+                    input: { code: 'return true;' },
+                    result: { result: true },
+                    success: true
+                });
+            },
+            handleToolResults(results) {
+                this._handledResults = results;
+            },
+            notifyToolCallCallbacks() {}
+        });
+
+        assistant.pendingPluginRecoveryCandidate = {
+            plugin_slug: 'school-timetable',
+            plugin_file: '',
+            changed_path: 'plugins/school-timetable/src/App.php'
+        };
+
+        assistant.executeTools([
+            {
+                id: 'tool-run',
+                name: 'run_php',
+                arguments: { code: 'return true;' }
+            }
+        ], 'anthropic');
+
+        await flushPromises();
+        await flushPromises();
+
+        assert.strictEqual(executed, false);
+        assert.strictEqual(assistant._handledResults[0].success, false);
+        assert.strictEqual(assistant._handledResults[0].name, 'run_php');
+        assert.strictEqual(assistant._handledResults[0].result.recovery.action, 'emergency_deactivated');
+        assert.strictEqual(assistant._handledResults[0].result.skipped, true);
     });
 
     it('treats WordPress-backed tools as recovery boundaries', function() {
