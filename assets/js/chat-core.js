@@ -43,6 +43,8 @@
         ajaxErrorThreshold: 2,
         recoveryMessageShown: false,
         wordpressRecoveryCheckInProgress: false,
+        recentPluginActivation: null,
+        pluginActivationRecoveryWindowMs: 10 * 60 * 1000,
         abortController: null,
         pendingAttachments: [],
         isUploadingFiles: false,
@@ -771,6 +773,144 @@
             return stripped.trim();
         },
 
+        recordRecentPluginActivation: function(toolResult) {
+            if (!toolResult || !toolResult.success) {
+                return;
+            }
+
+            var toolName = toolResult.name || toolResult.tool;
+            var input = toolResult.input || {};
+            var result = toolResult.result || {};
+            var candidate = null;
+
+            if (toolName === 'install_plugin' && input.activate) {
+                var installedActive = result.active === true ||
+                    result.status === 'activated' ||
+                    result.status === 'installed_and_activated';
+
+                if (installedActive) {
+                    candidate = {
+                        pluginSlug: this.extractPluginSlug(input.slug || '', result.plugin_file || ''),
+                        pluginFile: result.plugin_file || '',
+                        sourceTool: 'install_plugin'
+                    };
+                } else {
+                    this.clearMatchingPluginActivationCandidate(this.extractPluginSlug(input.slug || '', result.plugin_file || ''));
+                }
+            }
+
+            if (toolName === 'ability' && input.action === 'execute' && input.ability === 'create-wp-app/scaffold') {
+                var abilityResult = result.result || result;
+                if (abilityResult && abilityResult.activated === true) {
+                    candidate = {
+                        pluginSlug: abilityResult.plugin_slug || '',
+                        pluginFile: '',
+                        sourceTool: 'ability:create-wp-app/scaffold'
+                    };
+                } else if (input.arguments && input.arguments.slug) {
+                    this.clearMatchingPluginActivationCandidate(this.extractPluginSlug(input.arguments.slug || '', ''));
+                }
+            }
+
+            if (!candidate || !candidate.pluginSlug || candidate.pluginSlug === 'ai-assistant') {
+                return;
+            }
+
+            candidate.recordedAt = Date.now();
+            candidate.label = candidate.pluginSlug;
+            this.recentPluginActivation = candidate;
+        },
+
+        clearMatchingPluginActivationCandidate: function(pluginSlug) {
+            pluginSlug = this.extractPluginSlug(pluginSlug || '', '');
+            if (
+                pluginSlug &&
+                this.recentPluginActivation &&
+                this.recentPluginActivation.pluginSlug === pluginSlug
+            ) {
+                this.recentPluginActivation = null;
+            }
+        },
+
+        clearPluginActivationCandidateForToolCall: function(toolCall) {
+            var toolName = toolCall && (toolCall.name || toolCall.tool);
+            if (['write_file', 'edit_file', 'delete_file'].indexOf(toolName) >= 0) {
+                this.recentPluginActivation = null;
+            }
+        },
+
+        recordPotentialPluginActivation: function(toolCall) {
+            if (!toolCall) {
+                return;
+            }
+
+            var toolName = toolCall.name || toolCall.tool;
+            var args = toolCall.arguments || {};
+            var candidate = null;
+
+            if (toolName === 'install_plugin' && args.activate === true) {
+                candidate = {
+                    pluginSlug: this.extractPluginSlug(args.slug || '', ''),
+                    pluginFile: '',
+                    sourceTool: 'install_plugin'
+                };
+            }
+
+            if (
+                toolName === 'ability' &&
+                args.action === 'execute' &&
+                args.ability === 'create-wp-app/scaffold' &&
+                args.arguments &&
+                args.arguments.activate === true
+            ) {
+                candidate = {
+                    pluginSlug: this.extractPluginSlug(args.arguments.slug || '', ''),
+                    pluginFile: '',
+                    sourceTool: 'ability:create-wp-app/scaffold'
+                };
+            }
+
+            if (!candidate || !candidate.pluginSlug || candidate.pluginSlug === 'ai-assistant') {
+                return;
+            }
+
+            candidate.recordedAt = Date.now();
+            candidate.label = candidate.pluginSlug;
+            candidate.pending = true;
+            this.recentPluginActivation = candidate;
+        },
+
+        extractPluginSlug: function(slug, pluginFile) {
+            slug = String(slug || '').trim();
+            if (slug && /^[a-z0-9][a-z0-9-]*$/i.test(slug)) {
+                return slug.toLowerCase();
+            }
+
+            pluginFile = String(pluginFile || '').replace(/\\/g, '/').replace(/^\/+/, '');
+            if (!pluginFile) {
+                return '';
+            }
+
+            if (pluginFile.indexOf('/') !== -1) {
+                return pluginFile.split('/')[0].toLowerCase();
+            }
+
+            return pluginFile.replace(/\.php$/i, '').toLowerCase();
+        },
+
+        getRecentActivationRecoveryCandidate: function() {
+            var candidate = this.recentPluginActivation;
+            if (!candidate || !candidate.pluginSlug || candidate.pluginSlug === 'ai-assistant') {
+                return null;
+            }
+
+            if (Date.now() - candidate.recordedAt > this.pluginActivationRecoveryWindowMs) {
+                return null;
+            }
+
+            return candidate;
+        },
+
 
         setupAjaxErrorTracking: function() {
             var self = this;
@@ -795,9 +935,13 @@
         showRecoveryMessage: function() {
             this.recoveryMessageShown = true;
             this.setLoading(false);
+            var activationCandidate = this.getRecentActivationRecoveryCandidate();
 
-            var message = '**WordPress may be broken** due to a recent file change.\n\n' +
-                'Multiple requests have failed, which often indicates a PHP syntax error.\n\n' +
+            var message = activationCandidate
+                ? '**WordPress may be broken** after activating `' + activationCandidate.label + '`.\n\n'
+                : '**WordPress may be broken** due to a recent file change.\n\n';
+
+            message += 'Multiple requests have failed, which often indicates a PHP syntax error.\n\n' +
                 'This page still works because it was already loaded, but navigating to any other WordPress page will likely fail. ' +
                 'You can try navigating to confirm, but first remember how to recover:\n\n' +
                 'Click the [[GRID_ICON]] grid icon in the top bar and use **Recovery Mode** to restore the last working state.';
@@ -816,7 +960,80 @@
             var html = $lastError.find('.ai-message-content').html();
             $lastError.find('.ai-message-content').html(html.replace('[[GRID_ICON]]', gridIcon));
 
+            if (activationCandidate) {
+                this.appendEmergencyDeactivateAction($lastError, activationCandidate);
+            }
+
             $lastError[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+        },
+
+        appendEmergencyDeactivateAction: function($message, candidate) {
+            if (!$message || !$message.length || !candidate) {
+                return;
+            }
+
+            var self = this;
+            var $actions = $('<div class="ai-recovery-actions"></div>');
+            var $button = $('<button type="button" class="button button-secondary ai-emergency-deactivate-plugin"></button>');
+            $button.text('Deactivate ' + candidate.label);
+
+            $button.on('click', function() {
+                self.emergencyDeactivateRecentPlugin(candidate, $button);
+            });
+
+            $actions.append($button);
+            $message.find('.ai-message-content').append($actions);
+        },
+
+        emergencyDeactivateRecentPlugin: function(candidate, $button) {
+            if (!candidate || !candidate.pluginSlug) {
+                return;
+            }
+
+            if (!window.confirm('Deactivate ' + candidate.label + ' by renaming its plugin files?')) {
+                return;
+            }
+
+            if (!window.aiAssistantConfig || !aiAssistantConfig.fileToolsUrl || !aiAssistantConfig.fileToolsToken) {
+                this.addMessage('error', 'Emergency deactivate is unavailable because the file recovery endpoint is not configured.');
+                return;
+            }
+
+            var self = this;
+            $button.prop('disabled', true).text('Deactivating...');
+
+            fetch(aiAssistantConfig.fileToolsUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    token: aiAssistantConfig.fileToolsToken,
+                    tool: 'emergency_deactivate_plugin',
+                    arguments: {
+                        plugin_slug: candidate.pluginSlug,
+                        plugin_file: candidate.pluginFile || '',
+                        reason: 'Emergency deactivate after plugin activation appeared to break WordPress'
+                    },
+                    conversation_id: this.conversationId || 0
+                })
+            }).then(function(response) {
+                return response.json();
+            }).then(function(payload) {
+                if (!payload || !payload.success) {
+                    var message = payload && payload.data && (payload.data.message || payload.data.error);
+                    throw new Error(message || 'Emergency deactivate failed');
+                }
+
+                var data = payload.data || {};
+                self.recentPluginActivation = null;
+                $button.text('Deactivated').prop('disabled', true);
+                self.addMessage('system', 'Emergency deactivated `' + candidate.label + '` by renaming `' + data.old_path + '` to `' + data.new_path + '`.');
+                self.checkWordPressRecovery();
+            }).catch(function(error) {
+                $button.prop('disabled', false).text('Deactivate ' + candidate.label);
+                self.addMessage('error', 'Emergency deactivate failed: ' + error.message);
+            });
         },
 
         getRecoveryMessages: function() {

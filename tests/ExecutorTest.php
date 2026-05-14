@@ -368,6 +368,53 @@ class ExecutorTest extends TestCase {
         ]);
     }
 
+    public function test_emergency_deactivate_plugin_renames_plugin_directory(): void {
+        $file_tools = new \AI_Assistant\File_Tool_Executor($this->test_dir);
+
+        $result = $file_tools->execute('emergency_deactivate_plugin', [
+            'plugin_slug' => 'test-plugin',
+            'reason' => 'Recover from activation fatal',
+        ]);
+
+        $this->assertSame('emergency_deactivated', $result['action']);
+        $this->assertSame('test-plugin', $result['plugin_slug']);
+        $this->assertSame('plugins/test-plugin', $result['old_path']);
+        $this->assertSame('plugins/test-plugin.disabled', $result['new_path']);
+        $this->assertDirectoryDoesNotExist($this->test_dir . '/plugins/test-plugin');
+        $this->assertDirectoryExists($this->test_dir . '/plugins/test-plugin.disabled');
+    }
+
+    public function test_emergency_deactivate_plugin_refuses_ai_assistant(): void {
+        $file_tools = new \AI_Assistant\File_Tool_Executor($this->test_dir);
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Refusing to emergency deactivate AI Assistant');
+
+        $file_tools->execute('emergency_deactivate_plugin', [
+            'plugin_slug' => 'ai-assistant',
+        ]);
+    }
+
+    public function test_file_tool_auth_allows_emergency_deactivate_with_edit_file_enabled(): void {
+        $this->assertTrue(\AI_Assistant\File_Tool_Auth::can_execute_tool(
+            'emergency_deactivate_plugin',
+            ['plugin_slug' => 'test-plugin'],
+            [
+                'permission' => 'full',
+                'enabled_tools' => ['edit_file'],
+            ]
+        ));
+
+        $this->assertFalse(\AI_Assistant\File_Tool_Auth::can_execute_tool(
+            'emergency_deactivate_plugin',
+            ['plugin_slug' => 'test-plugin'],
+            [
+                'permission' => 'read_only',
+                'enabled_tools' => ['edit_file'],
+            ]
+        ));
+    }
+
     // ===== LIST DIRECTORY TESTS =====
 
     public function test_list_directory_returns_items(): void {

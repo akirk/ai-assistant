@@ -450,6 +450,14 @@
     color: #fff;
 }
 
+.ai-recovery-actions {
+    margin-top: 12px;
+}
+
+.ai-recovery-actions .button {
+    min-height: 30px;
+}
+
 .ai-message-system .ai-message-content {
     background: #fff8e5;
     color: #1d2327;
