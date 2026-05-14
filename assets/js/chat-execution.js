@@ -1545,9 +1545,15 @@
                 });
             }
 
+            var sentQueuedMessages = this.flushQueuedMessages
+                ? this.flushQueuedMessages(provider, {
+                    appendToLastToolResultMessage: provider === 'anthropic'
+                })
+                : false;
+
             this.updateTokenCount();
 
-            if (navigateResult) {
+            if (navigateResult && !sentQueuedMessages) {
                 var suggestionContent = this.getNavigationSuggestionContent(navigateResult.result);
                 this.messages.push({ role: 'assistant', content: suggestionContent });
                 this.addMessage('assistant', suggestionContent, 'ai-navigation-suggestion');
@@ -1558,6 +1564,12 @@
             }
 
             this.autoSaveConversation();
+
+            if (sentQueuedMessages) {
+                this.toolCallRounds = 0;
+                this.callLLM();
+                return;
+            }
 
             this.toolCallRounds++;
             if (this.toolCallRounds >= 10) {

@@ -2,8 +2,119 @@
     'use strict';
 
     $.extend(window.aiAssistant, {
+        shouldQueueUserMessage: function() {
+            return !!(
+                this.isLoading ||
+                (this.pendingActions && this.pendingActions.length > 0) ||
+                (this.pendingToolChecks || 0) > 0 ||
+                (this.executingToolCount || 0) > 0 ||
+                (this.pendingToolResults && this.pendingToolResults.length > 0)
+            );
+        },
+
+        queueUserMessage: function(message, attachments) {
+            attachments = attachments || [];
+
+            var messageContent = this.buildUserMessageContent
+                ? this.buildUserMessageContent(message, attachments)
+                : message;
+
+            if (!Array.isArray(this.queuedMessages)) {
+                this.queuedMessages = [];
+            }
+
+            this.queuedMessages.push({
+                content: messageContent,
+                queuedAt: Date.now()
+            });
+
+            this.addToDraftHistory(message);
+            this.pendingAttachments = [];
+            if (this.renderPendingAttachments) {
+                this.renderPendingAttachments();
+            }
+
+            $('#ai-assistant-input').val('');
+            this.clearDraft();
+            this.draftHistoryIndex = -1;
+            this.draftHistoryDraft = '';
+            this.updateSendButton();
+            this.updateLoadingStatus();
+        },
+
+        clearQueuedMessages: function() {
+            this.queuedMessages = [];
+            this.updateSendButton();
+            this.updateLoadingStatus();
+        },
+
+        flushQueuedMessages: function(provider, options) {
+            options = options || {};
+
+            if (!Array.isArray(this.queuedMessages) || this.queuedMessages.length === 0) {
+                return false;
+            }
+
+            var queued = this.queuedMessages.slice();
+            this.queuedMessages = [];
+
+            var contents = queued.map(function(item) {
+                return item.content;
+            }).filter(function(content) {
+                return !!content;
+            });
+
+            if (contents.length === 0) {
+                this.updateSendButton();
+                this.updateLoadingStatus();
+                return false;
+            }
+
+            queued.forEach(function(item) {
+                if (item.content) {
+                    this.addMessage('user', item.content);
+                }
+            }, this);
+
+            if (
+                provider === 'anthropic' &&
+                options.appendToLastToolResultMessage &&
+                this.messages.length > 0
+            ) {
+                var lastMessage = this.messages[this.messages.length - 1];
+                if (lastMessage && lastMessage.role === 'user' && Array.isArray(lastMessage.content)) {
+                    contents.forEach(function(content) {
+                        lastMessage.content.push({ type: 'text', text: content });
+                    });
+                } else {
+                    this.messages.push({ role: 'user', content: contents.join('\n\n') });
+                }
+            } else {
+                this.messages.push({ role: 'user', content: contents.join('\n\n') });
+            }
+
+            this.updateSendButton();
+            this.updateLoadingStatus();
+            this.updateTokenCount();
+            if (this.updateExportButton) {
+                this.updateExportButton();
+            }
+            return true;
+        },
+
+        sendQueuedMessagesIfAvailable: function(provider, options) {
+            if (!this.flushQueuedMessages(provider, options)) {
+                return false;
+            }
+
+            this.toolCallRounds = 0;
+            this.autoSaveConversation();
+            this.callLLM();
+            return true;
+        },
+
         sendMessage: function() {
-            if (this.isLoading || !this.isProviderConfigured()) return;
+            if (!this.isProviderConfigured()) return;
 
             var $input = $('#ai-assistant-input');
             var message = $input.val().trim();
@@ -11,6 +122,11 @@
 
             if (this.isUploadingFiles) return;
             if (!message && attachments.length === 0) return;
+
+            if (this.shouldQueueUserMessage()) {
+                this.queueUserMessage(message, attachments);
+                return;
+            }
 
             if (this.pendingActions && this.pendingActions.length > 0) {
                 this.setLoading(false);
@@ -540,6 +656,9 @@
                 if (toolCalls.length > 0) {
                     this.checkAllToolsResolved();
                 } else {
+                    if (this.sendQueuedMessagesIfAvailable('anthropic')) {
+                        return;
+                    }
                     this.setLoading(false);
                     this.autoSaveConversation();
                 }
@@ -682,6 +801,9 @@
                 if (toolCalls.length > 0) {
                     this.processToolCalls(toolCalls, 'openai');
                 } else {
+                    if (this.sendQueuedMessagesIfAvailable('openai')) {
+                        return;
+                    }
                     this.setLoading(false);
                 }
 
@@ -1014,6 +1136,9 @@
                 if (toolCalls.length > 0) {
                     this.processToolCalls(toolCalls, 'openai');
                 } else {
+                    if (this.sendQueuedMessagesIfAvailable('openai')) {
+                        return;
+                    }
                     this.setLoading(false);
                 }
 

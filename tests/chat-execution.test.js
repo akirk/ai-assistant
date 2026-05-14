@@ -380,6 +380,47 @@ describe('tool call callbacks', function() {
     });
 });
 
+describe('queued message handoff', function() {
+    it('flushes queued messages after tool results before resuming the model', function() {
+        let flushed = false;
+        let called = false;
+        const assistant = createAssistant({
+            streamComplete: true,
+            pendingToolResults: [],
+            messages: [],
+            toolCallRounds: 4,
+            deduplicateFileReads() {},
+            flushQueuedMessages(provider, options) {
+                flushed = true;
+                assert.strictEqual(provider, 'anthropic');
+                assert.strictEqual(options.appendToLastToolResultMessage, true);
+                return true;
+            },
+            updateTokenCount() {},
+            autoSaveConversation() {},
+            callLLM() {
+                called = true;
+            }
+        });
+
+        assistant.handleToolResults([
+            {
+                id: 'toolu_1',
+                name: 'read_file',
+                input: { path: 'demo.txt' },
+                result: { content: 'Demo' },
+                success: true
+            }
+        ], 'anthropic');
+
+        assert.strictEqual(flushed, true);
+        assert.strictEqual(called, true);
+        assert.strictEqual(assistant.toolCallRounds, 0);
+        assert.strictEqual(assistant.messages[0].role, 'user');
+        assert.strictEqual(assistant.messages[0].content[0].tool_use_id, 'toolu_1');
+    });
+});
+
 describe('activation wpok verification', function() {
     it('passes through activated plugin results when wpok succeeds', async function() {
         const assistant = createAssistant({
