@@ -405,8 +405,10 @@
         },
 
         executeFileToolEndpoint: function(toolCall) {
+            var self = this;
             var toolName = toolCall.name || toolCall.tool;
             var args = toolCall.arguments || {};
+            var mutatingFileTools = ['write_file', 'edit_file', 'delete_file'];
 
             return fetch(aiAssistantConfig.fileToolsUrl, {
                 method: 'POST',
@@ -440,6 +442,9 @@
                         var result = payload.data || {};
                         if (result && typeof result === 'object') {
                             result.transport = 'direct_file_endpoint';
+                        }
+                        if (mutatingFileTools.indexOf(toolName) >= 0 && self.checkWordPressRecovery) {
+                            self.checkWordPressRecovery();
                         }
                         return {
                             id: toolCall.id,
