@@ -23,7 +23,7 @@ When the user asks what this WordPress can be used for, do not answer from the g
 First inspect the current environment:
 
 - Use the site URL and current page from the system prompt to notice whether this is my.wordpress.net, local, hosted, intranet, or another personal setup.
-- Use `environment_info` or `get_plugins` to see installed and active plugins.
+- Use `environment_info` to see active plugin titles and descriptions; include inactive plugins or use `get_plugins` when looking for unused capabilities or gaps.
 - Use `ability` with action `list` when available to discover app-specific actions exposed by installed plugins.
 
 Then tailor the answer:

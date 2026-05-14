@@ -51,7 +51,7 @@ The AI Assistant panel appears in the WordPress admin screen meta area (alongsid
 | `delete_file` | Delete files |
 | `find` | Find files (by path/glob) or search file contents |
 | `run_php` | Execute PHP code in the WordPress environment |
-| `environment_info` | Get active plugins, themes, WP/PHP versions |
+| `environment_info` | Get active plugins with titles/descriptions, themes, WP/PHP versions |
 | `db_query` | Execute SELECT/DESCRIBE/SHOW queries on the database |
 | `install_plugin` | Install a plugin from WordPress.org |
 | `ability` | List, inspect, or execute WordPress abilities (plugin-exposed actions) |

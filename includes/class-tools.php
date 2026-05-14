@@ -257,7 +257,7 @@ class Tools {
     private function tool_get_plugins(): array {
         return [
             'name' => 'get_plugins',
-            'description' => 'List all installed WordPress plugins with their status',
+            'description' => 'List all installed WordPress plugins with title, description, version, author, and status',
             'parameters' => [
                 'type' => 'object',
                 'properties' => new \stdClass(),

@@ -263,6 +263,9 @@ class Executor {
             'theme'   => $theme->get_template(),
             'plugins' => [],
         ];
+        if ($include_inactive) {
+            $info['inactive'] = [];
+        }
 
         if (!function_exists('get_plugins')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
@@ -273,13 +276,26 @@ class Executor {
         foreach ($all_plugins as $file => $data) {
             $slug = dirname($file) === '.' ? basename($file, '.php') : dirname($file);
             if (in_array($file, $active_slugs)) {
-                $info['plugins'][$slug] = $data['Name'];
+                $info['plugins'][$slug] = $this->get_plugin_environment_summary($data);
             } elseif ($include_inactive) {
-                $info['inactive'][$slug] = $data['Name'];
+                $info['inactive'][$slug] = $this->get_plugin_environment_summary($data);
             }
         }
 
         return $info;
+    }
+
+    private function get_plugin_environment_summary(array $plugin_data): array {
+        return [
+            'title'       => $this->clean_plugin_text($plugin_data['Name'] ?? ''),
+            'description' => $this->clean_plugin_text($plugin_data['Description'] ?? ''),
+        ];
+    }
+
+    private function clean_plugin_text(string $text): string {
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = trim(strip_tags($text));
+        return preg_replace('/\s+/', ' ', $text) ?? $text;
     }
 
     private function get_string_arg(array $args, string $name, string $tool, ?string $default = null): string {
