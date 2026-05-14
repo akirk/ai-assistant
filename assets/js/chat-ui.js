@@ -308,6 +308,68 @@
             return name || 'Uploaded image';
         },
 
+        getShortImageSourceDomain: function(sourceUrl) {
+            var raw = String(sourceUrl || '').trim();
+            var host = '';
+            var match = raw.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#]+)/i) ||
+                raw.match(/^\/\/([^/?#]+)/);
+
+            if (match) {
+                host = match[1];
+            } else if (raw) {
+                host = raw.split(/[/?#]/)[0];
+            }
+
+            host = host
+                .replace(/^[^@]+@/, '')
+                .replace(/:\d+$/, '')
+                .toLowerCase()
+                .replace(/^www\./, '');
+
+            if (!host) {
+                return 'source';
+            }
+
+            var parts = host.split('.').filter(function(part) { return !!part; });
+            var disposablePrefixes = {
+                asset: true,
+                assets: true,
+                cdn: true,
+                file: true,
+                files: true,
+                image: true,
+                images: true,
+                img: true,
+                media: true,
+                m: true,
+                static: true,
+                upload: true,
+                uploads: true
+            };
+
+            while (parts.length > 2 && disposablePrefixes[parts[0]]) {
+                parts.shift();
+            }
+
+            if (parts.length > 2) {
+                var secondLevel = parts[parts.length - 2];
+                var topLevel = parts[parts.length - 1];
+                var compoundPublicSuffix = topLevel.length === 2 && {
+                    ac: true,
+                    co: true,
+                    com: true,
+                    edu: true,
+                    gov: true,
+                    net: true,
+                    org: true
+                }[secondLevel];
+
+                return parts.slice(compoundPublicSuffix ? -3 : -2).join('.');
+            }
+
+            return parts.join('.') || host;
+        },
+
         isPickedImageFile: function(file) {
             if (!file) {
                 return false;
@@ -499,7 +561,7 @@
                 attachment_id: attachment ? Number(attachment.id) : null,
                 id: attachment ? Number(attachment.id) : null,
                 url: localUrl || metadata.remote_url,
-                source_url: localUrl || '',
+                source_url: localUrl || metadata.remote_url,
                 thumbnail: this.getPickedImageThumbnailUrl(attachment, image && image.thumbnail),
                 uploaded: !!attachment,
                 external: !attachment,
@@ -538,7 +600,7 @@
                     };
                 })
                 .catch(function(error) {
-                    setStatus('Media Library upload failed. Drop a photo here or use the external URL.');
+                    setStatus('Media Library upload failed. Drop a photo here or click the image domain to use its source URL.');
                     return {
                         selection: self.buildPickedImageResult(image, null, error),
                         success: false,
@@ -639,7 +701,6 @@
             var lastFallbackFrom = '';
             var activeSelectionController = null;
             var selectionRun = 0;
-            var externalFallbackSelection = null;
             var $card = $('[data-tool-id="' + toolId + '"]');
 
             if (!$card.length) {
@@ -673,7 +734,6 @@
                 .val(query);
             var $search = $('<button type="button" class="button button-small ai-image-picker-search">Search</button>');
             var $more = $('<button type="button" class="button button-small ai-image-picker-more">More</button>').hide();
-            var $useExternal = $('<button type="button" class="button button-small ai-image-picker-use-external">Use external URL</button>').hide().prop('disabled', true);
             var $cancel = $('<button type="button" class="button button-small ai-image-picker-cancel">Cancel</button>');
             var $upload = $('<div class="ai-image-picker-upload" tabindex="0"></div>');
             var $uploadText = $('<span class="ai-image-picker-upload-text"></span>').text('Drop a photo here');
@@ -684,7 +744,7 @@
 
             $headingWrap.append($titleText, $subtitle);
             $header.append($headingWrap, $close);
-            $controls.append($input, $search, $more, $useExternal, $cancel);
+            $controls.append($input, $search, $more, $cancel);
             $upload.append($uploadText, $browse, $fileInput);
             $picker.append($controls, $upload, $status, $grid);
             $dialog.append($header, $picker);
@@ -705,26 +765,14 @@
                 onSelect(selection, success !== false);
             }
 
-            function clearExternalFallback() {
-                externalFallbackSelection = null;
-                $useExternal.hide().prop('disabled', true);
-            }
-
-            function showExternalFallback(selection) {
-                externalFallbackSelection = selection || null;
-                $useExternal.toggle(!!externalFallbackSelection).prop('disabled', !externalFallbackSelection);
-            }
-
             function setSelectionBusy(busy) {
-                $grid.find('.ai-image-result').prop('disabled', busy);
+                $grid.find('.ai-image-result').toggleClass('is-disabled', busy);
+                $grid.find('.ai-image-result-select, .ai-image-result-source').prop('disabled', busy);
                 $search.prop('disabled', busy);
                 $more.prop('disabled', busy);
                 $input.prop('disabled', busy);
                 $browse.prop('disabled', busy);
                 $upload.toggleClass('is-uploading', busy);
-                if (externalFallbackSelection) {
-                    $useExternal.prop('disabled', busy);
-                }
             }
 
             function hasDraggedFiles(e) {
@@ -764,8 +812,6 @@
                     return;
                 }
 
-                var previousExternalFallback = externalFallbackSelection;
-                clearExternalFallback();
                 if (activeSelectionController) {
                     activeSelectionController.abort();
                     activeSelectionController = null;
@@ -790,11 +836,19 @@
                         return;
                     }
 
-                    if (previousExternalFallback) {
-                        showExternalFallback(previousExternalFallback);
-                    }
                     $input.prop('disabled', false).trigger('focus');
                 });
+            }
+
+            function selectSourceUrl(image) {
+                if (done || !image || !image.url) return;
+
+                if (activeSelectionController) {
+                    activeSelectionController.abort();
+                    activeSelectionController = null;
+                }
+
+                finish(self.buildPickedImageResult(image, null), true);
             }
 
             function renderResults(results, append) {
@@ -803,12 +857,17 @@
                 }
 
                 results.forEach(function(image) {
-                    var $result = $('<button type="button" class="ai-image-result"></button>');
+                    var sourceUrl = image.url || '';
+                    var $result = $('<div class="ai-image-result"></div>');
+                    var $select = $('<button type="button" class="ai-image-result-select"></button>');
                     var $thumb = $('<span class="ai-image-result-thumb"></span>');
                     var $meta = $('<span class="ai-image-result-meta"></span>');
                     var $title = $('<span class="ai-image-result-title"></span>').text(image.title || 'Untitled');
                     var details = [image.creator, image.license].filter(function(part) { return !!part; }).join(' - ');
                     var $details = $('<span class="ai-image-result-details"></span>').text(details);
+                    var $source = $('<button type="button" class="ai-image-result-source"></button>')
+                        .text(self.getShortImageSourceDomain(sourceUrl))
+                        .attr('title', 'Use source URL: ' + sourceUrl);
 
                     if (image.thumbnail || image.url) {
                         $thumb.append($('<img>').attr({
@@ -818,10 +877,10 @@
                     }
 
                     $meta.append($title, $details);
-                    $result.append($thumb, $meta);
-                    $result.on('click', function() {
-                        clearExternalFallback();
-                        $grid.find('.ai-image-result').prop('disabled', true).removeClass('is-selected');
+                    $select.append($thumb, $meta);
+                    $result.append($select, $source);
+                    $select.on('click', function() {
+                        $grid.find('.ai-image-result').removeClass('is-selected');
                         $result.addClass('is-selected');
                         setSelectionBusy(true);
                         var runId = ++selectionRun;
@@ -841,13 +900,12 @@
                             }
 
                             setSelectionBusy(false);
-                            if (outcome.can_use_external) {
-                                showExternalFallback(outcome.selection);
-                            } else {
-                                $result.removeClass('is-selected');
-                            }
+                            $result.removeClass('is-selected');
                             $input.prop('disabled', false).trigger('focus');
                         });
+                    });
+                    $source.on('click', function() {
+                        selectSourceUrl(image);
                     });
                     $grid.append($result);
                 });
@@ -856,7 +914,6 @@
             function searchImages(nextPage) {
                 if (done) return;
 
-                clearExternalFallback();
                 var nextQuery = $input.val().trim();
                 if (!nextQuery) {
                     $status.text('Enter a search term.');
@@ -928,12 +985,6 @@
 
             $more.on('click', function() {
                 searchImages(true);
-            });
-
-            $useExternal.on('click', function() {
-                if (externalFallbackSelection) {
-                    finish(externalFallbackSelection, true);
-                }
             });
 
             $browse.on('click', function(e) {

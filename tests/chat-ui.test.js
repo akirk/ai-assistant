@@ -60,6 +60,23 @@ describe('pick_image media upload helpers', function() {
         );
     });
 
+    it('shortens image source URLs to readable domains', function() {
+        const assistant = loadUiMixin();
+
+        assert.strictEqual(
+            assistant.getShortImageSourceDomain('https://images.example.test/source.jpg'),
+            'example.test'
+        );
+        assert.strictEqual(
+            assistant.getShortImageSourceDomain('https://cdn.assets.example.co.uk/file.png'),
+            'example.co.uk'
+        );
+        assert.strictEqual(
+            assistant.getShortImageSourceDomain(''),
+            'source'
+        );
+    });
+
     it('builds upload data from a dropped image file', async function() {
         const assistant = loadUiMixin({ maxMediaUploadBytes: 1024 });
         const file = {
@@ -124,6 +141,7 @@ describe('pick_image media upload helpers', function() {
         assert.strictEqual(fallback.success, false);
         assert.strictEqual(fallback.can_use_external, true);
         assert.strictEqual(fallback.selection.url, image.url);
+        assert.strictEqual(fallback.selection.source_url, image.url);
         assert.strictEqual(fallback.selection.external, true);
         assert.strictEqual(fallback.selection.upload_failed, true);
     });
