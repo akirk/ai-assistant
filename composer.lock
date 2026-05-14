@@ -8,16 +8,16 @@
     "packages": [
         {
             "name": "akirk/create-wp-app",
-            "version": "v1.3.1",
+            "version": "v1.4.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/akirk/create-wp-app.git",
-                "reference": "c726d8376c8bc5ab679cf1c2a92fd12a2b1d07df"
+                "reference": "ca1c90bf13b19f124761080db606dee6b18aaaf9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/akirk/create-wp-app/zipball/c726d8376c8bc5ab679cf1c2a92fd12a2b1d07df",
-                "reference": "c726d8376c8bc5ab679cf1c2a92fd12a2b1d07df",
+                "url": "https://api.github.com/repos/akirk/create-wp-app/zipball/ca1c90bf13b19f124761080db606dee6b18aaaf9",
+                "reference": "ca1c90bf13b19f124761080db606dee6b18aaaf9",
                 "shasum": ""
             },
             "require": {
@@ -38,9 +38,9 @@
             "description": "Scaffold a WordPress plugin powered by WpApp",
             "support": {
                 "issues": "https://github.com/akirk/create-wp-app/issues",
-                "source": "https://github.com/akirk/create-wp-app/tree/v1.3.1"
+                "source": "https://github.com/akirk/create-wp-app/tree/v1.4.0"
             },
-            "time": "2026-05-11T11:00:33+00:00"
+            "time": "2026-05-14T12:31:40+00:00"
         },
         {
             "name": "akirk/wp-app",
