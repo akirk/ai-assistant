@@ -73,6 +73,16 @@ if (!function_exists('sanitize_text_field')) {
     }
 }
 
+if (!function_exists('wp_unslash')) {
+    function wp_unslash($value) {
+        if (is_array($value)) {
+            return array_map('wp_unslash', $value);
+        }
+
+        return is_scalar($value) ? stripslashes((string) $value) : $value;
+    }
+}
+
 if (!function_exists('sanitize_key')) {
     function sanitize_key($key) {
         return strtolower(preg_replace('/[^a-z0-9_\-]/', '', (string) $key));
@@ -143,20 +153,22 @@ if (!function_exists('check_ajax_referer')) {
 }
 
 if (!function_exists('wp_send_json_error')) {
-    function wp_send_json_error($data = null) {
+    function wp_send_json_error($data = null, $status_code = null) {
         $GLOBALS['wp_test_json_response'] = [
             'success' => false,
             'data' => $data,
+            'status_code' => $status_code,
         ];
         throw new \RuntimeException('wp_send_json_error');
     }
 }
 
 if (!function_exists('wp_send_json_success')) {
-    function wp_send_json_success($data = null) {
+    function wp_send_json_success($data = null, $status_code = null) {
         $GLOBALS['wp_test_json_response'] = [
             'success' => true,
             'data' => $data,
+            'status_code' => $status_code,
         ];
         throw new \RuntimeException('wp_send_json_success');
     }

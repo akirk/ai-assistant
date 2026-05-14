@@ -95,7 +95,7 @@
                 '<button type="button" class="ai-thinking-toggle">' +
                 '<span class="ai-thinking-spinner"></span>' +
                 '<span class="ai-thinking-label">Thinking...</span>' +
-                '<span class="dashicons dashicons-arrow-right-alt2"></span>' +
+                '<span class="ai-thinking-toggle-icon" aria-hidden="true">&gt;</span>' +
                 '</button>' +
                 '<div class="ai-thinking-content"></div>' +
                 '</div>');
@@ -1143,7 +1143,7 @@
             var $output = $('<div class="ai-tool-output">' +
                 '<div class="ai-action-preview' + (autoExpand ? ' expanded' : '') + '">' +
                 '<button type="button" class="ai-action-preview-toggle">' +
-                '<span class="dashicons dashicons-arrow-right-alt2"></span>' +
+                '<span class="ai-action-preview-icon" aria-hidden="true">&gt;</span>' +
                 'Result (' + lineCount + ' line' + (lineCount !== 1 ? 's' : '') + ')' +
                 '</button>' +
                 '<div class="ai-action-preview-content"><pre class="ai-code-preview"></pre></div>' +
@@ -1195,7 +1195,7 @@
                     ' data-language="' + (preview.language || '') + '"' +
                     ' data-is-edit="' + (preview.isEdit ? '1' : '0') + '">' +
                     '<button type="button" class="ai-action-preview-toggle">' +
-                    '<span class="dashicons dashicons-arrow-right-alt2"></span>' +
+                    '<span class="ai-action-preview-icon" aria-hidden="true">&gt;</span>' +
                     previewLabel + ' (' + lineCount + ' line' + (lineCount !== 1 ? 's' : '') + ')</button>' +
                     '<div class="ai-action-preview-content"><pre class="ai-code-preview"></pre></div>' +
                     '</div>';
@@ -1478,6 +1478,7 @@
                 this.streamComplete = true;
                 this.executingToolCount = 0;
                 this.pendingToolResults = [];
+                this.pendingToolChecks = 0;
                 this.processToolCalls(pendingToolCalls, provider === 'anthropic' ? 'anthropic' : 'openai');
             }
 
@@ -1807,7 +1808,7 @@
                         ' data-language="' + (preview.language || '') + '"' +
                         ' data-is-edit="' + (preview.isEdit ? '1' : '0') + '">' +
                         '<button type="button" class="ai-action-preview-toggle">' +
-                        '<span class="dashicons dashicons-arrow-right-alt2"></span>' +
+                        '<span class="ai-action-preview-icon" aria-hidden="true">&gt;</span>' +
                         previewLabel + ' (' + lineCount + ' line' + (lineCount !== 1 ? 's' : '') + ')</button>' +
                         '<div class="ai-action-preview-content"><pre class="ai-code-preview"></pre></div>' +
                         '</div>';
@@ -1824,7 +1825,7 @@
             var $card = $('[data-tool-id="' + toolId + '"]');
             if (!$card.length) return;
 
-            $card.removeClass('ai-tool-card-generating ai-tool-card-ready ai-tool-card-pending ai-tool-card-executing ai-tool-card-completed ai-tool-card-error ai-tool-card-skipped');
+            $card.removeClass('ai-tool-card-generating ai-tool-card-ready ai-tool-card-checking ai-tool-card-pending ai-tool-card-executing ai-tool-card-completed ai-tool-card-error ai-tool-card-skipped');
             $card.addClass('ai-tool-card-' + state);
 
             var $status = $card.find('.ai-tool-card-status');
@@ -1837,9 +1838,16 @@
                     $spinner.hide();
                     $actions.empty();
                     break;
+                case 'checking':
+                    $status.text(options.message || 'Checking ability...');
+                    $spinner.show();
+                    $actions.empty();
+                    $card.find('.ai-tool-params, .ai-ability-approval-slot, .ai-ability-approval-details').remove();
+                    break;
                 case 'pending':
                     $status.text('Waiting for approval');
                     $spinner.hide();
+                    var cardState = this.toolCardsState[toolId];
                     var $params = $card.find('.ai-tool-params');
                     if (!$params.length && this.toolCardsState[toolId] && this.toolCardsState[toolId].arguments) {
                         var pendingArgs = this.toolCardsState[toolId].arguments;
@@ -1855,7 +1863,18 @@
                             }
                         }
                     }
-                    var cardState = this.toolCardsState[toolId];
+                    $card.find('.ai-ability-approval-slot').remove();
+                    $card.find('.ai-tool-card-desc .ai-ability-info-toggle').remove();
+                    var hasAbilityDetails = !!(cardState && cardState.abilityDetails);
+                    if (hasAbilityDetails) {
+                        $card.find('.ai-tool-card-desc').append(
+                            $('<button class="ai-ability-info-toggle" type="button" aria-label="Show ability details" aria-expanded="false">What\'s this?</button>')
+                                .attr('data-tool-id', toolId)
+                        );
+                        $card.find('.ai-tool-card-actions').before(
+                            $('<div class="ai-ability-approval-slot" hidden></div>').attr('data-tool-id', toolId)
+                        );
+                    }
                     var isAbilityExecute = cardState && cardState.name === 'ability' &&
                         cardState.arguments && cardState.arguments.action === 'execute' &&
                         cardState.arguments.ability;
@@ -1875,7 +1894,7 @@
                     $status.text('Executing...');
                     $spinner.show();
                     $actions.empty();
-                    $card.find('.ai-tool-params').remove();
+                    $card.find('.ai-tool-params, .ai-ability-approval-slot, .ai-ability-approval-details').remove();
                     break;
                 case 'completed':
                     $status.text(options.message || 'Completed');
@@ -1896,7 +1915,7 @@
                     $status.text('Skipped by user');
                     $spinner.hide();
                     $actions.empty();
-                    $card.find('.ai-tool-params').remove();
+                    $card.find('.ai-tool-params, .ai-ability-approval-slot, .ai-ability-approval-details').remove();
                     break;
             }
 

@@ -1186,22 +1186,14 @@ class Settings {
                                     // Group by category
                                     $by_cat = [];
                                     foreach ($abilities as $id => $ability) {
-                                        $annotations = Ability_Annotations::get($ability);
-                                        $readonly    = $annotations['readonly'] && !$annotations['destructive'];
-                                        $destructive = $annotations['destructive'];
-                                        $input_schema = $this->get_ability_input_schema($ability);
-                                        if (is_object($ability)) {
-                                            $ability_id  = method_exists($ability, 'get_name')        ? $ability->get_name()        : ($ability->name ?? $id);
-                                            $label       = method_exists($ability, 'get_label')       ? $ability->get_label()       : ($ability->label ?? $ability_id);
-                                            $description = method_exists($ability, 'get_description') ? $ability->get_description() : ($ability->description ?? '');
-                                            $category    = method_exists($ability, 'get_category')    ? $ability->get_category()    : ($ability->category ?? '');
-                                        } else {
-                                            $ability_id  = $id;
-                                            $label       = $ability['label'] ?? $ability['name'] ?? $id;
-                                            $description = $ability['description'] ?? '';
-                                            $category    = $ability['category'] ?? '';
-                                        }
-                                        $by_cat[$category][] = compact('ability_id', 'label', 'description', 'input_schema', 'readonly', 'destructive');
+                                        $ability_id = Ability_Annotations::get_ability_id($id, $ability);
+                                        $details_payload = Ability_Annotations::get_details(
+                                            $id,
+                                            $ability,
+                                            in_array($ability_id, $auto_approved, true)
+                                        );
+                                        $details_payload['ability_id'] = $details_payload['id'];
+                                        $by_cat[$details_payload['category']][] = $details_payload;
                                     }
                                     ?>
 	                                    <div class="ai-abilities-list">
@@ -1210,8 +1202,7 @@ class Settings {
 	                                            <div class="ai-ability-category"><?php echo esc_html($category); ?></div>
                                             <?php endif; ?>
                                             <?php foreach ($cat_abilities as $a) :
-                                                $is_approved = in_array($a['ability_id'], $auto_approved, true);
-                                                $details_payload = $this->get_ability_details_payload($a, $is_approved);
+                                                $is_approved = !empty($a['approved']);
                                             ?>
                                             <div class="ai-tool-sub-item ai-ability-row">
                                                 <input type="checkbox"
@@ -1221,7 +1212,7 @@ class Settings {
                                                        <?php disabled($a['readonly']); ?>>
                                                 <button type="button"
                                                         class="ai-ability-select"
-                                                        data-ability-details="<?php echo esc_attr($this->encode_json($details_payload)); ?>">
+                                                        data-ability-details="<?php echo esc_attr($this->encode_json($a)); ?>">
                                                     <code><?php echo esc_html($a['ability_id']); ?></code>
                                                     <?php if ($a['readonly']) : ?>
                                                         <span class="ai-ability-badge ai-ability-badge-readonly"><?php esc_html_e('Read-only', 'ai-assistant'); ?></span>
@@ -1442,153 +1433,6 @@ class Settings {
         });
         </script>
         <?php
-    }
-
-    private function get_ability_input_schema($ability): ?array {
-        $schema = null;
-        $has_schema = false;
-
-        if (is_object($ability)) {
-            if (method_exists($ability, 'get_input_schema')) {
-                try {
-                    $schema = $ability->get_input_schema();
-                    $has_schema = true;
-                } catch (\Throwable $e) {
-                    return null;
-                }
-            } elseif (isset($ability->input_schema)) {
-                $schema = $ability->input_schema;
-                $has_schema = true;
-            } elseif (isset($ability->parameters)) {
-                $schema = $ability->parameters;
-                $has_schema = true;
-            }
-        } elseif (is_array($ability)) {
-            if (array_key_exists('input_schema', $ability)) {
-                $schema = $ability['input_schema'];
-                $has_schema = true;
-            } elseif (array_key_exists('parameters', $ability)) {
-                $schema = $ability['parameters'];
-                $has_schema = true;
-            }
-        }
-
-        if (!$has_schema) {
-            return null;
-        }
-
-        return is_array($schema) ? $schema : [];
-    }
-
-    private function get_ability_details_payload(array $ability, bool $is_approved): array {
-        $schema = $ability['input_schema'];
-
-        return [
-            'id'          => (string) $ability['ability_id'],
-            'label'       => (string) $ability['label'],
-            'description' => (string) $ability['description'],
-            'readonly'    => (bool) $ability['readonly'],
-            'destructive' => (bool) $ability['destructive'],
-            'approved'    => $is_approved,
-            'has_schema'  => $schema !== null,
-            'parameters'  => $schema !== null ? $this->get_schema_parameters($schema) : [],
-            'raw_schema'  => $schema !== null && !empty($schema) ? $this->encode_json($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : '',
-        ];
-    }
-
-    private function get_schema_parameters(array $schema): array {
-        $properties = $schema['properties'] ?? [];
-        if (!is_array($properties)) {
-            return [];
-        }
-
-        $required = [];
-        foreach ((array) ($schema['required'] ?? []) as $required_name) {
-            if (is_scalar($required_name)) {
-                $required[(string) $required_name] = true;
-            }
-        }
-        $parameters = [];
-
-        foreach ($properties as $name => $property_schema) {
-            $property_schema = is_array($property_schema) ? $property_schema : [];
-            $parameters[] = [
-                'name'        => (string) $name,
-                'type'        => $this->get_schema_type_label($property_schema),
-                'description' => (string) ($property_schema['description'] ?? ''),
-                'required'    => isset($required[(string) $name]),
-                'notes'       => $this->get_schema_notes($property_schema),
-            ];
-        }
-
-        return $parameters;
-    }
-
-    private function get_schema_type_label(array $schema): string {
-        $type = $schema['type'] ?? '';
-        if (is_array($type)) {
-            $type = implode('|', array_map('strval', $type));
-        }
-
-        if ($type === 'array' && isset($schema['items']) && is_array($schema['items'])) {
-            return 'array<' . $this->get_schema_type_label($schema['items']) . '>';
-        }
-
-        if (!$type && isset($schema['enum'])) {
-            return 'enum';
-        }
-
-        return $type ? (string) $type : 'any';
-    }
-
-    private function get_schema_notes(array $schema): array {
-        $notes = [];
-
-        if (!empty($schema['enum']) && is_array($schema['enum'])) {
-            $notes[] = sprintf(
-                /* translators: %s: comma-separated enum values */
-                __('Allowed: %s', 'ai-assistant'),
-                implode(', ', array_map([$this, 'format_schema_value'], $schema['enum']))
-            );
-        }
-
-        if (array_key_exists('default', $schema)) {
-            $notes[] = sprintf(
-                /* translators: %s: JSON schema default value */
-                __('Default: %s', 'ai-assistant'),
-                $this->format_schema_value($schema['default'])
-            );
-        }
-
-        foreach (['format', 'pattern', 'minimum', 'maximum', 'minLength', 'maxLength'] as $key) {
-            if (isset($schema[$key]) && is_scalar($schema[$key])) {
-                $notes[] = sprintf('%s: %s', $key, (string) $schema[$key]);
-            }
-        }
-
-        if (!empty($schema['properties']) && is_array($schema['properties'])) {
-            $notes[] = sprintf(
-                /* translators: %s: comma-separated nested field names */
-                __('Fields: %s', 'ai-assistant'),
-                implode(', ', array_map('strval', array_keys($schema['properties'])))
-            );
-        }
-
-        return $notes;
-    }
-
-    private function format_schema_value($value): string {
-        if (is_bool($value)) {
-            return $value ? 'true' : 'false';
-        }
-        if ($value === null) {
-            return 'null';
-        }
-        if (is_scalar($value)) {
-            return (string) $value;
-        }
-
-        return $this->encode_json($value);
     }
 
     private function encode_json($value, int $flags = 0): string {

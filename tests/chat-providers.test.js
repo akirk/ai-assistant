@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function loadProvidersMixin() {
+function loadProvidersMixin(extraContext) {
     const aiAssistant = {};
     const context = {
         window: { aiAssistant },
@@ -23,6 +23,7 @@ function loadProvidersMixin() {
         },
         console
     };
+    Object.assign(context, extraContext || {});
 
     vm.createContext(context);
     const source = fs.readFileSync(
@@ -34,7 +35,7 @@ function loadProvidersMixin() {
 }
 
 describe('Anthropic message repair', function() {
-    it('inserts a skipped tool_result before later user text when a tool_use was left unresolved', function() {
+    it('inserts an unavailable tool_result before later user text when a tool_use was left unresolved', function() {
         const assistant = loadProvidersMixin();
         const repaired = assistant.repairAnthropicMessages([
             { role: 'user', content: 'Please update a file.' },
@@ -52,6 +53,8 @@ describe('Anthropic message repair', function() {
         assert.equal(repaired.messages[2].role, 'user');
         assert.equal(repaired.messages[2].content.length, 1);
         assert.equal(repaired.messages[2].content[0].tool_use_id, 'toolu_1');
+        assert.equal(repaired.messages[2].content[0].is_error, true);
+        assert.equal(JSON.parse(repaired.messages[2].content[0].content).skipped, undefined);
         assert.equal(repaired.messages[3].content, 'Actually, keep going.');
     });
 
@@ -125,6 +128,76 @@ describe('Anthropic message repair', function() {
         assert.equal(repaired.messages[2].content.length, 1);
         assert.equal(repaired.messages[2].content[0].text, 'Do this too.');
     });
+
+    it('moves a later real tool_result before assistant follow-up content instead of marking it unavailable', function() {
+        const assistant = loadProvidersMixin();
+        const repaired = assistant.repairAnthropicMessages([
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'tool_use', id: 'toolu_1', name: 'ability', input: { action: 'execute' } }
+                ]
+            },
+            { role: 'assistant', content: 'Background set.' },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'toolu_1', content: '{"success":true}' }
+                ]
+            }
+        ]);
+
+        assert.equal(repaired.repaired, true);
+        assert.equal(repaired.messages[1].role, 'user');
+        assert.equal(repaired.messages[1].content[0].tool_use_id, 'toolu_1');
+        assert.equal(repaired.messages[1].content[0].content, '{"success":true}');
+        assert.equal(repaired.messages[1].content[0].is_error, undefined);
+        assert.equal(repaired.messages[2].role, 'assistant');
+        assert.equal(repaired.messages[2].content, 'Background set.');
+        assert.equal(repaired.messages.length, 3);
+    });
+
+    it('does not send Anthropic requests that end with assistant content', async function() {
+        let fetchCalled = false;
+        const assistant = Object.assign(loadProvidersMixin({
+            fetch() {
+                fetchCalled = true;
+                throw new Error('fetch should not be called');
+            }
+        }), {
+            messages: [
+                { role: 'user', content: 'Set the background.' },
+                { role: 'assistant', content: 'Background set.' }
+            ],
+            systemPrompt: '',
+            conversationModel: 'claude-sonnet-4-5',
+            abortController: null,
+            loadingState: null,
+            getModel() {
+                return 'claude-sonnet-4-5';
+            },
+            getApiKey() {
+                return 'test-key';
+            },
+            getProviderEndpoint() {
+                return 'https://example.test/anthropic';
+            },
+            getTools() {
+                return [];
+            },
+            setLoading(value) {
+                this.loadingState = value;
+            },
+            updateTokenCount() {},
+            autoSaveConversation() {},
+            addMessage() {}
+        });
+
+        await assistant.callAnthropic();
+
+        assert.equal(fetchCalled, false);
+        assert.equal(assistant.loadingState, false);
+    });
 });
 
 describe('Pending approval send guard', function() {
@@ -151,5 +224,27 @@ describe('Pending approval send guard', function() {
         assert.equal(assistant.providerCalled, false);
         assert.equal(assistant.modalShown, true);
         assert.equal(assistant.setLoadingCalled, false);
+    });
+
+    it('does not call a provider while an approval preflight is pending', function() {
+        const assistant = Object.assign(loadProvidersMixin(), {
+            pendingActions: [],
+            pendingToolChecks: 1,
+            conversationProvider: 'anthropic',
+            setLoadingCalled: null,
+            providerCalled: false,
+            setLoading(value) {
+                this.setLoadingCalled = value;
+            },
+            callAnthropic() {
+                this.providerCalled = true;
+            }
+        });
+
+        assistant.callLLM();
+
+        assert.equal(assistant.providerCalled, false);
+        assert.equal(assistant.setLoadingCalled, false);
+        assert.equal(assistant.pendingToolChecks, 1);
     });
 });
