@@ -7,11 +7,18 @@ const vm = require('node:vm');
 function loadUiMixin(config, globals) {
     const aiAssistant = {};
     globals = globals || {};
+    const windowGlobals = {
+        aiAssistant,
+        aiAssistantConfig: config || {}
+    };
+    if (globals.location) {
+        windowGlobals.location = globals.location;
+    }
+    if (globals.history) {
+        windowGlobals.history = globals.history;
+    }
     const context = {
-        window: {
-            aiAssistant,
-            aiAssistantConfig: config || {}
-        },
+        window: windowGlobals,
         aiAssistantConfig: config || {},
         fetch: globals.fetch || fetch,
         URL,
@@ -47,6 +54,62 @@ function imageResponse(body, type) {
         }
     };
 }
+
+describe('navigation suggestion links', function() {
+    it('reloads only plain same-page ai-open navigation clicks', function() {
+        let replacedUrl = '';
+        let reloaded = false;
+        let prevented = false;
+        const location = {
+            href: 'http://example.test/wp-admin/edit.php?post_type=page',
+            reload() {
+                reloaded = true;
+            }
+        };
+        const assistant = loadUiMixin({}, {
+            location,
+            history: {
+                replaceState(_state, _title, url) {
+                    replacedUrl = url;
+                    location.href = url;
+                }
+            }
+        });
+
+        function click(href, event) {
+            prevented = false;
+            reloaded = false;
+            replacedUrl = '';
+            return assistant.handleNavigationSuggestionClick(Object.assign({
+                preventDefault() {
+                    prevented = true;
+                },
+                button: 0
+            }, event || {}), {
+                getAttribute(name) {
+                    return name === 'href' ? href : '';
+                }
+            });
+        }
+
+        const targetUrl = 'http://example.test/wp-admin/edit.php?post_type=page#ai-open';
+
+        assert.strictEqual(click(targetUrl), true);
+        assert.strictEqual(prevented, true);
+        assert.strictEqual(replacedUrl, targetUrl);
+        assert.strictEqual(location.href, targetUrl);
+        assert.strictEqual(reloaded, true);
+
+        location.href = 'http://example.test/wp-admin/edit.php?post_type=page';
+        assert.strictEqual(click('http://example.test/wp-admin/edit.php?page=other#ai-open'), false);
+        assert.strictEqual(prevented, false);
+        assert.strictEqual(reloaded, false);
+
+        assert.strictEqual(click(targetUrl, { ctrlKey: true }), false);
+        assert.strictEqual(prevented, false);
+        assert.strictEqual(reloaded, false);
+    });
+});
 
 describe('pick_image media upload helpers', function() {
     it('builds a safe filename from selected image metadata', function() {
