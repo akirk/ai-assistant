@@ -165,3 +165,36 @@ describe('tool call callback API', function() {
         assert.deepStrictEqual(calls, ['tool-1']);
     });
 });
+
+describe('conversation preloading', function() {
+    it('loads the most recent conversation once for non-full-page panels', function() {
+        const assistant = loadCore();
+        let loadCount = 0;
+
+        assistant.isFullPage = false;
+        assistant.loadMostRecentConversation = function() {
+            loadCount++;
+        };
+
+        assistant.preloadMostRecentConversation();
+        assistant.preloadMostRecentConversation();
+
+        assert.strictEqual(loadCount, 1);
+        assert.strictEqual(assistant.conversationPreloaded, true);
+    });
+
+    it('does not preload conversations on the full-page UI', function() {
+        const assistant = loadCore();
+        let loadCount = 0;
+
+        assistant.isFullPage = true;
+        assistant.loadMostRecentConversation = function() {
+            loadCount++;
+        };
+
+        assistant.preloadMostRecentConversation();
+
+        assert.strictEqual(loadCount, 0);
+        assert.strictEqual(assistant.conversationPreloaded, false);
+    });
+});

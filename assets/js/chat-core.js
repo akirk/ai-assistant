@@ -191,10 +191,7 @@
             });
 
             $(document).on('mouseenter', '#ai-assistant-link-wrap', function() {
-                if (!self.isFullPage && !self.conversationPreloaded) {
-                    self.conversationPreloaded = true;
-                    self.loadMostRecentConversation();
-                }
+                self.preloadMostRecentConversation();
             });
 
             $(document).on('change', '#ai-assistant-yolo', function() {
@@ -406,16 +403,22 @@
             this.isOpen ? this.close() : this.open();
         },
 
+        preloadMostRecentConversation: function() {
+            if (this.isFullPage || this.conversationPreloaded) {
+                return;
+            }
+
+            this.conversationPreloaded = true;
+            this.loadMostRecentConversation();
+        },
+
         open: function() {
             $('#ai-assistant-drawer').addClass('open');
             this.isOpen = true;
             this.scrollToBottom(true);
             $('#ai-assistant-input').focus();
 
-            if (!this.isFullPage && !this.conversationPreloaded) {
-                this.conversationPreloaded = true;
-                this.loadMostRecentConversation();
-            }
+            this.preloadMostRecentConversation();
         },
 
         close: function() {

@@ -430,8 +430,26 @@
                 },
                 success: function(response) {
                     if (response.success && response.data.conversations && response.data.conversations.length > 0) {
-                        var mostRecent = response.data.conversations[0];
-                        self.loadConversation(mostRecent.id);
+                        var mostRecent = null;
+
+                        for (var i = 0; i < response.data.conversations.length; i++) {
+                            if (parseInt(response.data.conversations[i].message_count, 10) > 0) {
+                                mostRecent = response.data.conversations[i];
+                                break;
+                            }
+                        }
+
+                        if (mostRecent) {
+                            self.loadConversation(mostRecent.id);
+                            return;
+                        }
+
+                        // Only empty conversations exist - show fresh welcome
+                        var $emptyMessages = $('#ai-assistant-messages');
+                        $emptyMessages.empty();
+                        self.loadWelcomeMessage();
+                        $emptyMessages.css('visibility', 'visible');
+                        self.updateExportButton();
                     } else {
                         // No conversations - show fresh welcome
                         var $messages = $('#ai-assistant-messages');

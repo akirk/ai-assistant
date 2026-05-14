@@ -1071,6 +1071,11 @@
     overflow-y: auto;
 }
 
+.ai-ability-approval-body {
+    padding: 9px;
+    line-height: 1.4;
+}
+
 .ai-tool-approval-item {
     border: 1px solid #dcdcde;
     border-radius: 4px;
@@ -2927,6 +2932,7 @@
 #wpadminbar .ai-assistant-standalone-panel .ai-tool-card-preview,
 #wpadminbar .ai-assistant-standalone-panel .ai-tool-card-actions,
 #wpadminbar .ai-assistant-standalone-panel .ai-tool-params,
+#wpadminbar .ai-assistant-standalone-panel .ai-ability-approval-slot,
 #wpadminbar .ai-assistant-standalone-panel .ai-tool-output {
     padding-left: 22px !important;
 }
@@ -2936,8 +2942,67 @@
 #wpadminbar .ai-assistant-standalone-panel .ai-tool-card-actions,
 #wpadminbar .ai-assistant-standalone-panel .ai-tool-params,
 #wpadminbar .ai-assistant-standalone-panel .ai-tool-output,
+#wpadminbar .ai-assistant-standalone-panel .ai-ability-approval-slot,
 #wpadminbar .ai-assistant-standalone-panel .ai-action-preview {
     margin-top: 6px !important;
+}
+
+#wpadminbar .ai-assistant-standalone-panel .ai-tool-approval-body {
+    padding: 14px 16px 16px !important;
+    line-height: 1.4 !important;
+}
+
+#wpadminbar .ai-assistant-standalone-panel .ai-ability-approval-body {
+    padding: 9px !important;
+    line-height: 1.4 !important;
+}
+
+#wpadminbar .ai-assistant-standalone-panel .ai-ability-approval-body * {
+    line-height: 1.4 !important;
+}
+
+#wpadminbar .ai-assistant-standalone-panel .ai-action-preview-content {
+    height: auto !important;
+    width: auto !important;
+    margin: 6px 0 0 !important;
+    padding: 0 !important;
+    max-height: 250px !important;
+    overflow: auto !important;
+    border: 1px solid #ddd !important;
+    border-radius: 4px !important;
+    background: #fff !important;
+    line-height: 1.4 !important;
+}
+
+#wpadminbar .ai-assistant-standalone-panel .ai-action-preview.expanded .ai-action-preview-content {
+    display: block !important;
+    max-height: 350px !important;
+}
+
+#wpadminbar .ai-assistant-standalone-panel .ai-assistant-chat-container.expanded .ai-action-preview.expanded .ai-action-preview-content {
+    max-height: 500px !important;
+}
+
+#wpadminbar .ai-assistant-standalone-panel .ai-action-preview-content pre.ai-code-preview {
+    height: auto !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 10px !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #1d2327 !important;
+    font-family: Consolas, Monaco, monospace !important;
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+}
+
+#wpadminbar .ai-assistant-standalone-panel .ai-action-preview-content pre.ai-code-preview *,
+#wpadminbar .ai-assistant-standalone-panel .ai-code-preview .ai-line {
+    line-height: 1.4 !important;
 }
 
 #wpadminbar .ai-assistant-standalone-panel .ai-tool-card-actions button,
