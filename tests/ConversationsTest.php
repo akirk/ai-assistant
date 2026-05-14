@@ -112,7 +112,7 @@ class ConversationsTest extends TestCase {
         $this->assertSame('Ada Lovelace', $decoded['conversation']['author_display_name']);
     }
 
-    public function test_prepare_conversation_messages_for_export_adds_markdown_and_html(): void {
+    public function test_prepare_conversation_messages_for_export_adds_only_distinct_markdown_and_html(): void {
         $conversation = $this->sampleConversation();
         $conversation['include_tool_calls'] = true;
 
@@ -121,7 +121,7 @@ class ConversationsTest extends TestCase {
             'mime' => 'text/html',
         ]);
 
-        $this->assertStringContainsString('Please inspect this.', $prepared['messages'][0]['markdown']);
+        $this->assertArrayNotHasKey('markdown', $prepared['messages'][0]);
         $this->assertStringContainsString('<h2>Export Heading</h2>', $prepared['messages'][0]['html']);
         $this->assertStringContainsString('[Tool: read_file]', $prepared['messages'][1]['markdown']);
         $this->assertStringNotContainsString('toolu_01', $prepared['messages'][1]['markdown']);
@@ -130,7 +130,7 @@ class ConversationsTest extends TestCase {
         $this->assertStringContainsString('secret file contents', $prepared['messages'][2]['content'][0]['content']);
     }
 
-    public function test_json_export_removes_prepared_html_from_messages(): void {
+    public function test_json_export_removes_prepared_representations_from_messages(): void {
         $conversation = $this->sampleConversation();
         $conversation['include_tool_calls'] = true;
         $prepared = $this->conversations->prepare_conversation_messages_for_export($conversation, [
@@ -144,9 +144,12 @@ class ConversationsTest extends TestCase {
         ]);
         $decoded = json_decode($payload['content'], true);
 
-        $this->assertArrayHasKey('markdown', $decoded['conversation']['messages'][0]);
+        $this->assertArrayNotHasKey('markdown', $decoded['conversation']['messages'][0]);
         $this->assertArrayNotHasKey('html', $decoded['conversation']['messages'][0]);
+        $this->assertArrayNotHasKey('markdown', $decoded['conversation']['messages'][1]);
+        $this->assertArrayNotHasKey('html', $decoded['conversation']['messages'][1]);
         $this->assertStringNotContainsString('<h2>Export Heading</h2>', $payload['content']);
+        $this->assertStringNotContainsString('[Tool: read_file]', $payload['content']);
         $this->assertStringContainsString('secret file contents', $payload['content']);
     }
 

@@ -275,6 +275,8 @@ function myplugin_export_ai_conversation_epub( array $conversation, array $forma
 
 Text-only conversation example:
 
+Prepared `markdown` and `html` message fields are derived for readable exporters, but each field is only present when it differs from the raw `content` value.
+
 ```php
 $conversation = [
     'id'                 => 123,
@@ -292,7 +294,6 @@ $conversation = [
         [
             'role'     => 'user',
             'content'  => 'Make the homepage hero headline shorter.',
-            'markdown' => 'Make the homepage hero headline shorter.',
             'html'     => '<p>Make the homepage hero headline shorter.</p>',
         ],
         [
