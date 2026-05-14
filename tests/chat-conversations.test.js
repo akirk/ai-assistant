@@ -21,7 +21,8 @@ function createStorage(initial) {
     };
 }
 
-function createJQuery(input) {
+function createJQuery(input, options) {
+    options = options || {};
     const elements = new Map();
 
     function createElement(selector) {
@@ -29,6 +30,7 @@ function createJQuery(input) {
             attrs: {},
             props: {},
             checked: false,
+            css: {},
             html: ''
         };
 
@@ -81,6 +83,13 @@ function createJQuery(input) {
                 state.html = '';
                 return this;
             },
+            css(name, value) {
+                if (arguments.length === 1) {
+                    return state.css[name];
+                }
+                state.css[name] = value;
+                return this;
+            },
             toggle() {
                 return this;
             }
@@ -98,10 +107,17 @@ function createJQuery(input) {
         return Object.assign(target, source);
     };
 
+    $.ajax = function(settings) {
+        if (typeof options.ajax === 'function') {
+            return options.ajax(settings);
+        }
+        throw new Error('Unexpected AJAX request: ' + settings.data.action);
+    };
+
     return $;
 }
 
-function loadConversationMixin(initialStorage, config) {
+function loadConversationMixin(initialStorage, config, options) {
     const input = {
         value: '',
         selectionStart: 0,
@@ -118,7 +134,7 @@ function loadConversationMixin(initialStorage, config) {
     const storage = createStorage(initialStorage);
     const context = {
         window: { aiAssistant },
-        jQuery: createJQuery(input),
+        jQuery: createJQuery(input, options),
         aiAssistantConfig: config || {},
         localStorage: storage,
         console
@@ -266,5 +282,81 @@ describe('conversation exports', function() {
             downloadUrl,
             'http://example.test/wp-admin/admin-post.php?action=ai_assistant_export_conversation&conversation_id=99&format=json&_wpnonce=nonce%20value'
         );
+    });
+});
+
+describe('loading recent conversations', function() {
+    it('loads the newest conversation that has saved messages', function() {
+        let loadedConversationId = 0;
+        let welcomeLoaded = false;
+        const { assistant } = loadConversationMixin(null, {
+            ajaxUrl: '/admin-ajax.php',
+            nonce: 'nonce'
+        }, {
+            ajax(settings) {
+                assert.strictEqual(settings.data.action, 'ai_assistant_list_conversations');
+                settings.success({
+                    success: true,
+                    data: {
+                        conversations: [
+                            { id: 10, message_count: 0 },
+                            { id: 11, message_count: '0' },
+                            { id: 12, message_count: '3' }
+                        ]
+                    }
+                });
+            }
+        });
+
+        assistant.loadConversation = function(conversationId) {
+            loadedConversationId = conversationId;
+        };
+        assistant.loadWelcomeMessage = function() {
+            welcomeLoaded = true;
+        };
+        assistant.updateExportButton = function() {};
+
+        assistant.loadMostRecentConversation();
+
+        assert.strictEqual(loadedConversationId, 12);
+        assert.strictEqual(welcomeLoaded, false);
+    });
+
+    it('shows a fresh welcome when only empty conversations exist', function() {
+        let loadedConversationId = 0;
+        let welcomeLoaded = false;
+        let exportButtonUpdated = false;
+        const { assistant } = loadConversationMixin(null, {
+            ajaxUrl: '/admin-ajax.php',
+            nonce: 'nonce'
+        }, {
+            ajax(settings) {
+                settings.success({
+                    success: true,
+                    data: {
+                        conversations: [
+                            { id: 10, message_count: 0 },
+                            { id: 11, message_count: '0' }
+                        ]
+                    }
+                });
+            }
+        });
+
+        assistant.loadConversation = function(conversationId) {
+            loadedConversationId = conversationId;
+        };
+        assistant.loadWelcomeMessage = function() {
+            welcomeLoaded = true;
+        };
+        assistant.updateExportButton = function() {
+            exportButtonUpdated = true;
+        };
+
+        assistant.loadMostRecentConversation();
+
+        assert.strictEqual(loadedConversationId, 0);
+        assert.strictEqual(welcomeLoaded, true);
+        assert.strictEqual(exportButtonUpdated, true);
     });
 });

@@ -270,7 +270,9 @@ class Chat_UI {
                         });
                         $button.attr('aria-expanded', 'true');
 
-                        if ($('#ai-assistant-messages').children().length === 0) {
+                        if (window.aiAssistant.preloadMostRecentConversation) {
+                            window.aiAssistant.preloadMostRecentConversation();
+                        } else if ($('#ai-assistant-messages').children().length === 0) {
                             window.aiAssistant.loadMostRecentConversation();
                         }
                     }
@@ -314,7 +316,9 @@ class Chat_UI {
                         });
                         $button.attr('aria-expanded', 'true');
 
-                        if ($('#ai-assistant-messages').children().length === 0) {
+                        if (window.aiAssistant.preloadMostRecentConversation) {
+                            window.aiAssistant.preloadMostRecentConversation();
+                        } else if ($('#ai-assistant-messages').children().length === 0) {
                             window.aiAssistant.loadMostRecentConversation();
                         }
                     }
