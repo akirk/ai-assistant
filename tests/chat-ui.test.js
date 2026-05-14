@@ -4,14 +4,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function loadUiMixin(config) {
+function loadUiMixin(config, globals) {
     const aiAssistant = {};
+    globals = globals || {};
     const context = {
         window: {
             aiAssistant,
             aiAssistantConfig: config || {}
         },
         aiAssistantConfig: config || {},
+        fetch: globals.fetch || fetch,
+        URL,
         jQuery: {
             extend(target, ...sources) {
                 return Object.assign(target, ...sources);
@@ -27,6 +30,22 @@ function loadUiMixin(config) {
     );
     vm.runInContext(source, context);
     return aiAssistant;
+}
+
+function imageResponse(body, type) {
+    const blob = new Blob([body], { type });
+    return {
+        ok: true,
+        status: 200,
+        headers: {
+            get(name) {
+                return name.toLowerCase() === 'content-type' ? type : '';
+            }
+        },
+        blob() {
+            return Promise.resolve(blob);
+        }
+    };
 }
 
 describe('pick_image media upload helpers', function() {
@@ -144,6 +163,78 @@ describe('pick_image media upload helpers', function() {
         assert.strictEqual(fallback.selection.source_url, image.url);
         assert.strictEqual(fallback.selection.external, true);
         assert.strictEqual(fallback.selection.upload_failed, true);
+    });
+
+    it('falls back to the Openverse thumbnail when the source image cannot be fetched', async function() {
+        const sourceUrl = 'https://cdn.stocksnap.io/img-thumbs/960w/XNVBVXO3B7.jpg';
+        const thumbnailUrl = 'https://api.openverse.org/v1/images/abc/thumb/';
+        const fetches = [];
+        const statuses = [];
+        const assistant = loadUiMixin({}, {
+            fetch(url) {
+                fetches.push(url);
+                if (url === sourceUrl) {
+                    return Promise.resolve({
+                        ok: false,
+                        status: 403,
+                        headers: {
+                            get() {
+                                return 'text/html';
+                            }
+                        },
+                        blob() {
+                            return Promise.resolve(new Blob([]));
+                        }
+                    });
+                }
+                return Promise.resolve(imageResponse('thumbnail image', 'application/octet-stream'));
+            }
+        });
+
+        const fileData = await assistant.fetchPickedImageBlob({
+            url: sourceUrl,
+            thumbnail: thumbnailUrl,
+            title: 'Tree Bark Photo'
+        }, null, function(message) {
+            statuses.push(message);
+        });
+
+        assert.deepStrictEqual(fetches, [sourceUrl, thumbnailUrl]);
+        assert.strictEqual(fileData.contentType, 'image/jpeg');
+        assert.strictEqual(fileData.filename, 'tree-bark-photo.jpg');
+        assert.strictEqual(fileData.sourceUrl, thumbnailUrl);
+        assert.strictEqual(fileData.usedThumbnailFallback, true);
+        assert.ok(statuses.includes('Full image unavailable. Trying preview image...'));
+    });
+
+    it('marks uploaded thumbnail fallbacks as low resolution', async function() {
+        const assistant = loadUiMixin();
+
+        assistant.fetchPickedImageBlob = function() {
+            return Promise.resolve({
+                blob: {},
+                filename: 'preview.jpg',
+                contentType: 'image/jpeg',
+                usedThumbnailFallback: true
+            });
+        };
+        assistant.uploadPickedImageToMediaLibrary = function() {
+            return Promise.resolve({
+                id: 987,
+                source_url: 'http://example.test/wp-content/uploads/preview.jpg'
+            });
+        };
+
+        const result = await assistant.preparePickedImageSelection({
+            url: 'https://cdn.stocksnap.io/source.jpg',
+            thumbnail: 'https://api.openverse.org/v1/images/abc/thumb/',
+            title: 'Preview'
+        }, {});
+
+        assert.strictEqual(result.success, true);
+        assert.strictEqual(result.selection.low_resolution, true);
+        assert.strictEqual(result.selection.uploaded_from_thumbnail, true);
+        assert.strictEqual(result.selection.note, 'low resolution image');
     });
 
     it('uploads a dropped image file through the Media Library path', async function() {

@@ -77,10 +77,10 @@ class Admin_Colors {
 
         return sprintf(
             "%s {\n" .
-            "    --ai-assistant-accent: %s;\n" .
-            "    --ai-assistant-accent-rgb: %s;\n" .
-            "    --ai-assistant-accent-hover: %s;\n" .
-            "    --ai-assistant-accent-active: %s;\n" .
+            "    --ai-assistant-accent: var(--wp-app-admin-color-primary, var(--wp-admin-theme-color, %s));\n" .
+            "    --ai-assistant-accent-rgb: var(--wp-admin-theme-color--rgb, %s);\n" .
+            "    --ai-assistant-accent-hover: var(--wp-app-admin-color-background, var(--wp-admin-theme-color-darker-10, %s));\n" .
+            "    --ai-assistant-accent-active: var(--wp-app-admin-color-background, var(--wp-admin-theme-color-darker-20, %s));\n" .
             "}\n",
             $selector,
             $colors['accent'],

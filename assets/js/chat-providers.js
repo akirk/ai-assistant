@@ -56,6 +56,7 @@
             this.streamComplete = false;
             this.executingToolCount = 0;
             this.processedToolIds = {};
+            this.pickImageToolCallInCurrentResponse = '';
             this.toolCallRounds = 0;
             this.addToDraftHistory(message);
             var messageContent = this.buildUserMessageContent
@@ -100,6 +101,7 @@
             this.streamComplete = false;
             this.executingToolCount = 0;
             this.processedToolIds = {};
+            this.pickImageToolCallInCurrentResponse = '';
             this.pendingToolChecks = 0;
 
             // In connectors mode, route based on provider type

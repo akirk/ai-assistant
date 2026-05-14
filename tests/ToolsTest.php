@@ -90,6 +90,7 @@ class ToolsTest extends TestCase {
         $this->assertNotNull($pick_image);
         $this->assertStringContainsString('choose or upload an image', $pick_image['description']);
         $this->assertStringContainsString('selected image details', $pick_image['description']);
+        $this->assertStringContainsString('Do not call this tool multiple times', $pick_image['description']);
         $this->assertArrayNotHasKey('allow_external_fallback', $pick_image['parameters']['properties']);
         $this->assertContains('query', $pick_image['parameters']['required']);
     }

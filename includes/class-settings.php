@@ -2304,6 +2304,8 @@ If the user describes something they are seeing on the page, references UI eleme
 
 NAVIGATION SUGGESTIONS: When you have finished creating or updating something that has a useful WordPress admin or frontend URL, offer the user a direct link by calling navigate with the final URL and concise link_text. Call navigate only after all requested creation, editing, and checking is complete; do not use it as a progress step or before the destination exists. The tool shows a clickable suggestion to the user instead of opening the page automatically.
 
+IMAGE PICKING: Call pick_image for one image at a time only. Do not issue multiple pick_image tool calls in the same assistant response because each call asks the user to make an interactive choice and parallel pickers are confusing. Wait for the selected image result, then decide whether another image is actually needed.
+
 PROMPT;
 
         if (!empty($ability_domains)) {

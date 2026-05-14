@@ -1,14 +1,20 @@
 /* AI Assistant - Screen Meta Integration */
 
+:root,
+body,
 :where(#ai-assistant-wrap, .ai-assistant-standalone-wrap, .ai-assistant-page, .ai-assistant-chat-container) {
-    --ai-assistant-accent: #2271b1;
-    --ai-assistant-accent-rgb: 34, 113, 177;
-    --ai-assistant-accent-hover: #135e96;
-    --ai-assistant-accent-active: #0a4b78;
+    --ai-assistant-accent: var(--wp-app-admin-color-primary, var(--wp-admin-theme-color, #2271b1));
+    --ai-assistant-accent-rgb: var(--wp-admin-theme-color--rgb, 34, 113, 177);
+    --ai-assistant-accent-hover: var(--wp-app-admin-color-background, var(--wp-admin-theme-color-darker-10, #135e96));
+    --ai-assistant-accent-active: var(--wp-app-admin-color-background, var(--wp-admin-theme-color-darker-20, #0a4b78));
     --ai-assistant-accent-soft: rgba(var(--ai-assistant-accent-rgb), 0.08);
+    --ai-assistant-accent-soft: color-mix(in srgb, var(--ai-assistant-accent) 8%, transparent);
     --ai-assistant-accent-softer: rgba(var(--ai-assistant-accent-rgb), 0.04);
+    --ai-assistant-accent-softer: color-mix(in srgb, var(--ai-assistant-accent) 4%, transparent);
     --ai-assistant-accent-highlight: rgba(var(--ai-assistant-accent-rgb), 0.14);
+    --ai-assistant-accent-highlight: color-mix(in srgb, var(--ai-assistant-accent) 14%, transparent);
     --ai-assistant-accent-border: rgba(var(--ai-assistant-accent-rgb), 0.35);
+    --ai-assistant-accent-border: color-mix(in srgb, var(--ai-assistant-accent) 35%, transparent);
 }
 
 /* Fix positioning to match WordPress screen-meta-links */
@@ -796,12 +802,13 @@
 .ai-approve-btn:hover {
     background: var(--ai-assistant-accent-hover);
     border-color: var(--ai-assistant-accent-hover);
+    color: #fff !important;
 }
 
 .ai-always-approve-btn {
     background: var(--ai-assistant-accent-soft);
     border: 1px solid var(--ai-assistant-accent-border);
-    color: var(--ai-assistant-accent) !important;
+    color: var(--ai-assistant-accent-active) !important;
 }
 
 .ai-always-approve-btn:hover {
@@ -931,6 +938,7 @@
     display: flex;
     flex-direction: column;
     width: min(980px, 100%);
+    height: min(760px, calc(100vh - 48px));
     max-height: min(760px, calc(100vh - 48px));
     overflow: hidden;
     border: 1px solid #1d2327;
@@ -1391,6 +1399,7 @@
 
 .ai-image-picker {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
     gap: 8px;
     max-width: 100%;
@@ -1400,14 +1409,15 @@
 }
 
 .ai-image-picker-controls {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
     gap: 6px;
     align-items: center;
-    flex-wrap: wrap;
 }
 
 .ai-image-picker-query {
-    flex: 1 1 180px;
+    width: 100%;
+    flex: none;
     min-width: 0;
     height: 30px !important;
     margin: 0 !important;
@@ -1424,6 +1434,7 @@
 
 .ai-image-picker-controls button {
     display: inline-flex !important;
+    flex: 0 0 auto !important;
     align-items: center !important;
     justify-content: center !important;
     width: auto !important;
@@ -1444,7 +1455,12 @@
     font-size: 12px !important;
     font-weight: 500 !important;
     line-height: 1 !important;
+    white-space: nowrap !important;
     cursor: pointer !important;
+}
+
+.ai-image-picker-controls button[hidden] {
+    display: none !important;
 }
 
 .ai-image-picker-controls button:hover,
@@ -1557,7 +1573,11 @@
 .ai-image-picker-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    grid-auto-rows: max-content;
+    align-content: start;
+    flex: 1 1 auto;
     gap: 8px;
+    min-height: 0;
     max-height: 430px;
     overflow-y: auto;
     padding-right: 2px;
@@ -1565,7 +1585,7 @@
 
 .ai-image-picker-dialog .ai-image-picker-grid {
     grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-    max-height: min(620px, calc(100vh - 220px));
+    max-height: none;
 }
 
 .ai-image-result {
@@ -1755,6 +1775,10 @@
         border-radius: 4px;
     }
 
+    .ai-image-picker-dialog {
+        height: calc(100vh - 16px);
+    }
+
     .ai-image-picker-header,
     .ai-tool-approval-header {
         padding: 12px;
@@ -1778,16 +1802,16 @@
     }
 
     .ai-image-picker-controls {
+        grid-template-columns: minmax(0, 1fr) auto auto;
         align-items: stretch;
     }
 
     .ai-image-picker-query {
-        flex-basis: 100%;
+        grid-column: 1 / -1;
     }
 
     .ai-image-picker-dialog .ai-image-picker-grid {
         grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
-        max-height: calc(100vh - 250px);
     }
 
     .ai-image-picker-dialog .ai-image-result-thumb {
@@ -2291,6 +2315,7 @@
 #ai-assistant-send:hover:not(:disabled) {
     background: var(--ai-assistant-accent-hover);
     border-color: var(--ai-assistant-accent-hover);
+    color: #fff;
 }
 
 #ai-assistant-send:disabled {

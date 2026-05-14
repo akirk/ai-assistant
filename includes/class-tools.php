@@ -359,7 +359,7 @@ class Tools {
     private function tool_pick_image(): array {
         return [
             'name' => 'pick_image',
-            'description' => 'Ask the user to choose or upload an image and return the selected image details.',
+            'description' => 'Ask the user to choose or upload an image and return the selected image details. Use one image per call. Do not call this tool multiple times in the same response; wait for the selection before requesting another image.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [

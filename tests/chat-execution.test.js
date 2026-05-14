@@ -288,6 +288,54 @@ describe('processToolCallImmediate', function() {
         assert.strictEqual(assistant.pendingActions.length, 1);
         assert.strictEqual(handled, false);
     });
+
+    it('rejects multiple immediate pick_image calls in one response', async function() {
+        const executed = [];
+        const assistant = createAssistant({
+            executeSingleTool(toolCall) {
+                executed.push(toolCall.id);
+                return Promise.resolve({
+                    id: toolCall.id,
+                    name: toolCall.name,
+                    input: toolCall.arguments,
+                    result: { ok: true },
+                    success: true
+                });
+            }
+        });
+
+        assistant.processToolCallImmediate('pick-1', 'pick_image', { query: 'mountains' }, 'openai');
+        assistant.processToolCallImmediate('pick-2', 'pick_image', { query: 'forest' }, 'openai');
+
+        await flushPromises();
+
+        assert.deepStrictEqual(executed, ['pick-1']);
+        assert.strictEqual(assistant.pendingToolResults.length, 2);
+        assert.strictEqual(assistant.pendingToolResults[0].success, false);
+        assert.strictEqual(assistant.pendingToolResults[0].result.code, 'multiple_pick_image_calls');
+    });
+});
+
+describe('processToolCalls', function() {
+    it('executes only the first pick_image call in a tool batch', function() {
+        let executed = null;
+        const assistant = createAssistant({
+            executeTools(toolCalls) {
+                executed = toolCalls;
+            }
+        });
+
+        assistant.processToolCalls([
+            { id: 'pick-1', name: 'pick_image', arguments: { query: 'mountains' } },
+            { id: 'pick-2', name: 'pick_image', arguments: { query: 'forest' } }
+        ], 'openai');
+
+        assert.strictEqual(executed.length, 1);
+        assert.strictEqual(executed[0].id, 'pick-1');
+        assert.strictEqual(assistant.pendingToolResults.length, 1);
+        assert.strictEqual(assistant.pendingToolResults[0].id, 'pick-2');
+        assert.strictEqual(assistant.pendingToolResults[0].result.code, 'multiple_pick_image_calls');
+    });
 });
 
 describe('tool call callbacks', function() {
