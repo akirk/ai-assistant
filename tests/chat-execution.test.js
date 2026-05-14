@@ -33,12 +33,16 @@ function loadExecutionMixin(config) {
 function createAssistant(overrides) {
     overrides = overrides || {};
     const assistant = loadExecutionMixin(overrides.config || {});
+    const realCheckAllToolsResolved = assistant.checkAllToolsResolved.bind(assistant);
     const states = [];
+    const useRealCheckAllToolsResolved = !!overrides.useRealCheckAllToolsResolved;
+    delete overrides.useRealCheckAllToolsResolved;
 
     Object.assign(assistant, {
         yoloMode: false,
         pendingActions: [],
         pendingToolResults: [],
+        pendingToolChecks: 0,
         processedToolIds: {},
         executingToolCount: 0,
         updateToolCardDescription() {},
@@ -50,6 +54,24 @@ function createAssistant(overrides) {
         },
         setLoading() {},
         showPendingActionsHeader() {},
+        showToolApprovalModal() {},
+        checkAllToolsResolved: useRealCheckAllToolsResolved ? realCheckAllToolsResolved : function() {},
+        fetchAbilityDetailsForApproval() {
+            return Promise.resolve({
+                success: true,
+                details: {
+                    id: 'demo/read',
+                    label: 'Demo Read',
+                    description: 'Read demo data',
+                    readonly: false,
+                    destructive: false,
+                    approved: false,
+                    has_schema: false,
+                    parameters: [],
+                    raw_schema: ''
+                }
+            });
+        },
         executeSingleTool() {
             throw new Error('Tool should not execute before confirmation');
         },
@@ -61,8 +83,12 @@ function createAssistant(overrides) {
     return assistant;
 }
 
+function flushPromises() {
+    return new Promise(resolve => setTimeout(resolve, 0));
+}
+
 describe('processToolCallImmediate', function() {
-    it('requires confirmation before executing abilities', function() {
+    it('requires confirmation before executing abilities', async function() {
         const assistant = createAssistant();
 
         assistant.processToolCallImmediate(
@@ -72,7 +98,10 @@ describe('processToolCallImmediate', function() {
             'anthropic'
         );
 
+        await flushPromises();
+
         assert.deepStrictEqual(assistant._states, [
+            { id: 'tool-1', state: 'checking' },
             { id: 'tool-1', state: 'pending' }
         ]);
         assert.strictEqual(assistant.pendingActions.length, 1);
@@ -138,7 +167,7 @@ describe('processToolCallImmediate', function() {
         assert.strictEqual(assistant.pendingActions.length, 0);
     });
 
-    it('requires confirmation before executing legacy ability calls', function() {
+    it('requires confirmation before executing legacy ability calls', async function() {
         const assistant = createAssistant();
 
         assistant.processToolCallImmediate(
@@ -148,14 +177,17 @@ describe('processToolCallImmediate', function() {
             'anthropic'
         );
 
+        await flushPromises();
+
         assert.deepStrictEqual(assistant._states, [
+            { id: 'tool-4', state: 'checking' },
             { id: 'tool-4', state: 'pending' }
         ]);
         assert.strictEqual(assistant.pendingActions.length, 1);
         assert.strictEqual(assistant.pendingActions[0].tool, 'execute_ability');
     });
 
-    it('does not auto-execute readonly abilities when execute_ability is disabled', function() {
+    it('does not auto-execute readonly abilities when execute_ability is disabled', async function() {
         const assistant = createAssistant({
             config: {
                 enabledTools: ['list_abilities', 'get_ability'],
@@ -170,10 +202,91 @@ describe('processToolCallImmediate', function() {
             'anthropic'
         );
 
+        await flushPromises();
+
         assert.deepStrictEqual(assistant._states, [
+            { id: 'tool-5', state: 'checking' },
             { id: 'tool-5', state: 'pending' }
         ]);
         assert.strictEqual(assistant.pendingActions.length, 1);
+    });
+
+    it('denies missing abilities without asking for approval', async function() {
+        const assistant = createAssistant({
+            fetchAbilityDetailsForApproval() {
+                return Promise.resolve({
+                    success: false,
+                    code: 'ability_not_found',
+                    message: 'Ability not found: demo/missing'
+                });
+            }
+        });
+
+        assistant.processToolCallImmediate(
+            'tool-6',
+            'ability',
+            { action: 'execute', ability: 'demo/missing' },
+            'anthropic'
+        );
+
+        await flushPromises();
+
+        assert.deepStrictEqual(assistant._states, [
+            { id: 'tool-6', state: 'checking' },
+            { id: 'tool-6', state: 'error' }
+        ]);
+        assert.strictEqual(assistant.pendingActions.length, 0);
+        assert.strictEqual(assistant.pendingToolResults.length, 1);
+        assert.strictEqual(assistant.pendingToolResults[0].result.code, 'ability_not_found');
+    });
+
+    it('does not resume the model while ability approval preflight is still pending', async function() {
+        let resolvePreflight;
+        let handled = false;
+        const assistant = createAssistant({
+            useRealCheckAllToolsResolved: true,
+            streamComplete: true,
+            fetchAbilityDetailsForApproval() {
+                return new Promise(resolve => {
+                    resolvePreflight = resolve;
+                });
+            },
+            handleToolResults() {
+                handled = true;
+            }
+        });
+
+        assistant.processToolCallImmediate(
+            'tool-7',
+            'ability',
+            { action: 'execute', ability: 'demo/write' },
+            'anthropic'
+        );
+
+        assert.strictEqual(assistant.pendingToolChecks, 1);
+
+        assistant.checkAllToolsResolved();
+
+        assert.strictEqual(handled, false);
+
+        resolvePreflight({
+            success: true,
+            details: {
+                id: 'demo/write',
+                label: 'Demo Write',
+                description: 'Write demo data',
+                readonly: false,
+                destructive: true,
+                approved: false,
+                has_schema: false,
+                parameters: []
+            }
+        });
+        await flushPromises();
+
+        assert.strictEqual(assistant.pendingToolChecks, 0);
+        assert.strictEqual(assistant.pendingActions.length, 1);
+        assert.strictEqual(handled, false);
     });
 });
 

@@ -20,9 +20,15 @@
                 return;
             }
 
+            if ((this.pendingToolChecks || 0) > 0) {
+                this.setLoading(false);
+                return;
+            }
+
             if (this.pendingNewChat) {
                 this.messages = [];
                 this.pendingActions = [];
+                this.pendingToolChecks = 0;
                 if (this.showToolApprovalModal) {
                     this.showToolApprovalModal();
                 }
@@ -45,6 +51,7 @@
 
             this.clearToolCards();
             this.pendingToolResults = [];
+            this.pendingToolChecks = 0;
             this.streamComplete = false;
             this.executingToolCount = 0;
             this.processedToolIds = {};
@@ -82,11 +89,17 @@
                 return;
             }
 
+            if ((this.pendingToolChecks || 0) > 0) {
+                this.setLoading(false);
+                return;
+            }
+
             this.hideToolProgress();
             this.setLoading(true);
             this.streamComplete = false;
             this.executingToolCount = 0;
             this.processedToolIds = {};
+            this.pendingToolChecks = 0;
 
             // In connectors mode, route based on provider type
             if (this.isConnectorsMode() && provider !== 'local') {
@@ -239,18 +252,75 @@
             });
         },
 
-        buildSkippedAnthropicToolResultMessage: function(toolUseIds) {
+        buildUnavailableAnthropicToolResultMessage: function(toolUseIds) {
             return {
                 role: 'user',
                 content: toolUseIds.map(function(id) {
                     return {
                         type: 'tool_result',
                         tool_use_id: id,
+                        is_error: true,
                         content: JSON.stringify({
-                            skipped: true,
-                            message: 'Tool request was not executed because its approval was no longer pending.'
+                            error: 'Tool result is unavailable because the conversation history no longer contains the approved result.',
+                            instruction: 'Do not tell the user they skipped this action unless the tool result explicitly says the user declined it.'
                         })
                     };
+                })
+            };
+        },
+
+        extractAnthropicToolResultsFromRange: function(messages, startIndex, toolUseIds) {
+            var required = {};
+            var found = {};
+            var foundCount = 0;
+
+            toolUseIds.forEach(function(id) {
+                required[id] = true;
+            });
+
+            for (var i = startIndex; i < messages.length && foundCount < toolUseIds.length; i++) {
+                var message = messages[i];
+
+                if (i > startIndex && this.getAnthropicToolUseIds(message).length > 0) {
+                    break;
+                }
+
+                if (!message || message.role !== 'user' || !Array.isArray(message.content)) {
+                    continue;
+                }
+
+                var nextContent = [];
+                var removed = false;
+
+                message.content.forEach(function(block) {
+                    if (
+                        block &&
+                        block.type === 'tool_result' &&
+                        required[block.tool_use_id] &&
+                        !found[block.tool_use_id]
+                    ) {
+                        found[block.tool_use_id] = block;
+                        foundCount++;
+                        removed = true;
+                        return;
+                    }
+
+                    nextContent.push(block);
+                });
+
+                if (removed) {
+                    messages[i] = Object.assign({}, message, { content: nextContent });
+                }
+            }
+
+            if (foundCount !== toolUseIds.length) {
+                return null;
+            }
+
+            return {
+                role: 'user',
+                content: toolUseIds.map(function(id) {
+                    return found[id];
                 })
             };
         },
@@ -258,26 +328,38 @@
         repairAnthropicMessages: function(messages) {
             var repaired = false;
             var result = [];
+            var workingMessages = messages.map(function(message) {
+                if (message && Array.isArray(message.content)) {
+                    return Object.assign({}, message, { content: message.content.slice() });
+                }
+                return message;
+            });
 
-            for (var i = 0; i < messages.length; i++) {
-                var message = messages[i];
+            for (var i = 0; i < workingMessages.length; i++) {
+                var message = workingMessages[i];
                 var toolUseIds = this.getAnthropicToolUseIds(message);
 
                 if (toolUseIds.length > 0) {
                     result.push(message);
 
-                    var nextMessage = messages[i + 1];
+                    var nextMessage = workingMessages[i + 1];
                     if (this.isAnthropicToolResultMessage(nextMessage, toolUseIds)) {
                         result.push(nextMessage);
                         i++;
                     } else {
-                        result.push(this.buildSkippedAnthropicToolResultMessage(toolUseIds));
+                        var recoveredResult = this.extractAnthropicToolResultsFromRange(workingMessages, i + 1, toolUseIds);
+                        result.push(recoveredResult || this.buildUnavailableAnthropicToolResultMessage(toolUseIds));
                         repaired = true;
                     }
                     continue;
                 }
 
                 if (message && message.role === 'user' && Array.isArray(message.content)) {
+                    if (message.content.length === 0) {
+                        repaired = true;
+                        continue;
+                    }
+
                     var contentWithoutOrphanResults = message.content.filter(function(block) {
                         return !(block && block.type === 'tool_result');
                     });
@@ -311,6 +393,14 @@
             return prepared.messages;
         },
 
+        canSendAnthropicMessages: function(messages) {
+            if (!Array.isArray(messages) || messages.length === 0) {
+                return false;
+            }
+
+            return messages[messages.length - 1].role === 'user';
+        },
+
         callAnthropic: async function() {
             var self = this;
             var model = this.conversationModel || this.getModel();
@@ -318,6 +408,11 @@
 
             try {
                 var requestMessages = this.prepareAnthropicMessages();
+                if (!this.canSendAnthropicMessages(requestMessages)) {
+                    console.warn('[AI Assistant] Skipped Anthropic request because the message history does not end with a user message.');
+                    this.setLoading(false);
+                    return;
+                }
                 var endpoint = this.getProviderEndpoint('anthropic') || 'https://api.anthropic.com/v1/messages';
                 var response = await fetch(endpoint, {
                     method: 'POST',
@@ -450,6 +545,7 @@
                 this.hideToolProgress();
                 this.pendingToolResults = [];
                 this.pendingActions = [];
+                this.pendingToolChecks = 0;
                 if (this.showToolApprovalModal) {
                     this.showToolApprovalModal();
                 }
@@ -590,6 +686,7 @@
                 this.hideToolProgress();
                 this.pendingToolResults = [];
                 this.pendingActions = [];
+                this.pendingToolChecks = 0;
                 if (this.showToolApprovalModal) {
                     this.showToolApprovalModal();
                 }
@@ -922,6 +1019,7 @@
                 this.hideToolProgress();
                 this.pendingToolResults = [];
                 this.pendingActions = [];
+                this.pendingToolChecks = 0;
                 if (this.showToolApprovalModal) {
                     this.showToolApprovalModal();
                 }

@@ -170,6 +170,13 @@
                 self.confirmAction(toolId, true);
             });
 
+            $(document).on('click', '.ai-ability-info-toggle', function(e) {
+                e.preventDefault();
+                if (self.toggleAbilityApprovalDetails) {
+                    self.toggleAbilityApprovalDetails($(this));
+                }
+            });
+
             $(document).on('click', '.ai-tool-skip', function(e) {
                 e.preventDefault();
                 var toolId = $(this).attr('data-tool-id');

@@ -65,21 +65,13 @@
                 }
             });
 
-            // Update card states based on execution path
-            executeImmediately.forEach(function(tc) {
-                self.setToolCardState(tc.id, 'executing');
-            });
-
-            needsConfirmation.forEach(function(tc) {
-                self.setToolCardState(tc.id, 'pending');
-            });
-
-            if (executeImmediately.length > 0) {
-                this.executeTools(executeImmediately, provider);
-            }
-
             if (needsConfirmation.length > 0) {
-                this.pendingActions = needsConfirmation.map(function(tc) {
+                needsConfirmation.forEach(function(tc) {
+                    var state = self.isAbilityExecutionToolCall(tc) ? 'checking' : 'pending';
+                    self.setToolCardState(tc.id, state);
+                });
+
+                this.prepareActionsForApproval(needsConfirmation.map(function(tc) {
                     return {
                         id: tc.id,
                         tool: tc.name,
@@ -87,18 +79,46 @@
                         description: self.getActionDescription(tc.name, tc.arguments),
                         provider: provider
                     };
+                })).then(function(preflight) {
+                    var approvalActions = preflight.actions;
+                    var deniedResults = preflight.deniedResults;
+
+                    if (deniedResults.length > 0) {
+                        self.pendingToolResults = self.pendingToolResults.concat(deniedResults);
+                    }
+
+                    if (approvalActions.length > 0) {
+                        approvalActions.forEach(function(action) {
+                            self.setToolCardState(action.id, 'pending');
+                        });
+                        self.pendingActions = approvalActions;
+                        if (approvalActions.length > 1) {
+                            self.showPendingActionsHeader();
+                        }
+                        self.showToolApprovalModal();
+                    }
+
+                    if (executeImmediately.length > 0) {
+                        executeImmediately.forEach(function(tc) {
+                            self.setToolCardState(tc.id, 'executing');
+                        });
+                        self.executeTools(executeImmediately, provider);
+                        return;
+                    }
+
+                    if (deniedResults.length > 0) {
+                        self.handleToolResults([], provider);
+                    } else {
+                        self.setLoading(false);
+                    }
                 });
-                // Show bulk approve/deny header if multiple pending
-                if (needsConfirmation.length > 1) {
-                    this.showPendingActionsHeader();
-                }
-                this.showToolApprovalModal();
-                // If no tools are executing immediately, stop loading indicator
-                if (executeImmediately.length === 0) {
-                    this.setLoading(false);
-                }
             } else if (executeImmediately.length === 0) {
                 this.setLoading(false);
+            } else {
+                executeImmediately.forEach(function(tc) {
+                    self.setToolCardState(tc.id, 'executing');
+                });
+                this.executeTools(executeImmediately, provider);
             }
         },
 
@@ -215,6 +235,121 @@
                             input: toolCall.arguments,
                             result: { error: errorMessage },
                             success: false
+                        });
+                    }
+                });
+            });
+        },
+
+        isAbilityExecutionToolCall: function(toolCall) {
+            var toolName = toolCall.name || toolCall.tool;
+            var args = toolCall.arguments || {};
+            return (
+                (toolName === 'ability' && args.action === 'execute') ||
+                toolName === 'execute_ability'
+            );
+        },
+
+        prepareActionsForApproval: function(actions) {
+            var self = this;
+            var checks = actions.map(function(action) {
+                if (!self.isAbilityExecutionToolCall({
+                    name: action.tool,
+                    arguments: action.arguments
+                })) {
+                    return Promise.resolve({ action: action });
+                }
+
+                var actionArgs = action.arguments || {};
+                var abilityId = actionArgs.ability;
+                return self.fetchAbilityDetailsForApproval(abilityId).then(function(result) {
+                    if (result.success) {
+                        action.abilityDetails = result.details;
+                        if (self.toolCardsState && self.toolCardsState[action.id]) {
+                            self.toolCardsState[action.id].abilityDetails = result.details;
+                        }
+                        return { action: action };
+                    }
+
+                    var message = result.message || ('Ability not found: ' + abilityId);
+                    self.setToolCardState(action.id, 'error', { message: message });
+                    return {
+                        deniedResult: {
+                            id: action.id,
+                            name: action.tool,
+                            input: action.arguments,
+                            result: {
+                                error: message,
+                                code: result.code || 'ability_preflight_failed',
+                                instruction: 'Call ability:list and choose an existing ability before requesting execution.'
+                            },
+                            success: false
+                        }
+                    };
+                });
+            });
+
+            return Promise.all(checks).then(function(results) {
+                var approvalActions = [];
+                var deniedResults = [];
+
+                results.forEach(function(result) {
+                    if (result.action) {
+                        approvalActions.push(result.action);
+                    } else if (result.deniedResult) {
+                        deniedResults.push(result.deniedResult);
+                    }
+                });
+
+                return {
+                    actions: approvalActions,
+                    deniedResults: deniedResults
+                };
+            });
+        },
+
+        fetchAbilityDetailsForApproval: function(abilityId) {
+            return new Promise(function(resolve) {
+                if (!abilityId) {
+                    resolve({
+                        success: false,
+                        code: 'ability_missing',
+                        message: 'Ability ID is required'
+                    });
+                    return;
+                }
+
+                $.ajax({
+                    url: aiAssistantConfig.ajaxUrl,
+                    type: 'POST',
+                    data: {
+                        action: 'ai_assistant_get_ability_details',
+                        _wpnonce: aiAssistantConfig.nonce,
+                        ability: abilityId
+                    },
+                    success: function(response) {
+                        if (response && response.success) {
+                            resolve({
+                                success: true,
+                                details: response.data || {}
+                            });
+                            return;
+                        }
+
+                        var data = response && response.data;
+                        resolve({
+                            success: false,
+                            code: data && data.code ? data.code : 'ability_preflight_failed',
+                            message: data && data.message ? data.message : ('Ability not found: ' + abilityId)
+                        });
+                    },
+                    error: function(xhr) {
+                        var data = xhr.responseJSON && xhr.responseJSON.data;
+                        var message = data && data.message ? data.message : ('Ability not found: ' + abilityId);
+                        resolve({
+                            success: false,
+                            code: data && data.code ? data.code : 'ability_preflight_failed',
+                            message: message
                         });
                     }
                 });
@@ -723,6 +858,7 @@
         currentProvider: null,
         streamComplete: false,
         executingToolCount: 0,
+        pendingToolChecks: 0,
         processedToolIds: {},
 
         // Process a single tool immediately when it finishes streaming
@@ -743,14 +879,59 @@
                  !this.isRestApiAutoApproved({ name: toolName, arguments: toolArgs });
 
             if (needsConfirm) {
-                this.setToolCardState(toolId, 'pending');
-                this.pendingActions.push({
+                var action = {
                     id: toolId,
                     tool: toolName,
                     arguments: toolArgs,
                     description: this.getActionDescription(toolName, toolArgs),
                     provider: provider
-                });
+                };
+
+                if (this.isAbilityExecutionToolCall({ name: toolName, arguments: toolArgs })) {
+                    this.setToolCardState(toolId, 'checking');
+                    this.pendingToolChecks++;
+                    this.prepareActionsForApproval([action]).then(function(preflight) {
+                        self.pendingToolChecks = Math.max(0, (self.pendingToolChecks || 0) - 1);
+                        if (preflight.deniedResults.length > 0) {
+                            self.pendingToolResults = self.pendingToolResults.concat(preflight.deniedResults);
+                            self.checkAllToolsResolved();
+                            return;
+                        }
+
+                        if (preflight.actions.length === 0) {
+                            self.setLoading(false);
+                            self.checkAllToolsResolved();
+                            return;
+                        }
+
+                        var approvedAction = preflight.actions[0];
+                        self.setToolCardState(toolId, 'pending');
+                        self.pendingActions.push(approvedAction);
+                        if (self.pendingActions.length > 1) {
+                            self.showPendingActionsHeader();
+                        }
+                        self.showToolApprovalModal();
+                        self.setLoading(false);
+                    }).catch(function(error) {
+                        self.pendingToolChecks = Math.max(0, (self.pendingToolChecks || 0) - 1);
+                        self.setToolCardState(toolId, 'error', { message: error.message || 'Ability check failed' });
+                        self.pendingToolResults.push({
+                            id: toolId,
+                            name: toolName,
+                            input: toolArgs,
+                            result: {
+                                error: error.message || 'Ability check failed',
+                                code: 'ability_preflight_failed'
+                            },
+                            success: false
+                        });
+                        self.checkAllToolsResolved();
+                    });
+                    return;
+                }
+
+                this.setToolCardState(toolId, 'pending');
+                this.pendingActions.push(action);
                 if (this.pendingActions.length > 1) {
                     this.showPendingActionsHeader();
                 }
@@ -780,6 +961,7 @@
 
         checkAllToolsResolved: function() {
             if (!this.streamComplete) return;
+            if ((this.pendingToolChecks || 0) > 0) return;
             if (this.executingToolCount > 0) return;
             if (this.pendingActions.length > 0) return;
 
@@ -829,6 +1011,12 @@
 
             // Wait for stream to complete (assistant message must be in history first)
             if (!this.streamComplete) {
+                this.setLoading(false);
+                return;
+            }
+
+            // Wait for async approval preflights before deciding whether the user needs to approve.
+            if ((this.pendingToolChecks || 0) > 0) {
                 this.setLoading(false);
                 return;
             }
@@ -1040,8 +1228,15 @@
                 var $tool = $('<span class="ai-tool-approval-tool"></span>').text(action.tool || 'tool');
                 var $desc = $('<span class="ai-tool-approval-desc"></span>').text(action.description || self.getActionDescription(action.tool, action.arguments || {}));
                 var $actions = $('<div class="ai-tool-approval-actions"></div>');
+                var hasAbilityDetails = !!action.abilityDetails;
 
                 $meta.append($tool, $desc);
+                if (hasAbilityDetails) {
+                    $desc.append(
+                        $('<button type="button" class="ai-ability-info-toggle" aria-label="Show ability details" aria-expanded="false">What\'s this?</button>')
+                            .attr('data-tool-id', action.id)
+                    );
+                }
                 $summary.append($meta);
 
                 var args = action.arguments || {};
@@ -1078,6 +1273,12 @@
                 $summary.append($actions);
                 $item.append($summary);
 
+                if (hasAbilityDetails) {
+                    $item.append(
+                        $('<div class="ai-ability-approval-slot" hidden></div>').attr('data-tool-id', action.id)
+                    );
+                }
+
                 var preview = self.getActionContentPreview(action.tool, args);
                 if (preview) {
                     var contentStr = typeof preview.content === 'string' ? preview.content : String(preview.content || '');
@@ -1090,7 +1291,7 @@
                     var previewLabel = preview.isEdit ? 'Show changes' : 'Show content';
                     var $toggle = $('<button type="button" class="ai-action-preview-toggle"></button>');
                     $toggle.append(
-                        $('<span class="dashicons dashicons-arrow-right-alt2"></span>'),
+                        $('<span class="ai-action-preview-icon" aria-hidden="true">&gt;</span>'),
                         document.createTextNode(previewLabel + ' (' + lineCount + ' line' + (lineCount !== 1 ? 's' : '') + ')')
                     );
                     var $content = $('<div class="ai-action-preview-content"><pre class="ai-code-preview"></pre></div>');
@@ -1116,6 +1317,128 @@
 
             $overlay.show();
             $dialog.trigger('focus');
+        },
+
+        toggleAbilityApprovalDetails: function($button) {
+            var toolId = $button.attr('data-tool-id');
+            if (!toolId) return;
+
+            var $scope = $button.closest('.ai-tool-approval-item, .ai-tool-card');
+            if (!$scope.length) return;
+
+            var $slot = $scope.children('.ai-ability-approval-slot');
+            if (!$slot.length) {
+                $slot = $('<div class="ai-ability-approval-slot" hidden></div>').attr('data-tool-id', toolId);
+                var $actions = $scope.children('.ai-tool-card-actions');
+                if ($actions.length) {
+                    $slot.insertBefore($actions);
+                } else {
+                    $scope.append($slot);
+                }
+            }
+
+            var expanded = $button.attr('aria-expanded') === 'true';
+            if (expanded) {
+                $button.attr('aria-expanded', 'false');
+                $slot.attr('hidden', true).empty();
+                return;
+            }
+
+            var source = this.pendingActions.find(function(action) {
+                return action.id === toolId;
+            });
+            if (!source && this.toolCardsState && this.toolCardsState[toolId]) {
+                source = this.toolCardsState[toolId];
+            }
+            if (!source || !source.abilityDetails) return;
+
+            var usedArguments = this.getAbilityUsedArguments(source.name || source.tool, source.arguments || {});
+            $scope.find('.ai-ability-info-toggle[aria-expanded="true"]').attr('aria-expanded', 'false');
+            $button.attr('aria-expanded', 'true');
+            $slot.empty().append(this.renderAbilityApprovalDetails(source.abilityDetails, usedArguments));
+            $slot.removeAttr('hidden');
+        },
+
+        getAbilityUsedArguments: function(toolName, args) {
+            args = args || {};
+            var values = args.arguments || {};
+
+            if (typeof values === 'string') {
+                try {
+                    values = JSON.parse(values);
+                } catch (e) {
+                    values = {};
+                }
+            }
+
+            return values && typeof values === 'object' && !Array.isArray(values) ? values : {};
+        },
+
+        renderAbilityApprovalDetails: function(details, usedArguments) {
+            details = details || {};
+            usedArguments = usedArguments || {};
+            var parametersByName = {};
+            (Array.isArray(details.parameters) ? details.parameters : []).forEach(function(parameter) {
+                if (parameter && parameter.name) {
+                    parametersByName[parameter.name] = parameter;
+                }
+            });
+            var usedNames = Object.keys(usedArguments);
+            var $details = $('<div class="ai-ability-approval-details"></div>');
+            var $body = $('<div class="ai-ability-approval-body"></div>');
+            var $header = $('<div class="ai-ability-info-header"></div>');
+
+            $header.append($('<code></code>').text(details.id || ''));
+            if (details.readonly) {
+                $header.append($('<span class="ai-ability-badge ai-ability-badge-readonly">Read-only</span>'));
+            } else if (details.destructive) {
+                $header.append($('<span class="ai-ability-badge ai-ability-badge-destructive">Destructive</span>'));
+            }
+            if (details.approved) {
+                $header.append($('<span class="ai-ability-badge ai-ability-badge-approved">Always approved</span>'));
+            }
+            $body.append($header);
+
+            if (details.label && details.label !== details.id) {
+                $body.append($('<div class="ai-ability-info-label"></div>').text(details.label));
+            }
+
+            $body.append(
+                $('<p class="description ai-ability-info-description"></p>')
+                    .text(details.description || 'No description provided.')
+            );
+
+            $body.append($('<div class="ai-ability-params-heading">Parameters</div>'));
+            if (!usedNames.length) {
+                $body.append($('<p class="description ai-ability-no-params">No parameters used.</p>'));
+            } else {
+                var $list = $('<div class="ai-ability-param-list"></div>');
+                usedNames.forEach(function(name) {
+                    var parameter = parametersByName[name] || { name: name, type: 'any' };
+                    var value = usedArguments[name];
+                    var valueText = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+                    if (valueText === undefined) {
+                        valueText = String(value);
+                    }
+                    var $param = $('<div class="ai-ability-param"></div>');
+                    var $head = $('<div class="ai-ability-param-head"></div>');
+                    $head.append($('<code></code>').text(name));
+                    $head.append($('<span class="ai-ability-param-type"></span>').text(parameter.type || 'any'));
+                    if (parameter.required) {
+                        $head.append($('<span class="ai-ability-param-required">Required</span>'));
+                    }
+                    $param.append($head);
+                    if (parameter.description) {
+                        $param.append($('<div class="description ai-ability-param-description"></div>').text(parameter.description));
+                    }
+                    $param.append($('<pre class="ai-ability-param-value"></pre>').text(valueText));
+                    $list.append($param);
+                });
+                $body.append($list);
+            }
+
+            $details.append($body);
+            return $details;
         },
 
         hideToolApprovalModal: function() {

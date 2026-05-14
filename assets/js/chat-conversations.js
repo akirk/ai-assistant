@@ -156,6 +156,7 @@
         startNewChat: function() {
             this.messages = [];
             this.pendingActions = [];
+            this.pendingToolChecks = 0;
             if (this.showToolApprovalModal) {
                 this.showToolApprovalModal();
             }
@@ -367,6 +368,7 @@
                         self.conversationTitle = response.data.title;
                         self.pendingActions = [];
                         self.pendingToolResults = [];
+                        self.pendingToolChecks = 0;
                         self.executingToolCount = 0;
                         if (self.showToolApprovalModal) {
                             self.showToolApprovalModal();
