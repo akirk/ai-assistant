@@ -225,6 +225,7 @@ class SettingsTest extends TestCase {
 
         $this->assertStringContainsString('my-wordpress (context): Using My WordPress', $prompt);
         $this->assertStringContainsString('personal WordPress can be used for', $prompt);
+        $this->assertStringContainsString('inspect installed plugins before recommending uses', $prompt);
         $this->assertStringContainsString('my.wordpress.net', $prompt);
     }
 }

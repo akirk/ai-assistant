@@ -1,6 +1,6 @@
 ---
 title: Using My WordPress
-description: Use when the user is on my.wordpress.net, mentions My WordPress, or asks what a personal WordPress can be used for
+description: Use when the user is on my.wordpress.net, mentions My WordPress, or asks what a personal WordPress can be used for; inspect installed plugins before recommending uses
 category: context
 ---
 
@@ -15,6 +15,24 @@ Also use it when the current WordPress is not on my.wordpress.net but the user t
 My WordPress is a full WordPress running persistently in the user's browser at https://my.wordpress.net/. It needs no server, hosting plan, domain, account, or sign-up. Data stays on the user's device in browser storage.
 
 More generally, a personal WordPress can be a personal workspace: a place to store, organize, customize, and work with the user's own data, whether it runs in the browser or on hosted/local infrastructure.
+
+## Start With What Is Installed
+
+When the user asks what this WordPress can be used for, do not answer from the generic list alone if tools are available.
+
+First inspect the current environment:
+
+- Use the site URL and current page from the system prompt to notice whether this is my.wordpress.net, local, hosted, intranet, or another personal setup.
+- Use `environment_info` or `get_plugins` to see installed and active plugins.
+- Use `ability` with action `list` when available to discover app-specific actions exposed by installed plugins.
+
+Then tailor the answer:
+
+- "You can already do..." for workflows supported by installed plugins or active abilities.
+- "A good next step would be..." for gaps that need a plugin, custom app, configuration, or migration to hosted WordPress.
+- "This may need hosted WordPress..." for public URLs, federation, inbound webhooks, shared remote access, or other features that browser-only My WordPress cannot receive from the public web.
+
+Infer cautiously from plugin names and descriptions. If a plugin probably supports a use case but details are unclear, say that and offer to inspect its settings or relevant admin screen.
 
 ## Best Use Cases
 
