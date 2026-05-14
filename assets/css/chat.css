@@ -1,5 +1,16 @@
 /* AI Assistant - Screen Meta Integration */
 
+:where(#ai-assistant-wrap, .ai-assistant-standalone-wrap, .ai-assistant-page, .ai-assistant-chat-container) {
+    --ai-assistant-accent: #2271b1;
+    --ai-assistant-accent-rgb: 34, 113, 177;
+    --ai-assistant-accent-hover: #135e96;
+    --ai-assistant-accent-active: #0a4b78;
+    --ai-assistant-accent-soft: rgba(var(--ai-assistant-accent-rgb), 0.08);
+    --ai-assistant-accent-softer: rgba(var(--ai-assistant-accent-rgb), 0.04);
+    --ai-assistant-accent-highlight: rgba(var(--ai-assistant-accent-rgb), 0.14);
+    --ai-assistant-accent-border: rgba(var(--ai-assistant-accent-rgb), 0.35);
+}
+
 /* Fix positioning to match WordPress screen-meta-links */
 #ai-assistant-link-wrap {
     float: left;
@@ -39,12 +50,12 @@
 }
 
 .ai-assistant-chat-container a {
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
     text-decoration: none;
 }
 
 .ai-assistant-chat-container a:hover {
-    color: #135e96;
+    color: var(--ai-assistant-accent-hover);
     text-decoration: underline;
 }
 
@@ -81,13 +92,13 @@
 }
 
 .ai-header-link {
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
     text-decoration: none;
     font-size: 13px;
 }
 
 .ai-header-link:hover {
-    color: #135e96;
+    color: var(--ai-assistant-accent-hover);
     text-decoration: underline;
 }
 
@@ -422,7 +433,7 @@
 }
 
 .ai-message-user .ai-message-content {
-    background: #2271b1;
+    background: var(--ai-assistant-accent);
     color: #fff;
     border-bottom-right-radius: 4px;
 }
@@ -536,8 +547,8 @@
 
 /* Conversation summary block */
 .ai-conversation-summary {
-    background: #f0f6fc;
-    border: 1px solid #c3d9ed;
+    background: var(--ai-assistant-accent-soft);
+    border: 1px solid var(--ai-assistant-accent-border);
     border-radius: 8px;
     margin-bottom: 10px;
 }
@@ -557,7 +568,7 @@
 
 .ai-summary-icon {
     display: flex;
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
 }
 
 .ai-summary-icon svg {
@@ -587,7 +598,7 @@
     font-size: 13px;
     line-height: 1.5;
     color: #1d2327;
-    border-top: 1px solid #c3d9ed;
+    border-top: 1px solid var(--ai-assistant-accent-border);
     padding-top: 10px;
     margin-top: 0;
 }
@@ -708,7 +719,7 @@
     width: 14px;
     height: 14px;
     border: 2px solid #c3c4c7;
-    border-top-color: #2271b1;
+    border-top-color: var(--ai-assistant-accent);
     border-radius: 50%;
     animation: ai-tool-spin 0.8s linear infinite;
     flex-shrink: 0;
@@ -777,25 +788,25 @@
 }
 
 .ai-approve-btn {
-    background: #2271b1;
-    border: 1px solid #2271b1;
+    background: var(--ai-assistant-accent);
+    border: 1px solid var(--ai-assistant-accent);
     color: #fff !important;
 }
 
 .ai-approve-btn:hover {
-    background: #135e96;
-    border-color: #135e96;
+    background: var(--ai-assistant-accent-hover);
+    border-color: var(--ai-assistant-accent-hover);
 }
 
 .ai-always-approve-btn {
-    background: #f0f6fc;
-    border: 1px solid #72aee6;
-    color: #2271b1 !important;
+    background: var(--ai-assistant-accent-soft);
+    border: 1px solid var(--ai-assistant-accent-border);
+    color: var(--ai-assistant-accent) !important;
 }
 
 .ai-always-approve-btn:hover {
-    background: #dde8f0;
-    border-color: #2271b1;
+    background: var(--ai-assistant-accent-highlight);
+    border-color: var(--ai-assistant-accent);
 }
 
 .ai-skip-btn {
@@ -840,8 +851,8 @@
 
 /* State: Generating */
 .ai-tool-card-generating {
-    background: #f0f6fc;
-    border-color: #c5d9ed;
+    background: var(--ai-assistant-accent-soft);
+    border-color: var(--ai-assistant-accent-border);
 }
 
 /* State: Pending approval */
@@ -856,8 +867,8 @@
 
 /* State: Executing */
 .ai-tool-card-executing {
-    background: #f0f6fc;
-    border-color: #2271b1;
+    background: var(--ai-assistant-accent-soft);
+    border-color: var(--ai-assistant-accent);
 }
 
 /* State: Completed */
@@ -1098,7 +1109,7 @@
 }
 
 .ai-tool-approval-tool {
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
     font-size: 12px;
     font-weight: 600;
     overflow-wrap: anywhere;
@@ -1149,7 +1160,7 @@
 }
 
 .ai-tool-approval-params summary {
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
     cursor: pointer;
     font-size: 11px;
 }
@@ -1182,7 +1193,7 @@
     border: 0 !important;
     border-radius: 0 !important;
     background: transparent !important;
-    color: #2271b1 !important;
+    color: var(--ai-assistant-accent) !important;
     box-shadow: none !important;
     font: inherit !important;
     font-size: 11px !important;
@@ -1196,7 +1207,7 @@
 .ai-ability-info-toggle:focus,
 .ai-ability-info-toggle[aria-expanded="true"] {
     background: transparent !important;
-    color: #135e96 !important;
+    color: var(--ai-assistant-accent-hover) !important;
     outline: none !important;
 }
 
@@ -1335,8 +1346,8 @@
 }
 
 .ai-ability-badge-approved {
-    background: #eaf2ff;
-    color: #135e96;
+    background: var(--ai-assistant-accent-soft);
+    color: var(--ai-assistant-accent-hover);
 }
 
 .ai-ability-badge-destructive {
@@ -1349,9 +1360,9 @@
     align-items: center;
     gap: 8px;
     padding: 8px;
-    border: 1px solid #c5d9ed;
+    border: 1px solid var(--ai-assistant-accent-border);
     border-radius: 4px;
-    background: #f0f6fc;
+    background: var(--ai-assistant-accent-soft);
     color: #1d2327;
 }
 
@@ -1360,9 +1371,9 @@
     min-height: 0 !important;
     margin: 0 !important;
     padding: 0 10px !important;
-    border: 1px solid #2271b1 !important;
+    border: 1px solid var(--ai-assistant-accent) !important;
     border-radius: 3px !important;
-    background: #2271b1 !important;
+    background: var(--ai-assistant-accent) !important;
     color: #fff !important;
     box-shadow: none !important;
     font-size: 12px !important;
@@ -1372,8 +1383,8 @@
 
 .ai-image-picker-reopen:hover,
 .ai-image-picker-reopen:focus {
-    border-color: #135e96 !important;
-    background: #135e96 !important;
+    border-color: var(--ai-assistant-accent-hover) !important;
+    background: var(--ai-assistant-accent-hover) !important;
     color: #fff !important;
     outline: none !important;
 }
@@ -1445,15 +1456,15 @@
 }
 
 .ai-image-picker-controls .ai-image-picker-search {
-    border-color: #2271b1 !important;
-    background: #2271b1 !important;
+    border-color: var(--ai-assistant-accent) !important;
+    background: var(--ai-assistant-accent) !important;
     color: #fff !important;
 }
 
 .ai-image-picker-controls .ai-image-picker-search:hover,
 .ai-image-picker-controls .ai-image-picker-search:focus {
-    border-color: #135e96 !important;
-    background: #135e96 !important;
+    border-color: var(--ai-assistant-accent-hover) !important;
+    background: var(--ai-assistant-accent-hover) !important;
     color: #fff !important;
 }
 
@@ -1482,8 +1493,8 @@
 }
 
 .ai-image-picker-upload.is-drag-over {
-    border-color: #2271b1;
-    background: #f0f6fc;
+    border-color: var(--ai-assistant-accent);
+    background: var(--ai-assistant-accent-soft);
     color: #1d2327;
 }
 
@@ -1576,8 +1587,8 @@
 
 .ai-image-result:hover,
 .ai-image-result:focus-within {
-    border-color: #2271b1;
-    box-shadow: 0 0 0 1px #2271b1;
+    border-color: var(--ai-assistant-accent);
+    box-shadow: 0 0 0 1px var(--ai-assistant-accent);
     outline: none;
 }
 
@@ -1672,7 +1683,7 @@
     padding: 0 !important;
     border: 0 !important;
     background: transparent !important;
-    color: #135e96 !important;
+    color: var(--ai-assistant-accent-hover) !important;
     box-shadow: none !important;
     font: inherit !important;
     font-size: 10px !important;
@@ -1899,7 +1910,7 @@
 .ai-action-tool {
     font-weight: 600;
     font-size: 12px;
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
 }
 
 .ai-action-desc {
@@ -1916,7 +1927,7 @@
     align-items: center;
     gap: 4px;
     font-size: 11px;
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
     cursor: pointer;
     background: none;
     border: none;
@@ -2022,9 +2033,9 @@
 }
 
 .ai-diff-header {
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
     font-weight: 600;
-    background: #f0f6fc;
+    background: var(--ai-assistant-accent-soft);
     margin-top: 4px;
 }
 
@@ -2067,9 +2078,9 @@
     justify-content: center;
     z-index: 30;
     padding: 20px;
-    background: rgba(240, 246, 252, 0.9);
-    border: 2px dashed #2271b1;
-    color: #135e96;
+    background: rgba(var(--ai-assistant-accent-rgb), 0.1);
+    border: 2px dashed var(--ai-assistant-accent);
+    color: var(--ai-assistant-accent-hover);
     font-size: 14px;
     font-weight: 600;
     pointer-events: none;
@@ -2083,7 +2094,7 @@
     padding: 12px 18px;
     border-radius: 4px;
     background: #fff;
-    border: 1px solid #72aee6;
+    border: 1px solid var(--ai-assistant-accent-border);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
@@ -2164,7 +2175,7 @@
     width: 12px;
     height: 12px;
     border: 2px solid #c3c4c7;
-    border-top-color: #2271b1;
+    border-top-color: var(--ai-assistant-accent);
     border-radius: 50%;
     animation: ai-tool-spin 0.8s linear infinite;
 }
@@ -2272,14 +2283,14 @@
 }
 
 #ai-assistant-send {
-    background: #2271b1;
-    border: 1px solid #2271b1;
+    background: var(--ai-assistant-accent);
+    border: 1px solid var(--ai-assistant-accent);
     color: #fff;
 }
 
 #ai-assistant-send:hover:not(:disabled) {
-    background: #135e96;
-    border-color: #135e96;
+    background: var(--ai-assistant-accent-hover);
+    border-color: var(--ai-assistant-accent-hover);
 }
 
 #ai-assistant-send:disabled {
@@ -2303,8 +2314,8 @@
 }
 
 #ai-assistant-input:focus {
-    border-color: #2271b1;
-    box-shadow: 0 0 0 1px #2271b1;
+    border-color: var(--ai-assistant-accent);
+    box-shadow: 0 0 0 1px var(--ai-assistant-accent);
     outline: none;
 }
 
@@ -2367,7 +2378,7 @@
 .ai-loading-dots span {
     width: 8px;
     height: 8px;
-    background: #2271b1;
+    background: var(--ai-assistant-accent);
     border-radius: 50%;
     animation: aiBounce 1.4s infinite ease-in-out both;
 }
@@ -2575,7 +2586,7 @@
 }
 
 #wpadminbar .ai-assistant-standalone-panel .ai-header-link {
-    color: #2271b1 !important;
+    color: var(--ai-assistant-accent) !important;
     text-decoration: none !important;
 }
 
@@ -2609,7 +2620,7 @@
     border: none !important;
     background: none !important;
     box-shadow: none !important;
-    color: #2271b1 !important;
+    color: var(--ai-assistant-accent) !important;
     cursor: pointer !important;
     font-size: 0 !important;
     line-height: 0 !important;
@@ -2679,7 +2690,7 @@
 
 #wpadminbar .ai-assistant-standalone-panel .ai-message-user .ai-message-content {
     color: #fff !important;
-    background: #2271b1 !important;
+    background: var(--ai-assistant-accent) !important;
     border-bottom-right-radius: 4px !important;
 }
 
@@ -2851,9 +2862,9 @@
     height: auto !important;
     margin: 0 !important;
     padding: 20px !important;
-    border: 2px dashed #2271b1 !important;
-    color: #135e96 !important;
-    background: rgba(240, 246, 252, 0.9) !important;
+    border: 2px dashed var(--ai-assistant-accent) !important;
+    color: var(--ai-assistant-accent-hover) !important;
+    background: rgba(var(--ai-assistant-accent-rgb), 0.1) !important;
     pointer-events: none !important;
     font-size: 14px !important;
     font-weight: 600 !important;
@@ -2868,9 +2879,9 @@
     height: auto !important;
     margin: 0 !important;
     padding: 12px 18px !important;
-    border: 1px solid #72aee6 !important;
+    border: 1px solid var(--ai-assistant-accent-border) !important;
     border-radius: 4px !important;
-    color: #135e96 !important;
+    color: var(--ai-assistant-accent-hover) !important;
     background: #fff !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
     font-size: 14px !important;
@@ -2965,7 +2976,7 @@
     margin: 0 !important;
     padding: 0 !important;
     border-radius: 50% !important;
-    background: #2271b1 !important;
+    background: var(--ai-assistant-accent) !important;
 }
 
 #wpadminbar .ai-assistant-standalone-panel .ai-assistant-input-area {
@@ -3054,9 +3065,9 @@
 
 #wpadminbar .ai-assistant-standalone-panel #ai-assistant-send {
     padding: 8px 16px !important;
-    border: 1px solid #2271b1 !important;
+    border: 1px solid var(--ai-assistant-accent) !important;
     color: #fff !important;
-    background: #2271b1 !important;
+    background: var(--ai-assistant-accent) !important;
 }
 
 #wpadminbar .ai-assistant-standalone-panel #ai-assistant-stop {
@@ -3141,7 +3152,7 @@
     margin: 0 !important;
     padding: 0 !important;
     border: 2px solid #c3c4c7 !important;
-    border-top-color: #2271b1 !important;
+    border-top-color: var(--ai-assistant-accent) !important;
     border-radius: 50% !important;
 }
 
@@ -3304,7 +3315,7 @@
     border: 0 !important;
     border-radius: 0 !important;
     background: transparent !important;
-    color: #2271b1 !important;
+    color: var(--ai-assistant-accent) !important;
     font-size: 11px !important;
     font-weight: 500 !important;
     line-height: 1.35 !important;
@@ -3377,11 +3388,13 @@ body:not(.wp-admin) .ai-assistant-standalone-trigger button:hover,
 body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
     color: #2c3338 !important;
     background: #fff !important;
+    border-color: var(--ai-assistant-accent) !important;
+    box-shadow: 0 0 0 1px var(--ai-assistant-accent) !important;
 }
 
 .ai-assistant-standalone-trigger button:focus {
-    border-color: #2271b1;
-    box-shadow: 0 0 0 1px #2271b1;
+    border-color: var(--ai-assistant-accent);
+    box-shadow: 0 0 0 1px var(--ai-assistant-accent);
     outline: 2px solid transparent;
 }
 
@@ -3490,7 +3503,7 @@ body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
 }
 
 .ai-sidebar-link:hover {
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
 }
 
 /* Conversation items in sidebar */
@@ -3508,7 +3521,7 @@ body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
 }
 
 .ai-conv-item.active {
-    background: #2271b1;
+    background: var(--ai-assistant-accent);
     color: #fff;
 }
 
@@ -3795,7 +3808,7 @@ body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
     width: 12px;
     height: 12px;
     border: 2px solid #c3c4c7;
-    border-top-color: #2271b1;
+    border-top-color: var(--ai-assistant-accent);
     border-radius: 50%;
     animation: ai-tool-spin 0.8s linear infinite;
     flex-shrink: 0;

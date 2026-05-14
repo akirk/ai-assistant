@@ -78,6 +78,10 @@ class Changes_Admin {
             ['wp-codemirror'],
             AI_ASSISTANT_VERSION
         );
+        wp_add_inline_style(
+            'ai-assistant-changes',
+            Admin_Colors::get_current_scheme_css('.ai-changes-wrap')
+        );
 
         wp_enqueue_script('wp-codemirror');
 

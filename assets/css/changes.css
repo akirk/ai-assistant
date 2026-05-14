@@ -1,4 +1,15 @@
 .ai-changes-wrap {
+    --ai-assistant-accent: #2271b1;
+    --ai-assistant-accent-rgb: 34, 113, 177;
+    --ai-assistant-accent-hover: #135e96;
+    --ai-assistant-accent-active: #0a4b78;
+    --ai-assistant-accent-soft: rgba(var(--ai-assistant-accent-rgb), 0.08);
+    --ai-assistant-accent-softer: rgba(var(--ai-assistant-accent-rgb), 0.04);
+    --ai-assistant-accent-highlight: rgba(var(--ai-assistant-accent-rgb), 0.14);
+    --ai-assistant-accent-border: rgba(var(--ai-assistant-accent-rgb), 0.35);
+}
+
+.ai-changes-wrap {
     max-width: 900px;
 }
 
@@ -136,16 +147,16 @@
     font-size: 11px;
     padding: 2px 8px;
     border-radius: 3px;
-    background: #e7f3ff;
-    color: #0073aa;
+    background: var(--ai-assistant-accent-soft);
+    color: var(--ai-assistant-accent);
     text-decoration: none;
     white-space: nowrap;
     margin-left: auto;
 }
 
 .ai-commit-conversation:hover {
-    background: #cce5ff;
-    color: #005a87;
+    background: var(--ai-assistant-accent-highlight);
+    color: var(--ai-assistant-accent-hover);
     text-decoration: none;
 }
 
@@ -243,11 +254,11 @@
 }
 
 .ai-file-preview-toggle:hover {
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
 }
 
 .ai-file-preview-toggle.expanded {
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
 }
 
 .ai-changes-file-row .ai-file-checkbox {
@@ -369,9 +380,9 @@
 
 .ai-revert-file:hover,
 .ai-reapply-file:hover {
-    color: #2271b1 !important;
-    border-color: #2271b1 !important;
-    background: #f0f7fc !important;
+    color: var(--ai-assistant-accent) !important;
+    border-color: var(--ai-assistant-accent) !important;
+    background: var(--ai-assistant-accent-soft) !important;
 }
 
 .ai-revert-dir {
@@ -405,7 +416,7 @@
 }
 
 .ai-file-inline-preview .diff-header {
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
     font-weight: 600;
 }
 
@@ -519,7 +530,7 @@
 
 /* Diff syntax highlighting */
 .ai-diff-content .diff-header {
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
     font-weight: 600;
     margin-top: 12px;
 }
@@ -633,11 +644,11 @@
 }
 
 .ai-commit-current {
-    background: #f0f7fc;
+    background: var(--ai-assistant-accent-soft);
 }
 
 .ai-commit-current:hover {
-    background: #e5f1f9;
+    background: var(--ai-assistant-accent-highlight);
 }
 
 .ai-commit-row-top {
@@ -649,7 +660,7 @@
 .ai-commit-sha {
     font-family: Consolas, Monaco, 'Andale Mono', monospace;
     font-size: 12px;
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
     background: #f0f0f1;
     padding: 2px 6px;
     border-radius: 3px;
@@ -701,11 +712,11 @@
 }
 
 .ai-commit-diff-toggle:hover {
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
 }
 
 .ai-commit-diff-toggle.expanded {
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
 }
 
 .ai-commit-entry {
@@ -745,7 +756,7 @@
 }
 
 .ai-commit-diff-preview .diff-header {
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
     font-weight: 600;
 }
 
@@ -827,7 +838,7 @@
 .ai-diff-content .cm-header,
 .ai-file-inline-preview .cm-header,
 .ai-commit-diff-preview .cm-header {
-    color: #2271b1;
+    color: var(--ai-assistant-accent);
     font-weight: 600;
 }
 
