@@ -137,6 +137,7 @@ function loadConversationMixin(initialStorage, config, options) {
         jQuery: createJQuery(input, options),
         aiAssistantConfig: config || {},
         localStorage: storage,
+        fetch: options && options.fetch,
         btoa(value) {
             return Buffer.from(value, 'binary').toString('base64');
         },
@@ -193,6 +194,53 @@ describe('draft history', function() {
         assistant.navigateDraftHistory(-1);
         assert.strictEqual(input.value, 'unsent draft');
         assert.strictEqual(assistant.draftHistoryIndex, -1);
+    });
+});
+
+describe('conversation title generation', function() {
+    it('uses the active Anthropic conversation model and endpoint', async function() {
+        const fetchCalls = [];
+        let savedTitle = '';
+        const { assistant } = loadConversationMixin(null, {}, {
+            fetch(url, settings) {
+                fetchCalls.push({ url, settings });
+                return Promise.resolve({
+                    json() {
+                        return Promise.resolve({
+                            content: [{ text: 'Title Bug Fix' }]
+                        });
+                    }
+                });
+            }
+        });
+
+        assistant.messages = [
+            { role: 'user', content: 'Why is title generation using an unavailable model?' },
+            { role: 'assistant', content: 'It is hard-coded.' }
+        ];
+        assistant.conversationProvider = 'anthropic';
+        assistant.conversationModel = 'claude-sonnet-4-20250514';
+        assistant.titleGenerationToken = 0;
+        assistant.getProvider = function() { return 'anthropic'; };
+        assistant.getModel = function() { return 'fallback-model'; };
+        assistant.getApiKey = function() { return 'test-key'; };
+        assistant.getProviderEndpoint = function() { return 'https://example.test/v1/messages'; };
+        assistant.isConnectorsMode = function() { return false; };
+        assistant.saveConversation = function() {
+            savedTitle = this.conversationTitle;
+        };
+
+        assistant.generateConversationTitle();
+        await new Promise(function(resolve) { setImmediate(resolve); });
+        await new Promise(function(resolve) { setImmediate(resolve); });
+
+        assert.strictEqual(fetchCalls.length, 1);
+        assert.strictEqual(fetchCalls[0].url, 'https://example.test/v1/messages');
+        assert.strictEqual(
+            JSON.parse(fetchCalls[0].settings.body).model,
+            'claude-sonnet-4-20250514'
+        );
+        assert.strictEqual(savedTitle, 'Title Bug Fix');
     });
 });
 

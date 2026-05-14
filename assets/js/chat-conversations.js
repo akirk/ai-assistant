@@ -790,6 +790,7 @@
         generateConversationTitle: function() {
             var self = this;
             var provider = this.conversationProvider || this.getProvider();
+            var model = this.conversationModel || this.getModel();
             var apiKey = this.getApiKey(provider);
             var providerConfig = this.isConnectorsMode() && typeof aiAssistantProviders !== 'undefined'
                 ? aiAssistantProviders.available[provider]
@@ -843,7 +844,9 @@
             }
 
             if (provider === 'anthropic' && apiKey) {
-                fetch('https://api.anthropic.com/v1/messages', {
+                var anthropicEndpoint = this.getProviderEndpoint(provider) || 'https://api.anthropic.com/v1/messages';
+
+                fetch(anthropicEndpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -852,7 +855,7 @@
                         'anthropic-dangerous-direct-browser-access': 'true'
                     },
                     body: JSON.stringify({
-                        model: 'claude-3-5-haiku-20241022',
+                        model: model,
                         max_tokens: 30,
                         messages: [{ role: 'user', content: titlePrompt }]
                     })
@@ -878,7 +881,7 @@
                         'Authorization': 'Bearer ' + apiKey
                     },
                     body: JSON.stringify({
-                        model: 'gpt-4o-mini',
+                        model: model,
                         max_tokens: 30,
                         messages: [{ role: 'user', content: titlePrompt }]
                     })
@@ -896,7 +899,6 @@
                 });
             } else {
                 var endpoint = (self.getProviderEndpoint(provider) || self.getLocalEndpoint()).replace(/\/$/, '');
-                var model = self.conversationModel || self.getModel();
 
                 fetch(endpoint + '/v1/chat/completions', {
                     method: 'POST',
