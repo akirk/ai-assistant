@@ -57,18 +57,19 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'edit_file',
-                    description: 'Edit a file via search/replace operations. Each search string must be unique in the file.',
+                    description: 'Edit a file via search/replace operations. The edits parameter must be an array of objects, not a JSON string or tagged text. Each search string must be exact and unique in the current file.',
                     input_schema: {
                         type: 'object',
                         properties: {
                             path: { type: 'string', description: 'Relative path from wp-content' },
                             edits: {
                                 type: 'array',
+                                description: 'Real JSON array of edit objects. Do not pass a string, markdown, XML, or </invoke> tags.',
                                 items: {
                                     type: 'object',
                                     properties: {
-                                        search: { type: 'string' },
-                                        replace: { type: 'string' }
+                                        search: { type: 'string', description: 'Exact unique current-file text to replace' },
+                                        replace: { type: 'string', description: 'Replacement text' }
                                     },
                                     required: ['search', 'replace']
                                 }

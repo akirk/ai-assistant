@@ -73,6 +73,8 @@
             }
 
             toolCalls.forEach(function(tc) {
+                tc.arguments = self.normalizeToolArguments(tc.name, tc.arguments || {});
+
                 // Ensure card exists with proper description
                 self.updateToolCardDescription(tc.id, tc.name, tc.arguments);
 
@@ -165,6 +167,31 @@
             };
         },
 
+        normalizeToolArguments: function(toolName, args) {
+            if (!args || typeof args !== 'object' || Array.isArray(args)) {
+                return args || {};
+            }
+
+            if (toolName === 'edit_file' && typeof args.edits === 'string') {
+                var cleaned = args.edits.replace(/\s*<\/invoke>\s*$/i, '');
+                if (cleaned !== args.edits) {
+                    try {
+                        var parsed = JSON.parse(cleaned);
+                        if (
+                            Array.isArray(parsed) ||
+                            (parsed && typeof parsed === 'object' && !Array.isArray(parsed))
+                        ) {
+                            return Object.assign({}, args, { edits: parsed });
+                        }
+                    } catch (e) {
+                        // Leave the original malformed value in place so the file endpoint rejects it.
+                    }
+                }
+            }
+
+            return args;
+        },
+
         executeTools: function(toolCalls, provider) {
             var self = this;
             var promises = toolCalls.map(function(tc) {
@@ -191,9 +218,8 @@
             });
 
             Promise.all(promises).then(function(results) {
-                results.forEach(function(result) {
-                    self.rememberPluginRecoveryCandidateFromFileResult(result);
-                });
+                return self.verifyPluginFileMutationResults(results);
+            }).then(function(results) {
                 return self.verifyActivatedPluginResults(results);
             }).then(function(results) {
                 results.forEach(function(result) {
@@ -236,25 +262,137 @@
         },
 
         rememberPluginRecoveryCandidateFromFileResult: function(result) {
-            if (!result || !result.success) {
+            var candidate = this.getPluginRecoveryCandidateFromFileResult(result);
+            if (!candidate) {
                 return;
+            }
+
+            this.pendingPluginRecoveryCandidate = candidate;
+        },
+
+        getPluginRecoveryCandidateFromFileResult: function(result) {
+            if (!result || !result.success) {
+                return null;
             }
 
             var toolName = result.name || result.tool;
             if (['write_file', 'edit_file', 'delete_file'].indexOf(toolName) < 0) {
-                return;
+                return null;
             }
 
             var path = result.result && result.result.path;
             var candidate = this.getPluginCandidateFromPath(path);
             if (!candidate) {
-                return;
+                return null;
             }
 
             candidate.changed_path = path;
+            candidate.changed_paths = [path];
             candidate.source_tool = toolName;
             candidate.recorded_at = Date.now();
-            this.pendingPluginRecoveryCandidate = candidate;
+            return candidate;
+        },
+
+        getPluginRecoveryCandidatesFromFileResults: function(results) {
+            var self = this;
+            var seen = {};
+            var candidates = [];
+
+            (results || []).forEach(function(result) {
+                var candidate = self.getPluginRecoveryCandidateFromFileResult(result);
+                if (!candidate) {
+                    return;
+                }
+
+                var key = candidate.plugin_slug + '|' + (candidate.plugin_file || '');
+                if (seen[key]) {
+                    seen[key].changed_paths.push(candidate.changed_path);
+                    seen[key].source_tool = candidate.source_tool;
+                    seen[key].recorded_at = candidate.recorded_at;
+                    return;
+                }
+
+                seen[key] = candidate;
+                candidates.push(candidate);
+            });
+
+            return candidates;
+        },
+
+        verifyPluginFileMutationResults: function(results) {
+            var self = this;
+            var candidates = this.getPluginRecoveryCandidatesFromFileResults(results);
+
+            if (candidates.length === 0) {
+                return Promise.resolve(results);
+            }
+
+            this.pendingPluginRecoveryCandidate = candidates[candidates.length - 1];
+
+            return this.verifyWpok().then(function(wpok) {
+                if (wpok) {
+                    self.pendingPluginRecoveryCandidate = null;
+                    return results;
+                }
+
+                var recoveryChecks = candidates.map(function(candidate) {
+                    return self.emergencyDeactivateActivatedPlugin(candidate).then(function(recovery) {
+                        recovery.changed_paths = candidate.changed_paths;
+                        recovery.source_tool = candidate.source_tool;
+                        return {
+                            candidate: candidate,
+                            success: true,
+                            recovery: recovery
+                        };
+                    }).catch(function(error) {
+                        return {
+                            candidate: candidate,
+                            success: false,
+                            error: error.message || 'Emergency disable failed'
+                        };
+                    });
+                });
+
+                return Promise.all(recoveryChecks).then(function(recoveries) {
+                    var recoveriesBySlug = {};
+                    recoveries.forEach(function(item) {
+                        recoveriesBySlug[item.candidate.plugin_slug] = item;
+                    });
+
+                    self.pendingPluginRecoveryCandidate = null;
+
+                    return results.map(function(result) {
+                        var candidate = self.getPluginRecoveryCandidateFromFileResult(result);
+                        if (!candidate) {
+                            return result;
+                        }
+
+                        var recovery = recoveriesBySlug[candidate.plugin_slug];
+                        var recovered = recovery && recovery.success;
+                        var nextResult = {
+                            error: recovered
+                                ? 'Plugin file change broke WordPress; the affected plugin was automatically emergency-disabled.'
+                                : 'Plugin file change broke WordPress, and automatic emergency disable failed: ' + ((recovery && recovery.error) || 'Unknown error'),
+                            file_result: result.result,
+                            changed_path: candidate.changed_path
+                        };
+
+                        if (recovered) {
+                            nextResult.recovery = recovery.recovery;
+                        } else if (recovery && recovery.error) {
+                            nextResult.recovery_error = recovery.error;
+                        }
+
+                        return {
+                            id: result.id,
+                            name: result.name,
+                            input: result.input,
+                            success: false,
+                            result: nextResult
+                        };
+                    });
+                });
+            });
         },
 
         getPluginCandidateFromPath: function(path) {
@@ -282,8 +420,8 @@
                 return Promise.resolve(null);
             }
 
-            return this.verifyWordPressHealth().then(function(healthy) {
-                if (healthy) {
+            return this.verifyWpok().then(function(wpok) {
+                if (wpok) {
                     self.pendingPluginRecoveryCandidate = null;
                     return null;
                 }
@@ -307,8 +445,8 @@
                     return Promise.resolve(result);
                 }
 
-                return self.verifyWordPressHealth().then(function(healthy) {
-                    if (healthy) {
+                return self.verifyWpok().then(function(wpok) {
+                    if (wpok) {
                         return result;
                     }
 
@@ -398,7 +536,7 @@
             return pluginFile.replace(/\.php$/i, '').toLowerCase();
         },
 
-        verifyWordPressHealth: function() {
+        verifyWpok: function() {
             if (!window.aiAssistantConfig || !aiAssistantConfig.ajaxUrl || !aiAssistantConfig.nonce) {
                 return Promise.resolve(true);
             }
@@ -411,7 +549,7 @@
                     global: false,
                     timeout: 5000,
                     data: {
-                        action: 'ai_assistant_health_check',
+                        action: 'ai_assistant_wpok',
                         _wpnonce: aiAssistantConfig.nonce
                     },
                     success: function(response) {
@@ -444,7 +582,7 @@
                     arguments: {
                         plugin_slug: candidate.plugin_slug,
                         plugin_file: candidate.plugin_file || '',
-                        reason: 'Emergency deactivate after plugin failed WordPress health check'
+                        reason: 'Emergency deactivate after plugin failed wpok probe'
                     },
                     conversation_id: this.conversationId || 0
                 })
@@ -1187,6 +1325,8 @@
             var self = this;
             var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'ability', 'execute_ability', 'rest_api'];
 
+            toolArgs = this.normalizeToolArguments(toolName, toolArgs || {});
+
             this.currentProvider = provider;
             this.processedToolIds[toolId] = true;
 
@@ -1273,6 +1413,9 @@
                 this.setToolCardState(toolId, 'executing');
                 this.executingToolCount++;
                 this.executeSingleTool({ id: toolId, name: toolName, arguments: toolArgs }).then(function(result) {
+                    return self.verifyPluginFileMutationResults([result]);
+                }).then(function(results) {
+                    var result = results[0];
                     self.executingToolCount--;
                     if (result.success) {
                         var successOptions = result.name === 'navigate'
@@ -1286,6 +1429,17 @@
                         self.notifyToolCallCallbacks(result, provider);
                     }
                     self.pendingToolResults.push(result);
+                    self.checkAllToolsResolved();
+                }).catch(function(error) {
+                    self.executingToolCount--;
+                    self.setToolCardState(toolId, 'error', { message: error.message || 'Tool failed' });
+                    self.pendingToolResults.push({
+                        id: toolId,
+                        name: toolName,
+                        input: toolArgs,
+                        result: { error: error.message || 'Tool failed' },
+                        success: false
+                    });
                     self.checkAllToolsResolved();
                 });
             }
@@ -1439,6 +1593,9 @@
             if (confirmed) {
                 this.setToolCardState(actionId, 'executing');
                 this.executeSingleTool(action).then(function(result) {
+                    return self.verifyPluginFileMutationResults([result]);
+                }).then(function(results) {
+                    var result = results[0];
                     if (result.success) {
                         self.setToolCardState(result.id, 'completed', { output: result.result });
                     } else {
@@ -1449,6 +1606,15 @@
                         self.notifyToolCallCallbacks(result, action.provider);
                     }
                     self.handleToolResults([result], action.provider);
+                }).catch(function(error) {
+                    self.setToolCardState(actionId, 'error', { message: error.message || 'Tool failed' });
+                    self.handleToolResults([{
+                        id: action.id,
+                        name: action.tool,
+                        input: action.arguments,
+                        result: { error: error.message || 'Tool failed' },
+                        success: false
+                    }], action.provider);
                 });
             } else {
                 this.setToolCardState(actionId, 'skipped');
@@ -1485,6 +1651,8 @@
                 });
 
                 Promise.all(promises).then(function(results) {
+                    return self.verifyPluginFileMutationResults(results);
+                }).then(function(results) {
                     results.forEach(function(result) {
                         if (result.success) {
                             self.setToolCardState(result.id, 'completed', { output: result.result });
@@ -1497,6 +1665,18 @@
                         }
                     });
                     self.handleToolResults(results, actions[0].provider);
+                }).catch(function(error) {
+                    var failedResults = actions.map(function(action) {
+                        self.setToolCardState(action.id, 'error', { message: error.message || 'Tool failed' });
+                        return {
+                            id: action.id,
+                            name: action.tool,
+                            input: action.arguments,
+                            result: { error: error.message || 'Tool failed' },
+                            success: false
+                        };
+                    });
+                    self.handleToolResults(failedResults, actions[0].provider);
                 });
             } else {
                 var skippedResults = actions.map(function(action) {

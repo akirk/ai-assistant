@@ -863,7 +863,7 @@
                 type: 'POST',
                 dataType: 'json',
                 data: {
-                    action: 'ai_assistant_health_check',
+                    action: 'ai_assistant_wpok',
                     _wpnonce: aiAssistantConfig.nonce
                 },
                 success: function(response) {

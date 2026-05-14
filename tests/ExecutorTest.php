@@ -331,6 +331,22 @@ class ExecutorTest extends TestCase {
         $this->assertStringContainsString('JSON Encoded Plugin', $content);
     }
 
+    public function test_edit_file_rejects_json_encoded_edits_with_trailing_tool_markup(): void {
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage("edit_file 'edits' must be an array");
+
+        $this->executor->execute_tool('edit_file', [
+            'path' => 'plugins/test-plugin/test-plugin.php',
+            'edits' => json_encode([
+                [
+                    'search' => 'Test Plugin',
+                    'replace' => 'Should Not Apply',
+                ],
+            ]) . "\n</invoke>",
+            'reason' => 'Test malformed JSON encoded edits',
+        ]);
+    }
+
     public function test_edit_file_not_found_throws_exception(): void {
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage('File not found');

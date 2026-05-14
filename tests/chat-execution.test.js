@@ -380,14 +380,14 @@ describe('tool call callbacks', function() {
     });
 });
 
-describe('activation health verification', function() {
-    it('passes through activated plugin results when WordPress health succeeds', async function() {
+describe('activation wpok verification', function() {
+    it('passes through activated plugin results when wpok succeeds', async function() {
         const assistant = createAssistant({
-            verifyWordPressHealth() {
+            verifyWpok() {
                 return Promise.resolve(true);
             },
             emergencyDeactivateActivatedPlugin() {
-                throw new Error('Should not deactivate healthy activation');
+                throw new Error('Should not deactivate when wpok succeeds');
             }
         });
 
@@ -411,7 +411,7 @@ describe('activation health verification', function() {
 
     it('returns a failed recovered result when activation breaks WordPress', async function() {
         const assistant = createAssistant({
-            verifyWordPressHealth() {
+            verifyWpok() {
                 return Promise.resolve(false);
             },
             emergencyDeactivateActivatedPlugin(candidate) {
@@ -482,6 +482,54 @@ describe('activation health verification', function() {
 });
 
 describe('plugin change recovery candidates', function() {
+    it('normalizes a trailing invoke tag from edit_file edits before execution', async function() {
+        let observedArgs = null;
+        const assistant = createAssistant({
+            yoloMode: true,
+            executeSingleTool(toolCall) {
+                observedArgs = toolCall.arguments;
+                return Promise.resolve({
+                    id: toolCall.id,
+                    name: toolCall.name,
+                    input: toolCall.arguments,
+                    result: { path: 'plugins/test-plugin/test-plugin.php' },
+                    success: true
+                });
+            },
+            verifyPluginFileMutationResults(results) {
+                return Promise.resolve(results);
+            },
+            checkAllToolsResolved() {}
+        });
+
+        assistant.processToolCallImmediate('tool-edit', 'edit_file', {
+            path: 'plugins/test-plugin/test-plugin.php',
+            edits: '[{"search":"Test Plugin","replace":"Modified Plugin"}]\n</invoke>',
+            reason: 'Test edit'
+        }, 'anthropic');
+
+        await flushPromises();
+
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(observedArgs.edits)), [
+            {
+                search: 'Test Plugin',
+                replace: 'Modified Plugin'
+            }
+        ]);
+    });
+
+    it('leaves non-invoke malformed edit_file edits untouched', function() {
+        const assistant = createAssistant();
+        const edits = '[{"search":"Test Plugin","replace":"Modified Plugin"}]\n<parameter name="reason">bad';
+
+        const normalized = assistant.normalizeToolArguments('edit_file', {
+            path: 'plugins/test-plugin/test-plugin.php',
+            edits: edits
+        });
+
+        assert.strictEqual(normalized.edits, edits);
+    });
+
     it('records plugin file mutations as deferred recovery candidates', function() {
         const assistant = createAssistant();
 
@@ -511,9 +559,9 @@ describe('plugin change recovery candidates', function() {
         assert.strictEqual(assistant.pendingPluginRecoveryCandidate, undefined);
     });
 
-    it('clears deferred candidates when WordPress health succeeds at a boundary', async function() {
+    it('clears deferred candidates when wpok succeeds at a boundary', async function() {
         const assistant = createAssistant({
-            verifyWordPressHealth() {
+            verifyWpok() {
                 return Promise.resolve(true);
             }
         });
@@ -530,9 +578,9 @@ describe('plugin change recovery candidates', function() {
         assert.strictEqual(assistant.pendingPluginRecoveryCandidate, null);
     });
 
-    it('emergency-disables deferred candidates when WordPress health fails at a boundary', async function() {
+    it('emergency-disables deferred candidates when wpok fails at a boundary', async function() {
         const assistant = createAssistant({
-            verifyWordPressHealth() {
+            verifyWpok() {
                 return Promise.resolve(false);
             },
             emergencyDeactivateActivatedPlugin(candidate) {
@@ -561,7 +609,7 @@ describe('plugin change recovery candidates', function() {
     it('returns recovery as the boundary tool result instead of running that tool', async function() {
         let executed = false;
         const assistant = createAssistant({
-            verifyWordPressHealth() {
+            verifyWpok() {
                 return Promise.resolve(false);
             },
             emergencyDeactivateActivatedPlugin(candidate) {
@@ -583,7 +631,7 @@ describe('plugin change recovery candidates', function() {
                 });
             },
             handleToolResults(results) {
-                this._handledResults = results;
+                this._handledResults = (this.pendingToolResults || []).concat(results);
             },
             notifyToolCallCallbacks() {}
         });
@@ -612,14 +660,14 @@ describe('plugin change recovery candidates', function() {
         assert.strictEqual(assistant._handledResults[0].result.skipped, true);
     });
 
-    it('runs the boundary tool when later edits have restored WordPress health', async function() {
+    it('runs the boundary tool when later edits have restored wpok', async function() {
         let executed = false;
         const assistant = createAssistant({
-            verifyWordPressHealth() {
+            verifyWpok() {
                 return Promise.resolve(true);
             },
             emergencyDeactivateActivatedPlugin() {
-                throw new Error('Should not emergency-disable a healthy plugin');
+                throw new Error('Should not emergency-disable when wpok succeeds');
             },
             executeSingleTool() {
                 executed = true;
@@ -632,7 +680,7 @@ describe('plugin change recovery candidates', function() {
                 });
             },
             handleToolResults(results) {
-                this._handledResults = results;
+                this._handledResults = (this.pendingToolResults || []).concat(results);
             },
             notifyToolCallCallbacks() {}
         });
@@ -656,6 +704,69 @@ describe('plugin change recovery candidates', function() {
 
         assert.strictEqual(executed, true);
         assert.strictEqual(assistant._handledResults[0].success, true);
+        assert.strictEqual(assistant.pendingPluginRecoveryCandidate, null);
+    });
+
+    it('emergency-disables immediately when a streamed plugin file edit breaks WordPress', async function() {
+        let resolveHandled;
+        const handledPromise = new Promise(resolve => {
+            resolveHandled = resolve;
+        });
+        const assistant = createAssistant({
+            yoloMode: true,
+            streamComplete: true,
+            useRealCheckAllToolsResolved: true,
+            verifyWpok() {
+                return Promise.resolve(false);
+            },
+            emergencyDeactivateActivatedPlugin(candidate) {
+                assert.strictEqual(candidate.plugin_slug, 'school-timetable');
+                return Promise.resolve({
+                    action: 'emergency_guarded',
+                    plugin_file: 'school-timetable/school-timetable.php',
+                    guarded_path: 'plugins/school-timetable/school-timetable.php'
+                });
+            },
+            executeSingleTool(toolCall) {
+                return Promise.resolve({
+                    id: toolCall.id,
+                    name: toolCall.name,
+                    input: toolCall.arguments,
+                    result: {
+                        path: 'plugins/school-timetable/src/App.php',
+                        edits_applied: 1
+                    },
+                    success: true
+                });
+            },
+            handleToolResults(results) {
+                this._handledResults = (this.pendingToolResults || []).concat(results);
+                resolveHandled(this._handledResults);
+            },
+            notifyToolCallCallbacks() {}
+        });
+
+        assistant.processToolCallImmediate('tool-edit', 'edit_file', {
+            path: 'plugins/school-timetable/src/App.php',
+            edits: [
+                {
+                    search: 'old',
+                    replace: 'new'
+                }
+            ],
+            reason: 'Test edit'
+        }, 'anthropic');
+
+        const handledResults = await Promise.race([
+            handledPromise,
+            new Promise((resolve, reject) => setTimeout(function() {
+                reject(new Error('handleToolResults was not called'));
+            }, 100))
+        ]);
+
+        assert.strictEqual(handledResults[0].success, false);
+        assert.match(handledResults[0].result.error, /automatically emergency-disabled/);
+        assert.strictEqual(handledResults[0].result.recovery.action, 'emergency_guarded');
         assert.strictEqual(assistant.pendingPluginRecoveryCandidate, null);
     });
 

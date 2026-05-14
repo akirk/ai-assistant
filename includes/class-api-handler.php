@@ -24,13 +24,13 @@ class API_Handler {
 
         add_action('wp_ajax_ai_assistant_execute_tool', [$this, 'handle_execute_tool']);
         add_action('wp_ajax_ai_assistant_get_ability_details', [$this, 'handle_get_ability_details']);
-        add_action('wp_ajax_ai_assistant_health_check', [$this, 'handle_health_check']);
+        add_action('wp_ajax_ai_assistant_wpok', [$this, 'handle_wpok']);
     }
 
     /**
-     * Lightweight AJAX endpoint used to confirm WordPress can bootstrap again.
+     * Lightweight AJAX endpoint used to confirm WordPress is OK after recovery.
      */
-    public function handle_health_check() {
+    public function handle_wpok() {
         check_ajax_referer('ai_assistant_chat', '_wpnonce');
 
         if (
