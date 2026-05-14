@@ -110,6 +110,10 @@ class ConversationsTest extends TestCase {
         $this->assertSame('ai-assistant-conversation-export/v1', $decoded['schema']);
         $this->assertSame(123, $decoded['conversation']['id']);
         $this->assertSame('Ada Lovelace', $decoded['conversation']['author_display_name']);
+        $this->assertArrayNotHasKey('system_prompt', $decoded['conversation']);
+        $this->assertSame('system', $decoded['conversation']['messages'][0]['role']);
+        $this->assertSame('Stored system prompt.', $decoded['conversation']['messages'][0]['content']);
+        $this->assertSame('user', $decoded['conversation']['messages'][1]['role']);
     }
 
     public function test_prepare_conversation_messages_for_export_adds_only_distinct_markdown_and_html(): void {
@@ -144,10 +148,10 @@ class ConversationsTest extends TestCase {
         ]);
         $decoded = json_decode($payload['content'], true);
 
-        $this->assertArrayNotHasKey('markdown', $decoded['conversation']['messages'][0]);
-        $this->assertArrayNotHasKey('html', $decoded['conversation']['messages'][0]);
         $this->assertArrayNotHasKey('markdown', $decoded['conversation']['messages'][1]);
         $this->assertArrayNotHasKey('html', $decoded['conversation']['messages'][1]);
+        $this->assertArrayNotHasKey('markdown', $decoded['conversation']['messages'][2]);
+        $this->assertArrayNotHasKey('html', $decoded['conversation']['messages'][2]);
         $this->assertStringNotContainsString('<h2>Export Heading</h2>', $payload['content']);
         $this->assertStringNotContainsString('[Tool: read_file]', $payload['content']);
         $this->assertStringContainsString('secret file contents', $payload['content']);
@@ -184,6 +188,7 @@ class ConversationsTest extends TestCase {
             'message_count' => 3,
             'provider' => 'openai',
             'model' => 'gpt-test',
+            'system_prompt' => 'Stored system prompt.',
             'created' => '2026-05-13 10:00:00',
             'modified' => '2026-05-13 10:05:00',
             'author_id' => 1,

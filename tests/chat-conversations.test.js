@@ -137,6 +137,9 @@ function loadConversationMixin(initialStorage, config, options) {
         jQuery: createJQuery(input, options),
         aiAssistantConfig: config || {},
         localStorage: storage,
+        btoa(value) {
+            return Buffer.from(value, 'binary').toString('base64');
+        },
         console
     };
 
@@ -194,6 +197,40 @@ describe('draft history', function() {
 });
 
 describe('conversation exports', function() {
+    it('sends the system prompt when saving a conversation', function() {
+        let postedData = null;
+        const { assistant } = loadConversationMixin(null, {
+            ajaxUrl: '/admin-ajax.php',
+            nonce: 'nonce'
+        }, {
+            ajax(settings) {
+                postedData = settings.data;
+                settings.success({
+                    success: true,
+                    data: {
+                        conversation_id: 77,
+                        title: 'Saved conversation'
+                    }
+                });
+                settings.complete();
+            }
+        });
+
+        assistant.messages = [{ role: 'user', content: 'Save this.' }];
+        assistant.systemPrompt = 'Stored system prompt.';
+        assistant.conversationId = 0;
+        assistant.conversationTitle = 'Saved conversation';
+        assistant.getProvider = function() { return 'openai'; };
+        assistant.getModel = function() { return 'gpt-test'; };
+        assistant.updateSidebarSelection = function() {};
+        assistant.updateSummarizeButton = function() {};
+        assistant.updateExportButton = function() {};
+
+        assistant.saveConversation(true);
+
+        assert.strictEqual(postedData.system_prompt, 'Stored system prompt.');
+    });
+
     it('reads export formats from localized config', function() {
         const { assistant } = loadConversationMixin(null, {
             conversationExportFormats: [

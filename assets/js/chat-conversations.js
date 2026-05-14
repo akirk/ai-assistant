@@ -246,7 +246,8 @@
                     messages: btoa(unescape(encodeURIComponent(JSON.stringify(this.messages)))),
                     title: this.conversationTitle,
                     provider: this.conversationProvider || this.getProvider(),
-                    model: this.conversationModel || this.getModel()
+                    model: this.conversationModel || this.getModel(),
+                    system_prompt: this.systemPrompt || ''
                 },
                 success: function(response) {
                     saveResponse = response;

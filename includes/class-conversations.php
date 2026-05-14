@@ -466,6 +466,7 @@ class Conversations {
             'message_count' => count($messages),
             'provider' => get_post_meta($conversation_id, '_ai_provider', true) ?: '',
             'model' => get_post_meta($conversation_id, '_ai_model', true) ?: '',
+            'system_prompt' => get_post_meta($conversation_id, '_ai_system_prompt', true) ?: '',
             'created' => $post->post_date_gmt ?: $post->post_date,
             'modified' => $post->post_modified_gmt ?: $post->post_modified,
             'author_id' => $author_id,
@@ -523,6 +524,7 @@ class Conversations {
 
     public function export_conversation_as_json(array $conversation, array $format) {
         $conversation = $this->remove_export_representations_from_json_export($conversation);
+        $conversation = $this->move_system_prompt_into_json_messages($conversation);
 
         return [
             'filename' => $this->build_export_filename($conversation, $format),
@@ -533,6 +535,37 @@ class Conversations {
                 'conversation' => $conversation,
             ]),
         ];
+    }
+
+    private function move_system_prompt_into_json_messages(array $conversation) {
+        $system_prompt = isset($conversation['system_prompt']) && is_scalar($conversation['system_prompt'])
+            ? (string) $conversation['system_prompt']
+            : '';
+        unset($conversation['system_prompt']);
+
+        if ($system_prompt === '') {
+            return $conversation;
+        }
+
+        if (empty($conversation['messages']) || !is_array($conversation['messages'])) {
+            $conversation['messages'] = [];
+        }
+
+        $first_message = $conversation['messages'][0] ?? null;
+        if (
+            is_array($first_message)
+            && ($first_message['role'] ?? '') === 'system'
+            && ($first_message['content'] ?? '') === $system_prompt
+        ) {
+            return $conversation;
+        }
+
+        array_unshift($conversation['messages'], [
+            'role' => 'system',
+            'content' => $system_prompt,
+        ]);
+
+        return $conversation;
     }
 
     public function export_conversation_as_markdown(array $conversation, array $format) {
@@ -1241,6 +1274,9 @@ class Conversations {
         $title = sanitize_text_field($_POST['title'] ?? '');
         $provider = sanitize_text_field($_POST['provider'] ?? '');
         $model = sanitize_text_field($_POST['model'] ?? '');
+        $system_prompt = isset($_POST['system_prompt']) && is_scalar($_POST['system_prompt'])
+            ? (string) wp_unslash($_POST['system_prompt'])
+            : '';
 
         // Decode base64 to get message count for title generation
         $messages_json = base64_decode($messages_base64);
@@ -1284,6 +1320,7 @@ class Conversations {
         update_post_meta($post_id, '_ai_message_count', count($messages));
         update_post_meta($post_id, '_ai_provider', $provider);
         update_post_meta($post_id, '_ai_model', $model);
+        update_post_meta($post_id, '_ai_system_prompt', function_exists('wp_slash') ? wp_slash($system_prompt) : $system_prompt);
 
         wp_send_json_success([
             'conversation_id' => $post_id,
