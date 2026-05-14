@@ -190,8 +190,14 @@ class Conversations {
                 : $message;
             $markdown = $this->message_to_plain_text($render_message, $include_tool_calls);
 
-            $message['markdown'] = $markdown;
-            $message['html'] = $markdown !== '' ? $this->render_export_markdown_content($markdown) : '';
+            if ($markdown !== '' && !$this->message_content_matches_export_representation($message['content'] ?? '', $markdown)) {
+                $message['markdown'] = $markdown;
+            }
+
+            $html = $markdown !== '' ? $this->render_export_markdown_content($markdown) : '';
+            if ($html !== '' && !$this->message_content_matches_export_representation($message['content'] ?? '', $html)) {
+                $message['html'] = $html;
+            }
             $prepared_messages[] = $message;
         }
 
@@ -208,14 +214,18 @@ class Conversations {
         return $message;
     }
 
-    private function remove_html_from_json_export(array $conversation) {
+    private function message_content_matches_export_representation($content, $representation) {
+        return is_string($content) && $content === $representation;
+    }
+
+    private function remove_export_representations_from_json_export(array $conversation) {
         if (empty($conversation['messages']) || !is_array($conversation['messages'])) {
             return $conversation;
         }
 
         foreach ($conversation['messages'] as &$message) {
             if (is_array($message)) {
-                unset($message['html']);
+                unset($message['markdown'], $message['html']);
             }
         }
         unset($message);
@@ -512,7 +522,7 @@ class Conversations {
     }
 
     public function export_conversation_as_json(array $conversation, array $format) {
-        $conversation = $this->remove_html_from_json_export($conversation);
+        $conversation = $this->remove_export_representations_from_json_export($conversation);
 
         return [
             'filename' => $this->build_export_filename($conversation, $format),
