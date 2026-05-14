@@ -217,4 +217,14 @@ class SettingsTest extends TestCase {
         $this->assertStringContainsString('Never publish/overwrite or use db_query', $prompt);
         $this->assertStringContainsString('report title, ID, edit URL.', $prompt);
     }
+
+    public function test_system_prompt_advertises_my_wordpress_skill(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
+
+        $prompt = $this->settings->get_system_prompt();
+
+        $this->assertStringContainsString('my-wordpress (context): Using My WordPress', $prompt);
+        $this->assertStringContainsString('personal WordPress can be used for', $prompt);
+        $this->assertStringContainsString('my.wordpress.net', $prompt);
+    }
 }
