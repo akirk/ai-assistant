@@ -329,8 +329,8 @@
 
             this.pendingPluginRecoveryCandidate = candidates[candidates.length - 1];
 
-            return this.verifyWordPressHealth().then(function(healthy) {
-                if (healthy) {
+            return this.verifyWpok().then(function(wpok) {
+                if (wpok) {
                     self.pendingPluginRecoveryCandidate = null;
                     return results;
                 }
@@ -420,8 +420,8 @@
                 return Promise.resolve(null);
             }
 
-            return this.verifyWordPressHealth().then(function(healthy) {
-                if (healthy) {
+            return this.verifyWpok().then(function(wpok) {
+                if (wpok) {
                     self.pendingPluginRecoveryCandidate = null;
                     return null;
                 }
@@ -445,8 +445,8 @@
                     return Promise.resolve(result);
                 }
 
-                return self.verifyWordPressHealth().then(function(healthy) {
-                    if (healthy) {
+                return self.verifyWpok().then(function(wpok) {
+                    if (wpok) {
                         return result;
                     }
 
@@ -536,7 +536,7 @@
             return pluginFile.replace(/\.php$/i, '').toLowerCase();
         },
 
-        verifyWordPressHealth: function() {
+        verifyWpok: function() {
             if (!window.aiAssistantConfig || !aiAssistantConfig.ajaxUrl || !aiAssistantConfig.nonce) {
                 return Promise.resolve(true);
             }
@@ -549,7 +549,7 @@
                     global: false,
                     timeout: 5000,
                     data: {
-                        action: 'ai_assistant_health_check',
+                        action: 'ai_assistant_wpok',
                         _wpnonce: aiAssistantConfig.nonce
                     },
                     success: function(response) {
@@ -582,7 +582,7 @@
                     arguments: {
                         plugin_slug: candidate.plugin_slug,
                         plugin_file: candidate.plugin_file || '',
-                        reason: 'Emergency deactivate after plugin failed WordPress health check'
+                        reason: 'Emergency deactivate after plugin failed wpok probe'
                     },
                     conversation_id: this.conversationId || 0
                 })

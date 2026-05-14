@@ -380,14 +380,14 @@ describe('tool call callbacks', function() {
     });
 });
 
-describe('activation health verification', function() {
-    it('passes through activated plugin results when WordPress health succeeds', async function() {
+describe('activation wpok verification', function() {
+    it('passes through activated plugin results when wpok succeeds', async function() {
         const assistant = createAssistant({
-            verifyWordPressHealth() {
+            verifyWpok() {
                 return Promise.resolve(true);
             },
             emergencyDeactivateActivatedPlugin() {
-                throw new Error('Should not deactivate healthy activation');
+                throw new Error('Should not deactivate when wpok succeeds');
             }
         });
 
@@ -411,7 +411,7 @@ describe('activation health verification', function() {
 
     it('returns a failed recovered result when activation breaks WordPress', async function() {
         const assistant = createAssistant({
-            verifyWordPressHealth() {
+            verifyWpok() {
                 return Promise.resolve(false);
             },
             emergencyDeactivateActivatedPlugin(candidate) {
@@ -559,9 +559,9 @@ describe('plugin change recovery candidates', function() {
         assert.strictEqual(assistant.pendingPluginRecoveryCandidate, undefined);
     });
 
-    it('clears deferred candidates when WordPress health succeeds at a boundary', async function() {
+    it('clears deferred candidates when wpok succeeds at a boundary', async function() {
         const assistant = createAssistant({
-            verifyWordPressHealth() {
+            verifyWpok() {
                 return Promise.resolve(true);
             }
         });
@@ -578,9 +578,9 @@ describe('plugin change recovery candidates', function() {
         assert.strictEqual(assistant.pendingPluginRecoveryCandidate, null);
     });
 
-    it('emergency-disables deferred candidates when WordPress health fails at a boundary', async function() {
+    it('emergency-disables deferred candidates when wpok fails at a boundary', async function() {
         const assistant = createAssistant({
-            verifyWordPressHealth() {
+            verifyWpok() {
                 return Promise.resolve(false);
             },
             emergencyDeactivateActivatedPlugin(candidate) {
@@ -609,7 +609,7 @@ describe('plugin change recovery candidates', function() {
     it('returns recovery as the boundary tool result instead of running that tool', async function() {
         let executed = false;
         const assistant = createAssistant({
-            verifyWordPressHealth() {
+            verifyWpok() {
                 return Promise.resolve(false);
             },
             emergencyDeactivateActivatedPlugin(candidate) {
@@ -660,14 +660,14 @@ describe('plugin change recovery candidates', function() {
         assert.strictEqual(assistant._handledResults[0].result.skipped, true);
     });
 
-    it('runs the boundary tool when later edits have restored WordPress health', async function() {
+    it('runs the boundary tool when later edits have restored wpok', async function() {
         let executed = false;
         const assistant = createAssistant({
-            verifyWordPressHealth() {
+            verifyWpok() {
                 return Promise.resolve(true);
             },
             emergencyDeactivateActivatedPlugin() {
-                throw new Error('Should not emergency-disable a healthy plugin');
+                throw new Error('Should not emergency-disable when wpok succeeds');
             },
             executeSingleTool() {
                 executed = true;
@@ -716,7 +716,7 @@ describe('plugin change recovery candidates', function() {
             yoloMode: true,
             streamComplete: true,
             useRealCheckAllToolsResolved: true,
-            verifyWordPressHealth() {
+            verifyWpok() {
                 return Promise.resolve(false);
             },
             emergencyDeactivateActivatedPlugin(candidate) {
