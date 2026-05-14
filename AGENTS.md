@@ -205,6 +205,8 @@ Skills are markdown files in `/skills/` loaded into the system prompt on demand 
 
 - `conversation-context.md` - How to find/use context from past conversations
 - `blocks-no-build.md` - How to create Gutenberg blocks without a build step
+- `wp-app.md` - How to create app-like WordPress plugins through WpApp
+- `my-wordpress.md` - Context for My WordPress / personal WordPress
 
 ## Key Patterns
 

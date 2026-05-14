@@ -837,6 +837,8 @@ class ExecutorTest extends TestCase {
     // ===== CONSOLIDATED 'environment_info' TOOL TESTS =====
 
     public function test_environment_info_returns_data(): void {
+        $GLOBALS['wp_test_options']['active_plugins'] = ['ai-assistant/ai-assistant.php'];
+
         $result = $this->executor->execute_tool('environment_info', []);
 
         $this->assertIsArray($result);
@@ -844,6 +846,8 @@ class ExecutorTest extends TestCase {
         $this->assertArrayHasKey('php', $result);
         $this->assertArrayHasKey('theme', $result);
         $this->assertArrayHasKey('plugins', $result);
+        $this->assertSame('AI Assistant', $result['plugins']['ai-assistant']['title']);
+        $this->assertSame('AI-powered chat interface for WordPress.', $result['plugins']['ai-assistant']['description']);
         $this->assertArrayNotHasKey('inactive', $result);
     }
 
@@ -854,6 +858,8 @@ class ExecutorTest extends TestCase {
 
         $this->assertIsArray($result);
         $this->assertArrayHasKey('inactive', $result);
+        $this->assertSame('Hello Dolly', $result['inactive']['hello']['title']);
+        $this->assertStringContainsString('hope and enthusiasm', $result['inactive']['hello']['description']);
     }
 
     public function test_environment_info_read_only_permission(): void {

@@ -245,8 +245,16 @@ if (!function_exists('wp_get_theme'))   {
 if (!function_exists('get_plugins'))    {
     function get_plugins() {
         return [
-            'hello.php' => ['Name' => 'Hello Dolly', 'Version' => '1.7.2'],
-            'ai-assistant/ai-assistant.php' => ['Name' => 'AI Assistant', 'Version' => '1.0'],
+            'hello.php' => [
+                'Name' => 'Hello Dolly',
+                'Description' => 'This is not just a plugin, it symbolizes the hope and enthusiasm of an entire generation.',
+                'Version' => '1.7.2',
+            ],
+            'ai-assistant/ai-assistant.php' => [
+                'Name' => 'AI Assistant',
+                'Description' => 'AI-powered chat interface for WordPress.',
+                'Version' => '1.0',
+            ],
         ];
     }
 }

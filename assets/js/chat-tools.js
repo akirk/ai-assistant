@@ -103,7 +103,7 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'environment_info',
-                    description: 'Get active plugins, theme, WP/PHP versions.',
+                    description: 'Get active plugins with titles/descriptions, theme, WP/PHP versions.',
                     input_schema: {
                         type: 'object',
                         properties: {
