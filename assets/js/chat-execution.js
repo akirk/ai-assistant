@@ -130,6 +130,8 @@
             });
 
             Promise.all(promises).then(function(results) {
+                return self.verifyActivatedPluginResults(results);
+            }).then(function(results) {
                 results.forEach(function(result) {
                     if (result.success) {
                         var successOptions = result.name === 'navigate'
@@ -148,6 +150,174 @@
             }).catch(function(error) {
                 self.setLoading(false);
                 self.addMessage('error', 'Tool execution error: ' + error.message);
+            });
+        },
+
+        verifyActivatedPluginResults: function(results) {
+            var self = this;
+            var checks = results.map(function(result) {
+                var candidate = self.getActivatedPluginCandidate(result);
+                if (!candidate) {
+                    return Promise.resolve(result);
+                }
+
+                return self.verifyWordPressHealth().then(function(healthy) {
+                    if (healthy) {
+                        return result;
+                    }
+
+                    return self.emergencyDeactivateActivatedPlugin(candidate).then(function(recovery) {
+                        return {
+                            id: result.id,
+                            name: result.name,
+                            input: result.input,
+                            success: false,
+                            result: {
+                                error: 'Plugin activation broke WordPress and the plugin was automatically deactivated.',
+                                activation_result: result.result,
+                                recovery: recovery
+                            }
+                        };
+                    }).catch(function(error) {
+                        return {
+                            id: result.id,
+                            name: result.name,
+                            input: result.input,
+                            success: false,
+                            result: {
+                                error: 'Plugin activation broke WordPress, and automatic deactivation failed: ' + error.message,
+                                activation_result: result.result
+                            }
+                        };
+                    });
+                });
+            });
+
+            return Promise.all(checks);
+        },
+
+        getActivatedPluginCandidate: function(toolResult) {
+            if (!toolResult || !toolResult.success) {
+                return null;
+            }
+
+            var toolName = toolResult.name || toolResult.tool;
+            var input = toolResult.input || {};
+            var result = toolResult.result || {};
+
+            if (toolName === 'install_plugin' && input.activate) {
+                var active = result.active === true ||
+                    result.status === 'activated' ||
+                    result.status === 'installed_and_activated';
+                if (!active) {
+                    return null;
+                }
+
+                return {
+                    plugin_slug: this.extractPluginSlug(input.slug || '', result.plugin_file || ''),
+                    plugin_file: result.plugin_file || ''
+                };
+            }
+
+            if (toolName === 'ability' && input.action === 'execute' && input.ability === 'create-wp-app/scaffold') {
+                var abilityResult = result.result || result;
+                if (!abilityResult || abilityResult.activated !== true) {
+                    return null;
+                }
+
+                return {
+                    plugin_slug: abilityResult.plugin_slug || '',
+                    plugin_file: ''
+                };
+            }
+
+            return null;
+        },
+
+        extractPluginSlug: function(slug, pluginFile) {
+            slug = String(slug || '').trim();
+            if (slug && /^[a-z0-9][a-z0-9-]*$/i.test(slug)) {
+                return slug.toLowerCase();
+            }
+
+            pluginFile = String(pluginFile || '').replace(/\\/g, '/').replace(/^\/+/, '');
+            if (!pluginFile) {
+                return '';
+            }
+
+            if (pluginFile.indexOf('/') !== -1) {
+                return pluginFile.split('/')[0].toLowerCase();
+            }
+
+            return pluginFile.replace(/\.php$/i, '').toLowerCase();
+        },
+
+        verifyWordPressHealth: function() {
+            if (!window.aiAssistantConfig || !aiAssistantConfig.ajaxUrl || !aiAssistantConfig.nonce) {
+                return Promise.resolve(true);
+            }
+
+            return new Promise(function(resolve) {
+                $.ajax({
+                    url: aiAssistantConfig.ajaxUrl,
+                    type: 'POST',
+                    dataType: 'json',
+                    global: false,
+                    timeout: 5000,
+                    data: {
+                        action: 'ai_assistant_health_check',
+                        _wpnonce: aiAssistantConfig.nonce
+                    },
+                    success: function(response) {
+                        resolve(!!(response && response.success));
+                    },
+                    error: function() {
+                        resolve(false);
+                    }
+                });
+            });
+        },
+
+        emergencyDeactivateActivatedPlugin: function(candidate) {
+            if (!candidate || !candidate.plugin_slug || candidate.plugin_slug === 'ai-assistant') {
+                return Promise.reject(new Error('No valid plugin candidate to deactivate'));
+            }
+
+            if (!window.aiAssistantConfig || !aiAssistantConfig.fileToolsUrl || !aiAssistantConfig.fileToolsToken) {
+                return Promise.reject(new Error('File recovery endpoint is not configured'));
+            }
+
+            return fetch(aiAssistantConfig.fileToolsUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    token: aiAssistantConfig.fileToolsToken,
+                    tool: 'emergency_deactivate_plugin',
+                    arguments: {
+                        plugin_slug: candidate.plugin_slug,
+                        plugin_file: candidate.plugin_file || '',
+                        reason: 'Emergency deactivate after activation failed WordPress health check'
+                    },
+                    conversation_id: this.conversationId || 0
+                })
+            }).then(function(response) {
+                return response.text().then(function(text) {
+                    var payload;
+                    try {
+                        payload = JSON.parse(text);
+                    } catch (e) {
+                        throw new Error('File recovery endpoint returned non-JSON response');
+                    }
+
+                    if (!payload || !payload.success) {
+                        var message = payload && payload.data && (payload.data.message || payload.data.error);
+                        throw new Error(message || 'Emergency deactivate failed');
+                    }
+
+                    return payload.data || {};
+                });
             });
         },
 

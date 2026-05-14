@@ -332,6 +332,107 @@ describe('tool call callbacks', function() {
     });
 });
 
+describe('activation health verification', function() {
+    it('passes through activated plugin results when WordPress health succeeds', async function() {
+        const assistant = createAssistant({
+            verifyWordPressHealth() {
+                return Promise.resolve(true);
+            },
+            emergencyDeactivateActivatedPlugin() {
+                throw new Error('Should not deactivate healthy activation');
+            }
+        });
+
+        const results = await assistant.verifyActivatedPluginResults([
+            {
+                id: 'tool-1',
+                name: 'install_plugin',
+                input: { slug: 'akismet', activate: true },
+                result: {
+                    status: 'installed_and_activated',
+                    plugin_file: 'akismet/akismet.php',
+                    active: true
+                },
+                success: true
+            }
+        ]);
+
+        assert.strictEqual(results[0].success, true);
+        assert.strictEqual(results[0].result.status, 'installed_and_activated');
+    });
+
+    it('returns a failed recovered result when activation breaks WordPress', async function() {
+        const assistant = createAssistant({
+            verifyWordPressHealth() {
+                return Promise.resolve(false);
+            },
+            emergencyDeactivateActivatedPlugin(candidate) {
+                assert.strictEqual(candidate.plugin_slug, 'school-timetable');
+                return Promise.resolve({
+                    action: 'emergency_deactivated',
+                    old_path: 'plugins/school-timetable',
+                    new_path: 'plugins/school-timetable.disabled'
+                });
+            }
+        });
+
+        const results = await assistant.verifyActivatedPluginResults([
+            {
+                id: 'tool-2',
+                name: 'ability',
+                input: {
+                    action: 'execute',
+                    ability: 'create-wp-app/scaffold'
+                },
+                result: {
+                    result: {
+                        plugin_slug: 'school-timetable',
+                        activated: true
+                    }
+                },
+                success: true
+            }
+        ]);
+
+        assert.strictEqual(results[0].success, false);
+        assert.match(results[0].result.error, /automatically deactivated/);
+        assert.strictEqual(results[0].result.recovery.action, 'emergency_deactivated');
+    });
+
+    it('extracts activated plugin candidates from install_plugin and create-wp-app results', function() {
+        const assistant = createAssistant();
+
+        const installCandidate = assistant.getActivatedPluginCandidate({
+            name: 'install_plugin',
+            input: { slug: 'akismet', activate: true },
+            result: {
+                status: 'activated',
+                plugin_file: 'akismet/akismet.php'
+            },
+            success: true
+        });
+        assert.strictEqual(installCandidate.plugin_slug, 'akismet');
+        assert.strictEqual(installCandidate.plugin_file, 'akismet/akismet.php');
+
+        const appCandidate = assistant.getActivatedPluginCandidate({
+            name: 'ability',
+            input: {
+                action: 'execute',
+                ability: 'create-wp-app/scaffold'
+            },
+            result: {
+                result: {
+                    plugin_slug: 'school-timetable',
+                    activated: true
+                }
+            },
+            success: true
+        });
+        assert.strictEqual(appCandidate.plugin_slug, 'school-timetable');
+        assert.strictEqual(appCandidate.plugin_file, '');
+    });
+});
+
 describe('executePickImage', function() {
     it('preserves picker failure status when upload cannot complete', async function() {
         const assistant = loadExecutionMixin();
