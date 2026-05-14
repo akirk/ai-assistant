@@ -208,10 +208,6 @@
             });
         },
 
-        shouldAllowExternalImageFallback: function(args) {
-            return !!(args && args.allow_external_fallback === true);
-        },
-
         getPickedImageUploadLimit: function() {
             var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
             var limit = Number(config.maxMediaUploadBytes || 0);
@@ -233,6 +229,9 @@
                 'image/gif': 'gif',
                 'image/webp': 'webp',
                 'image/avif': 'avif',
+                'image/bmp': 'bmp',
+                'image/heic': 'heic',
+                'image/heif': 'heif',
                 'image/svg+xml': 'svg'
             };
             var cleanUrl = String(url || '').split('?')[0].split('#')[0];
@@ -245,6 +244,9 @@
                 gif: true,
                 webp: true,
                 avif: true,
+                bmp: true,
+                heic: true,
+                heif: true,
                 svg: true
             };
 
@@ -264,6 +266,9 @@
                 gif: 'image/gif',
                 webp: 'image/webp',
                 avif: 'image/avif',
+                bmp: 'image/bmp',
+                heic: 'image/heic',
+                heif: 'image/heif',
                 svg: 'image/svg+xml'
             };
 
@@ -293,6 +298,57 @@
             }
 
             return baseName + '.' + this.getPickedImageFileExtension(image.url, contentType);
+        },
+
+        getPickedImageFileTitle: function(file) {
+            var name = String((file && file.name) || '')
+                .replace(/^.*[\\/]/, '')
+                .trim();
+            name = name.replace(/\.[a-z0-9]{2,5}$/i, '');
+            return name || 'Uploaded image';
+        },
+
+        isPickedImageFile: function(file) {
+            if (!file) {
+                return false;
+            }
+            if (typeof this.isImageFile === 'function' && this.isImageFile(file)) {
+                return true;
+            }
+            if (file.type && String(file.type).indexOf('image/') === 0) {
+                return true;
+            }
+            return /\.(avif|bmp|gif|heic|heif|jpeg|jpg|png|svg|webp)$/i.test(file.name || '');
+        },
+
+        getPickedImageFileData: function(file) {
+            if (!file) {
+                return Promise.reject(new Error('Drop an image file.'));
+            }
+
+            var contentType = this.getPickedImageMimeType(file.name || '', file.type || '');
+            var limit = this.getPickedImageUploadLimit();
+
+            if (!this.isPickedImageFile(file) || !contentType || contentType.indexOf('image/') !== 0) {
+                return Promise.reject(new Error('Drop an image file.'));
+            }
+
+            if (!file.size) {
+                return Promise.reject(new Error('Selected image was empty.'));
+            }
+
+            if (limit && file.size > limit) {
+                return Promise.reject(new Error('Selected image is larger than this site allows for uploads.'));
+            }
+
+            return Promise.resolve({
+                blob: file,
+                contentType: contentType,
+                filename: this.getPickedImageFileName({
+                    title: this.getPickedImageFileTitle(file),
+                    url: file.name || ''
+                }, contentType)
+            });
         },
 
         getPickedImageMetadata: function(image) {
@@ -463,26 +519,8 @@
             return result;
         },
 
-        buildPickedImageUploadError: function(image, error) {
-            var metadata = this.getPickedImageMetadata(image);
-            var message = error && error.message ? error.message : String(error || 'Upload failed.');
-            return $.extend({}, metadata, {
-                attachment_id: null,
-                id: null,
-                url: '',
-                source_url: '',
-                thumbnail: image && image.thumbnail ? image.thumbnail : '',
-                uploaded: false,
-                external: false,
-                upload_failed: true,
-                external_fallback_allowed: false,
-                error: 'Could not upload selected image to the Media Library: ' + message
-            });
-        },
-
         preparePickedImageSelection: function(image, args, onStatus, signal) {
             var self = this;
-            var allowExternalFallback = this.shouldAllowExternalImageFallback(args);
             var setStatus = typeof onStatus === 'function' ? onStatus : function() {};
 
             setStatus('Fetching selected image...');
@@ -500,17 +538,53 @@
                     };
                 })
                 .catch(function(error) {
-                    if (allowExternalFallback) {
-                        setStatus('Using external image URL');
-                        return {
-                            selection: self.buildPickedImageResult(image, null, error),
-                            success: true
-                        };
-                    }
-
-                    setStatus('Upload failed. Choose another image or cancel.');
+                    setStatus('Media Library upload failed. Drop a photo here or use the external URL.');
                     return {
-                        selection: self.buildPickedImageUploadError(image, error),
+                        selection: self.buildPickedImageResult(image, null, error),
+                        success: false,
+                        can_use_external: true
+                    };
+                });
+        },
+
+        preparePickedImageFileSelection: function(file, onStatus, signal) {
+            var self = this;
+            var setStatus = typeof onStatus === 'function' ? onStatus : function() {};
+            var image = {
+                url: '',
+                thumbnail: '',
+                title: this.getPickedImageFileTitle(file),
+                creator: '',
+                creator_url: '',
+                attribution: '',
+                license: '',
+                license_url: '',
+                source: 'local_upload',
+                landing_url: '',
+                foreign_landing_url: '',
+                width: null,
+                height: null
+            };
+
+            setStatus('Preparing image upload...');
+
+            return this.getPickedImageFileData(file)
+                .then(function(fileData) {
+                    setStatus('Uploading dropped image to Media Library...');
+                    return self.uploadPickedImageToMediaLibrary(fileData, image, signal);
+                })
+                .then(function(attachment) {
+                    setStatus('Uploaded to Media Library');
+                    return {
+                        selection: self.buildPickedImageResult(image, attachment),
+                        success: true
+                    };
+                })
+                .catch(function(error) {
+                    var message = error && error.message ? error.message : String(error || 'Upload failed.');
+                    setStatus(message);
+                    return {
+                        selection: { error: message },
                         success: false
                     };
                 });
@@ -564,6 +638,8 @@
             var done = false;
             var lastFallbackFrom = '';
             var activeSelectionController = null;
+            var selectionRun = 0;
+            var externalFallbackSelection = null;
             var $card = $('[data-tool-id="' + toolId + '"]');
 
             if (!$card.length) {
@@ -597,14 +673,20 @@
                 .val(query);
             var $search = $('<button type="button" class="button button-small ai-image-picker-search">Search</button>');
             var $more = $('<button type="button" class="button button-small ai-image-picker-more">More</button>').hide();
+            var $useExternal = $('<button type="button" class="button button-small ai-image-picker-use-external">Use external URL</button>').hide().prop('disabled', true);
             var $cancel = $('<button type="button" class="button button-small ai-image-picker-cancel">Cancel</button>');
+            var $upload = $('<div class="ai-image-picker-upload" tabindex="0"></div>');
+            var $uploadText = $('<span class="ai-image-picker-upload-text"></span>').text('Drop a photo here');
+            var $browse = $('<button type="button" class="button button-small ai-image-picker-browse">Choose file</button>');
+            var $fileInput = $('<input type="file" class="ai-image-picker-file-input" accept="image/*">').attr('aria-label', 'Choose image file');
             var $status = $('<div class="ai-image-picker-status" aria-live="polite"></div>');
             var $grid = $('<div class="ai-image-picker-grid"></div>');
 
             $headingWrap.append($titleText, $subtitle);
             $header.append($headingWrap, $close);
-            $controls.append($input, $search, $more, $cancel);
-            $picker.append($controls, $status, $grid);
+            $controls.append($input, $search, $more, $useExternal, $cancel);
+            $upload.append($uploadText, $browse, $fileInput);
+            $picker.append($controls, $upload, $status, $grid);
             $dialog.append($header, $picker);
             $overlay.append($dialog);
             $('body').append($overlay);
@@ -621,6 +703,98 @@
                 $overlay.remove();
                 $cardPreview.empty();
                 onSelect(selection, success !== false);
+            }
+
+            function clearExternalFallback() {
+                externalFallbackSelection = null;
+                $useExternal.hide().prop('disabled', true);
+            }
+
+            function showExternalFallback(selection) {
+                externalFallbackSelection = selection || null;
+                $useExternal.toggle(!!externalFallbackSelection).prop('disabled', !externalFallbackSelection);
+            }
+
+            function setSelectionBusy(busy) {
+                $grid.find('.ai-image-result').prop('disabled', busy);
+                $search.prop('disabled', busy);
+                $more.prop('disabled', busy);
+                $input.prop('disabled', busy);
+                $browse.prop('disabled', busy);
+                $upload.toggleClass('is-uploading', busy);
+                if (externalFallbackSelection) {
+                    $useExternal.prop('disabled', busy);
+                }
+            }
+
+            function hasDraggedFiles(e) {
+                if (typeof self.hasFileDrag === 'function') {
+                    return self.hasFileDrag(e);
+                }
+
+                var dataTransfer = e.originalEvent && e.originalEvent.dataTransfer;
+                if (!dataTransfer || !dataTransfer.types) {
+                    return false;
+                }
+
+                for (var i = 0; i < dataTransfer.types.length; i++) {
+                    if (dataTransfer.types[i] === 'Files') {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            function firstImageFile(fileList) {
+                var files = Array.prototype.slice.call(fileList || []);
+                for (var i = 0; i < files.length; i++) {
+                    if (self.isPickedImageFile(files[i])) {
+                        return files[i];
+                    }
+                }
+                return null;
+            }
+
+            function selectLocalFile(file) {
+                if (done) return;
+
+                if (!file) {
+                    $status.text('Drop an image file.');
+                    return;
+                }
+
+                var previousExternalFallback = externalFallbackSelection;
+                clearExternalFallback();
+                if (activeSelectionController) {
+                    activeSelectionController.abort();
+                    activeSelectionController = null;
+                }
+
+                var runId = ++selectionRun;
+                $grid.find('.ai-image-result').removeClass('is-selected');
+                setSelectionBusy(true);
+                activeSelectionController = typeof AbortController !== 'undefined'
+                    ? new AbortController()
+                    : null;
+
+                self.preparePickedImageFileSelection(file, function(message) {
+                    $status.text(message);
+                }, activeSelectionController ? activeSelectionController.signal : null).then(function(outcome) {
+                    if (done || runId !== selectionRun) return;
+                    activeSelectionController = null;
+                    setSelectionBusy(false);
+
+                    if (outcome.success) {
+                        finish(outcome.selection, true);
+                        return;
+                    }
+
+                    if (previousExternalFallback) {
+                        showExternalFallback(previousExternalFallback);
+                    }
+                    $input.prop('disabled', false).trigger('focus');
+                });
             }
 
             function renderResults(results, append) {
@@ -646,11 +820,11 @@
                     $meta.append($title, $details);
                     $result.append($thumb, $meta);
                     $result.on('click', function() {
+                        clearExternalFallback();
                         $grid.find('.ai-image-result').prop('disabled', true).removeClass('is-selected');
                         $result.addClass('is-selected');
-                        $search.prop('disabled', true);
-                        $more.prop('disabled', true);
-                        $input.prop('disabled', true);
+                        setSelectionBusy(true);
+                        var runId = ++selectionRun;
                         activeSelectionController = typeof AbortController !== 'undefined'
                             ? new AbortController()
                             : null;
@@ -658,6 +832,7 @@
                             $status.text(message);
                         }, activeSelectionController ? activeSelectionController.signal : null).then(function(outcome) {
                             if (done) return;
+                            if (runId !== selectionRun) return;
                             activeSelectionController = null;
 
                             if (outcome.success) {
@@ -665,10 +840,12 @@
                                 return;
                             }
 
-                            $grid.find('.ai-image-result').prop('disabled', false);
-                            $result.removeClass('is-selected');
-                            $search.prop('disabled', false);
-                            $more.prop('disabled', false);
+                            setSelectionBusy(false);
+                            if (outcome.can_use_external) {
+                                showExternalFallback(outcome.selection);
+                            } else {
+                                $result.removeClass('is-selected');
+                            }
                             $input.prop('disabled', false).trigger('focus');
                         });
                     });
@@ -679,6 +856,7 @@
             function searchImages(nextPage) {
                 if (done) return;
 
+                clearExternalFallback();
                 var nextQuery = $input.val().trim();
                 if (!nextQuery) {
                     $status.text('Enter a search term.');
@@ -752,6 +930,24 @@
                 searchImages(true);
             });
 
+            $useExternal.on('click', function() {
+                if (externalFallbackSelection) {
+                    finish(externalFallbackSelection, true);
+                }
+            });
+
+            $browse.on('click', function(e) {
+                e.preventDefault();
+                if (!$browse.prop('disabled')) {
+                    $fileInput.trigger('click');
+                }
+            });
+
+            $fileInput.on('change', function() {
+                selectLocalFile(firstImageFile(this.files));
+                this.value = '';
+            });
+
             $cancel.on('click', function() {
                 $status.text('Cancelled');
                 finish({ cancelled: true, message: 'User cancelled image selection' });
@@ -772,6 +968,42 @@
                     e.preventDefault();
                     finish({ cancelled: true, message: 'User cancelled image selection' });
                 }
+            });
+
+            $dialog.on('dragenter dragover', function(e) {
+                if (!hasDraggedFiles(e)) {
+                    return;
+                }
+                e.preventDefault();
+                e.stopPropagation();
+                $upload.addClass('is-drag-over');
+                if (e.originalEvent && e.originalEvent.dataTransfer) {
+                    e.originalEvent.dataTransfer.dropEffect = 'copy';
+                }
+            });
+
+            $dialog.on('dragleave', function(e) {
+                if (!hasDraggedFiles(e)) {
+                    return;
+                }
+                var related = e.relatedTarget || (e.originalEvent && e.originalEvent.relatedTarget);
+                if (!related || !$.contains($dialog[0], related)) {
+                    $upload.removeClass('is-drag-over');
+                }
+            });
+
+            $dialog.on('drop', function(e) {
+                if (!hasDraggedFiles(e)) {
+                    return;
+                }
+                e.preventDefault();
+                e.stopPropagation();
+                $upload.removeClass('is-drag-over');
+
+                var files = e.originalEvent && e.originalEvent.dataTransfer
+                    ? e.originalEvent.dataTransfer.files
+                    : null;
+                selectLocalFile(firstImageFile(files));
             });
 
             $input.on('keydown', function(e) {

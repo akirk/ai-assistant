@@ -83,13 +83,14 @@ class ToolsTest extends TestCase {
         $this->assertContains('needle', $search_content['parameters']['required']);
     }
 
-    public function test_pick_image_returns_media_library_attachment_contract(): void {
+    public function test_pick_image_returns_selected_image_contract(): void {
         $tools = $this->tools->get_all_tools();
         $pick_image = $this->findToolByName($tools, 'pick_image');
 
         $this->assertNotNull($pick_image);
-        $this->assertStringContainsString('Media Library', $pick_image['description']);
-        $this->assertSame('boolean', $pick_image['parameters']['properties']['allow_external_fallback']['type']);
+        $this->assertStringContainsString('choose or upload an image', $pick_image['description']);
+        $this->assertStringContainsString('selected image details', $pick_image['description']);
+        $this->assertArrayNotHasKey('allow_external_fallback', $pick_image['parameters']['properties']);
         $this->assertContains('query', $pick_image['parameters']['required']);
     }
 

@@ -359,7 +359,7 @@ class Tools {
     private function tool_pick_image(): array {
         return [
             'name' => 'pick_image',
-            'description' => 'Ask the user to choose an image. Uploads the selected image to the Media Library first and returns attachment_id plus local url on success.',
+            'description' => 'Ask the user to choose or upload an image and return the selected image details.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
@@ -370,10 +370,6 @@ class Tools {
                     'purpose' => [
                         'type' => 'string',
                         'description' => 'Image use.',
-                    ],
-                    'allow_external_fallback' => [
-                        'type' => 'boolean',
-                        'description' => 'Only set true when using a remote image URL is acceptable if Media Library upload fails.',
                     ],
                 ],
                 'required' => ['query'],

@@ -57,7 +57,7 @@ The AI Assistant panel appears in the WordPress admin screen meta area (alongsid
 | `ability` | List, inspect, or execute WordPress abilities (plugin-exposed actions) |
 | `navigate` | Suggest a clickable link to a URL within the site |
 | `get_page_html` | Get HTML of elements on the current page |
-| `pick_image` | Ask the user to choose and upload an image |
+| `pick_image` | Ask the user to choose or upload an image |
 | `skill` | Load skill documents with specialized WordPress knowledge |
 | `summarize_conversation` | Generate a summary of the current conversation |
 
@@ -153,7 +153,7 @@ The recovery screen highlights recently modified plugins to help identify the cu
 
 Other plugins can expose their functionality to the AI by registering **WordPress Abilities**. See the [WordPress Abilities API handbook](https://developer.wordpress.org/apis/abilities-api/) for the core API, and [docs/plugin-integration.md](docs/plugin-integration.md) for AI Assistant-specific hooks and guidance.
 
-For best results, expose focused abilities with clear input/output schemas instead of requiring the AI to infer database structure or call plugin internals. Register `ai_assistant_ability_domains` keywords so the assistant considers your plugin's abilities specifically for relevant user requests. If your plugin works with images, prefer accepting a Media Library attachment ID when a local asset is required. The assistant can ask the user to choose an image with `pick_image`, which uploads the selected file from the browser and returns `attachment_id`, local `url`, attribution, and source metadata. Remote URL fallback is only returned when the tool caller explicitly allows it.
+For best results, expose focused abilities with clear input/output schemas instead of requiring the AI to infer database structure or call plugin internals. Register `ai_assistant_ability_domains` keywords so the assistant considers your plugin's abilities specifically for relevant user requests. If your plugin works with images, prefer accepting a Media Library attachment ID when a local asset is required. The assistant can ask the user to choose or drop an image with `pick_image`, which uploads selected files from the browser and returns `attachment_id`, local `url`, attribution, and source metadata. If browser download or Media Library upload fails for a search result, the picker offers the remote image URL as a fallback.
 
 Plugins with browser UI can also register JavaScript callbacks for completed tool calls. For example, a page script can listen for its own `ability` execution and refresh visible UI after the server-side ability succeeds.
 
