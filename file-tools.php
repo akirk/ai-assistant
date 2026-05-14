@@ -19,6 +19,7 @@ if (!function_exists('get_theme_root')) {
 require __DIR__ . '/includes/class-file-tool-auth.php';
 require __DIR__ . '/includes/class-git-tracker.php';
 require __DIR__ . '/includes/class-git-tracker-manager.php';
+require __DIR__ . '/includes/class-emergency-plugin-guard.php';
 require __DIR__ . '/includes/class-file-tool-executor.php';
 
 use AI_Assistant\File_Tool_Auth;

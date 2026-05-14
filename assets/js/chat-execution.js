@@ -141,7 +141,7 @@
                             input: tc.arguments || {},
                             success: false,
                             result: {
-                                error: 'WordPress failed after plugin file changes; the plugin was automatically deactivated before running this tool.',
+                                error: 'WordPress failed after plugin file changes; the plugin was automatically emergency-disabled before running this tool.',
                                 skipped: true,
                                 recovery: recovery
                             }
@@ -280,7 +280,7 @@
                             input: result.input,
                             success: false,
                             result: {
-                                error: 'Plugin activation broke WordPress and the plugin was automatically deactivated.',
+                                error: 'Plugin activation broke WordPress and the plugin was automatically emergency-disabled.',
                                 activation_result: result.result,
                                 recovery: recovery
                             }
@@ -292,7 +292,7 @@
                             input: result.input,
                             success: false,
                             result: {
-                                error: 'Plugin activation broke WordPress, and automatic deactivation failed: ' + error.message,
+                                error: 'Plugin activation broke WordPress, and automatic emergency disable failed: ' + error.message,
                                 activation_result: result.result
                             }
                         };

@@ -368,7 +368,7 @@ class ExecutorTest extends TestCase {
         ]);
     }
 
-    public function test_emergency_deactivate_plugin_renames_plugin_directory(): void {
+    public function test_emergency_deactivate_plugin_guards_plugin_main_file(): void {
         $file_tools = new \AI_Assistant\File_Tool_Executor($this->test_dir);
 
         $result = $file_tools->execute('emergency_deactivate_plugin', [
@@ -376,12 +376,31 @@ class ExecutorTest extends TestCase {
             'reason' => 'Recover from activation fatal',
         ]);
 
-        $this->assertSame('emergency_deactivated', $result['action']);
+        $this->assertSame('emergency_guarded', $result['action']);
         $this->assertSame('test-plugin', $result['plugin_slug']);
-        $this->assertSame('plugins/test-plugin', $result['old_path']);
-        $this->assertSame('plugins/test-plugin.disabled', $result['new_path']);
-        $this->assertDirectoryDoesNotExist($this->test_dir . '/plugins/test-plugin');
-        $this->assertDirectoryExists($this->test_dir . '/plugins/test-plugin.disabled');
+        $this->assertSame('test-plugin/test-plugin.php', $result['plugin_file']);
+        $this->assertSame('plugins/test-plugin/test-plugin.php', $result['guarded_path']);
+        $this->assertDirectoryExists($this->test_dir . '/plugins/test-plugin');
+
+        $content = file_get_contents($this->test_dir . '/plugins/test-plugin/test-plugin.php');
+        $this->assertStringStartsWith(\AI_Assistant\Emergency_Plugin_Guard::PREFIX, $content);
+        $this->assertStringContainsString('Plugin Name: Test Plugin', $content);
+    }
+
+    public function test_plugin_recovery_admin_renders_guarded_plugin_row_notice(): void {
+        $main_file = $this->test_dir . '/plugins/test-plugin/test-plugin.php';
+        \AI_Assistant\Emergency_Plugin_Guard::add_guard_to_file($main_file);
+
+        $admin = new \AI_Assistant\Plugin_Recovery_Admin();
+
+        ob_start();
+        $admin->render_guarded_plugin_row('test-plugin/test-plugin.php', ['Name' => 'Test Plugin'], 'active');
+        $output = ob_get_clean();
+
+        $this->assertStringContainsString('ai-assistant-emergency-disabled', $output);
+        $this->assertStringContainsString('Test Plugin was emergency-disabled', $output);
+        $this->assertStringContainsString('ai_assistant_restore_plugin_guard', $output);
+        $this->assertStringContainsString('ai_assistant_deactivate_guarded_plugin', $output);
     }
 
     public function test_emergency_deactivate_plugin_refuses_ai_assistant(): void {

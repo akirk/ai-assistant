@@ -429,53 +429,84 @@ class File_Tool_Executor {
             throw new \Exception('Refusing to emergency deactivate AI Assistant');
         }
 
-        $relative_path = 'plugins/' . $plugin_slug;
-        if ($plugin_file !== '' && strpos($plugin_file, '/') === false) {
-            $relative_path = 'plugins/' . $plugin_file;
+        $main_file = $this->find_plugin_main_file($plugin_slug, $plugin_file);
+        $full_path = $this->resolve_path('plugins/' . $main_file);
+
+        if (!is_file($full_path)) {
+            throw new \Exception("Plugin main file not found: plugins/$main_file");
         }
 
-        $full_path = $this->resolve_path($relative_path);
-        if (!file_exists($full_path)) {
-            throw new \Exception("Plugin path not found: $relative_path");
-        }
-
-        $disabled_relative_path = $this->next_disabled_plugin_path($relative_path);
-        $disabled_full_path = $this->resolve_path($disabled_relative_path);
-
-        if (!rename($full_path, $disabled_full_path)) {
-            throw new \Exception("Failed to emergency deactivate plugin: $relative_path");
+        if (!Emergency_Plugin_Guard::add_guard_to_file($full_path)) {
+            throw new \Exception("Failed to emergency guard plugin: plugins/$main_file");
         }
 
         return [
-            'action'       => 'emergency_deactivated',
+            'action'       => 'emergency_guarded',
             'plugin_slug'  => $plugin_slug,
-            'old_path'     => $relative_path,
-            'new_path'     => $disabled_relative_path,
+            'plugin_file'  => $main_file,
+            'guarded_path' => 'plugins/' . $main_file,
             'reason'       => $reason,
-            'recover_hint' => 'Fix the plugin files, then rename the disabled path back to restore the plugin.',
+            'recover_hint' => 'Fix the plugin files, then restore or deactivate the emergency-disabled plugin from the WordPress Plugins screen.',
         ];
+    }
+
+    private function find_plugin_main_file(string $plugin_slug, string $plugin_file): string {
+        if ($plugin_file !== '') {
+            $relative_path = 'plugins/' . $plugin_file;
+            $full_path = $this->resolve_path($relative_path);
+            if (is_file($full_path)) {
+                return $plugin_file;
+            }
+        }
+
+        $candidate = $plugin_slug . '/' . $plugin_slug . '.php';
+        $candidate_path = $this->resolve_path('plugins/' . $candidate);
+        if (is_file($candidate_path)) {
+            return $candidate;
+        }
+
+        $plugin_dir = $this->resolve_path('plugins/' . $plugin_slug);
+        if (!is_dir($plugin_dir)) {
+            $single_file = $plugin_slug . '.php';
+            $single_file_path = $this->resolve_path('plugins/' . $single_file);
+            if (is_file($single_file_path)) {
+                return $single_file;
+            }
+
+            throw new \Exception("Plugin path not found: plugins/$plugin_slug");
+        }
+
+        $entries = scandir($plugin_dir);
+        if ($entries === false) {
+            throw new \Exception("Failed to inspect plugin directory: plugins/$plugin_slug");
+        }
+
+        foreach ($entries as $entry) {
+            if (!$this->is_php_file($entry)) {
+                continue;
+            }
+
+            $path = $plugin_dir . '/' . $entry;
+            if ($this->file_has_plugin_header($path)) {
+                return $plugin_slug . '/' . $entry;
+            }
+        }
+
+        throw new \Exception("Plugin main file not found for: $plugin_slug");
+    }
+
+    private function file_has_plugin_header(string $path): bool {
+        $content = file_get_contents($path, false, null, 0, 8192);
+        if ($content === false) {
+            return false;
+        }
+
+        return (bool) preg_match('/Plugin Name\s*:/i', $content);
     }
 
     private function normalize_plugin_slug(string $slug): string {
         $slug = strtolower(trim($slug));
         return preg_match('/^[a-z0-9][a-z0-9-]*$/', $slug) ? $slug : '';
-    }
-
-    private function next_disabled_plugin_path(string $relative_path): string {
-        $candidate = $relative_path . '.disabled';
-        if (!file_exists($this->wp_content_path . '/' . $candidate)) {
-            return $candidate;
-        }
-
-        $timestamp = gmdate('Ymd-His');
-        $candidate = $relative_path . '.disabled-' . $timestamp;
-        $counter = 2;
-        while (file_exists($this->wp_content_path . '/' . $candidate)) {
-            $candidate = $relative_path . '.disabled-' . $timestamp . '-' . $counter;
-            $counter++;
-        }
-
-        return $candidate;
     }
 
     private function list_directory(string $path): array {
