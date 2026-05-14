@@ -106,6 +106,10 @@ class File_Tool_Auth {
     }
 
     private static function is_tool_enabled(string $tool_name, array $arguments, array $enabled_tools): bool {
+        if ($tool_name === 'emergency_deactivate_plugin') {
+            return in_array('edit_file', $enabled_tools, true);
+        }
+
         if (in_array($tool_name, $enabled_tools, true)) {
             return true;
         }

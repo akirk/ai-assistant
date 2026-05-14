@@ -332,6 +332,252 @@ describe('tool call callbacks', function() {
     });
 });
 
+describe('activation health verification', function() {
+    it('passes through activated plugin results when WordPress health succeeds', async function() {
+        const assistant = createAssistant({
+            verifyWordPressHealth() {
+                return Promise.resolve(true);
+            },
+            emergencyDeactivateActivatedPlugin() {
+                throw new Error('Should not deactivate healthy activation');
+            }
+        });
+
+        const results = await assistant.verifyActivatedPluginResults([
+            {
+                id: 'tool-1',
+                name: 'install_plugin',
+                input: { slug: 'akismet', activate: true },
+                result: {
+                    status: 'installed_and_activated',
+                    plugin_file: 'akismet/akismet.php',
+                    active: true
+                },
+                success: true
+            }
+        ]);
+
+        assert.strictEqual(results[0].success, true);
+        assert.strictEqual(results[0].result.status, 'installed_and_activated');
+    });
+
+    it('returns a failed recovered result when activation breaks WordPress', async function() {
+        const assistant = createAssistant({
+            verifyWordPressHealth() {
+                return Promise.resolve(false);
+            },
+            emergencyDeactivateActivatedPlugin(candidate) {
+                assert.strictEqual(candidate.plugin_slug, 'school-timetable');
+                return Promise.resolve({
+                    action: 'emergency_deactivated',
+                    old_path: 'plugins/school-timetable',
+                    new_path: 'plugins/school-timetable.disabled'
+                });
+            }
+        });
+
+        const results = await assistant.verifyActivatedPluginResults([
+            {
+                id: 'tool-2',
+                name: 'ability',
+                input: {
+                    action: 'execute',
+                    ability: 'create-wp-app/scaffold'
+                },
+                result: {
+                    result: {
+                        plugin_slug: 'school-timetable',
+                        activated: true
+                    }
+                },
+                success: true
+            }
+        ]);
+
+        assert.strictEqual(results[0].success, false);
+        assert.match(results[0].result.error, /automatically deactivated/);
+        assert.strictEqual(results[0].result.recovery.action, 'emergency_deactivated');
+    });
+
+    it('extracts activated plugin candidates from install_plugin and create-wp-app results', function() {
+        const assistant = createAssistant();
+
+        const installCandidate = assistant.getActivatedPluginCandidate({
+            name: 'install_plugin',
+            input: { slug: 'akismet', activate: true },
+            result: {
+                status: 'activated',
+                plugin_file: 'akismet/akismet.php'
+            },
+            success: true
+        });
+        assert.strictEqual(installCandidate.plugin_slug, 'akismet');
+        assert.strictEqual(installCandidate.plugin_file, 'akismet/akismet.php');
+
+        const appCandidate = assistant.getActivatedPluginCandidate({
+            name: 'ability',
+            input: {
+                action: 'execute',
+                ability: 'create-wp-app/scaffold'
+            },
+            result: {
+                result: {
+                    plugin_slug: 'school-timetable',
+                    activated: true
+                }
+            },
+            success: true
+        });
+        assert.strictEqual(appCandidate.plugin_slug, 'school-timetable');
+        assert.strictEqual(appCandidate.plugin_file, '');
+    });
+});
+
+describe('plugin change recovery candidates', function() {
+    it('records plugin file mutations as deferred recovery candidates', function() {
+        const assistant = createAssistant();
+
+        assistant.rememberPluginRecoveryCandidateFromFileResult({
+            name: 'edit_file',
+            success: true,
+            result: {
+                path: 'plugins/school-timetable/src/App.php'
+            }
+        });
+
+        assert.strictEqual(assistant.pendingPluginRecoveryCandidate.plugin_slug, 'school-timetable');
+        assert.strictEqual(assistant.pendingPluginRecoveryCandidate.changed_path, 'plugins/school-timetable/src/App.php');
+    });
+
+    it('does not record ai-assistant plugin mutations as recovery candidates', function() {
+        const assistant = createAssistant();
+
+        assistant.rememberPluginRecoveryCandidateFromFileResult({
+            name: 'edit_file',
+            success: true,
+            result: {
+                path: 'plugins/ai-assistant/includes/class-settings.php'
+            }
+        });
+
+        assert.strictEqual(assistant.pendingPluginRecoveryCandidate, undefined);
+    });
+
+    it('clears deferred candidates when WordPress health succeeds at a boundary', async function() {
+        const assistant = createAssistant({
+            verifyWordPressHealth() {
+                return Promise.resolve(true);
+            }
+        });
+
+        assistant.pendingPluginRecoveryCandidate = {
+            plugin_slug: 'school-timetable',
+            plugin_file: '',
+            changed_path: 'plugins/school-timetable/src/App.php'
+        };
+
+        const result = await assistant.verifyPendingPluginRecoveryCandidate();
+
+        assert.strictEqual(result, null);
+        assert.strictEqual(assistant.pendingPluginRecoveryCandidate, null);
+    });
+
+    it('deactivates deferred candidates when WordPress health fails at a boundary', async function() {
+        const assistant = createAssistant({
+            verifyWordPressHealth() {
+                return Promise.resolve(false);
+            },
+            emergencyDeactivateActivatedPlugin(candidate) {
+                assert.strictEqual(candidate.plugin_slug, 'school-timetable');
+                return Promise.resolve({
+                    old_path: 'plugins/school-timetable',
+                    new_path: 'plugins/school-timetable.disabled'
+                });
+            }
+        });
+
+        assistant.pendingPluginRecoveryCandidate = {
+            plugin_slug: 'school-timetable',
+            plugin_file: '',
+            changed_path: 'plugins/school-timetable/src/App.php'
+        };
+
+        const recovery = await assistant.verifyPendingPluginRecoveryCandidate();
+
+        assert.strictEqual(recovery.new_path, 'plugins/school-timetable.disabled');
+        assert.strictEqual(recovery.changed_path, 'plugins/school-timetable/src/App.php');
+        assert.strictEqual(assistant.pendingPluginRecoveryCandidate, null);
+    });
+
+    it('returns recovery as the boundary tool result instead of running that tool', async function() {
+        let executed = false;
+        const assistant = createAssistant({
+            verifyWordPressHealth() {
+                return Promise.resolve(false);
+            },
+            emergencyDeactivateActivatedPlugin(candidate) {
+                assert.strictEqual(candidate.plugin_slug, 'school-timetable');
+                return Promise.resolve({
+                    action: 'emergency_deactivated',
+                    old_path: 'plugins/school-timetable',
+                    new_path: 'plugins/school-timetable.disabled'
+                });
+            },
+            executeSingleTool() {
+                executed = true;
+                return Promise.resolve({
+                    id: 'tool-run',
+                    name: 'run_php',
+                    input: { code: 'return true;' },
+                    result: { result: true },
+                    success: true
+                });
+            },
+            handleToolResults(results) {
+                this._handledResults = results;
+            },
+            notifyToolCallCallbacks() {}
+        });
+
+        assistant.pendingPluginRecoveryCandidate = {
+            plugin_slug: 'school-timetable',
+            plugin_file: '',
+            changed_path: 'plugins/school-timetable/src/App.php'
+        };
+
+        assistant.executeTools([
+            {
+                id: 'tool-run',
+                name: 'run_php',
+                arguments: { code: 'return true;' }
+            }
+        ], 'anthropic');
+
+        await flushPromises();
+        await flushPromises();
+
+        assert.strictEqual(executed, false);
+        assert.strictEqual(assistant._handledResults[0].success, false);
+        assert.strictEqual(assistant._handledResults[0].name, 'run_php');
+        assert.strictEqual(assistant._handledResults[0].result.recovery.action, 'emergency_deactivated');
+        assert.strictEqual(assistant._handledResults[0].result.skipped, true);
+    });
+
+    it('treats WordPress-backed tools as recovery boundaries', function() {
+        const assistant = createAssistant({
+            config: {
+                fileToolsUrl: '/file-tools.php',
+                fileToolsToken: 'token'
+            }
+        });
+
+        assert.strictEqual(assistant.isWordPressBackedToolCall({ name: 'run_php' }), true);
+        assert.strictEqual(assistant.isWordPressBackedToolCall({ name: 'ability' }), true);
+        assert.strictEqual(assistant.isWordPressBackedToolCall({ name: 'edit_file' }), false);
+        assert.strictEqual(assistant.isWordPressBackedToolCall({ name: 'get_page_html' }), false);
+    });
+});
+
 describe('executePickImage', function() {
     it('preserves picker failure status when upload cannot complete', async function() {
         const assistant = loadExecutionMixin();

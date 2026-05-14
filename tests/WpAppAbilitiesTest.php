@@ -16,10 +16,12 @@ class WpAppAbilitiesTest extends TestCase {
         $this->plugins_dir = WP_PLUGIN_DIR;
         $this->removeDirectory($this->plugins_dir . '/sample-app');
         $GLOBALS['wp_test_capabilities'] = [];
+        unset($GLOBALS['wp_test_activate_plugin_result']);
     }
 
     protected function tearDown(): void {
         $this->removeDirectory($this->plugins_dir . '/sample-app');
+        unset($GLOBALS['wp_test_activate_plugin_result']);
     }
 
     public function test_scaffold_app_creates_composerless_wp_app(): void {
@@ -84,6 +86,28 @@ class WpAppAbilitiesTest extends TestCase {
         $this->assertContains('plugins/sample-app/sample-app.php', $paths);
         $this->assertContains('plugins/sample-app/vendor/autoload.php', $paths);
         $this->assertFileExists($this->plugins_dir . '/sample-app/.git/refs/heads/ai-changes');
+    }
+
+    public function test_scaffold_app_returns_error_when_sandboxed_activation_fails(): void {
+        if (!class_exists('\Akirk\CreateWpApp\Scaffolder')) {
+            $this->markTestSkipped('akirk/create-wp-app is not installed.');
+        }
+
+        $GLOBALS['wp_test_activate_plugin_result'] = new \WP_Error('sandbox_failed', 'Fatal error during sandboxed activation.');
+
+        $abilities = new Wp_App_Abilities();
+        $result = $abilities->scaffold_app([
+            'slug' => 'sample-app',
+            'plugin_name' => 'Sample App',
+            'namespace' => 'SampleApp',
+            'setup_type' => 'minimal',
+            'activate' => true,
+        ]);
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('activation_failed', $result->get_error_code());
+        $this->assertStringContainsString('Plugin scaffolded but activation failed', $result->get_error_message());
+        $this->assertStringContainsString('Fatal error during sandboxed activation.', $result->get_error_message());
     }
 
     private function removeDirectory(string $dir): void {

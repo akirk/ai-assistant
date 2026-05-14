@@ -113,7 +113,11 @@
                     }
                 });
             } else if (executeImmediately.length === 0) {
-                this.setLoading(false);
+                this.verifyPendingPluginRecoveryCandidate().then(function() {
+                    self.setLoading(false);
+                }).catch(function() {
+                    self.setLoading(false);
+                });
             } else {
                 executeImmediately.forEach(function(tc) {
                     self.setToolCardState(tc.id, 'executing');
@@ -126,10 +130,33 @@
             var self = this;
             var promises = toolCalls.map(function(tc) {
                 self.setToolCardState(tc.id, 'executing');
-                return self.executeSingleTool(tc);
+                var beforeExecute = self.isWordPressBackedToolCall(tc)
+                    ? self.verifyPendingPluginRecoveryCandidate()
+                    : Promise.resolve(null);
+                return beforeExecute.then(function(recovery) {
+                    if (recovery) {
+                        return {
+                            id: tc.id,
+                            name: tc.name || tc.tool,
+                            input: tc.arguments || {},
+                            success: false,
+                            result: {
+                                error: 'WordPress failed after plugin file changes; the plugin was automatically deactivated before running this tool.',
+                                skipped: true,
+                                recovery: recovery
+                            }
+                        };
+                    }
+                    return self.executeSingleTool(tc);
+                });
             });
 
             Promise.all(promises).then(function(results) {
+                results.forEach(function(result) {
+                    self.rememberPluginRecoveryCandidateFromFileResult(result);
+                });
+                return self.verifyActivatedPluginResults(results);
+            }).then(function(results) {
                 results.forEach(function(result) {
                     if (result.success) {
                         var successOptions = result.name === 'navigate'
@@ -148,6 +175,256 @@
             }).catch(function(error) {
                 self.setLoading(false);
                 self.addMessage('error', 'Tool execution error: ' + error.message);
+            });
+        },
+
+        isWordPressBackedToolCall: function(toolCall) {
+            var toolName = toolCall && (toolCall.name || toolCall.tool);
+            if (!toolName) {
+                return false;
+            }
+
+            if (
+                toolName === 'get_page_html' ||
+                toolName === 'summarize_conversation' ||
+                toolName === 'pick_image' ||
+                this.canUseFileToolEndpoint(toolName)
+            ) {
+                return false;
+            }
+
+            return true;
+        },
+
+        rememberPluginRecoveryCandidateFromFileResult: function(result) {
+            if (!result || !result.success) {
+                return;
+            }
+
+            var toolName = result.name || result.tool;
+            if (['write_file', 'edit_file', 'delete_file'].indexOf(toolName) < 0) {
+                return;
+            }
+
+            var path = result.result && result.result.path;
+            var candidate = this.getPluginCandidateFromPath(path);
+            if (!candidate) {
+                return;
+            }
+
+            candidate.changed_path = path;
+            candidate.source_tool = toolName;
+            candidate.recorded_at = Date.now();
+            this.pendingPluginRecoveryCandidate = candidate;
+        },
+
+        getPluginCandidateFromPath: function(path) {
+            path = String(path || '').replace(/\\/g, '/').replace(/^\/+/, '');
+            var match = path.match(/^plugins\/([^/]+)(?:\/|$)/);
+            if (!match) {
+                return null;
+            }
+
+            var pluginSlug = this.extractPluginSlug(match[1], '');
+            if (!pluginSlug || pluginSlug === 'ai-assistant') {
+                return null;
+            }
+
+            return {
+                plugin_slug: pluginSlug,
+                plugin_file: ''
+            };
+        },
+
+        verifyPendingPluginRecoveryCandidate: function() {
+            var self = this;
+            var candidate = this.pendingPluginRecoveryCandidate;
+            if (!candidate) {
+                return Promise.resolve(null);
+            }
+
+            return this.verifyWordPressHealth().then(function(healthy) {
+                if (healthy) {
+                    self.pendingPluginRecoveryCandidate = null;
+                    return null;
+                }
+
+                return self.emergencyDeactivateActivatedPlugin(candidate).then(function(recovery) {
+                    self.pendingPluginRecoveryCandidate = null;
+                    recovery.changed_path = candidate.changed_path;
+                    recovery.source_tool = candidate.source_tool;
+                    return recovery;
+                }).catch(function(error) {
+                    throw error;
+                });
+            });
+        },
+
+        verifyActivatedPluginResults: function(results) {
+            var self = this;
+            var checks = results.map(function(result) {
+                var candidate = self.getActivatedPluginCandidate(result);
+                if (!candidate) {
+                    return Promise.resolve(result);
+                }
+
+                return self.verifyWordPressHealth().then(function(healthy) {
+                    if (healthy) {
+                        return result;
+                    }
+
+                    return self.emergencyDeactivateActivatedPlugin(candidate).then(function(recovery) {
+                        return {
+                            id: result.id,
+                            name: result.name,
+                            input: result.input,
+                            success: false,
+                            result: {
+                                error: 'Plugin activation broke WordPress and the plugin was automatically deactivated.',
+                                activation_result: result.result,
+                                recovery: recovery
+                            }
+                        };
+                    }).catch(function(error) {
+                        return {
+                            id: result.id,
+                            name: result.name,
+                            input: result.input,
+                            success: false,
+                            result: {
+                                error: 'Plugin activation broke WordPress, and automatic deactivation failed: ' + error.message,
+                                activation_result: result.result
+                            }
+                        };
+                    });
+                });
+            });
+
+            return Promise.all(checks);
+        },
+
+        getActivatedPluginCandidate: function(toolResult) {
+            if (!toolResult || !toolResult.success) {
+                return null;
+            }
+
+            var toolName = toolResult.name || toolResult.tool;
+            var input = toolResult.input || {};
+            var result = toolResult.result || {};
+
+            if (toolName === 'install_plugin' && input.activate) {
+                var active = result.active === true ||
+                    result.status === 'activated' ||
+                    result.status === 'installed_and_activated';
+                if (!active) {
+                    return null;
+                }
+
+                return {
+                    plugin_slug: this.extractPluginSlug(input.slug || '', result.plugin_file || ''),
+                    plugin_file: result.plugin_file || ''
+                };
+            }
+
+            if (toolName === 'ability' && input.action === 'execute' && input.ability === 'create-wp-app/scaffold') {
+                var abilityResult = result.result || result;
+                if (!abilityResult || abilityResult.activated !== true) {
+                    return null;
+                }
+
+                return {
+                    plugin_slug: abilityResult.plugin_slug || '',
+                    plugin_file: ''
+                };
+            }
+
+            return null;
+        },
+
+        extractPluginSlug: function(slug, pluginFile) {
+            slug = String(slug || '').trim();
+            if (slug && /^[a-z0-9][a-z0-9-]*$/i.test(slug)) {
+                return slug.toLowerCase();
+            }
+
+            pluginFile = String(pluginFile || '').replace(/\\/g, '/').replace(/^\/+/, '');
+            if (!pluginFile) {
+                return '';
+            }
+
+            if (pluginFile.indexOf('/') !== -1) {
+                return pluginFile.split('/')[0].toLowerCase();
+            }
+
+            return pluginFile.replace(/\.php$/i, '').toLowerCase();
+        },
+
+        verifyWordPressHealth: function() {
+            if (!window.aiAssistantConfig || !aiAssistantConfig.ajaxUrl || !aiAssistantConfig.nonce) {
+                return Promise.resolve(true);
+            }
+
+            return new Promise(function(resolve) {
+                $.ajax({
+                    url: aiAssistantConfig.ajaxUrl,
+                    type: 'POST',
+                    dataType: 'json',
+                    global: false,
+                    timeout: 5000,
+                    data: {
+                        action: 'ai_assistant_health_check',
+                        _wpnonce: aiAssistantConfig.nonce
+                    },
+                    success: function(response) {
+                        resolve(!!(response && response.success));
+                    },
+                    error: function() {
+                        resolve(false);
+                    }
+                });
+            });
+        },
+
+        emergencyDeactivateActivatedPlugin: function(candidate) {
+            if (!candidate || !candidate.plugin_slug || candidate.plugin_slug === 'ai-assistant') {
+                return Promise.reject(new Error('No valid plugin candidate to deactivate'));
+            }
+
+            if (!window.aiAssistantConfig || !aiAssistantConfig.fileToolsUrl || !aiAssistantConfig.fileToolsToken) {
+                return Promise.reject(new Error('File recovery endpoint is not configured'));
+            }
+
+            return fetch(aiAssistantConfig.fileToolsUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    token: aiAssistantConfig.fileToolsToken,
+                    tool: 'emergency_deactivate_plugin',
+                    arguments: {
+                        plugin_slug: candidate.plugin_slug,
+                        plugin_file: candidate.plugin_file || '',
+                        reason: 'Emergency deactivate after plugin failed WordPress health check'
+                    },
+                    conversation_id: this.conversationId || 0
+                })
+            }).then(function(response) {
+                return response.text().then(function(text) {
+                    var payload;
+                    try {
+                        payload = JSON.parse(text);
+                    } catch (e) {
+                        throw new Error('File recovery endpoint returned non-JSON response');
+                    }
+
+                    if (!payload || !payload.success) {
+                        var message = payload && payload.data && (payload.data.message || payload.data.error);
+                        throw new Error(message || 'Emergency deactivate failed');
+                    }
+
+                    return payload.data || {};
+                });
             });
         },
 
