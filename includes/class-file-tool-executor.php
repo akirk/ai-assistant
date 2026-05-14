@@ -120,6 +120,13 @@ class File_Tool_Executor {
         }
 
         $edits = $args['edits'];
+        if (is_string($edits)) {
+            $decoded = json_decode($edits, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $edits = $decoded;
+            }
+        }
+
         if (is_array($edits) && isset($edits['search']) && isset($edits['replace'])) {
             return [$edits];
         }

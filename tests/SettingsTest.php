@@ -14,6 +14,7 @@ class SettingsTest extends TestCase {
     protected function setUp(): void {
         $GLOBALS['wp_test_options'] = [];
         $GLOBALS['wp_test_capabilities'] = [];
+        $GLOBALS['wp_test_filters'] = [];
         $GLOBALS['wp_test_is_playground'] = false;
 
         $this->settings = new Settings();
@@ -216,6 +217,50 @@ class SettingsTest extends TestCase {
         $this->assertStringContainsString('status "draft"', $prompt);
         $this->assertStringContainsString('Never publish/overwrite or use db_query', $prompt);
         $this->assertStringContainsString('report title, ID, edit URL.', $prompt);
+    }
+
+    public function test_system_prompt_distinguishes_ability_domains_from_ids(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
+        $GLOBALS['wp_test_filters']['ai_assistant_ability_domains'] = [
+            10 => [
+                [
+                    'callback' => static function(array $domains): array {
+                        $domains['create-wp-app'] = 'wp app, app plugin';
+                        return $domains;
+                    },
+                    'accepted_args' => 1,
+                ],
+            ],
+        ];
+
+        $prompt = $this->settings->get_system_prompt();
+
+        $this->assertStringContainsString('- create-wp-app: wp app, app plugin', $prompt);
+        $this->assertStringContainsString('These slugs are ability categories/domains, not executable ability IDs.', $prompt);
+        $this->assertStringContainsString('First call ability with action "list" and the matching category', $prompt);
+        $this->assertStringContainsString('then action "get" for the exact ability ID before executing', $prompt);
+    }
+
+    public function test_system_prompt_routes_plugin_creation_to_skills(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
+
+        $prompt = $this->settings->get_system_prompt();
+
+        $this->assertStringContainsString('load skill "wp-app" before acting', $prompt);
+        $this->assertStringContainsString('load skill "plugin-creation" before writing files', $prompt);
+        $this->assertStringContainsString('Skill instructions override these brief routing notes.', $prompt);
+        $this->assertStringNotContainsString('Manual fallback only: use the suffix "-mywp"', $prompt);
+    }
+
+    public function test_skills_prompt_uses_single_plugin_creation_skills_line(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
+
+        $prompt = $this->settings->get_system_prompt();
+
+        $this->assertStringContainsString('Available skills:', $prompt);
+        $this->assertStringContainsString('- wp-app, plugin-creation (plugin creation): use "wp-app" for app-like WordPress plugins; use "plugin-creation"', $prompt);
+        $this->assertStringNotContainsString('- plugin-creation (plugins):', $prompt);
+        $this->assertStringNotContainsString('- wp-app (apps):', $prompt);
     }
 
     public function test_system_prompt_advertises_my_wordpress_skill(): void {
