@@ -464,7 +464,7 @@ class Executor {
                 if ($activate && !$is_active) {
                     $result = activate_plugin($plugin_file);
                     if (is_wp_error($result)) {
-                        throw new \Exception('Plugin already installed but activation failed: ' . $result->get_error_message());
+                        throw new \Exception('Plugin already installed but WordPress sandboxed activation failed: ' . $result->get_error_message());
                     }
                     return [
                         'status' => 'activated',
@@ -519,12 +519,7 @@ class Executor {
         if ($activate && $plugin_file) {
             $activate_result = activate_plugin($plugin_file);
             if (is_wp_error($activate_result)) {
-                return [
-                    'status' => 'installed',
-                    'message' => "Plugin '{$slug}' installed successfully but activation failed: " . $activate_result->get_error_message(),
-                    'plugin_file' => $plugin_file,
-                    'active' => false,
-                ];
+                throw new \Exception("Plugin '{$slug}' installed successfully but WordPress sandboxed activation failed: " . $activate_result->get_error_message());
             }
             return [
                 'status' => 'installed_and_activated',

@@ -130,6 +130,12 @@ class Wp_App_Abilities {
             $activation = $this->activate_plugin($slug . '/' . $plugin_file);
             $activated = $activation['activated'];
             $warnings = array_merge($warnings, $activation['warnings']);
+            if (!$activated) {
+                $message = !empty($warnings)
+                    ? implode(' ', $warnings)
+                    : 'WordPress sandboxed activation did not complete.';
+                return $this->error('activation_failed', 'Plugin scaffolded but activation failed: ' . $message);
+            }
         }
 
         $url_path = $result['config']['url_path'] ?? $slug;
@@ -266,6 +272,10 @@ class Wp_App_Abilities {
             ];
         }
 
+        // WordPress core runs plugin_sandbox_scrape() inside activate_plugin()
+        // before adding the plugin to active_plugins. Surface that result as the
+        // ability result instead of returning a successful scaffold with an
+        // inactive plugin when sandboxed activation fails.
         $result = activate_plugin($plugin);
         if (is_wp_error($result)) {
             $warnings[] = $result->get_error_message();

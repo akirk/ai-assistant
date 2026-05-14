@@ -312,6 +312,16 @@ if (!function_exists('add_settings_field'))  { function add_settings_field()  {}
 if (!function_exists('__'))                  { function __($t, $d = '') { return $t; } }
 if (!function_exists('is_wp_error'))         { function is_wp_error($thing) { return $thing instanceof WP_Error; } }
 
+if (!function_exists('activate_plugin')) {
+    function activate_plugin($plugin, $redirect = '', $network_wide = false, $silent = false) {
+        if (isset($GLOBALS['wp_test_activate_plugin_result'])) {
+            return $GLOBALS['wp_test_activate_plugin_result'];
+        }
+
+        return null;
+    }
+}
+
 if (!class_exists('WP_Error')) {
     class WP_Error {
         private $code;
