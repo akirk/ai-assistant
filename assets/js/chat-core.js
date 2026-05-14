@@ -38,6 +38,7 @@
         titleGenerationInProgress: false,
         titleGenerationAttempted: false,
         titleGenerationToken: 0,
+        conversationTitleIsPlaceholder: false,
         consecutiveAjaxErrors: 0,
         ajaxErrorThreshold: 2,
         recoveryMessageShown: false,

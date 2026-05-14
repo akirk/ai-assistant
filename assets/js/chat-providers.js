@@ -39,6 +39,7 @@
                 this.titleGenerationInProgress = false;
                 this.titleGenerationAttempted = false;
                 this.titleGenerationToken++;
+                this.conversationTitleIsPlaceholder = false;
                 this.pendingNewChat = false;
                 this.pendingChatOriginalHtml = null;
                 $('#ai-assistant-messages').empty();

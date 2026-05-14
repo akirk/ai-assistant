@@ -167,6 +167,7 @@
             this.titleGenerationInProgress = false;
             this.titleGenerationAttempted = false;
             this.titleGenerationToken++;
+            this.conversationTitleIsPlaceholder = false;
             this.pendingNewChat = false;
             this.pendingAttachments = [];
             if (this.renderPendingAttachments) {
@@ -201,6 +202,10 @@
         },
 
         // Conversation persistence
+        getConversationTitleForSave: function() {
+            return this.conversationTitleIsPlaceholder ? '' : this.conversationTitle;
+        },
+
         saveConversation: function(silent, callback) {
             var self = this;
 
@@ -236,6 +241,7 @@
             this.saveInProgress = true;
             var saveSucceeded = false;
             var saveResponse = null;
+            var titleForSave = this.getConversationTitleForSave();
             $.ajax({
                 url: aiAssistantConfig.ajaxUrl,
                 type: 'POST',
@@ -244,7 +250,7 @@
                     _wpnonce: aiAssistantConfig.nonce,
                     conversation_id: this.conversationId,
                     messages: btoa(unescape(encodeURIComponent(JSON.stringify(this.messages)))),
-                    title: this.conversationTitle,
+                    title: titleForSave,
                     provider: this.conversationProvider || this.getProvider(),
                     model: this.conversationModel || this.getModel(),
                     system_prompt: this.systemPrompt || ''
@@ -254,8 +260,14 @@
                     if (response.success) {
                         saveSucceeded = true;
                         self.conversationId = response.data.conversation_id;
-                        if (!self.conversationTitle) {
+                        if (response.data.title_status === 'placeholder') {
+                            if (!self.conversationTitle || self.conversationTitleIsPlaceholder) {
+                                self.conversationTitle = response.data.title;
+                                self.conversationTitleIsPlaceholder = true;
+                            }
+                        } else if (!self.conversationTitle || self.conversationTitleIsPlaceholder || titleForSave) {
                             self.conversationTitle = response.data.title;
+                            self.conversationTitleIsPlaceholder = false;
                         }
                         self.updateSidebarSelection();
                         if (!silent) {
@@ -303,7 +315,7 @@
 
         autoSaveConversation: function() {
             if (this.autoSave && this.messages.length > 0) {
-                if (!this.conversationTitle && this.messages.length >= 2 && !this.titleGenerationAttempted && !this.titleGenerationInProgress) {
+                if (this.shouldGenerateConversationTitle && this.shouldGenerateConversationTitle()) {
                     this.titleGenerationAttempted = true;
                     this.saveConversation(true);
                     this.generateConversationTitle();
@@ -332,7 +344,7 @@
                     _wpnonce: aiAssistantConfig.nonce,
                     conversation_id: this.conversationId,
                     messages: btoa(unescape(encodeURIComponent(JSON.stringify(this.messages)))),
-                    title: this.conversationTitle,
+                    title: this.getConversationTitleForSave(),
                     provider: this.conversationProvider,
                     model: this.conversationModel
                 },
@@ -362,8 +374,10 @@
                 },
                 success: function(response) {
                     if (response.success) {
+                        var titleStatus = response.data.title_status || '';
                         self.titleGenerationInProgress = false;
-                        self.titleGenerationAttempted = !!response.data.title;
+                        self.conversationTitleIsPlaceholder = titleStatus === 'placeholder';
+                        self.titleGenerationAttempted = !!response.data.title && !self.conversationTitleIsPlaceholder;
                         self.titleGenerationToken++;
                         self.conversationId = response.data.conversation_id;
                         self.conversationTitle = response.data.title;
@@ -775,6 +789,8 @@
                     if (response.success) {
                         if (self.conversationId === conversationId) {
                             self.conversationTitle = newTitle;
+                            self.conversationTitleIsPlaceholder = false;
+                            self.titleGenerationAttempted = true;
                         }
                     } else {
                         console.error('[AI Assistant] Rename failed:', response.data);
@@ -787,6 +803,137 @@
         },
 
         // Title generation
+        messageHasToolCallsForTitle: function(message) {
+            if (!message) {
+                return false;
+            }
+
+            if (message.tool_calls && message.tool_calls.length > 0) {
+                return true;
+            }
+
+            if (!Array.isArray(message.content)) {
+                return false;
+            }
+
+            return message.content.some(function(block) {
+                return block && block.type === 'tool_use';
+            });
+        },
+
+        getMessageTextForTitle: function(message) {
+            if (!message) {
+                return '';
+            }
+
+            var content = message.content;
+            var parts = [];
+
+            if (typeof content === 'string') {
+                parts.push(content);
+            } else if (Array.isArray(content)) {
+                content.forEach(function(block) {
+                    if (!block || block.type === 'tool_use' || block.type === 'tool_result') {
+                        return;
+                    }
+
+                    if (typeof block.text === 'string') {
+                        parts.push(block.text);
+                    } else if (typeof block.content === 'string') {
+                        parts.push(block.content);
+                    }
+                });
+            } else if (content && typeof content.text === 'string') {
+                parts.push(content.text);
+            }
+
+            var text = parts.join(' ');
+
+            if (this.extractFileContextForDisplay) {
+                var fileContext = this.extractFileContextForDisplay(text);
+                if (fileContext) {
+                    text = fileContext.visibleText || 'Attached files';
+                }
+            }
+
+            return text.replace(/\s+/g, ' ').trim();
+        },
+
+        getFirstUserTextForTitle: function() {
+            for (var i = 0; i < this.messages.length; i++) {
+                if (this.messages[i] && this.messages[i].role === 'user') {
+                    var text = this.getMessageTextForTitle(this.messages[i]);
+                    if (text) {
+                        return text;
+                    }
+                }
+            }
+
+            return '';
+        },
+
+        buildConversationTitleContext: function() {
+            var lines = [];
+            var maxLength = 1800;
+
+            for (var i = 0; i < this.messages.length && lines.join('\n').length < maxLength; i++) {
+                var message = this.messages[i];
+                if (!message || (message.role !== 'user' && message.role !== 'assistant')) {
+                    continue;
+                }
+
+                var text = this.getMessageTextForTitle(message);
+                if (!text) {
+                    continue;
+                }
+
+                var label = message.role === 'user' ? 'User' : 'Assistant';
+                var limit = message.role === 'assistant' ? 900 : 500;
+                if (text.length > limit) {
+                    text = text.substring(0, limit).trim() + '...';
+                }
+                lines.push(label + ': ' + text);
+            }
+
+            return lines.join('\n').substring(0, maxLength).trim();
+        },
+
+        shouldGenerateConversationTitle: function() {
+            if (this.titleGenerationAttempted || this.titleGenerationInProgress) {
+                return false;
+            }
+
+            if (this.conversationTitle && !this.conversationTitleIsPlaceholder) {
+                return false;
+            }
+
+            if (this.messages.length < 2) {
+                return false;
+            }
+
+            if ((this.pendingToolChecks || 0) > 0 || (this.executingToolCount || 0) > 0) {
+                return false;
+            }
+
+            if (this.pendingActions && this.pendingActions.length > 0) {
+                return false;
+            }
+
+            var lastMessage = null;
+            for (var i = this.messages.length - 1; i >= 0; i--) {
+                if (this.messages[i] && (this.messages[i].role === 'user' || this.messages[i].role === 'assistant')) {
+                    lastMessage = this.messages[i];
+                    break;
+                }
+            }
+
+            if (!lastMessage || lastMessage.role !== 'assistant' || this.messageHasToolCallsForTitle(lastMessage)) {
+                return false;
+            }
+
+            return !!this.getMessageTextForTitle(lastMessage);
+        },
+
         generateConversationTitle: function() {
             var self = this;
             var provider = this.conversationProvider || this.getProvider();
@@ -796,30 +943,22 @@
                 ? aiAssistantProviders.available[provider]
                 : null;
 
-            var firstUserMsg = this.messages.find(function(m) { return m.role === 'user'; });
-            if (!firstUserMsg) return;
+            var titleContext = this.buildConversationTitleContext();
+            var firstUserContent = this.getFirstUserTextForTitle();
 
-            var userContent = typeof firstUserMsg.content === 'string'
-                ? firstUserMsg.content
-                : (firstUserMsg.content[0]?.text || '');
-
-            if (this.extractFileContextForDisplay) {
-                var fileContext = this.extractFileContextForDisplay(userContent);
-                if (fileContext) {
-                    userContent = fileContext.visibleText || 'Attached files';
-                }
+            if (!titleContext || !firstUserContent) {
+                this.titleGenerationAttempted = false;
+                return;
             }
-
-            if (!userContent) return;
 
             this.titleGenerationInProgress = true;
             this.titleGenerationToken++;
             var titleGenerationToken = this.titleGenerationToken;
 
-            var titlePrompt = 'Generate a very short title (3-6 words max) for a conversation that starts with this message. Return ONLY the title, nothing else. Do not explain or reason - just output the title directly.\n\n' + userContent.substring(0, 500);
+            var titlePrompt = 'Generate a specific, accurate title (3-6 words max) for this conversation. Use the assistant answer when it clarifies a vague opening message. Do not invent details that are not in the excerpt. Return ONLY the title, nothing else.\n\nConversation excerpt:\n' + titleContext;
 
             function fallbackTitle() {
-                var words = userContent.split(/\s+/).slice(0, 6).join(' ');
+                var words = firstUserContent.split(/\s+/).slice(0, 6).join(' ');
                 return words.length > 50 ? words.substring(0, 50) + '...' : words;
             }
 
@@ -827,11 +966,15 @@
                 if (self.titleGenerationToken !== titleGenerationToken) {
                     return;
                 }
-                title = (title || '').trim().replace(/^["']|["']$/g, '');
+                title = (title || '').trim().replace(/^["']|["']$/g, '').replace(/^title:\s*/i, '').split('\n')[0].trim();
                 if (!title) {
                     title = fallbackTitle();
                 }
+                if (title.length > 80) {
+                    title = title.substring(0, 77).trim() + '...';
+                }
                 self.conversationTitle = title;
+                self.conversationTitleIsPlaceholder = false;
                 self.titleGenerationInProgress = false;
                 self.saveConversation(true);
             }
