@@ -1277,12 +1277,15 @@ class Conversations {
         $system_prompt = isset($_POST['system_prompt']) && is_scalar($_POST['system_prompt'])
             ? (string) wp_unslash($_POST['system_prompt'])
             : '';
+        $existing_title_status = $conversation_id > 0 ? get_post_meta($conversation_id, '_ai_title_status', true) : '';
+        $title_status = $existing_title_status ?: 'generated';
 
         // Decode base64 to get message count for title generation
         $messages_json = base64_decode($messages_base64);
         $messages = json_decode($messages_json, true) ?: [];
 
         if (empty($title) && !empty($messages)) {
+            $title_status = 'placeholder';
             $first_user_message = array_filter($messages, function($m) {
                 return $m['role'] === 'user';
             });
@@ -1294,6 +1297,8 @@ class Conversations {
             if (empty($title)) {
                 $title = __('Conversation', 'ai-assistant') . ' ' . date('Y-m-d H:i');
             }
+        } elseif (!empty($title)) {
+            $title_status = $existing_title_status === 'manual' ? 'manual' : 'generated';
         }
 
         $post_data = [
@@ -1320,11 +1325,13 @@ class Conversations {
         update_post_meta($post_id, '_ai_message_count', count($messages));
         update_post_meta($post_id, '_ai_provider', $provider);
         update_post_meta($post_id, '_ai_model', $model);
+        update_post_meta($post_id, '_ai_title_status', $title_status);
         update_post_meta($post_id, '_ai_system_prompt', function_exists('wp_slash') ? wp_slash($system_prompt) : $system_prompt);
 
         wp_send_json_success([
             'conversation_id' => $post_id,
             'title' => get_the_title($post_id),
+            'title_status' => $title_status,
         ]);
     }
 
@@ -1356,7 +1363,7 @@ class Conversations {
         // Get meta in single query
         $meta = $wpdb->get_results($wpdb->prepare(
             "SELECT meta_key, meta_value FROM {$wpdb->postmeta}
-             WHERE post_id = %d AND meta_key IN ('_ai_provider', '_ai_model')",
+             WHERE post_id = %d AND meta_key IN ('_ai_provider', '_ai_model', '_ai_title_status')",
             $conversation_id
         ), OBJECT_K);
 
@@ -1367,6 +1374,7 @@ class Conversations {
             'summary' => $post->post_excerpt ?: '',
             'provider' => isset($meta['_ai_provider']) ? $meta['_ai_provider']->meta_value : '',
             'model' => isset($meta['_ai_model']) ? $meta['_ai_model']->meta_value : '',
+            'title_status' => isset($meta['_ai_title_status']) ? $meta['_ai_title_status']->meta_value : '',
         ]);
     }
 
@@ -1393,6 +1401,7 @@ class Conversations {
             $conversations[] = [
                 'id' => $post->ID,
                 'title' => $post->post_title,
+                'title_status' => get_post_meta($post->ID, '_ai_title_status', true) ?: '',
                 'date' => $post->post_modified,
                 'message_count' => $message_count ?: 0,
             ];
@@ -1451,10 +1460,12 @@ class Conversations {
             'ID' => $conversation_id,
             'post_title' => $title,
         ]);
+        update_post_meta($conversation_id, '_ai_title_status', 'manual');
 
         wp_send_json_success([
             'conversation_id' => $conversation_id,
             'title' => $title,
+            'title_status' => 'manual',
         ]);
     }
 
