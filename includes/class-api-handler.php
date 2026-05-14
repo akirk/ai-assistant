@@ -24,6 +24,24 @@ class API_Handler {
 
         add_action('wp_ajax_ai_assistant_execute_tool', [$this, 'handle_execute_tool']);
         add_action('wp_ajax_ai_assistant_get_ability_details', [$this, 'handle_get_ability_details']);
+        add_action('wp_ajax_ai_assistant_health_check', [$this, 'handle_health_check']);
+    }
+
+    /**
+     * Lightweight AJAX endpoint used to confirm WordPress can bootstrap again.
+     */
+    public function handle_health_check() {
+        check_ajax_referer('ai_assistant_chat', '_wpnonce');
+
+        if (
+            !current_user_can('ai_assistant_full') &&
+            !current_user_can('ai_assistant_read_only') &&
+            !current_user_can('ai_assistant_chat_only')
+        ) {
+            wp_send_json_error(['message' => 'AI Assistant access not allowed'], 403);
+        }
+
+        wp_send_json_success(['ok' => true]);
     }
 
     /**
