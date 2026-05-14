@@ -1525,6 +1525,7 @@ class Settings {
         }
         ?>
         <style>
+            <?php echo Admin_Colors::get_current_scheme_css('.wrap'); ?>
             .ai-tool-tree {
                 max-width: 1100px;
             }
@@ -1553,7 +1554,7 @@ class Settings {
                 outline: none;
             }
             .ai-tool-tab:focus {
-                box-shadow: 0 0 0 1px #2271b1;
+                box-shadow: 0 0 0 1px var(--ai-assistant-accent);
             }
             .ai-tool-tab.active {
                 background: #fff;
@@ -1671,7 +1672,7 @@ class Settings {
                 outline: none;
             }
             .ai-ability-select:focus {
-                box-shadow: 0 0 0 1px #2271b1;
+                box-shadow: 0 0 0 1px var(--ai-assistant-accent);
             }
             .ai-ability-select code,
             .ai-ability-info-header code,
@@ -1789,8 +1790,8 @@ class Settings {
                 color: #008a20;
             }
             .ai-ability-badge-approved {
-                background: #eaf2ff;
-                color: #135e96;
+                background: rgba(var(--ai-assistant-accent-rgb), 0.08);
+                color: var(--ai-assistant-accent-hover);
             }
             .ai-ability-badge-destructive {
                 background: #fcf0f1;
@@ -2156,7 +2157,7 @@ class Settings {
             .ai-skill-item { border: 1px solid #ddd; margin-bottom: -1px; }
             .ai-skill-header { display: block; padding: 10px 12px; background: #f9f9f9; cursor: pointer; text-decoration: none; color: inherit; }
             .ai-skill-header:hover { background: #f0f0f0; }
-            .ai-skill-header:focus { outline: 2px solid #2271b1; outline-offset: -2px; }
+            .ai-skill-header:focus { outline: 2px solid var(--ai-assistant-accent, var(--wp-admin-theme-color, #2271b1)); outline-offset: -2px; }
             .ai-skill-header .dashicons { float: right; color: #666; transition: transform 0.2s; }
             .ai-skill-item.open .ai-skill-header .dashicons { transform: rotate(180deg); }
             .ai-skill-header code { background: #e0e0e0; padding: 2px 6px; border-radius: 3px; }
