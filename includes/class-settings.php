@@ -405,7 +405,9 @@ class Settings {
         register_setting('ai_assistant_settings', 'ai_assistant_auto_approved_abilities', [
             'type' => 'array',
             'sanitize_callback' => function($value) {
-                return array_values(array_map('sanitize_text_field', (array) $value));
+                $values = array_map('sanitize_text_field', (array) $value);
+                $values = array_filter($values, fn($item) => $item !== '');
+                return array_values(array_unique($values));
             },
             'default' => [],
         ]);
@@ -413,7 +415,9 @@ class Settings {
         register_setting('ai_assistant_settings', 'ai_assistant_auto_approved_rest_apis', [
             'type' => 'array',
             'sanitize_callback' => function($value) {
-                return array_values(array_map('sanitize_text_field', (array) $value));
+                $values = array_map('sanitize_text_field', (array) $value);
+                $values = array_filter($values, fn($item) => $item !== '');
+                return array_values(array_unique($values));
             },
             'default' => [],
         ]);
@@ -1111,7 +1115,6 @@ class Settings {
                     $group_names = array_keys($tools);
                     $all_checked = count(array_filter($group_names, fn($n) => in_array($n, $enabled, true))) === count($group_names);
                     $some_checked = !$all_checked && count(array_filter($group_names, fn($n) => in_array($n, $enabled, true))) > 0;
-                    $ability_readonly_only = $group === 'Abilities' && $all_checked && count($this->get_auto_approved_abilities()) === 0;
                     $tab_id = $group_tabs[$group];
                     $is_active = $group === $first_group;
                 ?>
@@ -1131,17 +1134,8 @@ class Settings {
                                    <?php checked($all_checked); ?>
                                    <?php disabled($is_playground); ?>
                                    <?php if ($some_checked) echo 'data-indeterminate="1"'; ?>>
-                            <span><?php esc_html_e('Enable all tools in this tab', 'ai-assistant'); ?></span>
+                            <span><?php echo esc_html($group === 'Abilities' ? __('Enable all ability tool actions', 'ai-assistant') : __('Enable all tools in this tab', 'ai-assistant')); ?></span>
                         </label>
-                        <?php if ($group === 'Abilities') : ?>
-                        <label class="ai-tool-group-header ai-abilities-readonly-only-control">
-                            <input type="checkbox"
-                                   class="ai-abilities-readonly-only"
-                                   <?php checked($ability_readonly_only); ?>
-                                   <?php disabled($is_playground); ?>>
-                            <span><?php esc_html_e('Only enable read-only abilities', 'ai-assistant'); ?></span>
-                        </label>
-                        <?php endif; ?>
                     </div>
                     <div class="ai-tool-group-items">
                         <?php foreach ($tools as $name => $meta) : ?>
@@ -1169,6 +1163,7 @@ class Settings {
                             }
                             ?>
                         <div class="ai-tool-sub-items"<?php echo $hidden; ?>>
+                            <p class="description ai-tool-sub-note"><?php esc_html_e('GET and OPTIONS requests do not ask for approval. Saved write routes below are auto-approved; uncheck a route and save to restore approve prompts.', 'ai-assistant'); ?></p>
                             <input type="hidden" name="ai_assistant_auto_approved_rest_apis" value="">
                             <?php foreach (['GET', 'OPTIONS'] as $safe_method) : ?>
                             <div class="ai-ability-category"><?php echo esc_html($safe_method); ?></div>
@@ -1188,6 +1183,7 @@ class Settings {
                                            value="<?php echo esc_attr($pattern); ?>"
                                            checked>
                                     <code><?php echo esc_html($path); ?></code>
+                                    <span class="description"><?php esc_html_e('Auto-approve', 'ai-assistant'); ?></span>
                                 </div>
                                 <?php endforeach; ?>
                             <?php endif; ?>
@@ -1198,7 +1194,7 @@ class Settings {
                             $auto_approved = $this->get_auto_approved_abilities();
                             $hidden = !in_array('execute_ability', $enabled, true) ? ' style="display:none"' : ''; ?>
                         <div class="ai-tool-sub-items"<?php echo $hidden; ?>>
-                            <p class="description" style="margin:4px 0 8px"><?php esc_html_e('Read-only abilities run without confirmation. Other abilities require approval unless checked below.', 'ai-assistant'); ?></p>
+                            <p class="description ai-tool-sub-note"><?php esc_html_e('These are not visibility controls. When List Abilities is enabled, the AI can discover all registered abilities. Auto-approve only decides whether execution skips the approve prompt.', 'ai-assistant'); ?></p>
                             <input type="hidden" name="ai_assistant_auto_approved_abilities" value="">
                             <?php if (!function_exists('wp_get_abilities')) : ?>
                             <p class="description" style="margin:4px 0"><?php esc_html_e('No abilities available — requires WordPress 6.9+ with the Abilities API.', 'ai-assistant'); ?></p>
@@ -1229,24 +1225,30 @@ class Settings {
                                                 $is_approved = !empty($a['approved']);
                                             ?>
                                             <div class="ai-tool-sub-item ai-ability-row">
-                                                <input type="checkbox"
-                                                       name="ai_assistant_auto_approved_abilities[]"
-                                                       value="<?php echo esc_attr($a['ability_id']); ?>"
-                                                       data-ai-ability-readonly="<?php echo $a['readonly'] ? '1' : '0'; ?>"
-                                                       <?php checked($a['readonly'] || $is_approved); ?>
-                                                       <?php disabled($a['readonly']); ?>>
                                                 <button type="button"
                                                         class="ai-ability-select"
                                                         data-ability-details="<?php echo esc_attr($this->encode_json($a)); ?>">
                                                     <code><?php echo esc_html($a['ability_id']); ?></code>
                                                     <?php if ($a['readonly']) : ?>
                                                         <span class="ai-ability-badge ai-ability-badge-readonly"><?php esc_html_e('Read-only', 'ai-assistant'); ?></span>
-                                                    <?php elseif ($a['destructive']) : ?>
+                                                    <?php else : ?>
+                                                    <?php if ($a['destructive']) : ?>
                                                         <span class="ai-ability-badge ai-ability-badge-destructive"><?php esc_html_e('Destructive', 'ai-assistant'); ?></span>
-                                                    <?php elseif ($is_approved) : ?>
-                                                        <span class="ai-ability-badge ai-ability-badge-approved"><?php esc_html_e('Always approved', 'ai-assistant'); ?></span>
+                                                    <?php endif; ?>
                                                     <?php endif; ?>
                                                 </button>
+                                                <?php if ($a['readonly']) : ?>
+                                                    <span class="description ai-ability-auto-approve-note"><?php esc_html_e('No prompt', 'ai-assistant'); ?></span>
+                                                <?php else : ?>
+                                                    <label class="ai-ability-auto-approve-control">
+                                                        <input type="checkbox"
+                                                               class="ai-ability-auto-approve-input"
+                                                               name="ai_assistant_auto_approved_abilities[]"
+                                                               value="<?php echo esc_attr($a['ability_id']); ?>"
+                                                               <?php checked($is_approved); ?>>
+                                                        <span><?php esc_html_e('Auto-approve', 'ai-assistant'); ?></span>
+                                                    </label>
+                                                <?php endif; ?>
                                             </div>
 	                                            <?php endforeach; ?>
 	                                            <?php endforeach; ?>
@@ -1305,24 +1307,8 @@ class Settings {
                 $toggle.indeterminate = checkedCount > 0 && checkedCount < $children.length;
             }
 
-            function updateAbilityReadonlyOnlyToggle($group) {
-                var $toggle = $group.find('.ai-abilities-readonly-only');
-                var $toolCheckboxes = $group.find('.ai-tool-group-items > label > input[type=checkbox]');
-                var hasAllToolsEnabled = $toolCheckboxes.length > 0 && $toolCheckboxes.filter(':checked').length === $toolCheckboxes.length;
-                var hasExtraApprovals = $group.find('input[name="ai_assistant_auto_approved_abilities[]"]').filter(function() {
-                    return $(this).attr('data-ai-ability-readonly') !== '1' && this.checked;
-                }).length > 0;
-
-                if (!$toggle.length) {
-                    return;
-                }
-
-                $toggle.prop('checked', hasAllToolsEnabled && !hasExtraApprovals);
-            }
-
             function updateGroupControls($group) {
                 updateGroupToggle($group);
-                updateAbilityReadonlyOnlyToggle($group);
             }
 
             $('.ai-group-toggle').on('change', function() {
@@ -1330,27 +1316,11 @@ class Settings {
                 var $group = $(this).closest('.ai-tool-group');
                 $group.find('.ai-tool-group-items > label > input[type=checkbox]').prop('checked', checked);
                 syncToolSubItems($group);
-                updateAbilityReadonlyOnlyToggle($group);
                 this.indeterminate = false;
             });
             // Update group toggle when child changes
             $(document).on('change', '.ai-tool-group-items input[type=checkbox]', function() {
                 updateGroupControls($(this).closest('.ai-tool-group'));
-            });
-            $(document).on('change', '.ai-abilities-readonly-only', function() {
-                var $group = $(this).closest('.ai-tool-group-abilities');
-
-                if (!this.checked) {
-                    updateAbilityReadonlyOnlyToggle($group);
-                    return;
-                }
-
-                $group.find('.ai-tool-group-items > label > input[type=checkbox]').prop('checked', true);
-                $group.find('input[name="ai_assistant_auto_approved_abilities[]"]').each(function() {
-                    $(this).prop('checked', $(this).attr('data-ai-ability-readonly') === '1');
-                });
-                syncToolSubItems($group);
-                updateGroupControls($group);
             });
             // Toggle sub-items visibility
             $(document).on('change', 'input[name="ai_assistant_enabled_tools[]"][value="execute_ability"]', function() {
@@ -1439,16 +1409,32 @@ class Settings {
             }
 
             function renderAbilityBadges(details) {
+                var badges = '';
+
                 if (details.readonly) {
                     return renderAbilityBadge('<?php echo esc_js(__('Read-only', 'ai-assistant')); ?>', 'ai-ability-badge-readonly');
                 }
+
                 if (details.destructive) {
-                    return renderAbilityBadge('<?php echo esc_js(__('Destructive', 'ai-assistant')); ?>', 'ai-ability-badge-destructive');
+                    badges += renderAbilityBadge('<?php echo esc_js(__('Destructive', 'ai-assistant')); ?>', 'ai-ability-badge-destructive');
                 }
-                if (details.approved) {
-                    return renderAbilityBadge('<?php echo esc_js(__('Always approved', 'ai-assistant')); ?>', 'ai-ability-badge-approved');
+
+                return badges;
+            }
+
+            function updateAbilityApprovalState($input) {
+                var $row = $input.closest('.ai-ability-row');
+                var $button = $row.find('.ai-ability-select');
+                var details = parseAbilityDetails($button);
+
+                details.approved = $input.is(':checked');
+                $button.attr('data-ability-details', JSON.stringify(details));
+                $button.find('.ai-ability-badge').remove();
+                $button.append(renderAbilityBadges(details));
+
+                if ($button.hasClass('selected')) {
+                    renderAbilityInfo($button);
                 }
-                return '';
             }
 
             function isJsonSampleType(type) {
@@ -1601,6 +1587,10 @@ class Settings {
 
             $(document).on('click', '.ai-ability-select', function() {
                 renderAbilityInfo($(this));
+            });
+
+            $(document).on('change', '.ai-ability-auto-approve-input', function() {
+                updateAbilityApprovalState($(this));
             });
 
             function formatSampleValue(value) {
@@ -1977,9 +1967,6 @@ class Settings {
             .ai-tool-group-header:hover {
                 color: #1d2327;
             }
-            .ai-abilities-readonly-only {
-                margin: 0;
-            }
             .ai-tool-group-items {
                 display: flex;
                 flex-direction: column;
@@ -2006,6 +1993,10 @@ class Settings {
                 padding: 4px 0 4px 10px;
                 border-left: 2px solid #dcdcde;
             }
+            .ai-tool-sub-note {
+                margin: 4px 0 8px;
+                max-width: 760px;
+            }
             .ai-tool-sub-item {
                 display: flex;
                 align-items: baseline;
@@ -2031,7 +2022,8 @@ class Settings {
                 min-width: 0;
             }
             .ai-ability-row {
-                align-items: flex-start;
+                align-items: center;
+                gap: 10px;
             }
             .ai-ability-select {
                 align-items: center;
@@ -2049,6 +2041,21 @@ class Settings {
                 min-width: 0;
                 padding: 2px 4px;
                 text-align: left;
+            }
+            .ai-ability-auto-approve-control {
+                align-items: center;
+                color: #50575e;
+                display: inline-flex;
+                flex-shrink: 0;
+                font-size: 12px;
+                gap: 5px;
+                margin-left: auto;
+                white-space: nowrap;
+            }
+            .ai-ability-auto-approve-note {
+                flex-shrink: 0;
+                margin-left: auto;
+                white-space: nowrap;
             }
             .ai-ability-select:hover,
             .ai-ability-select:focus,
@@ -2266,10 +2273,6 @@ class Settings {
             .ai-ability-badge-readonly {
                 background: #e7f5ee;
                 color: #008a20;
-            }
-            .ai-ability-badge-approved {
-                background: rgba(var(--ai-assistant-accent-rgb), 0.08);
-                color: var(--ai-assistant-accent-hover);
             }
             .ai-ability-badge-destructive {
                 background: #fcf0f1;
