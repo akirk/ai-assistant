@@ -6,6 +6,18 @@ const vm = require('node:vm');
 
 function loadExecutionMixin(config) {
     const aiAssistant = {};
+    function jQueryStub() {
+        return {
+            remove() {},
+            hide() {},
+            show() {},
+            length: 0
+        };
+    }
+    jQueryStub.extend = function(target, source) {
+        return Object.assign(target, source);
+    };
+
     const context = {
         window: {
             aiAssistant,
@@ -13,11 +25,7 @@ function loadExecutionMixin(config) {
         },
         aiAssistantConfig: config || {},
         URLSearchParams,
-        jQuery: {
-            extend(target, source) {
-                return Object.assign(target, source);
-            }
-        },
+        jQuery: jQueryStub,
         console
     };
 
@@ -335,6 +343,133 @@ describe('processToolCalls', function() {
         assert.strictEqual(assistant.pendingToolResults.length, 1);
         assert.strictEqual(assistant.pendingToolResults[0].id, 'pick-2');
         assert.strictEqual(assistant.pendingToolResults[0].result.code, 'multiple_pick_image_calls');
+    });
+});
+
+describe('auto-approved pending actions', function() {
+    it('approves all pending actions with the same ability when Always approve is clicked', async function() {
+        const executed = [];
+        const handled = [];
+        const assistant = createAssistant({
+            pendingActions: [
+                {
+                    id: 'tool-1',
+                    tool: 'ability',
+                    arguments: {
+                        action: 'execute',
+                        ability: 'demo/write',
+                        arguments: { slug: 'one' }
+                    },
+                    provider: 'anthropic'
+                },
+                {
+                    id: 'tool-2',
+                    tool: 'ability',
+                    arguments: {
+                        action: 'execute',
+                        ability: 'demo/write',
+                        arguments: { slug: 'two' }
+                    },
+                    provider: 'anthropic'
+                },
+                {
+                    id: 'tool-3',
+                    tool: 'ability',
+                    arguments: {
+                        action: 'execute',
+                        ability: 'demo/other',
+                        arguments: { slug: 'three' }
+                    },
+                    provider: 'anthropic'
+                }
+            ],
+            executeSingleTool(action) {
+                executed.push(action.id);
+                return Promise.resolve({
+                    id: action.id,
+                    name: action.tool,
+                    input: action.arguments,
+                    result: { ok: true },
+                    success: true
+                });
+            },
+            handleToolResults(results, provider) {
+                handled.push({ results, provider });
+            },
+            notifyToolCallCallbacks() {}
+        });
+
+        assistant.confirmMatchingAutoApprovedActions('tool-1');
+
+        await flushPromises();
+        await flushPromises();
+
+        assert.deepStrictEqual(executed.sort(), ['tool-1', 'tool-2']);
+        assert.deepStrictEqual(assistant.pendingActions.map(action => action.id), ['tool-3']);
+        assert.strictEqual(assistant.executingToolCount, 0);
+        assert.strictEqual(handled.length, 1);
+        assert.strictEqual(handled[0].provider, 'anthropic');
+        assert.deepStrictEqual(Array.from(handled[0].results, result => result.id).sort(), ['tool-1', 'tool-2']);
+    });
+
+    it('executes an ability after preflight if it became auto-approved while the check was pending', async function() {
+        const config = { autoApprovedAbilities: [] };
+        let resolvePreflight;
+        const executed = [];
+        const assistant = createAssistant({
+            config,
+            streamComplete: true,
+            fetchAbilityDetailsForApproval() {
+                return new Promise(resolve => {
+                    resolvePreflight = resolve;
+                });
+            },
+            executeSingleTool(action) {
+                executed.push(action.id);
+                return Promise.resolve({
+                    id: action.id,
+                    name: action.tool,
+                    input: action.arguments,
+                    result: { ok: true },
+                    success: true
+                });
+            },
+            handleToolResults(results) {
+                this._handledResults = results;
+            },
+            notifyToolCallCallbacks() {}
+        });
+
+        assistant.processToolCallImmediate(
+            'tool-4',
+            'ability',
+            { action: 'execute', ability: 'demo/write' },
+            'anthropic'
+        );
+
+        config.autoApprovedAbilities.push('demo/write');
+        resolvePreflight({
+            success: true,
+            details: {
+                id: 'demo/write',
+                label: 'Demo Write',
+                description: 'Write demo data',
+                readonly: false,
+                destructive: true,
+                approved: true,
+                has_schema: false,
+                parameters: []
+            }
+        });
+
+        await flushPromises();
+        await flushPromises();
+
+        assert.deepStrictEqual(executed, ['tool-4']);
+        assert.strictEqual(assistant.pendingActions.length, 0);
+        assert.strictEqual(assistant.executingToolCount, 0);
+        assert.strictEqual(assistant._handledResults.length, 1);
+        assert.strictEqual(assistant._handledResults[0].id, 'tool-4');
     });
 });
 
