@@ -3620,6 +3620,98 @@ body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
     color: #d63638 !important;
 }
 
+.ai-conv-rename-input {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 13px;
+    line-height: 1.4;
+    padding: 2px 4px;
+    border: 1px solid var(--ai-assistant-accent);
+    border-radius: 3px;
+    outline: none;
+}
+
+.ai-conv-item.is-regenerating {
+    cursor: wait;
+    opacity: 0.72;
+}
+
+.ai-conv-context-menu {
+    position: absolute;
+    z-index: 100000;
+    min-width: 178px;
+    padding: 4px;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.14);
+}
+
+.ai-conv-context-menu[hidden] {
+    display: none;
+}
+
+.ai-conv-context-action {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 32px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: #1d2327;
+    cursor: pointer;
+    font-size: 13px;
+    text-align: left;
+}
+
+.ai-conv-context-action:hover,
+.ai-conv-context-action:focus {
+    background: #f0f0f1;
+    color: #000;
+    outline: none;
+}
+
+.ai-conv-context-separator {
+    height: 1px;
+    margin: 4px 0;
+    background: #dcdcde;
+}
+
+.ai-conv-context-label {
+    padding: 5px 8px 3px;
+    color: #646970;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.ai-conv-context-option {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 30px;
+    padding: 4px 8px;
+    color: #1d2327;
+    font-size: 13px;
+}
+
+.ai-conv-context-option input {
+    margin: 0;
+}
+
+.ai-conv-context-export-label {
+    flex: 1;
+}
+
+.ai-conv-context-export-ext {
+    color: #646970;
+    font-size: 12px;
+}
+
 /* Main chat area */
 .ai-chat-main {
     flex: 1;
