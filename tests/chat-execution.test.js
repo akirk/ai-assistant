@@ -606,7 +606,7 @@ describe('activation wpok verification', function() {
                 name: 'ability',
                 input: {
                     action: 'execute',
-                    ability: 'create-wp-app/scaffold'
+                    ability: 'ai/create-wp-app'
                 },
                 result: {
                     result: {
@@ -642,7 +642,7 @@ describe('activation wpok verification', function() {
             name: 'ability',
             input: {
                 action: 'execute',
-                ability: 'create-wp-app/scaffold'
+                ability: 'ai/create-wp-app'
             },
             result: {
                 result: {

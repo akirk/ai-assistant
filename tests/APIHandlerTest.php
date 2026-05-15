@@ -81,6 +81,13 @@ class APIHandlerTest extends TestCase {
             'label' => 'Demo Write',
             'description' => 'Writes demo data',
             'category' => 'demo',
+            'meta' => [
+                'annotations' => [
+                    'readonly' => false,
+                    'destructive' => true,
+                    'instructions' => 'Use only when writing demo data.',
+                ],
+            ],
             'input_schema' => [
                 'type' => 'object',
                 'properties' => [
@@ -111,6 +118,14 @@ class APIHandlerTest extends TestCase {
         $this->assertSame('demo/write', $data['id']);
         $this->assertSame('Demo Write', $data['label']);
         $this->assertTrue($data['approved']);
+        $this->assertFalse($data['readonly']);
+        $this->assertTrue($data['destructive']);
+        $this->assertSame('Use only when writing demo data.', $data['instructions']);
+        $this->assertSame([
+            'readonly' => false,
+            'destructive' => true,
+            'instructions' => 'Use only when writing demo data.',
+        ], $data['annotations']);
         $this->assertTrue($data['has_schema']);
         $this->assertSame('title', $data['parameters'][0]['name']);
         $this->assertTrue($data['parameters'][0]['required']);

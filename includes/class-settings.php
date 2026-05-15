@@ -1412,10 +1412,8 @@ class Settings {
                 var badges = '';
 
                 if (details.readonly) {
-                    return renderAbilityBadge('<?php echo esc_js(__('Read-only', 'ai-assistant')); ?>', 'ai-ability-badge-readonly');
-                }
-
-                if (details.destructive) {
+                    badges += renderAbilityBadge('<?php echo esc_js(__('Read-only', 'ai-assistant')); ?>', 'ai-ability-badge-readonly');
+                } else if (details.destructive) {
                     badges += renderAbilityBadge('<?php echo esc_js(__('Destructive', 'ai-assistant')); ?>', 'ai-ability-badge-destructive');
                 }
 
@@ -1514,6 +1512,23 @@ class Settings {
                 return html;
             }
 
+            function renderAbilityInstructions(details) {
+                var annotations = details.annotations || {};
+                var instructions = typeof annotations.instructions === 'string' ? annotations.instructions : (details.instructions || '');
+                var html = '';
+
+                if (!instructions) {
+                    return '';
+                }
+
+                html += '<div class="ai-ability-instructions">';
+                html += '<div class="ai-ability-params-heading"><?php echo esc_js(__('Instructions for the AI Assistant', 'ai-assistant')); ?></div>';
+                html += '<p class="description ai-ability-instructions-text">' + escapeHtml(instructions) + '</p>';
+                html += '</div>';
+
+                return html;
+            }
+
             function renderAbilityInfo($button) {
                 var details = parseAbilityDetails($button);
                 var $layout = $button.closest('.ai-tool-tab-panel');
@@ -1536,6 +1551,8 @@ class Settings {
                 } else {
                     html += '<p class="description ai-ability-info-description"><?php echo esc_js(__('No description provided.', 'ai-assistant')); ?></p>';
                 }
+
+                html += renderAbilityInstructions(details);
 
                 if (!details.has_schema) {
                     html += '<div class="ai-ability-params-heading"><?php echo esc_js(__('Parameters', 'ai-assistant')); ?></div>';
@@ -2150,6 +2167,15 @@ class Settings {
                 color: #646970;
                 font-size: 11px;
                 margin-top: 3px;
+            }
+            .ai-ability-instructions {
+                margin: 0 0 10px;
+            }
+            .ai-ability-instructions-text {
+                background: #fff;
+                margin: 0;
+                padding: 6px 8px;
+                white-space: pre-wrap;
             }
             .ai-ability-raw-schema {
                 margin-top: 6px;

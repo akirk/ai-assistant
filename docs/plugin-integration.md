@@ -69,7 +69,6 @@ wp_register_ability( 'my-plugin/get-invoice', [
             'instructions' => 'Present the invoice total in bold. If pdf_url is present, include it as a Download PDF link.',
             'readonly'     => true,
             'destructive'  => false,
-            'idempotent'   => true,
         ],
     ],
 ] );
@@ -92,7 +91,6 @@ AI Assistant reads Abilities API annotations and uses them in both model context
 | `instructions` | Added to the model context when the assistant inspects the ability. Use this for call ordering, batching, ambiguity handling, and result presentation. |
 | `readonly` | Marks the ability as read-only. Read-only abilities can run in read-only tool mode and may be eligible for lighter confirmation flows. |
 | `destructive` | Marks the ability as capable of permanent or destructive changes, which triggers stronger confirmation treatment. |
-| `idempotent` | Tells the assistant whether repeated calls with the same arguments should have no additional effect. |
 
 Use `instructions` when the raw schema is not enough:
 
@@ -354,7 +352,7 @@ Before shipping an AI Assistant integration, verify:
 - [ ] Abilities are focused and named with your plugin namespace.
 - [ ] Descriptions and schema property descriptions identify returned IDs, URLs, and follow-up ability inputs.
 - [ ] Input schemas are strict where appropriate.
-- [ ] `readonly`, `destructive`, and `idempotent` annotations are accurate.
+- [ ] `readonly` and `destructive` annotations are accurate.
 - [ ] `instructions` annotations or `ai_assistant_ability_instructions` explain presentation, batching, ambiguity, or follow-up behavior when needed.
 - [ ] `ai_assistant_ability_domains` registers the terms users use for your plugin so AI Assistant considers these abilities for domain-specific requests.
 - [ ] Image-related abilities accept remote URLs unless an existing attachment ID is required.

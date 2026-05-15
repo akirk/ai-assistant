@@ -129,6 +129,12 @@ class Ability_Annotations {
             'readonly'    => $annotations['readonly'] && !$annotations['destructive'],
             'destructive' => $annotations['destructive'],
             'approved'    => $is_approved,
+            'instructions' => $annotations['instructions'],
+            'annotations'  => [
+                'readonly'     => $annotations['readonly'],
+                'destructive'  => $annotations['destructive'],
+                'instructions' => $annotations['instructions'],
+            ],
             'has_schema'  => $schema !== null,
             'parameters'  => $schema !== null ? self::get_schema_parameters($schema) : [],
             'raw_schema'  => $schema !== null && !empty($schema) ? self::encode_json($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : '',
