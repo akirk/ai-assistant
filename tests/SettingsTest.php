@@ -16,8 +16,15 @@ class SettingsTest extends TestCase {
         $GLOBALS['wp_test_capabilities'] = [];
         $GLOBALS['wp_test_filters'] = [];
         $GLOBALS['wp_test_is_playground'] = false;
+        $GLOBALS['wp_test_abilities'] = [];
+        $GLOBALS['wp_test_json_response'] = null;
+        $_POST = [];
 
         $this->settings = new Settings();
+    }
+
+    protected function tearDown(): void {
+        $_POST = [];
     }
 
     // ===== get_default_enabled_tools =====
@@ -272,5 +279,166 @@ class SettingsTest extends TestCase {
         $this->assertStringContainsString('personal WordPress can be used for', $prompt);
         $this->assertStringContainsString('inspect installed plugins before recommending uses', $prompt);
         $this->assertStringContainsString('my.wordpress.net', $prompt);
+    }
+
+    public function test_sample_readonly_ability_returns_output(): void {
+        $_POST = [
+            'ability' => 'demo/read',
+        ];
+        $GLOBALS['wp_test_capabilities']['manage_options'] = true;
+        $GLOBALS['wp_test_abilities']['demo/read'] = $this->createSampleAbility(true, false, [
+            'items' => [
+                ['id' => 1, 'title' => 'First item'],
+            ],
+        ]);
+
+        try {
+            $this->settings->ajax_sample_readonly_ability();
+            $this->fail('Expected wp_send_json_success to stop execution');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('wp_send_json_success', $e->getMessage());
+        }
+
+        $this->assertTrue($GLOBALS['wp_test_json_response']['success']);
+        $data = $GLOBALS['wp_test_json_response']['data'];
+        $this->assertSame('demo/read', $data['ability']);
+        $this->assertNull($data['input']);
+        $this->assertSame('First item', $data['result']['items'][0]['title']);
+    }
+
+    public function test_sample_readonly_ability_rejects_non_readonly_ability(): void {
+        $_POST = [
+            'ability' => 'demo/write',
+        ];
+        $GLOBALS['wp_test_capabilities']['manage_options'] = true;
+        $GLOBALS['wp_test_abilities']['demo/write'] = $this->createSampleAbility(false, false, ['ok' => true]);
+
+        try {
+            $this->settings->ajax_sample_readonly_ability();
+            $this->fail('Expected wp_send_json_error to stop execution');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('wp_send_json_error', $e->getMessage());
+        }
+
+        $this->assertFalse($GLOBALS['wp_test_json_response']['success']);
+        $this->assertSame(403, $GLOBALS['wp_test_json_response']['status_code']);
+        $this->assertSame('ability_not_readonly', $GLOBALS['wp_test_json_response']['data']['code']);
+    }
+
+    public function test_sample_readonly_ability_accepts_user_arguments(): void {
+        $_POST = [
+            'ability' => 'demo/read',
+            'arguments' => '{"id":123}',
+        ];
+        $GLOBALS['wp_test_capabilities']['manage_options'] = true;
+        $GLOBALS['wp_test_abilities']['demo/read'] = $this->createSampleAbility(true, false, ['ok' => true], [
+            'type' => 'object',
+            'properties' => [
+                'id' => ['type' => 'integer'],
+            ],
+            'required' => ['id'],
+        ]);
+
+        try {
+            $this->settings->ajax_sample_readonly_ability();
+            $this->fail('Expected wp_send_json_success to stop execution');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('wp_send_json_success', $e->getMessage());
+        }
+
+        $this->assertTrue($GLOBALS['wp_test_json_response']['success']);
+        $this->assertSame(['id' => 123], $GLOBALS['wp_test_json_response']['data']['input']);
+    }
+
+    public function test_sample_readonly_ability_requires_user_arguments(): void {
+        $_POST = [
+            'ability' => 'demo/read',
+            'arguments' => '{}',
+        ];
+        $GLOBALS['wp_test_capabilities']['manage_options'] = true;
+        $GLOBALS['wp_test_abilities']['demo/read'] = $this->createSampleAbility(true, false, ['ok' => true], [
+            'type' => 'object',
+            'properties' => [
+                'id' => ['type' => 'integer'],
+            ],
+            'required' => ['id'],
+        ]);
+
+        try {
+            $this->settings->ajax_sample_readonly_ability();
+            $this->fail('Expected wp_send_json_error to stop execution');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('wp_send_json_error', $e->getMessage());
+        }
+
+        $this->assertFalse($GLOBALS['wp_test_json_response']['success']);
+        $this->assertSame(400, $GLOBALS['wp_test_json_response']['status_code']);
+        $this->assertSame('sample_arguments_required', $GLOBALS['wp_test_json_response']['data']['code']);
+        $this->assertSame('Sample output requires arguments for: id', $GLOBALS['wp_test_json_response']['data']['message']);
+    }
+
+    public function test_sample_readonly_ability_rejects_non_object_arguments(): void {
+        $_POST = [
+            'ability' => 'demo/read',
+            'arguments' => '[]',
+        ];
+        $GLOBALS['wp_test_capabilities']['manage_options'] = true;
+        $GLOBALS['wp_test_abilities']['demo/read'] = $this->createSampleAbility(true, false, ['ok' => true]);
+
+        try {
+            $this->settings->ajax_sample_readonly_ability();
+            $this->fail('Expected wp_send_json_error to stop execution');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('wp_send_json_error', $e->getMessage());
+        }
+
+        $this->assertFalse($GLOBALS['wp_test_json_response']['success']);
+        $this->assertSame(400, $GLOBALS['wp_test_json_response']['status_code']);
+        $this->assertSame('invalid_sample_arguments', $GLOBALS['wp_test_json_response']['data']['code']);
+    }
+
+    private function createSampleAbility(bool $readonly, bool $destructive, array $result, array $input_schema = ['type' => 'object']): object {
+        return new class($readonly, $destructive, $result, $input_schema) {
+            private bool $readonly;
+            private bool $destructive;
+            private array $result;
+            private array $input_schema;
+
+            public function __construct(bool $readonly, bool $destructive, array $result, array $input_schema) {
+                $this->readonly = $readonly;
+                $this->destructive = $destructive;
+                $this->result = $result;
+                $this->input_schema = $input_schema;
+            }
+
+            public function get_label(): string {
+                return 'Demo Ability';
+            }
+
+            public function get_description(): string {
+                return 'Returns demo data.';
+            }
+
+            public function get_category(): string {
+                return 'demo';
+            }
+
+            public function get_input_schema(): array {
+                return $this->input_schema;
+            }
+
+            public function get_meta(): array {
+                return [
+                    'annotations' => [
+                        'readonly'    => $this->readonly,
+                        'destructive' => $this->destructive,
+                    ],
+                ];
+            }
+
+            public function execute($input) {
+                return $this->result;
+            }
+        };
     }
 }
