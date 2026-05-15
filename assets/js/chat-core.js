@@ -171,7 +171,11 @@
                 } else if (restApi) {
                     self.saveAutoApprovedRestApi(restApi);
                 }
-                self.confirmAction(toolId, true);
+                if ((abilityId || restApi) && self.confirmMatchingAutoApprovedActions) {
+                    self.confirmMatchingAutoApprovedActions(toolId);
+                } else {
+                    self.confirmAction(toolId, true);
+                }
             });
 
             $(document).on('click', '.ai-ability-info-toggle', function(e) {

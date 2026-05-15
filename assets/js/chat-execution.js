@@ -103,11 +103,22 @@
                         provider: provider
                     };
                 })).then(function(preflight) {
-                    var approvalActions = preflight.actions;
+                    var autoApprovedActions = [];
+                    var approvalActions = preflight.actions.filter(function(action) {
+                        if (self.isActionAutoApproved(action)) {
+                            autoApprovedActions.push(action);
+                            return false;
+                        }
+                        return true;
+                    });
                     var deniedResults = preflight.deniedResults;
 
                     if (deniedResults.length > 0) {
                         self.pendingToolResults = self.pendingToolResults.concat(deniedResults);
+                    }
+
+                    if (autoApprovedActions.length > 0) {
+                        self.executeApprovedActions(autoApprovedActions, provider);
                     }
 
                     if (approvalActions.length > 0) {
@@ -131,7 +142,7 @@
 
                     if (deniedResults.length > 0) {
                         self.handleToolResults([], provider);
-                    } else {
+                    } else if (autoApprovedActions.length === 0) {
                         self.setLoading(false);
                     }
                 });
@@ -702,6 +713,47 @@
                 (toolName === 'ability' && args.action === 'execute') ||
                 toolName === 'execute_ability'
             );
+        },
+
+        getToolCallName: function(toolCall) {
+            return (toolCall && (toolCall.name || toolCall.tool)) || '';
+        },
+
+        getRestApiAutoApprovalPattern: function(args) {
+            args = args || {};
+            var method = (args.method || 'GET').toUpperCase();
+            if (method === 'GET' || method === 'OPTIONS') {
+                return '';
+            }
+            return method + ' ' + (args.path || '/');
+        },
+
+        getAutoApprovalKey: function(toolCall) {
+            var toolName = this.getToolCallName(toolCall);
+            var args = (toolCall && toolCall.arguments) || {};
+
+            if (
+                ((toolName === 'ability' && args.action === 'execute') || toolName === 'execute_ability') &&
+                args.ability
+            ) {
+                return 'ability:' + args.ability;
+            }
+
+            if (toolName === 'rest_api') {
+                var restApiPattern = this.getRestApiAutoApprovalPattern(args);
+                if (restApiPattern) {
+                    return 'rest_api:' + restApiPattern;
+                }
+            }
+
+            return '';
+        },
+
+        isActionAutoApproved: function(action) {
+            var toolName = this.getToolCallName(action);
+            var args = (action && action.arguments) || {};
+            return this.isAbilityAutoApproved({ name: toolName, arguments: args }) ||
+                this.isRestApiAutoApproved({ name: toolName, arguments: args });
         },
 
         prepareActionsForApproval: function(actions) {
@@ -1293,7 +1345,7 @@
             var args = toolCall.arguments || {};
             var method = (args.method || 'GET').toUpperCase();
             if (method === 'GET' || method === 'OPTIONS') return true;
-            var pattern = method + ' ' + (args.path || '/');
+            var pattern = this.getRestApiAutoApprovalPattern(args);
             var autoApproved = (window.aiAssistantConfig && window.aiAssistantConfig.autoApprovedRestApis) || [];
             return autoApproved.indexOf(pattern) >= 0;
         },
@@ -1377,6 +1429,11 @@
                         }
 
                         var approvedAction = preflight.actions[0];
+                        if (self.isActionAutoApproved(approvedAction)) {
+                            self.executeApprovedActions([approvedAction], provider);
+                            return;
+                        }
+
                         self.setToolCardState(toolId, 'pending');
                         self.pendingActions.push(approvedAction);
                         if (self.pendingActions.length > 1) {
@@ -1586,28 +1643,111 @@
         },
 
         confirmAction: function(actionId, confirmed) {
-            var self = this;
             var action = this.pendingActions.find(function(a) {
                 return a.id === actionId;
             });
 
             if (!action) return;
 
-            this.pendingActions = this.pendingActions.filter(function(a) {
-                return a.id !== actionId;
+            this.removePendingActions([action]);
+
+            if (confirmed) {
+                this.executeApprovedActions([action], action.provider);
+            } else {
+                this.skipActions([action], action.provider);
+            }
+        },
+
+        confirmAllActions: function(confirmed) {
+            var actions = this.pendingActions.slice();
+            if (actions.length === 0) {
+                this.showToolApprovalModal();
+                return;
+            }
+
+            this.removePendingActions(actions);
+
+            if (confirmed) {
+                this.executeApprovedActions(actions, actions[0].provider);
+            } else {
+                this.skipActions(actions, actions[0].provider);
+            }
+        },
+
+        confirmMatchingAutoApprovedActions: function(actionId) {
+            var self = this;
+            var clickedAction = (this.pendingActions || []).find(function(action) {
+                return action.id === actionId;
             });
 
-            if (this.pendingActions.length === 0) {
+            if (!clickedAction) return;
+
+            var autoApprovalKey = this.getAutoApprovalKey(clickedAction);
+            var actions = autoApprovalKey
+                ? this.pendingActions.filter(function(action) {
+                    return self.getAutoApprovalKey(action) === autoApprovalKey;
+                })
+                : [clickedAction];
+
+            this.removePendingActions(actions);
+            this.executeApprovedActions(actions, clickedAction.provider);
+        },
+
+        removePendingActions: function(actions) {
+            var ids = {};
+            actions.forEach(function(action) {
+                ids[action.id] = true;
+            });
+
+            this.pendingActions = (this.pendingActions || []).filter(function(action) {
+                return !ids[action.id];
+            });
+
+            this.refreshPendingActionsUI();
+        },
+
+        refreshPendingActionsUI: function() {
+            if ((this.pendingActions || []).length > 1) {
+                this.showPendingActionsHeader();
+            } else {
                 $('#ai-assistant-pending-actions-header').remove();
             }
             this.showToolApprovalModal();
+        },
 
-            if (confirmed) {
-                this.setToolCardState(actionId, 'executing');
-                this.executeSingleTool(action).then(function(result) {
-                    return self.verifyPluginFileMutationResults([result]);
-                }).then(function(results) {
-                    var result = results[0];
+        executeApprovedActions: function(actions, provider) {
+            var self = this;
+            if (!actions || actions.length === 0) return;
+
+            var resultProvider = provider || actions[0].provider || this.currentProvider;
+            var providersById = {};
+
+            actions.forEach(function(action) {
+                providersById[action.id] = action.provider || resultProvider;
+                self.setToolCardState(action.id, 'executing');
+            });
+
+            this.executingToolCount = (this.executingToolCount || 0) + actions.length;
+
+            var promises = actions.map(function(action) {
+                return self.executeSingleTool(action).catch(function(error) {
+                    return {
+                        id: action.id,
+                        name: action.tool || action.name,
+                        input: action.arguments,
+                        result: { error: error.message || 'Tool failed' },
+                        success: false
+                    };
+                });
+            });
+
+            Promise.all(promises).then(function(results) {
+                return self.verifyPluginFileMutationResults(results);
+            }).then(function(results) {
+                return self.verifyActivatedPluginResults(results);
+            }).then(function(results) {
+                self.executingToolCount = Math.max(0, (self.executingToolCount || 0) - actions.length);
+                results.forEach(function(result) {
                     if (result.success) {
                         self.setToolCardState(result.id, 'completed', { output: result.result });
                     } else {
@@ -1615,94 +1755,42 @@
                         self.setToolCardState(result.id, 'error', { message: errorMsg });
                     }
                     if (self.notifyToolCallCallbacks) {
-                        self.notifyToolCallCallbacks(result, action.provider);
+                        self.notifyToolCallCallbacks(result, providersById[result.id] || resultProvider);
                     }
-                    self.handleToolResults([result], action.provider);
-                }).catch(function(error) {
-                    self.setToolCardState(actionId, 'error', { message: error.message || 'Tool failed' });
-                    self.handleToolResults([{
+                });
+                self.handleToolResults(results, resultProvider);
+            }).catch(function(error) {
+                self.executingToolCount = Math.max(0, (self.executingToolCount || 0) - actions.length);
+                var failedResults = actions.map(function(action) {
+                    self.setToolCardState(action.id, 'error', { message: error.message || 'Tool failed' });
+                    return {
                         id: action.id,
-                        name: action.tool,
+                        name: action.tool || action.name,
                         input: action.arguments,
                         result: { error: error.message || 'Tool failed' },
                         success: false
-                    }], action.provider);
+                    };
                 });
-            } else {
-                this.setToolCardState(actionId, 'skipped');
-                var skippedResult = {
+                self.handleToolResults(failedResults, resultProvider);
+            });
+        },
+
+        skipActions: function(actions, provider) {
+            var self = this;
+            if (!actions || actions.length === 0) return;
+
+            var resultProvider = provider || actions[0].provider || this.currentProvider;
+            var skippedResults = actions.map(function(action) {
+                self.setToolCardState(action.id, 'skipped');
+                return {
                     id: action.id,
-                    name: action.tool,
+                    name: action.tool || action.name,
                     input: action.arguments,
                     result: { skipped: true, message: 'User declined to execute this action' },
                     success: false
                 };
-                this.handleToolResults([skippedResult], action.provider);
-            }
-        },
-
-        confirmAllActions: function(confirmed) {
-            var self = this;
-            var actions = this.pendingActions.slice();
-            if (actions.length === 0) {
-                this.showToolApprovalModal();
-                return;
-            }
-
-            this.pendingActions = [];
-            $('#ai-assistant-pending-actions-header').remove();
-            this.showToolApprovalModal();
-
-            if (confirmed) {
-                actions.forEach(function(action) {
-                    self.setToolCardState(action.id, 'executing');
-                });
-
-                var promises = actions.map(function(action) {
-                    return self.executeSingleTool(action);
-                });
-
-                Promise.all(promises).then(function(results) {
-                    return self.verifyPluginFileMutationResults(results);
-                }).then(function(results) {
-                    results.forEach(function(result) {
-                        if (result.success) {
-                            self.setToolCardState(result.id, 'completed', { output: result.result });
-                        } else {
-                            var errorMsg = result.result?.error || 'Failed';
-                            self.setToolCardState(result.id, 'error', { message: errorMsg });
-                        }
-                        if (self.notifyToolCallCallbacks) {
-                            self.notifyToolCallCallbacks(result, actions[0].provider);
-                        }
-                    });
-                    self.handleToolResults(results, actions[0].provider);
-                }).catch(function(error) {
-                    var failedResults = actions.map(function(action) {
-                        self.setToolCardState(action.id, 'error', { message: error.message || 'Tool failed' });
-                        return {
-                            id: action.id,
-                            name: action.tool,
-                            input: action.arguments,
-                            result: { error: error.message || 'Tool failed' },
-                            success: false
-                        };
-                    });
-                    self.handleToolResults(failedResults, actions[0].provider);
-                });
-            } else {
-                var skippedResults = actions.map(function(action) {
-                    self.setToolCardState(action.id, 'skipped');
-                    return {
-                        id: action.id,
-                        name: action.tool,
-                        input: action.arguments,
-                        result: { skipped: true, message: 'User declined to execute this action' },
-                        success: false
-                    };
-                });
-                this.handleToolResults(skippedResults, actions[0].provider);
-            }
+            });
+            this.handleToolResults(skippedResults, resultProvider);
         },
 
         showToolApprovalModal: function() {
