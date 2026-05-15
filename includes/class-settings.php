@@ -16,6 +16,7 @@ class Settings {
         add_action('wp_ajax_ai_assistant_get_skill', [$this, 'ajax_get_skill']);
         add_action('wp_ajax_ai_assistant_toggle_auto_approve_ability', [$this, 'ajax_toggle_auto_approve_ability']);
         add_action('wp_ajax_ai_assistant_toggle_auto_approve_rest_api', [$this, 'ajax_toggle_auto_approve_rest_api']);
+        add_action('wp_ajax_ai_assistant_sample_readonly_ability', [$this, 'ajax_sample_readonly_ability']);
         add_action('load-tools_page_ai-conversations', [$this, 'add_help_tabs']);
         add_action('load-settings_page_ai-assistant-settings', [$this, 'add_help_tabs']);
         add_filter('map_meta_cap', [$this, 'map_tool_cap'], 10, 3);
@@ -1250,6 +1251,13 @@ class Settings {
         </div>
         <script>
         jQuery(function($) {
+            var abilitySampleConfig = {
+                ajaxUrl: <?php echo $this->encode_json(admin_url('admin-ajax.php')); ?>,
+                nonce: <?php echo $this->encode_json(wp_create_nonce('ai_assistant_sample_ability')); ?>,
+                sampleLabel: '<?php echo esc_js(__('Sample output', 'ai-assistant')); ?>',
+                loadingLabel: '<?php echo esc_js(__('Loading...', 'ai-assistant')); ?>'
+            };
+
             // Sync group toggle with children
             $('.ai-group-toggle').each(function() {
                 if ($(this).data('indeterminate')) this.indeterminate = true;
@@ -1367,6 +1375,41 @@ class Settings {
                 return '';
             }
 
+            function isJsonSampleType(type) {
+                type = String(type || '').toLowerCase();
+                return type.indexOf('object') !== -1 || type.indexOf('array') === 0;
+            }
+
+            function renderSampleField(parameter) {
+                var name = parameter.name || '';
+                var type = String(parameter.type || 'string').toLowerCase();
+                var required = !!parameter.required;
+                var html = '';
+
+                html += '<label class="ai-ability-sample-field">';
+                html += '<span class="ai-ability-sample-label"><code>' + escapeHtml(name) + '</code>';
+                if (required) {
+                    html += '<span class="ai-ability-param-required"><?php echo esc_js(__('Required', 'ai-assistant')); ?></span>';
+                }
+                html += '</span>';
+
+                if (type === 'boolean') {
+                    html += '<span class="ai-ability-sample-checkbox">';
+                    html += '<input type="checkbox" class="ai-ability-sample-input" data-parameter="' + escapeHtml(name) + '" data-type="' + escapeHtml(type) + '" data-required="' + (required ? '1' : '0') + '">';
+                    html += '<span><?php echo esc_js(__('True', 'ai-assistant')); ?></span>';
+                    html += '</span>';
+                } else if (type === 'integer' || type === 'number') {
+                    html += '<input type="number" class="regular-text ai-ability-sample-input" step="' + (type === 'integer' ? '1' : 'any') + '" data-parameter="' + escapeHtml(name) + '" data-type="' + escapeHtml(type) + '" data-required="' + (required ? '1' : '0') + '">';
+                } else if (isJsonSampleType(type)) {
+                    html += '<textarea class="large-text code ai-ability-sample-input" rows="3" placeholder="' + (type.indexOf('array') === 0 ? '[]' : '{}') + '" data-parameter="' + escapeHtml(name) + '" data-type="' + escapeHtml(type) + '" data-required="' + (required ? '1' : '0') + '"></textarea>';
+                } else {
+                    html += '<input type="text" class="regular-text ai-ability-sample-input" data-parameter="' + escapeHtml(name) + '" data-type="' + escapeHtml(type) + '" data-required="' + (required ? '1' : '0') + '">';
+                }
+
+                html += '</label>';
+                return html;
+            }
+
             function renderAbilityInfo($button) {
                 var details = parseAbilityDetails($button);
                 var $layout = $button.closest('.ai-tool-tab-panel');
@@ -1423,6 +1466,23 @@ class Settings {
                     html += '</details>';
                 }
 
+                if (details.readonly) {
+                    html += '<div class="ai-ability-sample">';
+                    if (parameters.length) {
+                        html += '<div class="ai-ability-params-heading"><?php echo esc_js(__('Sample input', 'ai-assistant')); ?></div>';
+                        html += '<div class="ai-ability-sample-fields">';
+                        parameters.forEach(function(parameter) {
+                            html += renderSampleField(parameter);
+                        });
+                        html += '</div>';
+                    }
+                    html += '<div class="ai-ability-sample-actions">';
+                    html += '<button type="button" class="button button-small ai-ability-sample-button" data-ability="' + escapeHtml(details.id || '') + '">' + abilitySampleConfig.sampleLabel + '</button>';
+                    html += '</div>';
+                    html += '<div class="ai-ability-sample-output" aria-live="polite"></div>';
+                    html += '</div>';
+                }
+
                 $layout.find('.ai-ability-select').removeClass('selected').removeAttr('aria-current');
                 $button.addClass('selected').attr('aria-current', 'true');
                 $panel.html(html);
@@ -1430,6 +1490,144 @@ class Settings {
 
             $(document).on('click', '.ai-ability-select', function() {
                 renderAbilityInfo($(this));
+            });
+
+            function formatSampleValue(value) {
+                if (typeof value === 'string') {
+                    return value;
+                }
+
+                try {
+                    return JSON.stringify(value, null, 2);
+                } catch (e) {
+                    return String(value);
+                }
+            }
+
+            function getAjaxErrorMessage(response, fallback) {
+                if (response && response.data && response.data.message) {
+                    return response.data.message;
+                }
+
+                return fallback;
+            }
+
+            function renderSampleError($output, message) {
+                $output.html('<p class="description ai-ability-sample-error">' + escapeHtml(message) + '</p>');
+            }
+
+            function renderSampleResult($output, data) {
+                var value = data && Object.prototype.hasOwnProperty.call(data, 'result') ? data.result : data;
+                $output.html('<pre></pre>');
+                $output.find('pre').text(formatSampleValue(value));
+            }
+
+            function collectSampleArguments($sample) {
+                var args = {};
+                var errors = [];
+
+                $sample.find('.ai-ability-sample-input').each(function() {
+                    var $field = $(this);
+                    var name = String($field.attr('data-parameter') || '');
+                    var type = String($field.attr('data-type') || '').toLowerCase();
+                    var required = $field.attr('data-required') === '1';
+                    var raw;
+                    var value;
+
+                    if (!name) {
+                        return;
+                    }
+
+                    if ($field.attr('type') === 'checkbox') {
+                        if (required || $field.prop('checked')) {
+                            args[name] = $field.prop('checked');
+                        }
+                        return;
+                    }
+
+                    raw = String($field.val() || '').trim();
+                    if (raw === '') {
+                        if (required) {
+                            errors.push(name + ' <?php echo esc_js(__('is required.', 'ai-assistant')); ?>');
+                        }
+                        return;
+                    }
+
+                    if (type === 'integer' || type === 'number') {
+                        value = Number(raw);
+                        if (!isFinite(value) || (type === 'integer' && Math.floor(value) !== value)) {
+                            errors.push(name + ' <?php echo esc_js(__('must be a valid number.', 'ai-assistant')); ?>');
+                            return;
+                        }
+                    } else if (isJsonSampleType(type)) {
+                        try {
+                            value = JSON.parse(raw);
+                        } catch (e) {
+                            errors.push(name + ' <?php echo esc_js(__('must be valid JSON.', 'ai-assistant')); ?>');
+                            return;
+                        }
+                        if (type.indexOf('array') === 0 && !Array.isArray(value)) {
+                            errors.push(name + ' <?php echo esc_js(__('must be a JSON array.', 'ai-assistant')); ?>');
+                            return;
+                        }
+                        if (type.indexOf('object') !== -1 && (value === null || Array.isArray(value) || typeof value !== 'object')) {
+                            errors.push(name + ' <?php echo esc_js(__('must be a JSON object.', 'ai-assistant')); ?>');
+                            return;
+                        }
+                    } else {
+                        value = raw;
+                    }
+
+                    args[name] = value;
+                });
+
+                if (errors.length) {
+                    throw new Error(errors.join(' '));
+                }
+
+                return args;
+            }
+
+            $(document).on('click', '.ai-ability-sample-button', function() {
+                var $button = $(this);
+                var $sample = $button.closest('.ai-ability-sample');
+                var abilityId = $button.attr('data-ability') || '';
+                var $output = $sample.find('.ai-ability-sample-output');
+                var sampleArguments;
+
+                if (!abilityId) {
+                    renderSampleError($output, '<?php echo esc_js(__('Missing ability ID.', 'ai-assistant')); ?>');
+                    return;
+                }
+
+                try {
+                    sampleArguments = collectSampleArguments($sample);
+                } catch (e) {
+                    renderSampleError($output, e.message || '<?php echo esc_js(__('Check the sample input fields.', 'ai-assistant')); ?>');
+                    return;
+                }
+
+                $button.prop('disabled', true).text(abilitySampleConfig.loadingLabel);
+                $output.html('<p class="description">' + abilitySampleConfig.loadingLabel + '</p>');
+
+                $.post(abilitySampleConfig.ajaxUrl, {
+                    action: 'ai_assistant_sample_readonly_ability',
+                    _wpnonce: abilitySampleConfig.nonce,
+                    ability: abilityId,
+                    arguments: JSON.stringify(sampleArguments)
+                }).done(function(response) {
+                    if (!response || !response.success) {
+                        renderSampleError($output, getAjaxErrorMessage(response, '<?php echo esc_js(__('Unable to load sample output.', 'ai-assistant')); ?>'));
+                        return;
+                    }
+
+                    renderSampleResult($output, response.data);
+                }).fail(function(xhr) {
+                    var response = xhr && xhr.responseJSON ? xhr.responseJSON : null;
+                    renderSampleError($output, getAjaxErrorMessage(response, '<?php echo esc_js(__('Unable to load sample output.', 'ai-assistant')); ?>'));
+                }).always(function() {
+                    $button.prop('disabled', false).text(abilitySampleConfig.sampleLabel);
+                });
             });
         });
         </script>
@@ -1777,6 +1975,64 @@ class Settings {
                 overflow: auto;
                 padding: 6px;
                 white-space: pre-wrap;
+            }
+            .ai-ability-sample {
+                border-top: 1px solid #dcdcde;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            .ai-ability-sample-fields {
+                display: flex;
+                flex-direction: column;
+                gap: 7px;
+                margin-bottom: 10px;
+            }
+            .ai-ability-sample-field {
+                display: block;
+            }
+            .ai-ability-sample-label {
+                align-items: center;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 5px;
+                margin-bottom: 3px;
+            }
+            .ai-ability-sample-field input[type=text],
+            .ai-ability-sample-field input[type=number],
+            .ai-ability-sample-field textarea {
+                box-sizing: border-box;
+                margin: 0;
+                max-width: 100%;
+                width: 100%;
+            }
+            .ai-ability-sample-checkbox {
+                align-items: center;
+                display: inline-flex;
+                gap: 5px;
+            }
+            .ai-ability-sample-actions {
+                align-items: center;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .ai-ability-sample-output {
+                margin-top: 7px;
+            }
+            .ai-ability-sample-output pre {
+                background: #fff;
+                border: 1px solid #dcdcde;
+                border-radius: 3px;
+                font-size: 11px;
+                margin: 0;
+                max-height: 260px;
+                overflow: auto;
+                padding: 6px;
+                white-space: pre-wrap;
+            }
+            .ai-ability-sample-error {
+                color: #b32d2e;
+                margin: 0;
             }
             .ai-ability-badge {
                 border-radius: 3px;
@@ -2392,6 +2648,117 @@ PROMPT;
 
         update_option('ai_assistant_auto_approved_abilities', $auto_approved);
         wp_send_json_success(['autoApprovedAbilities' => $auto_approved]);
+    }
+
+    public function ajax_sample_readonly_ability() {
+        check_ajax_referer('ai_assistant_sample_ability', '_wpnonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => 'Insufficient permissions'], 403);
+        }
+
+        $ability_id = sanitize_text_field(wp_unslash($_POST['ability'] ?? ''));
+        if (empty($ability_id)) {
+            wp_send_json_error([
+                'code'    => 'ability_missing',
+                'message' => 'Missing ability identifier',
+            ], 400);
+        }
+
+        if (!function_exists('wp_get_ability')) {
+            wp_send_json_error([
+                'code'    => 'abilities_api_unavailable',
+                'message' => 'Abilities API not available. WordPress 6.9+ with the Abilities API is required.',
+            ], 400);
+        }
+
+        $ability = wp_get_ability($ability_id);
+        if ($ability === null) {
+            wp_send_json_error([
+                'code'    => 'ability_not_found',
+                'message' => 'Ability not found: ' . $ability_id,
+            ], 404);
+        }
+
+        $details = Ability_Annotations::get_details($ability_id, $ability);
+        if (empty($details['readonly']) || !empty($details['destructive'])) {
+            wp_send_json_error([
+                'code'    => 'ability_not_readonly',
+                'message' => 'Only read-only abilities can be sampled from settings.',
+            ], 403);
+        }
+
+        if (!is_object($ability) || !method_exists($ability, 'execute')) {
+            wp_send_json_error([
+                'code'    => 'ability_not_executable',
+                'message' => 'This ability cannot be sampled because it is not executable.',
+            ], 400);
+        }
+
+        $arguments_json = wp_unslash($_POST['arguments'] ?? '{}');
+        if (!is_string($arguments_json)) {
+            wp_send_json_error([
+                'code'    => 'invalid_sample_arguments',
+                'message' => 'Sample arguments must be a JSON object.',
+            ], 400);
+        }
+
+        $arguments_json = $arguments_json === '' ? '{}' : $arguments_json;
+        $sample_arguments_object = json_decode($arguments_json);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_object($sample_arguments_object)) {
+            wp_send_json_error([
+                'code'    => 'invalid_sample_arguments',
+                'message' => 'Sample arguments must be a valid JSON object.',
+            ], 400);
+        }
+        $sample_arguments = json_decode($arguments_json, true);
+
+        $missing_required = [];
+        foreach ((array) ($details['parameters'] ?? []) as $parameter) {
+            $name = (string) ($parameter['name'] ?? '');
+            if (!empty($parameter['required']) && $name !== '' && !array_key_exists($name, $sample_arguments)) {
+                $missing_required[] = $name;
+            }
+        }
+
+        if (!empty($missing_required)) {
+            wp_send_json_error([
+                'code'    => 'sample_arguments_required',
+                'message' => 'Sample output requires arguments for: ' . implode(', ', $missing_required),
+            ], 400);
+        }
+
+        $input = empty($sample_arguments) ? null : $sample_arguments;
+
+        try {
+            $result = $ability->execute($input);
+        } catch (\Throwable $e) {
+            $message = $e->getMessage();
+            wp_send_json_error([
+                'code'    => 'ability_sample_failed',
+                'message' => $message ?: 'Ability sample failed.',
+            ], 500);
+        }
+
+        if (is_wp_error($result)) {
+            wp_send_json_error([
+                'code'    => 'ability_sample_failed',
+                'message' => 'Ability sample failed: ' . $result->get_error_message(),
+            ], 500);
+        }
+
+        $response = [
+            'ability' => $ability_id,
+            'input'   => $input,
+            'result'  => $result,
+        ];
+
+        $instructions = apply_filters('ai_assistant_ability_instructions', '', $ability_id, (array) $sample_arguments, $result);
+        if ($instructions) {
+            $response['_instructions'] = $instructions;
+        }
+
+        wp_send_json_success($response);
     }
 
     public function ajax_toggle_auto_approve_rest_api() {
