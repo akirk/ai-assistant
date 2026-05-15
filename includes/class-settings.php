@@ -13,6 +13,7 @@ class Settings {
     public function __construct() {
         add_action('admin_menu', [$this, 'add_settings_page']);
         add_action('admin_init', [$this, 'register_settings']);
+        add_action('admin_enqueue_scripts', [$this, 'enqueue_settings_assets']);
         add_action('wp_ajax_ai_assistant_get_skill', [$this, 'ajax_get_skill']);
         add_action('wp_ajax_ai_assistant_toggle_auto_approve_ability', [$this, 'ajax_toggle_auto_approve_ability']);
         add_action('wp_ajax_ai_assistant_toggle_auto_approve_rest_api', [$this, 'ajax_toggle_auto_approve_rest_api']);
@@ -20,6 +21,15 @@ class Settings {
         add_action('load-tools_page_ai-conversations', [$this, 'add_help_tabs']);
         add_action('load-settings_page_ai-assistant-settings', [$this, 'add_help_tabs']);
         add_filter('map_meta_cap', [$this, 'map_tool_cap'], 10, 3);
+    }
+
+    public function enqueue_settings_assets(string $hook): void {
+        if ($hook !== 'settings_page_ai-assistant-settings') {
+            return;
+        }
+
+        wp_enqueue_style('wp-codemirror');
+        wp_enqueue_script('wp-codemirror');
     }
 
     public function ajax_get_skill() {
@@ -1101,6 +1111,7 @@ class Settings {
                     $group_names = array_keys($tools);
                     $all_checked = count(array_filter($group_names, fn($n) => in_array($n, $enabled, true))) === count($group_names);
                     $some_checked = !$all_checked && count(array_filter($group_names, fn($n) => in_array($n, $enabled, true))) > 0;
+                    $ability_readonly_only = $group === 'Abilities' && $all_checked && count($this->get_auto_approved_abilities()) === 0;
                     $tab_id = $group_tabs[$group];
                     $is_active = $group === $first_group;
                 ?>
@@ -1114,13 +1125,24 @@ class Settings {
                     <div class="ai-abilities-main">
                 <?php endif; ?>
                 <div class="<?php echo esc_attr('ai-tool-group' . ($group === 'Abilities' ? ' ai-tool-group-abilities' : '')); ?>">
-                    <label class="ai-tool-group-header">
-                        <input type="checkbox" class="ai-group-toggle"
-                               <?php checked($all_checked); ?>
-                               <?php disabled($is_playground); ?>
-                               <?php if ($some_checked) echo 'data-indeterminate="1"'; ?>>
-                        <span><?php esc_html_e('Enable all tools in this tab', 'ai-assistant'); ?></span>
-                    </label>
+                    <div class="ai-tool-group-header-row">
+                        <label class="ai-tool-group-header">
+                            <input type="checkbox" class="ai-group-toggle"
+                                   <?php checked($all_checked); ?>
+                                   <?php disabled($is_playground); ?>
+                                   <?php if ($some_checked) echo 'data-indeterminate="1"'; ?>>
+                            <span><?php esc_html_e('Enable all tools in this tab', 'ai-assistant'); ?></span>
+                        </label>
+                        <?php if ($group === 'Abilities') : ?>
+                        <label class="ai-tool-group-header ai-abilities-readonly-only-control">
+                            <input type="checkbox"
+                                   class="ai-abilities-readonly-only"
+                                   <?php checked($ability_readonly_only); ?>
+                                   <?php disabled($is_playground); ?>>
+                            <span><?php esc_html_e('Only enable read-only abilities', 'ai-assistant'); ?></span>
+                        </label>
+                        <?php endif; ?>
+                    </div>
                     <div class="ai-tool-group-items">
                         <?php foreach ($tools as $name => $meta) : ?>
                         <label class="ai-tool-item">
@@ -1210,6 +1232,7 @@ class Settings {
                                                 <input type="checkbox"
                                                        name="ai_assistant_auto_approved_abilities[]"
                                                        value="<?php echo esc_attr($a['ability_id']); ?>"
+                                                       data-ai-ability-readonly="<?php echo $a['readonly'] ? '1' : '0'; ?>"
                                                        <?php checked($a['readonly'] || $is_approved); ?>
                                                        <?php disabled($a['readonly']); ?>>
                                                 <button type="button"
@@ -1254,7 +1277,7 @@ class Settings {
             var abilitySampleConfig = {
                 ajaxUrl: <?php echo $this->encode_json(admin_url('admin-ajax.php')); ?>,
                 nonce: <?php echo $this->encode_json(wp_create_nonce('ai_assistant_sample_ability')); ?>,
-                sampleLabel: '<?php echo esc_js(__('Sample output', 'ai-assistant')); ?>',
+                sampleLabel: '<?php echo esc_js(__('View', 'ai-assistant')); ?>',
                 loadingLabel: '<?php echo esc_js(__('Loading...', 'ai-assistant')); ?>'
             };
 
@@ -1262,26 +1285,79 @@ class Settings {
             $('.ai-group-toggle').each(function() {
                 if ($(this).data('indeterminate')) this.indeterminate = true;
             });
+
+            function syncToolSubItems($scope) {
+                $scope.find('input[name="ai_assistant_enabled_tools[]"][value="execute_ability"], input[name="ai_assistant_enabled_tools[]"][value="rest_api"]').each(function() {
+                    $(this).closest('.ai-tool-item').next('.ai-tool-sub-items').toggle(this.checked);
+                });
+            }
+
+            function updateGroupToggle($group) {
+                var $children = $group.find('.ai-tool-group-items > label > input[type=checkbox]');
+                var checkedCount = $children.filter(':checked').length;
+                var $toggle = $group.find('.ai-group-toggle')[0];
+
+                if (!$toggle) {
+                    return;
+                }
+
+                $toggle.checked = checkedCount === $children.length;
+                $toggle.indeterminate = checkedCount > 0 && checkedCount < $children.length;
+            }
+
+            function updateAbilityReadonlyOnlyToggle($group) {
+                var $toggle = $group.find('.ai-abilities-readonly-only');
+                var $toolCheckboxes = $group.find('.ai-tool-group-items > label > input[type=checkbox]');
+                var hasAllToolsEnabled = $toolCheckboxes.length > 0 && $toolCheckboxes.filter(':checked').length === $toolCheckboxes.length;
+                var hasExtraApprovals = $group.find('input[name="ai_assistant_auto_approved_abilities[]"]').filter(function() {
+                    return $(this).attr('data-ai-ability-readonly') !== '1' && this.checked;
+                }).length > 0;
+
+                if (!$toggle.length) {
+                    return;
+                }
+
+                $toggle.prop('checked', hasAllToolsEnabled && !hasExtraApprovals);
+            }
+
+            function updateGroupControls($group) {
+                updateGroupToggle($group);
+                updateAbilityReadonlyOnlyToggle($group);
+            }
+
             $('.ai-group-toggle').on('change', function() {
                 var checked = this.checked;
-                $(this).closest('.ai-tool-group').find('.ai-tool-group-items input[type=checkbox]').prop('checked', checked);
+                var $group = $(this).closest('.ai-tool-group');
+                $group.find('.ai-tool-group-items > label > input[type=checkbox]').prop('checked', checked);
+                syncToolSubItems($group);
+                updateAbilityReadonlyOnlyToggle($group);
                 this.indeterminate = false;
             });
             // Update group toggle when child changes
             $(document).on('change', '.ai-tool-group-items input[type=checkbox]', function() {
-                var $group = $(this).closest('.ai-tool-group');
-                var $children = $group.find('.ai-tool-group-items > label > input[type=checkbox]');
-                var checkedCount = $children.filter(':checked').length;
-                var $toggle = $group.find('.ai-group-toggle')[0];
-                $toggle.checked = checkedCount === $children.length;
-                $toggle.indeterminate = checkedCount > 0 && checkedCount < $children.length;
+                updateGroupControls($(this).closest('.ai-tool-group'));
+            });
+            $(document).on('change', '.ai-abilities-readonly-only', function() {
+                var $group = $(this).closest('.ai-tool-group-abilities');
+
+                if (!this.checked) {
+                    updateAbilityReadonlyOnlyToggle($group);
+                    return;
+                }
+
+                $group.find('.ai-tool-group-items > label > input[type=checkbox]').prop('checked', true);
+                $group.find('input[name="ai_assistant_auto_approved_abilities[]"]').each(function() {
+                    $(this).prop('checked', $(this).attr('data-ai-ability-readonly') === '1');
+                });
+                syncToolSubItems($group);
+                updateGroupControls($group);
             });
             // Toggle sub-items visibility
             $(document).on('change', 'input[name="ai_assistant_enabled_tools[]"][value="execute_ability"]', function() {
-                $(this).closest('.ai-tool-item').next('.ai-tool-sub-items').toggle(this.checked);
+                syncToolSubItems($(this).closest('.ai-tool-group'));
             });
             $(document).on('change', 'input[name="ai_assistant_enabled_tools[]"][value="rest_api"]', function() {
-                $(this).closest('.ai-tool-item').next('.ai-tool-sub-items').toggle(this.checked);
+                syncToolSubItems($(this).closest('.ai-tool-group'));
             });
 
             var toolTabStorageKey = 'aiAssistant_settings_tool_permissions_tab';
@@ -1410,11 +1486,54 @@ class Settings {
                 return html;
             }
 
+            function hasRequiredParameters(parameters) {
+                return parameters.some(function(parameter) {
+                    return !!parameter.required;
+                });
+            }
+
+            function renderParameterList(parameters) {
+                var html = '<div class="ai-ability-param-list">';
+
+                parameters.forEach(function(parameter) {
+                    html += '<div class="ai-ability-param">';
+                    html += '<div class="ai-ability-param-head">';
+                    html += '<code>' + escapeHtml(parameter.name || '') + '</code>';
+                    html += '<span class="ai-ability-param-type">' + escapeHtml(parameter.type || 'any') + '</span>';
+                    if (parameter.required) {
+                        html += '<span class="ai-ability-param-required"><?php echo esc_js(__('Required', 'ai-assistant')); ?></span>';
+                    }
+                    html += '</div>';
+                    if (parameter.description) {
+                        html += '<div class="description ai-ability-param-description">' + escapeHtml(parameter.description) + '</div>';
+                    }
+                    if (Array.isArray(parameter.notes) && parameter.notes.length) {
+                        html += '<div class="ai-ability-param-notes">' + escapeHtml(parameter.notes.join('; ')) + '</div>';
+                    }
+                    html += '</div>';
+                });
+
+                html += '</div>';
+                return html;
+            }
+
+            function renderSampleFields(parameters) {
+                var html = '<div class="ai-ability-sample-fields">';
+
+                parameters.forEach(function(parameter) {
+                    html += renderSampleField(parameter);
+                });
+
+                html += '</div>';
+                return html;
+            }
+
             function renderAbilityInfo($button) {
                 var details = parseAbilityDetails($button);
                 var $layout = $button.closest('.ai-tool-tab-panel');
                 var $panel = $layout.find('.ai-ability-info-panel');
                 var parameters = Array.isArray(details.parameters) ? details.parameters : [];
+                var hasRequiredParams = hasRequiredParameters(parameters);
                 var html = '';
 
                 html += '<div class="ai-ability-info-header">';
@@ -1432,53 +1551,41 @@ class Settings {
                     html += '<p class="description ai-ability-info-description"><?php echo esc_js(__('No description provided.', 'ai-assistant')); ?></p>';
                 }
 
-                html += '<div class="ai-ability-params-heading"><?php echo esc_js(__('Parameters', 'ai-assistant')); ?></div>';
                 if (!details.has_schema) {
+                    html += '<div class="ai-ability-params-heading"><?php echo esc_js(__('Parameters', 'ai-assistant')); ?></div>';
                     html += '<p class="description ai-ability-no-params"><?php echo esc_js(__('No parameter schema available.', 'ai-assistant')); ?></p>';
                 } else if (!parameters.length) {
+                    html += '<div class="ai-ability-params-heading"><?php echo esc_js(__('Parameters', 'ai-assistant')); ?></div>';
                     html += '<p class="description ai-ability-no-params"><?php echo esc_js(__('No parameters.', 'ai-assistant')); ?></p>';
                 } else {
-                    html += '<div class="ai-ability-param-list">';
-                    parameters.forEach(function(parameter) {
-                        html += '<div class="ai-ability-param">';
-                        html += '<div class="ai-ability-param-head">';
-                        html += '<code>' + escapeHtml(parameter.name || '') + '</code>';
-                        html += '<span class="ai-ability-param-type">' + escapeHtml(parameter.type || 'any') + '</span>';
-                        if (parameter.required) {
-                            html += '<span class="ai-ability-param-required"><?php echo esc_js(__('Required', 'ai-assistant')); ?></span>';
-                        }
-                        html += '</div>';
-                        if (parameter.description) {
-                            html += '<div class="description ai-ability-param-description">' + escapeHtml(parameter.description) + '</div>';
-                        }
-                        if (Array.isArray(parameter.notes) && parameter.notes.length) {
-                            html += '<div class="ai-ability-param-notes">' + escapeHtml(parameter.notes.join('; ')) + '</div>';
-                        }
-                        html += '</div>';
-                    });
-                    html += '</div>';
+                    html += '<details class="ai-ability-param-details" open>';
+                    html += '<summary class="ai-ability-params-heading"><?php echo esc_js(__('Parameters', 'ai-assistant')); ?></summary>';
+                    html += renderParameterList(parameters);
+                    html += '</details>';
                 }
 
                 if (details.raw_schema) {
                     html += '<details class="ai-ability-raw-schema">';
                     html += '<summary><?php echo esc_js(__('Raw input schema', 'ai-assistant')); ?></summary>';
-                    html += '<pre>' + escapeHtml(details.raw_schema) + '</pre>';
+                    html += '<pre class="ai-ability-code" data-code-mode="json">' + escapeHtml(details.raw_schema) + '</pre>';
                     html += '</details>';
                 }
 
                 if (details.readonly) {
-                    html += '<div class="ai-ability-sample">';
+                    html += '<div class="ai-ability-sample" data-ability="' + escapeHtml(details.id || '') + '" data-auto-sample="' + (!hasRequiredParams ? '1' : '0') + '">';
                     if (parameters.length) {
-                        html += '<div class="ai-ability-params-heading"><?php echo esc_js(__('Sample input', 'ai-assistant')); ?></div>';
-                        html += '<div class="ai-ability-sample-fields">';
-                        parameters.forEach(function(parameter) {
-                            html += renderSampleField(parameter);
-                        });
+                        html += '<details class="ai-ability-sample-params"' + (hasRequiredParams ? ' open' : '') + '>';
+                        html += '<summary><?php echo esc_js(__('Change parameters', 'ai-assistant')); ?></summary>';
+                        html += '<div class="ai-ability-sample-row">';
+                        html += '<div class="ai-ability-sample-inline">';
+                        html += renderSampleFields(parameters);
                         html += '</div>';
+                        html += '<div class="ai-ability-sample-actions">';
+                        html += '<button type="button" class="button button-small ai-ability-sample-button" data-ability="' + escapeHtml(details.id || '') + '">' + abilitySampleConfig.sampleLabel + '</button>';
+                        html += '</div>';
+                        html += '</div>';
+                        html += '</details>';
                     }
-                    html += '<div class="ai-ability-sample-actions">';
-                    html += '<button type="button" class="button button-small ai-ability-sample-button" data-ability="' + escapeHtml(details.id || '') + '">' + abilitySampleConfig.sampleLabel + '</button>';
-                    html += '</div>';
                     html += '<div class="ai-ability-sample-output" aria-live="polite"></div>';
                     html += '</div>';
                 }
@@ -1486,6 +1593,10 @@ class Settings {
                 $layout.find('.ai-ability-select').removeClass('selected').removeAttr('aria-current');
                 $button.addClass('selected').attr('aria-current', 'true');
                 $panel.html(html);
+                highlightCodeBlocks($panel);
+                $panel.find('.ai-ability-sample[data-auto-sample="1"]').each(function() {
+                    loadAbilitySample($(this), {}, null);
+                });
             }
 
             $(document).on('click', '.ai-ability-select', function() {
@@ -1504,6 +1615,59 @@ class Settings {
                 }
             }
 
+            function detectCodeMode(value, code) {
+                var trimmed;
+
+                if (typeof value !== 'string') {
+                    return 'json';
+                }
+
+                trimmed = String(code || '').trim();
+                if (!trimmed) {
+                    return '';
+                }
+
+                if ((trimmed.charAt(0) === '{' && trimmed.charAt(trimmed.length - 1) === '}') ||
+                    (trimmed.charAt(0) === '[' && trimmed.charAt(trimmed.length - 1) === ']')) {
+                    try {
+                        JSON.parse(trimmed);
+                        return 'json';
+                    } catch (e) {}
+                }
+
+                return '';
+            }
+
+            function highlightCode($pre, code, modeName) {
+                $pre.text(code);
+
+                if (!modeName || !window.wp || !wp.CodeMirror || !wp.CodeMirror.runMode) {
+                    return;
+                }
+
+                try {
+                    var modeConfig = modeName === 'json' ? {name: 'javascript', json: true} : modeName;
+                    var mode = wp.CodeMirror.getMode({}, modeConfig);
+                    $pre.empty().addClass('cm-s-default');
+                    wp.CodeMirror.runMode(code, mode, $pre[0]);
+                } catch (e) {
+                    $pre.text(code);
+                }
+            }
+
+            function highlightCodeBlocks($scope) {
+                $scope.find('.ai-ability-code').each(function() {
+                    var $pre = $(this);
+
+                    if ($pre.attr('data-highlighted') === '1') {
+                        return;
+                    }
+
+                    highlightCode($pre, $pre.text(), $pre.attr('data-code-mode') || '');
+                    $pre.attr('data-highlighted', '1');
+                });
+            }
+
             function getAjaxErrorMessage(response, fallback) {
                 if (response && response.data && response.data.message) {
                     return response.data.message;
@@ -1518,8 +1682,46 @@ class Settings {
 
             function renderSampleResult($output, data) {
                 var value = data && Object.prototype.hasOwnProperty.call(data, 'result') ? data.result : data;
-                $output.html('<pre></pre>');
-                $output.find('pre').text(formatSampleValue(value));
+                var code = formatSampleValue(value);
+                var mode = detectCodeMode(value, code);
+                $output.html('<pre class="ai-ability-code"></pre>');
+                highlightCode($output.find('pre'), code, mode);
+            }
+
+            function loadAbilitySample($sample, sampleArguments, $button) {
+                var abilityId = $sample.attr('data-ability') || ($button ? $button.attr('data-ability') : '') || '';
+                var $output = $sample.find('.ai-ability-sample-output');
+
+                if (!abilityId) {
+                    renderSampleError($output, '<?php echo esc_js(__('Missing ability ID.', 'ai-assistant')); ?>');
+                    return;
+                }
+
+                if ($button && $button.length) {
+                    $button.prop('disabled', true).text(abilitySampleConfig.loadingLabel);
+                }
+                $output.html('<p class="description">' + abilitySampleConfig.loadingLabel + '</p>');
+
+                $.post(abilitySampleConfig.ajaxUrl, {
+                    action: 'ai_assistant_sample_readonly_ability',
+                    _wpnonce: abilitySampleConfig.nonce,
+                    ability: abilityId,
+                    arguments: JSON.stringify(sampleArguments || {})
+                }).done(function(response) {
+                    if (!response || !response.success) {
+                        renderSampleError($output, getAjaxErrorMessage(response, '<?php echo esc_js(__('Unable to load sample output.', 'ai-assistant')); ?>'));
+                        return;
+                    }
+
+                    renderSampleResult($output, response.data);
+                }).fail(function(xhr) {
+                    var response = xhr && xhr.responseJSON ? xhr.responseJSON : null;
+                    renderSampleError($output, getAjaxErrorMessage(response, '<?php echo esc_js(__('Unable to load sample output.', 'ai-assistant')); ?>'));
+                }).always(function() {
+                    if ($button && $button.length) {
+                        $button.prop('disabled', false).text(abilitySampleConfig.sampleLabel);
+                    }
+                });
             }
 
             function collectSampleArguments($sample) {
@@ -1591,14 +1793,8 @@ class Settings {
             $(document).on('click', '.ai-ability-sample-button', function() {
                 var $button = $(this);
                 var $sample = $button.closest('.ai-ability-sample');
-                var abilityId = $button.attr('data-ability') || '';
                 var $output = $sample.find('.ai-ability-sample-output');
                 var sampleArguments;
-
-                if (!abilityId) {
-                    renderSampleError($output, '<?php echo esc_js(__('Missing ability ID.', 'ai-assistant')); ?>');
-                    return;
-                }
 
                 try {
                     sampleArguments = collectSampleArguments($sample);
@@ -1607,27 +1803,7 @@ class Settings {
                     return;
                 }
 
-                $button.prop('disabled', true).text(abilitySampleConfig.loadingLabel);
-                $output.html('<p class="description">' + abilitySampleConfig.loadingLabel + '</p>');
-
-                $.post(abilitySampleConfig.ajaxUrl, {
-                    action: 'ai_assistant_sample_readonly_ability',
-                    _wpnonce: abilitySampleConfig.nonce,
-                    ability: abilityId,
-                    arguments: JSON.stringify(sampleArguments)
-                }).done(function(response) {
-                    if (!response || !response.success) {
-                        renderSampleError($output, getAjaxErrorMessage(response, '<?php echo esc_js(__('Unable to load sample output.', 'ai-assistant')); ?>'));
-                        return;
-                    }
-
-                    renderSampleResult($output, response.data);
-                }).fail(function(xhr) {
-                    var response = xhr && xhr.responseJSON ? xhr.responseJSON : null;
-                    renderSampleError($output, getAjaxErrorMessage(response, '<?php echo esc_js(__('Unable to load sample output.', 'ai-assistant')); ?>'));
-                }).always(function() {
-                    $button.prop('disabled', false).text(abilitySampleConfig.sampleLabel);
-                });
+                loadAbilitySample($sample, sampleArguments, $button);
             });
         });
         </script>
@@ -1779,19 +1955,30 @@ class Settings {
             .ai-tool-group-abilities {
                 max-width: 1100px;
             }
-            .ai-tool-group-header {
+            .ai-tool-group-header-row {
                 display: flex;
                 align-items: center;
+                flex-wrap: wrap;
                 gap: 8px;
                 margin: 0 0 8px;
                 padding: 0 0 9px;
                 border-bottom: 1px solid #dcdcde;
+            }
+            .ai-tool-group-header {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin: 0;
+                padding: 0;
                 color: #50575e;
                 cursor: pointer;
                 font-size: 12px;
             }
             .ai-tool-group-header:hover {
                 color: #1d2327;
+            }
+            .ai-abilities-readonly-only {
+                margin: 0;
             }
             .ai-tool-group-items {
                 display: flex;
@@ -1960,10 +2147,25 @@ class Settings {
             .ai-ability-raw-schema {
                 margin-top: 6px;
             }
-            .ai-ability-raw-schema summary {
+            .ai-ability-param-details,
+            .ai-ability-sample-params {
+                margin: 2px 0 8px;
+            }
+            .ai-ability-param-details summary,
+            .ai-ability-raw-schema summary,
+            .ai-ability-sample-params summary {
                 color: #646970;
                 cursor: pointer;
                 font-size: 11px;
+            }
+            .ai-ability-param-details .ai-ability-param-list,
+            .ai-ability-sample-params .ai-ability-sample-fields {
+                margin-top: 5px;
+            }
+            .ai-ability-param-details summary.ai-ability-params-heading {
+                display: list-item;
+                font-size: 10px;
+                margin: 2px 0 4px;
             }
             .ai-ability-raw-schema pre {
                 background: #fff;
@@ -1981,11 +2183,29 @@ class Settings {
                 margin-top: 10px;
                 padding-top: 10px;
             }
+            .ai-ability-sample-row {
+                align-items: flex-start;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .ai-ability-sample-inline,
+            .ai-ability-sample-params {
+                flex: 1 1 220px;
+                margin: 0;
+                min-width: 180px;
+            }
+            .ai-ability-sample-inline .ai-ability-params-heading {
+                margin-top: 0;
+            }
             .ai-ability-sample-fields {
                 display: flex;
                 flex-direction: column;
                 gap: 7px;
                 margin-bottom: 10px;
+            }
+            .ai-ability-sample-row .ai-ability-sample-fields {
+                margin-bottom: 0;
             }
             .ai-ability-sample-field {
                 display: block;
@@ -2015,6 +2235,7 @@ class Settings {
                 display: flex;
                 flex-wrap: wrap;
                 gap: 8px;
+                flex: 0 0 auto;
             }
             .ai-ability-sample-output {
                 margin-top: 7px;
