@@ -39,6 +39,7 @@
         titleGenerationInProgress: false,
         titleGenerationAttempted: false,
         titleGenerationToken: 0,
+        titleRegenerationInProgress: {},
         conversationTitleIsPlaceholder: false,
         consecutiveAjaxErrors: 0,
         ajaxErrorThreshold: 2,
@@ -329,9 +330,50 @@
             $(document).on('click', '.ai-conversation-delete, .ai-conv-item-delete', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
+                self.hideConversationItemMenu();
                 var id = $(this).data('id');
                 if (confirm('Delete this conversation?')) {
                     self.deleteConversation(id);
+                }
+            });
+
+            $(document).on('contextmenu', '.ai-conv-item', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                var $item = $(this);
+                if ($item.data('clickTimeout')) {
+                    clearTimeout($item.data('clickTimeout'));
+                    $item.removeData('clickTimeout');
+                }
+
+                self.showConversationItemMenu($item, e);
+            });
+
+            $(document).on('click', '.ai-conv-context-action', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if ($(this).hasClass('ai-conv-context-export-format')) {
+                    return;
+                }
+                self.handleConversationItemMenuAction($(this).data('action'));
+            });
+
+            $(document).on('click', '.ai-conv-context-export-format', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                self.handleConversationItemExport($(this).data('format'));
+            });
+
+            $(document).on('click', function(e) {
+                if ($(e.target).closest('.ai-conv-context-menu').length === 0) {
+                    self.hideConversationItemMenu();
+                }
+            });
+
+            $(document).on('keydown', function(e) {
+                if (e.which === 27) {
+                    self.hideConversationItemMenu();
                 }
             });
 
@@ -363,52 +405,7 @@
 
             $(document).on('dblclick', '.ai-conv-item-title', function(e) {
                 e.stopPropagation();
-                var $title = $(this);
-                var $item = $title.closest('.ai-conv-item');
-                var id = $item.data('id');
-                var currentTitle = $title.text();
-
-                if ($item.data('clickTimeout')) {
-                    clearTimeout($item.data('clickTimeout'));
-                    $item.removeData('clickTimeout');
-                }
-
-                var $input = $('<input type="text" class="ai-conv-rename-input">')
-                    .val(currentTitle)
-                    .css({
-                        'width': '100%',
-                        'font-size': '13px',
-                        'padding': '2px 4px',
-                        'border': '1px solid #2271b1',
-                        'border-radius': '3px',
-                        'outline': 'none'
-                    });
-
-                $title.html($input);
-                $input.focus().select();
-
-                function saveRename() {
-                    var newTitle = $input.val().trim();
-                    if (newTitle && newTitle !== currentTitle) {
-                        self.renameConversation(id, newTitle);
-                        $title.text(newTitle);
-                    } else {
-                        $title.text(currentTitle);
-                    }
-                }
-
-                $input.on('blur', saveRename);
-                $input.on('keydown', function(e) {
-                    if (e.which === 13) {
-                        e.preventDefault();
-                        $input.off('blur');
-                        saveRename();
-                    } else if (e.which === 27) {
-                        e.preventDefault();
-                        $input.off('blur');
-                        $title.text(currentTitle);
-                    }
-                });
+                self.startConversationRename($(this).closest('.ai-conv-item'));
             });
 
             if (this.bindFileContextEvents) {
@@ -622,6 +619,10 @@
             var div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        },
+
+        escapeAttribute: function(text) {
+            return this.escapeHtml(text).replace(/"/g, '&quot;').replace(/'/g, '&#039;');
         },
 
         onToolCall: function(criteria, callback) {

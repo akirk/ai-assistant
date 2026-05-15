@@ -263,12 +263,14 @@
                     if (response.success) {
                         saveSucceeded = true;
                         self.conversationId = response.data.conversation_id;
+                        var currentTitleForSave = self.getConversationTitleForSave();
+                        var titleUnchangedSinceRequest = titleForSave === currentTitleForSave;
                         if (response.data.title_status === 'placeholder') {
                             if (!self.conversationTitle || self.conversationTitleIsPlaceholder) {
                                 self.conversationTitle = response.data.title;
                                 self.conversationTitleIsPlaceholder = true;
                             }
-                        } else if (!self.conversationTitle || self.conversationTitleIsPlaceholder || titleForSave) {
+                        } else if (!self.conversationTitle || self.conversationTitleIsPlaceholder || titleUnchangedSinceRequest) {
                             self.conversationTitle = response.data.title;
                             self.conversationTitleIsPlaceholder = false;
                         }
@@ -520,7 +522,7 @@
                 '<span>Include tool calls</span>' +
                 '</label>';
             formats.forEach(function(format) {
-                html += '<button type="button" class="ai-export-format" role="menuitem" data-format="' + self.escapeHtml(format.format) + '" title="' + self.escapeHtml(format.description || '') + '">';
+                html += '<button type="button" class="ai-export-format" role="menuitem" data-format="' + self.escapeAttribute(format.format) + '" title="' + self.escapeAttribute(format.description || '') + '">';
                 html += '<span class="ai-export-format-label">' + self.escapeHtml(format.label) + '</span>';
                 html += '<span class="ai-export-format-extension">.' + self.escapeHtml(format.extension || format.format) + '</span>';
                 html += '</button>';
@@ -609,17 +611,28 @@
             $iframe.attr('src', url);
         },
 
-        buildConversationExportUrl: function(format, includeToolCalls) {
+        buildConversationExportUrl: function(format, includeToolCalls, conversationId) {
             var baseUrl = (typeof aiAssistantConfig !== 'undefined' && aiAssistantConfig.conversationExportUrl) || '';
             var separator = baseUrl.indexOf('?') === -1 ? '?' : '&';
+            conversationId = conversationId || this.conversationId;
             var url = baseUrl + separator +
-                'conversation_id=' + encodeURIComponent(this.conversationId) +
+                'conversation_id=' + encodeURIComponent(conversationId) +
                 '&format=' + encodeURIComponent(format);
             if (includeToolCalls) {
                 url += '&include_tool_calls=1';
             }
             return url + '&_wpnonce=' + encodeURIComponent(aiAssistantConfig.nonce);
         },
+
+        exportConversationById: function(conversationId, format, includeToolCalls) {
+            conversationId = parseInt(conversationId, 10);
+            if (!conversationId || !format) {
+                return;
+            }
+
+            this.startConversationExportDownload(this.buildConversationExportUrl(format, includeToolCalls, conversationId));
+        },
+
         // Sidebar management
         loadSidebarConversations: function() {
             var self = this;
@@ -695,8 +708,9 @@
             var html = '';
             conversations.forEach(function(conv) {
                 var activeClass = conv.id === self.conversationId ? ' active' : '';
+                var title = conv.title || '';
                 html += '<div class="ai-conv-item' + activeClass + '" data-id="' + conv.id + '">';
-                html += '<div class="ai-conv-item-title">' + self.escapeHtml(conv.title) + '</div>';
+                html += '<div class="ai-conv-item-title" title="' + self.escapeAttribute(title) + '">' + self.escapeHtml(title) + '</div>';
                 html += '<button type="button" class="ai-conv-item-delete" data-id="' + conv.id + '" title="Delete">&times;</button>';
                 html += '</div>';
             });
@@ -779,8 +793,10 @@
             });
         },
 
-        renameConversation: function(conversationId, newTitle) {
+        renameConversation: function(conversationId, newTitle, options) {
             var self = this;
+            options = options || {};
+            var titleStatus = options.titleStatus || 'manual';
 
             $.ajax({
                 url: aiAssistantConfig.ajaxUrl,
@@ -789,7 +805,8 @@
                     action: 'ai_assistant_rename_conversation',
                     _wpnonce: aiAssistantConfig.nonce,
                     conversation_id: conversationId,
-                    title: newTitle
+                    title: newTitle,
+                    title_status: titleStatus
                 },
                 success: function(response) {
                     if (response.success) {
@@ -798,14 +815,325 @@
                             self.conversationTitleIsPlaceholder = false;
                             self.titleGenerationAttempted = true;
                         }
+                        $('.ai-conv-item[data-id="' + conversationId + '"] .ai-conv-item-title').text(newTitle).attr('title', newTitle);
+                        if (typeof options.success === 'function') {
+                            options.success(response);
+                        }
                     } else {
                         console.error('[AI Assistant] Rename failed:', response.data);
+                        if (typeof options.error === 'function') {
+                            options.error(response.data && response.data.message ? response.data.message : 'Failed to rename conversation.');
+                        }
                     }
                 },
                 error: function(xhr, status, error) {
                     console.error('[AI Assistant] Rename error:', error);
+                    if (typeof options.error === 'function') {
+                        options.error(error || 'Failed to rename conversation.');
+                    }
+                },
+                complete: function() {
+                    if (typeof options.complete === 'function') {
+                        options.complete();
+                    }
                 }
             });
+        },
+
+        startConversationRename: function($item) {
+            var self = this;
+
+            if (!$item || !$item.length) {
+                return;
+            }
+
+            var $title = $item.find('.ai-conv-item-title').first();
+            if ($title.find('.ai-conv-rename-input').length) {
+                return;
+            }
+
+            var id = parseInt($item.data('id'), 10);
+            var currentTitle = $title.text();
+
+            if ($item.data('clickTimeout')) {
+                clearTimeout($item.data('clickTimeout'));
+                $item.removeData('clickTimeout');
+            }
+
+            var $input = $('<input type="text" class="ai-conv-rename-input" aria-label="Conversation title">')
+                .val(currentTitle);
+
+            $title.empty().append($input);
+            $input.trigger('focus').select();
+
+            function saveRename() {
+                var newTitle = $input.val().trim();
+                if (newTitle && newTitle !== currentTitle) {
+                    $title.text(newTitle);
+                    self.renameConversation(id, newTitle, {
+                        titleStatus: 'manual',
+                        error: function() {
+                            $title.text(currentTitle);
+                        }
+                    });
+                } else {
+                    $title.text(currentTitle);
+                }
+            }
+
+            $input.on('blur', saveRename);
+            $input.on('keydown', function(e) {
+                if (e.which === 13) {
+                    e.preventDefault();
+                    $input.off('blur');
+                    saveRename();
+                } else if (e.which === 27) {
+                    e.preventDefault();
+                    $input.off('blur');
+                    $title.text(currentTitle);
+                }
+            });
+        },
+
+        ensureConversationItemMenu: function() {
+            var $menu = $('#ai-conv-context-menu');
+            if ($menu.length) {
+                return $menu;
+            }
+
+            $menu = $('<div id="ai-conv-context-menu" class="ai-conv-context-menu" role="menu" hidden></div>');
+
+            $('body').append($menu);
+            return $menu;
+        },
+
+        renderConversationItemMenu: function($menu) {
+            var self = this;
+            var formats = this.getConversationExportFormats();
+            var html =
+                '<button type="button" class="ai-conv-context-action" role="menuitem" data-action="rename">' +
+                    '<span class="dashicons dashicons-edit" aria-hidden="true"></span>' +
+                    '<span>Rename</span>' +
+                '</button>' +
+                '<button type="button" class="ai-conv-context-action" role="menuitem" data-action="regenerate">' +
+                    '<span class="dashicons dashicons-update" aria-hidden="true"></span>' +
+                    '<span>Regenerate title</span>' +
+                '</button>';
+
+            if (formats.length > 0) {
+                html += '<div class="ai-conv-context-separator" role="separator"></div>';
+                html += '<div class="ai-conv-context-label">Export</div>';
+                html += '<label class="ai-conv-context-option">' +
+                    '<input type="checkbox" id="ai-conv-context-include-tool-calls" value="1">' +
+                    '<span>Include tool calls</span>' +
+                    '</label>';
+                formats.forEach(function(format) {
+                    html += '<button type="button" class="ai-conv-context-action ai-conv-context-export-format" role="menuitem" data-format="' + self.escapeAttribute(format.format) + '" title="' + self.escapeAttribute(format.description || '') + '">';
+                    html += '<span class="dashicons dashicons-download" aria-hidden="true"></span>';
+                    html += '<span class="ai-conv-context-export-label">' + self.escapeHtml(format.label) + '</span>';
+                    html += '<span class="ai-conv-context-export-ext">.' + self.escapeHtml(format.extension || format.format) + '</span>';
+                    html += '</button>';
+                });
+            }
+
+            $menu.html(html);
+        },
+
+        showConversationItemMenu: function($item, event) {
+            if (!$item || !$item.length || !event) {
+                return;
+            }
+
+            var id = parseInt($item.data('id'), 10);
+            if (!id) {
+                return;
+            }
+
+            var $menu = this.ensureConversationItemMenu();
+            this.renderConversationItemMenu($menu);
+            var left = event.pageX;
+            var top = event.pageY;
+
+            $menu
+                .data('conversationId', id)
+                .prop('hidden', false)
+                .css({
+                    left: left + 'px',
+                    top: top + 'px'
+                });
+
+            var padding = 8;
+            var $window = $(window);
+            var maxLeft = $window.scrollLeft() + $window.width() - $menu.outerWidth() - padding;
+            var maxTop = $window.scrollTop() + $window.height() - $menu.outerHeight() - padding;
+
+            $menu.css({
+                left: Math.max($window.scrollLeft() + padding, Math.min(left, maxLeft)) + 'px',
+                top: Math.max($window.scrollTop() + padding, Math.min(top, maxTop)) + 'px'
+            });
+        },
+
+        hideConversationItemMenu: function() {
+            $('#ai-conv-context-menu').prop('hidden', true).removeData('conversationId');
+        },
+
+        handleConversationItemMenuAction: function(action) {
+            var $menu = $('#ai-conv-context-menu');
+            var conversationId = parseInt($menu.data('conversationId'), 10);
+            var $item = $('.ai-conv-item[data-id="' + conversationId + '"]').first();
+
+            this.hideConversationItemMenu();
+
+            if (!conversationId || !$item.length) {
+                return;
+            }
+
+            if (action === 'rename') {
+                this.startConversationRename($item);
+            } else if (action === 'regenerate') {
+                this.regenerateConversationTitle(conversationId);
+            }
+        },
+
+        handleConversationItemExport: function(format) {
+            var $menu = $('#ai-conv-context-menu');
+            var conversationId = parseInt($menu.data('conversationId'), 10);
+            var includeToolCalls = $('#ai-conv-context-include-tool-calls').is(':checked');
+
+            this.hideConversationItemMenu();
+            this.exportConversationById(conversationId, format, includeToolCalls);
+        },
+
+        decodeConversationMessagesBase64: function(messagesBase64) {
+            if (!messagesBase64) {
+                return [];
+            }
+
+            try {
+                var json = decodeURIComponent(escape(atob(messagesBase64)));
+                var messages = JSON.parse(json);
+                return Array.isArray(messages) ? messages : [];
+            } catch (e) {
+                console.error('[AI Assistant] Failed to decode messages for title generation:', e);
+                return [];
+            }
+        },
+
+        loadConversationTitleSource: function(conversationId) {
+            var self = this;
+
+            return new Promise(function(resolve, reject) {
+                $.ajax({
+                    url: aiAssistantConfig.ajaxUrl,
+                    type: 'POST',
+                    data: {
+                        action: 'ai_assistant_load_conversation',
+                        _wpnonce: aiAssistantConfig.nonce,
+                        conversation_id: conversationId
+                    },
+                    success: function(response) {
+                        if (!response.success) {
+                            reject(new Error(response.data && response.data.message ? response.data.message : 'Failed to load conversation.'));
+                            return;
+                        }
+
+                        resolve({
+                            messages: self.decodeConversationMessagesBase64(response.data.messages_base64 || ''),
+                            provider: response.data.provider || '',
+                            model: response.data.model || ''
+                        });
+                    },
+                    error: function(xhr, status, error) {
+                        reject(new Error(error || 'Failed to load conversation.'));
+                    }
+                });
+            });
+        },
+
+        regenerateConversationTitle: function(conversationId) {
+            var self = this;
+            conversationId = parseInt(conversationId, 10);
+
+            if (!conversationId) {
+                return;
+            }
+
+            this.titleRegenerationInProgress = this.titleRegenerationInProgress || {};
+            if (this.titleRegenerationInProgress[conversationId]) {
+                return;
+            }
+            this.titleRegenerationInProgress[conversationId] = true;
+
+            function getItem() {
+                return $('.ai-conv-item[data-id="' + conversationId + '"]').first();
+            }
+
+            var $item = getItem();
+            var $title = $item.find('.ai-conv-item-title').first();
+            var originalTitle = $title.text();
+
+            $item.addClass('is-regenerating');
+            $title.text('Regenerating...').attr('title', originalTitle);
+
+            function finish() {
+                delete self.titleRegenerationInProgress[conversationId];
+                getItem().removeClass('is-regenerating');
+            }
+
+            function restoreWithError(message) {
+                getItem().find('.ai-conv-item-title').text(originalTitle).attr('title', originalTitle);
+                if (self.addMessage) {
+                    self.addMessage('error', message || 'Failed to regenerate conversation title.');
+                }
+                finish();
+            }
+
+            function persistTitle(title) {
+                return new Promise(function(resolve, reject) {
+                    self.renameConversation(conversationId, title, {
+                        titleStatus: 'generated',
+                        success: resolve,
+                        error: function(message) {
+                            reject(new Error(message || 'Failed to save generated title.'));
+                        }
+                    });
+                });
+            }
+
+            var activeConversationId = parseInt(this.conversationId, 10) || 0;
+            var sourcePromise;
+
+            if (activeConversationId === conversationId && Array.isArray(this.messages) && this.messages.length > 0) {
+                sourcePromise = Promise.resolve({
+                    messages: this.messages.slice(),
+                    provider: this.conversationProvider || this.getProvider(),
+                    model: this.conversationModel || this.getModel()
+                });
+            } else {
+                sourcePromise = this.loadConversationTitleSource(conversationId);
+            }
+
+            sourcePromise
+                .then(function(source) {
+                    if (!source.messages || source.messages.length === 0) {
+                        throw new Error('This conversation has no messages to title.');
+                    }
+
+                    return self.generateConversationTitleFromMessages({
+                        messages: source.messages,
+                        provider: source.provider || self.getProvider(),
+                        model: source.model || self.getModel()
+                    });
+                })
+                .then(function(title) {
+                    return persistTitle(title);
+                })
+                .then(function() {
+                    finish();
+                })
+                .catch(function(error) {
+                    restoreWithError(error && error.message ? error.message : 'Failed to regenerate conversation title.');
+                });
         },
 
         // Title generation
@@ -865,10 +1193,12 @@
             return text.replace(/\s+/g, ' ').trim();
         },
 
-        getFirstUserTextForTitle: function() {
-            for (var i = 0; i < this.messages.length; i++) {
-                if (this.messages[i] && this.messages[i].role === 'user') {
-                    var text = this.getMessageTextForTitle(this.messages[i]);
+        getFirstUserTextForTitle: function(messages) {
+            messages = Array.isArray(messages) ? messages : this.messages;
+
+            for (var i = 0; i < messages.length; i++) {
+                if (messages[i] && messages[i].role === 'user') {
+                    var text = this.getMessageTextForTitle(messages[i]);
                     if (text) {
                         return text;
                     }
@@ -878,12 +1208,13 @@
             return '';
         },
 
-        buildConversationTitleContext: function() {
+        buildConversationTitleContext: function(messages) {
+            messages = Array.isArray(messages) ? messages : this.messages;
             var lines = [];
             var maxLength = 1800;
 
-            for (var i = 0; i < this.messages.length && lines.join('\n').length < maxLength; i++) {
-                var message = this.messages[i];
+            for (var i = 0; i < messages.length && lines.join('\n').length < maxLength; i++) {
+                var message = messages[i];
                 if (!message || (message.role !== 'user' && message.role !== 'assistant')) {
                     continue;
                 }
@@ -902,6 +1233,140 @@
             }
 
             return lines.join('\n').substring(0, maxLength).trim();
+        },
+
+        getFallbackConversationTitle: function(firstUserContent) {
+            var words = (firstUserContent || '').split(/\s+/).slice(0, 6).join(' ');
+            return words.length > 50 ? words.substring(0, 50) + '...' : words;
+        },
+
+        cleanGeneratedConversationTitle: function(title, fallbackTitle) {
+            title = (title || '').trim().replace(/^["']|["']$/g, '').replace(/^title:\s*/i, '').split('\n')[0].trim();
+            if (!title) {
+                title = fallbackTitle || '';
+            }
+            if (title.length > 80) {
+                title = title.substring(0, 77).trim() + '...';
+            }
+            return title;
+        },
+
+        generateConversationTitleFromMessages: function(options) {
+            var self = this;
+            options = options || {};
+
+            var messages = Array.isArray(options.messages) ? options.messages : this.messages;
+            var provider = options.provider || this.conversationProvider || this.getProvider();
+            var model = options.model || this.conversationModel || this.getModel();
+            var apiKey = this.getApiKey(provider);
+            var providerConfig = this.isConnectorsMode() && typeof aiAssistantProviders !== 'undefined'
+                ? aiAssistantProviders.available[provider]
+                : null;
+
+            var titleContext = this.buildConversationTitleContext(messages);
+            var firstUserContent = this.getFirstUserTextForTitle(messages);
+
+            if (!titleContext || !firstUserContent) {
+                return Promise.reject(new Error('This conversation does not have enough text to generate a title.'));
+            }
+
+            var fallbackTitle = this.getFallbackConversationTitle(firstUserContent);
+            var titlePrompt = 'Generate a specific, accurate title (3-6 words max) for this conversation. Use the assistant answer when it clarifies a vague opening message. Do not invent details that are not in the excerpt. Return ONLY the title, nothing else.\n\nConversation excerpt:\n' + titleContext;
+
+            return new Promise(function(resolve) {
+                function finishWithTitle(title) {
+                    resolve(self.cleanGeneratedConversationTitle(title, fallbackTitle));
+                }
+
+                function finishWithFallback(err) {
+                    if (err) {
+                        console.error('[AI Assistant] Title generation failed:', err);
+                    }
+                    finishWithTitle(fallbackTitle);
+                }
+
+                if (provider === 'anthropic' && apiKey) {
+                    var anthropicEndpoint = self.getProviderEndpoint(provider) || 'https://api.anthropic.com/v1/messages';
+
+                    fetch(anthropicEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-api-key': apiKey,
+                            'anthropic-version': '2023-06-01',
+                            'anthropic-dangerous-direct-browser-access': 'true'
+                        },
+                        body: JSON.stringify({
+                            model: model,
+                            max_tokens: 30,
+                            messages: [{ role: 'user', content: titlePrompt }]
+                        })
+                    })
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        if (data.content && data.content[0] && data.content[0].text) {
+                            finishWithTitle(data.content[0].text);
+                        } else {
+                            finishWithFallback();
+                        }
+                    })
+                    .catch(function(err) {
+                        finishWithFallback(err);
+                    });
+                } else if ((provider === 'openai' || (providerConfig && providerConfig.type === 'cloud')) && apiKey) {
+                    var openAIEndpoint = self.getProviderEndpoint(provider) || 'https://api.openai.com/v1/chat/completions';
+
+                    fetch(openAIEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + apiKey
+                        },
+                        body: JSON.stringify({
+                            model: model,
+                            max_tokens: 30,
+                            messages: [{ role: 'user', content: titlePrompt }]
+                        })
+                    })
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        if (data.choices && data.choices[0] && data.choices[0].message) {
+                            finishWithTitle(data.choices[0].message.content);
+                        } else {
+                            finishWithFallback();
+                        }
+                    })
+                    .catch(function(err) {
+                        finishWithFallback(err);
+                    });
+                } else {
+                    var endpoint = (self.getProviderEndpoint(provider) || self.getLocalEndpoint()).replace(/\/$/, '');
+
+                    fetch(endpoint + '/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            model: model,
+                            max_tokens: 150,
+                            messages: [{ role: 'user', content: titlePrompt }]
+                        })
+                    })
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        if (data.choices && data.choices[0] && data.choices[0].message) {
+                            var title = self.stripReasoningTokens(data.choices[0].message.content);
+                            finishWithTitle(title);
+                        } else {
+                            finishWithFallback();
+                        }
+                    })
+                    .catch(function(err) {
+                        finishWithFallback(err);
+                    });
+                }
+            });
         },
 
         shouldGenerateConversationTitle: function() {
@@ -944,10 +1409,6 @@
             var self = this;
             var provider = this.conversationProvider || this.getProvider();
             var model = this.conversationModel || this.getModel();
-            var apiKey = this.getApiKey(provider);
-            var providerConfig = this.isConnectorsMode() && typeof aiAssistantProviders !== 'undefined'
-                ? aiAssistantProviders.available[provider]
-                : null;
 
             var titleContext = this.buildConversationTitleContext();
             var firstUserContent = this.getFirstUserTextForTitle();
@@ -961,118 +1422,26 @@
             this.titleGenerationToken++;
             var titleGenerationToken = this.titleGenerationToken;
 
-            var titlePrompt = 'Generate a specific, accurate title (3-6 words max) for this conversation. Use the assistant answer when it clarifies a vague opening message. Do not invent details that are not in the excerpt. Return ONLY the title, nothing else.\n\nConversation excerpt:\n' + titleContext;
-
-            function fallbackTitle() {
-                var words = firstUserContent.split(/\s+/).slice(0, 6).join(' ');
-                return words.length > 50 ? words.substring(0, 50) + '...' : words;
-            }
-
-            function finishWithTitle(title) {
+            this.generateConversationTitleFromMessages({
+                messages: this.messages,
+                provider: provider,
+                model: model
+            }).then(function(title) {
                 if (self.titleGenerationToken !== titleGenerationToken) {
                     return;
-                }
-                title = (title || '').trim().replace(/^["']|["']$/g, '').replace(/^title:\s*/i, '').split('\n')[0].trim();
-                if (!title) {
-                    title = fallbackTitle();
-                }
-                if (title.length > 80) {
-                    title = title.substring(0, 77).trim() + '...';
                 }
                 self.conversationTitle = title;
                 self.conversationTitleIsPlaceholder = false;
                 self.titleGenerationInProgress = false;
                 self.saveConversation(true);
-            }
-
-            function finishWithFallback(err) {
-                if (err) {
-                    console.error('[AI Assistant] Title generation failed:', err);
+            }).catch(function(error) {
+                if (self.titleGenerationToken !== titleGenerationToken) {
+                    return;
                 }
-                finishWithTitle(fallbackTitle());
-            }
-
-            if (provider === 'anthropic' && apiKey) {
-                var anthropicEndpoint = this.getProviderEndpoint(provider) || 'https://api.anthropic.com/v1/messages';
-
-                fetch(anthropicEndpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-api-key': apiKey,
-                        'anthropic-version': '2023-06-01',
-                        'anthropic-dangerous-direct-browser-access': 'true'
-                    },
-                    body: JSON.stringify({
-                        model: model,
-                        max_tokens: 30,
-                        messages: [{ role: 'user', content: titlePrompt }]
-                    })
-                })
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
-                    if (data.content && data.content[0] && data.content[0].text) {
-                        finishWithTitle(data.content[0].text);
-                    } else {
-                        finishWithFallback();
-                    }
-                })
-                .catch(function(err) {
-                    finishWithFallback(err);
-                });
-            } else if ((provider === 'openai' || (providerConfig && providerConfig.type === 'cloud')) && apiKey) {
-                var openAIEndpoint = this.getProviderEndpoint(provider) || 'https://api.openai.com/v1/chat/completions';
-
-                fetch(openAIEndpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + apiKey
-                    },
-                    body: JSON.stringify({
-                        model: model,
-                        max_tokens: 30,
-                        messages: [{ role: 'user', content: titlePrompt }]
-                    })
-                })
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
-                    if (data.choices && data.choices[0] && data.choices[0].message) {
-                        finishWithTitle(data.choices[0].message.content);
-                    } else {
-                        finishWithFallback();
-                    }
-                })
-                .catch(function(err) {
-                    finishWithFallback(err);
-                });
-            } else {
-                var endpoint = (self.getProviderEndpoint(provider) || self.getLocalEndpoint()).replace(/\/$/, '');
-
-                fetch(endpoint + '/v1/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        model: model,
-                        max_tokens: 150,
-                        messages: [{ role: 'user', content: titlePrompt }]
-                    })
-                })
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
-                    if (data.choices && data.choices[0] && data.choices[0].message) {
-                        var title = self.stripReasoningTokens(data.choices[0].message.content);
-                        finishWithTitle(title);
-                    } else {
-                        finishWithFallback();
-                    }
-                })
-                .catch(function(err) {
-                    finishWithFallback(err);
-                });
-            }
+                console.error('[AI Assistant] Title generation failed:', error);
+                self.titleGenerationInProgress = false;
+                self.titleGenerationAttempted = false;
+            });
         },
 
         // Summarization

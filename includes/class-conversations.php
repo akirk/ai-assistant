@@ -1438,6 +1438,7 @@ class Conversations {
 
         $conversation_id = intval($_POST['conversation_id'] ?? 0);
         $title = sanitize_text_field($_POST['title'] ?? '');
+        $title_status = sanitize_key($_POST['title_status'] ?? 'manual');
 
         if ($conversation_id <= 0) {
             wp_send_json_error(['message' => 'Invalid conversation ID']);
@@ -1456,16 +1457,20 @@ class Conversations {
             wp_send_json_error(['message' => 'Permission denied']);
         }
 
+        if (!in_array($title_status, ['manual', 'generated'], true)) {
+            $title_status = 'manual';
+        }
+
         wp_update_post([
             'ID' => $conversation_id,
             'post_title' => $title,
         ]);
-        update_post_meta($conversation_id, '_ai_title_status', 'manual');
+        update_post_meta($conversation_id, '_ai_title_status', $title_status);
 
         wp_send_json_success([
             'conversation_id' => $conversation_id,
             'title' => $title,
-            'title_status' => 'manual',
+            'title_status' => $title_status,
         ]);
     }
 
