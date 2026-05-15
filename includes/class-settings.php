@@ -2978,7 +2978,7 @@ PROMPT;
             ], 400);
         }
 
-        $input = empty($sample_arguments) ? null : $sample_arguments;
+        $input = !empty($details['has_schema']) ? $sample_arguments : null;
 
         try {
             $result = $ability->execute($input);

@@ -640,6 +640,19 @@ class ExecutorTest extends TestCase {
         $this->assertEquals(['input' => ['title' => 'Bacon Jam']], $result['result']);
     }
 
+    public function test_ability_execution_preserves_empty_schema_input(): void {
+        $GLOBALS['wp_test_abilities']['demo/read'] = $this->createAbility(true);
+
+        $result = $this->executor->execute_tool('ability', [
+            'action' => 'execute',
+            'ability' => 'demo/read',
+            'arguments' => [],
+        ]);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(['input' => []], $result['result']);
+    }
+
     public function test_ability_rejects_invalid_stringified_arguments(): void {
         $GLOBALS['wp_test_abilities']['demo/write'] = $this->createAbility(false);
 

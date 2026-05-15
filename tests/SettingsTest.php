@@ -302,7 +302,7 @@ class SettingsTest extends TestCase {
         $this->assertTrue($GLOBALS['wp_test_json_response']['success']);
         $data = $GLOBALS['wp_test_json_response']['data'];
         $this->assertSame('demo/read', $data['ability']);
-        $this->assertNull($data['input']);
+        $this->assertSame([], $data['input']);
         $this->assertSame('First item', $data['result']['items'][0]['title']);
     }
 
