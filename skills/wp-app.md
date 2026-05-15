@@ -16,7 +16,7 @@ Do not hand-write the scaffold first. Use the WordPress Ability API integration 
 ## Workflow
 
 1. Use the `ability` tool to list abilities with category `create-wp-app`.
-2. Load `create-wp-app/scaffold`.
+2. Load `ai/create-wp-app`.
 3. Ask only for required values that cannot be inferred.
 4. Execute the ability with structured arguments.
 5. After scaffolding, read the generated main plugin file, `src/App.php`, and relevant template files before modifying them. Follow the generated lifecycle and extension points instead of guessing where code should run.
@@ -26,7 +26,7 @@ Do not hand-write the scaffold first. Use the WordPress Ability API integration 
 
 Navigation changes the browser page and can interrupt the assistant workflow. Only navigate to the generated app when the user explicitly asks to open or visually test it. If route verification is needed later, do it as a separate final verification step after file changes are complete and after confirming that navigation is acceptable.
 
-Expected ability ID: `create-wp-app/scaffold`.
+Expected ability ID: `ai/create-wp-app`.
 
 ## Inputs
 
@@ -123,7 +123,7 @@ Prefer WordPress-native storage before custom database tables:
 - Follow `wp-content/plugins/ai-assistant/docs/plugin-integration.md` for AI Assistant-specific domains, annotations, browser callbacks, and post-result instructions.
 - Register an `ai_assistant_ability_domains` filter with the app's domain keywords so AI Assistant considers the app's abilities specifically for relevant requests.
 - Use `ai_assistant_ability_instructions` when ability results need a specific presentation or follow-up workflow.
-- Return structured arrays or `WP_Error`; include input/output schemas and mark abilities with `readonly`, `destructive`, and `idempotent` annotations.
+- Return structured arrays or `WP_Error`; include input/output schemas and mark abilities with accurate `readonly` and `destructive` annotations.
 
 ### My Apps
 

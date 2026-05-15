@@ -514,7 +514,7 @@
                 };
             }
 
-            if (toolName === 'ability' && input.action === 'execute' && input.ability === 'create-wp-app/scaffold') {
+            if (toolName === 'ability' && input.action === 'execute' && input.ability === 'ai/create-wp-app') {
                 var abilityResult = result.result || result;
                 if (!abilityResult || abilityResult.activated !== true) {
                     return null;

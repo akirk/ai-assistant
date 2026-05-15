@@ -50,9 +50,9 @@ class Wp_App_Abilities {
             return;
         }
 
-        wp_register_ability('create-wp-app/scaffold', [
+        wp_register_ability('ai/create-wp-app', [
             'label'               => __('Create WpApp Plugin', 'ai-assistant'),
-            'description'         => __('Creates a self-contained WordPress plugin powered by WpApp under wp-content/plugins. Use this whenever the user asks to create a wp app, WordPress app, WpApp app, or app plugin. The generated app includes its own WpApp dependency copy and Composer-lite autoloader, so Composer is not required inside WordPress Playground.', 'ai-assistant'),
+            'description'         => __('Creates a self-contained WordPress plugin powered by WpApp under wp-content/plugins. The generated app includes its own WpApp dependency copy and Composer-lite autoloader, so Composer is not required inside WordPress Playground.', 'ai-assistant'),
             'category'            => 'create-wp-app',
             'input_schema'        => $this->get_input_schema(),
             'output_schema'       => $this->get_output_schema(),
@@ -62,8 +62,7 @@ class Wp_App_Abilities {
                 'annotations'  => [
                     'readonly'     => false,
                     'destructive'  => false,
-                    'idempotent'   => false,
-                    'instructions' => 'Use this ability instead of manually writing files when creating WpApp-powered WordPress apps. Pass a slug and any user-provided naming details. The ability chooses the target plugin directory and no-Composer dependency mode. After scaffolding and any requested follow-up work are finished, call navigate with the returned app URL and concise link_text to offer opening the generated app.',
+                    'instructions' => 'Use this whenever the user asks to create a wp app, WordPress app, WpApp app, or app plugin. Use this ability instead of manually writing files when creating WpApp-powered WordPress apps. Pass a slug and any user-provided naming details. The ability chooses the target plugin directory and no-Composer dependency mode. After scaffolding and any requested follow-up work are finished, call navigate with the returned app URL and concise link_text to offer opening the generated app.',
                 ],
                 'show_in_rest' => false,
             ],
