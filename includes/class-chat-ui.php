@@ -293,11 +293,17 @@ class Chat_UI {
                 var $panel = $('#ai-assistant-standalone-panel');
                 var $trigger = $('#ai-assistant-standalone-trigger');
                 var $button = $trigger.find('button');
-                var $masterbar = $('#wpadminbar');
+                var updateStandaloneOffset = function() {
+                    var $masterbar = $('#wpadminbar');
+                    var offset = $masterbar.length && $masterbar.is(':visible') ? $masterbar.outerHeight() : 0;
+                    $wrap.css('--ai-assistant-adminbar-offset', offset + 'px');
+                };
 
-                if ($masterbar.length) {
-                    $wrap.appendTo($masterbar);
-                }
+                // Keep the panel outside #wpadminbar so WordPress core's
+                // admin-bar descendant reset cannot flatten the chat UI.
+                $wrap.appendTo(document.body);
+                updateStandaloneOffset();
+                $(window).on('resize.aiAssistantStandalone', updateStandaloneOffset);
 
                 // Show the standalone wrapper and remove hidden class from inner wrap
                 $wrap.show();

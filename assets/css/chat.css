@@ -2460,14 +2460,15 @@ body,
 /* Standalone Mode - Matches WordPress screen-meta styling exactly */
 
 /* Container for standalone mode - mimics #screen-meta positioning.
-   It is appended to #wpadminbar in JS so it stays attached to the
-   masterbar instead of being fixed independently. Layout-critical
+   It stays outside #wpadminbar so the admin bar's descendant reset does not
+   cascade into the chat panel or trigger. Layout-critical
    properties use !important because frontend themes may target generic
    divs/buttons and break alignment. */
 .ai-assistant-standalone-wrap {
+    --ai-assistant-adminbar-offset: 0px;
     --ai-assistant-standalone-panel-chrome: 56px;
-    position: absolute !important;
-    top: 0 !important;
+    position: fixed !important;
+    top: var(--ai-assistant-adminbar-offset) !important;
     left: 0 !important;
     right: 0 !important;
     width: 100% !important;
@@ -2476,11 +2477,21 @@ body,
     z-index: 99999;
     pointer-events: none;
     box-sizing: border-box;
+    color: #1d2327 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif !important;
+    font-size: 13px !important;
+    font-style: normal !important;
+    font-weight: 400 !important;
+    line-height: 1.4 !important;
+    letter-spacing: normal !important;
+    text-shadow: none !important;
+    text-transform: none !important;
 }
 
-/* Attach below the WordPress admin/master bar. */
-#wpadminbar .ai-assistant-standalone-wrap {
-    top: 100% !important;
+/* Attach below the WordPress admin/master bar when it is present. */
+body.admin-bar .ai-assistant-standalone-wrap,
+body.wp-admin .ai-assistant-standalone-wrap {
+    --ai-assistant-adminbar-offset: var(--wp-admin--admin-bar--height, 32px);
     width: 100vw !important;
     min-width: 0 !important;
 }
@@ -2504,27 +2515,46 @@ body,
     padding: 18px 20px;
 }
 
-/* The standalone panel lives inside #wpadminbar, whose core stylesheet resets
-   every descendant's margin, padding, height, line-height, border-radius, and
-   box-sizing. Reassert the chat UI's layout-critical rules here so the panel
-   remains scrollable and theme/admin-bar resets cannot flatten the UI. */
-#wpadminbar .ai-assistant-standalone-panel,
-#wpadminbar .ai-assistant-standalone-panel *,
-#wpadminbar .ai-assistant-standalone-panel *::before,
-#wpadminbar .ai-assistant-standalone-panel *::after {
-    box-sizing: border-box !important;
+/* Establish a local chat baseline before the component-specific hardening
+   rules below. */
+.ai-assistant-standalone-wrap *,
+.ai-assistant-standalone-wrap *::before,
+.ai-assistant-standalone-wrap *::after {
+    font-family: inherit !important;
+    font-size: inherit !important;
+    font-style: inherit !important;
+    font-weight: inherit !important;
+    line-height: inherit !important;
     letter-spacing: normal !important;
     text-shadow: none !important;
     text-transform: none !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel *::before,
-#wpadminbar .ai-assistant-standalone-panel *::after {
-    line-height: inherit !important;
+.ai-assistant-standalone-wrap button {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font: inherit !important;
+    vertical-align: baseline !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel {
-    max-height: calc(100vh - var(--wp-admin--admin-bar--height, 32px)) !important;
+.ai-assistant-standalone-wrap button:hover,
+.ai-assistant-standalone-wrap button:focus,
+.ai-assistant-standalone-wrap button:active {
+    background-image: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+    transform: none !important;
+    text-shadow: none !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel {
+    max-height: calc(100vh - var(--ai-assistant-adminbar-offset)) !important;
     color: #1d2327 !important;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif !important;
     font-size: 13px !important;
@@ -2532,14 +2562,14 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-wrap {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-wrap {
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
     background: #fff !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-columns {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-columns {
     margin: 0 auto !important;
     padding: 18px 20px !important;
     overflow: hidden !important;
@@ -2553,12 +2583,12 @@ body,
     height: calc(100vh - 150px);
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-assistant-chat-container {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-chat-container {
     display: flex !important;
     flex-direction: column !important;
-    height: min(380px, calc(100vh - var(--wp-admin--admin-bar--height, 32px) - var(--ai-assistant-standalone-panel-chrome))) !important;
+    height: min(380px, calc(100vh - var(--ai-assistant-adminbar-offset) - var(--ai-assistant-standalone-panel-chrome))) !important;
     min-height: 0 !important;
-    max-height: calc(100vh - var(--wp-admin--admin-bar--height, 32px) - var(--ai-assistant-standalone-panel-chrome)) !important;
+    max-height: calc(100vh - var(--ai-assistant-adminbar-offset) - var(--ai-assistant-standalone-panel-chrome)) !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
@@ -2573,11 +2603,11 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-assistant-chat-container.expanded {
-    height: calc(100vh - var(--wp-admin--admin-bar--height, 32px) - var(--ai-assistant-standalone-panel-chrome)) !important;
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-chat-container.expanded {
+    height: calc(100vh - var(--ai-assistant-adminbar-offset) - var(--ai-assistant-standalone-panel-chrome)) !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-assistant-header {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-header {
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
@@ -2592,7 +2622,7 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-assistant-header h2 {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-header h2 {
     margin: 0 !important;
     padding: 0 !important;
     color: #1d2327 !important;
@@ -2601,7 +2631,7 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-assistant-header-actions {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-header-actions {
     display: flex !important;
     align-items: center !important;
     flex-wrap: wrap !important;
@@ -2612,10 +2642,10 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-header-link,
-#wpadminbar .ai-assistant-standalone-panel .ai-token-count,
-#wpadminbar .ai-assistant-standalone-panel .ai-header-sep,
-#wpadminbar .ai-assistant-standalone-panel .ai-yolo-label {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-link,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-token-count,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-sep,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-yolo-label {
     height: auto !important;
     width: auto !important;
     margin: 0 !important;
@@ -2624,12 +2654,12 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-header-link {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-link {
     color: var(--ai-assistant-accent) !important;
     text-decoration: none !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-yolo-label {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-yolo-label {
     display: inline-flex !important;
     align-items: center !important;
     gap: 4px !important;
@@ -2637,13 +2667,13 @@ body,
     cursor: pointer !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-yolo-label input {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-yolo-label input {
     flex: 0 0 auto !important;
     margin: 0 !important;
     padding: 0 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-expand {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-expand {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -2665,7 +2695,7 @@ body,
     line-height: 0 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-expand svg {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-expand svg {
     display: block;
     flex: 0 0 16px !important;
     width: 16px !important;
@@ -2674,7 +2704,7 @@ body,
     padding: 0 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-messages {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-messages {
     display: flex !important;
     flex: 1 1 auto !important;
     flex-direction: column !important;
@@ -2694,7 +2724,7 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message {
     display: flex !important;
     align-items: flex-end !important;
     gap: 4px !important;
@@ -2705,18 +2735,18 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-user {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-user {
     align-self: flex-end !important;
     flex-direction: row-reverse !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-assistant,
-#wpadminbar .ai-assistant-standalone-panel .ai-message-error,
-#wpadminbar .ai-assistant-standalone-panel .ai-message-system {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-assistant,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-error,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-system {
     align-self: flex-start !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-content {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content {
     min-width: 0 !important;
     height: auto !important;
     width: auto !important;
@@ -2727,31 +2757,31 @@ body,
     line-height: 1.5 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-user .ai-message-content {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-user .ai-message-content {
     color: #fff !important;
     background: var(--ai-assistant-accent) !important;
     border-bottom-right-radius: 4px !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-assistant .ai-message-content {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-assistant .ai-message-content {
     color: #1d2327 !important;
     background: #fff !important;
     border: 1px solid #c3c4c7 !important;
     border-bottom-left-radius: 4px !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-error .ai-message-content {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-error .ai-message-content {
     color: #fff !important;
     background: #d63638 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-system .ai-message-content {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-system .ai-message-content {
     color: #1d2327 !important;
     background: #fff8e5 !important;
     border: 1px solid #dba617 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-attachments {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-attachments {
     display: flex !important;
     flex-direction: column !important;
     gap: 6px !important;
@@ -2760,7 +2790,7 @@ body,
     padding: 0 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-attachment {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-attachment {
     display: flex !important;
     flex-wrap: wrap !important;
     align-items: center !important;
@@ -2775,52 +2805,52 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-attachment-name {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-attachment-name {
     font-weight: 600 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-attachment-meta {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-attachment-meta {
     color: rgba(255, 255, 255, 0.8) !important;
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace !important;
     font-size: 11px !important;
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-attachment code {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-attachment code {
     max-width: 100% !important;
     overflow-wrap: anywhere !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-content p,
-#wpadminbar .ai-assistant-standalone-panel .ai-message-content ul,
-#wpadminbar .ai-assistant-standalone-panel .ai-message-content ol {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content p,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content ul,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content ol {
     height: auto !important;
     padding: 0 !important;
     line-height: 1.5 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-content p {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content p {
     margin: 0 0 0.65em !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-content br {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content br {
     height: auto !important;
     line-height: inherit !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-content ul,
-#wpadminbar .ai-assistant-standalone-panel .ai-message-content ol {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content ul,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content ol {
     margin-top: 0 !important;
     margin-bottom: 0.65em !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-content p:last-child,
-#wpadminbar .ai-assistant-standalone-panel .ai-message-content ul:last-child,
-#wpadminbar .ai-assistant-standalone-panel .ai-message-content ol:last-child {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content p:last-child,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content ul:last-child,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content ol:last-child {
     margin-bottom: 0 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-content code {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content code {
     padding: 2px 5px !important;
     border-radius: 3px !important;
     font-family: Consolas, Monaco, monospace !important;
@@ -2829,7 +2859,7 @@ body,
     background: rgba(0, 0, 0, 0.08) !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-content pre {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content pre {
     margin: 6px 0 !important;
     padding: 10px !important;
     overflow-x: auto !important;
@@ -2839,13 +2869,21 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-content pre code {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content pre code {
     padding: 0 !important;
     color: inherit !important;
     background: none !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-message-actions {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content strong {
+    font-weight: 600 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content em {
+    font-style: italic !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-actions {
     display: flex;
     flex: 0 0 auto !important;
     gap: 2px !important;
@@ -2854,7 +2892,7 @@ body,
     padding: 0 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-action-btn {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-btn {
     display: flex;
     align-items: center !important;
     justify-content: center !important;
@@ -2872,13 +2910,23 @@ body,
     line-height: 1 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-action-btn svg {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-btn svg {
     width: 16px !important;
     height: 16px !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-loading,
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-pending-actions {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-btn:hover {
+    color: #2c3338 !important;
+    background: #f0f0f1 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-btn:active {
+    color: #2c3338 !important;
+    background: #e0e0e0 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-loading,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-pending-actions {
     flex-shrink: 0 !important;
     height: auto !important;
     margin: 0 !important;
@@ -2886,17 +2934,17 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-loading {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-loading {
     align-items: center !important;
     gap: 8px !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-pending-actions {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-pending-actions {
     border-top: 1px solid #dba617 !important;
     background: #fff8e5 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-assistant-drop-zone {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-drop-zone {
     position: absolute !important;
     inset: 0 !important;
     z-index: 30 !important;
@@ -2915,11 +2963,11 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-file-drag-over .ai-assistant-drop-zone {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-file-drag-over .ai-assistant-drop-zone {
     display: flex !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-assistant-drop-zone-inner {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-drop-zone-inner {
     height: auto !important;
     margin: 0 !important;
     padding: 12px 18px !important;
@@ -2932,7 +2980,7 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-assistant-attachments {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-attachments {
     display: none !important;
     flex-wrap: wrap !important;
     flex-shrink: 0 !important;
@@ -2944,11 +2992,11 @@ body,
     background: #f6f7f7 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-assistant-attachments.has-attachments {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-attachments.has-attachments {
     display: flex !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-attachment-chip {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-attachment-chip {
     display: inline-flex !important;
     align-items: center !important;
     gap: 6px !important;
@@ -2965,7 +3013,7 @@ body,
     line-height: 1.3 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-attachment-name {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-attachment-name {
     min-width: 0 !important;
     max-width: 220px !important;
     overflow: hidden !important;
@@ -2977,7 +3025,7 @@ body,
     white-space: nowrap !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-attachment-size {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-attachment-size {
     flex: 0 0 auto !important;
     color: #646970 !important;
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace !important;
@@ -2985,7 +3033,7 @@ body,
     line-height: 1.3 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-attachment-remove {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-attachment-remove {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -3006,7 +3054,11 @@ body,
     line-height: 1 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-loading-dots {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-attachment-remove:hover {
+    background: #f0f0f1 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-loading-dots {
     display: flex !important;
     flex: 0 0 auto !important;
     gap: 4px !important;
@@ -3015,13 +3067,13 @@ body,
     padding: 0 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-loading-status {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-loading-status {
     color: #50575e !important;
     font-size: 12px !important;
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-loading-dots span {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-loading-dots span {
     width: 8px !important;
     height: 8px !important;
     margin: 0 !important;
@@ -3030,7 +3082,7 @@ body,
     background: var(--ai-assistant-accent) !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-assistant-input-area {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-input-area {
     display: flex !important;
     flex-shrink: 0 !important;
     gap: 8px !important;
@@ -3041,12 +3093,12 @@ body,
     background: #f6f7f7 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-assistant-attachments.has-attachments + .ai-assistant-input-area {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-attachments.has-attachments + .ai-assistant-input-area {
     padding-top: 8px !important;
     border-top: none !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-input {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-input {
     flex: 1 1 auto !important;
     min-width: 0 !important;
     width: auto !important;
@@ -3067,7 +3119,7 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-attach {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-attach {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -3086,7 +3138,7 @@ body,
     cursor: pointer !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-attach svg {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-attach svg {
     display: block !important;
     width: 16px !important;
     height: 16px !important;
@@ -3095,8 +3147,12 @@ body,
     color: inherit !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-send,
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-stop {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-attach:hover:not(:disabled) {
+    background: #f0f0f1 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-send,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-stop {
     display: inline-flex;
     align-items: center !important;
     justify-content: center !important;
@@ -3114,21 +3170,33 @@ body,
     text-align: center !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-send {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-send {
     padding: 8px 16px !important;
     border: 1px solid var(--ai-assistant-accent) !important;
     color: #fff !important;
     background: var(--ai-assistant-accent) !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-stop {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-send:hover:not(:disabled) {
+    border-color: var(--ai-assistant-accent-hover) !important;
+    color: #fff !important;
+    background: var(--ai-assistant-accent-hover) !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-stop {
     padding: 4px 8px !important;
     border: 1px solid #d63638 !important;
     color: #fff !important;
     background: #d63638 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-scroll-bottom {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-stop:hover {
+    border-color: #b32d2e !important;
+    color: #fff !important;
+    background: #b32d2e !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-scroll-bottom {
     position: absolute !important;
     right: 20px !important;
     bottom: 90px !important;
@@ -3147,9 +3215,13 @@ body,
     line-height: 1 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card,
-#wpadminbar .ai-assistant-standalone-panel .ai-conversation-summary,
-#wpadminbar .ai-assistant-standalone-panel .ai-thinking-block {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-scroll-bottom:hover {
+    background: #f6f7f7 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-conversation-summary,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-thinking-block {
     height: auto !important;
     margin: 8px 0 !important;
     overflow: hidden !important;
@@ -3157,13 +3229,13 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card {
     padding: 10px 12px !important;
     font-size: 12px !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-tool-cards,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-cards-group {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-tool-cards,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-cards-group {
     display: flex !important;
     flex-direction: column !important;
     gap: 6px !important;
@@ -3172,8 +3244,8 @@ body,
     padding: 0 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-tool-cards > .ai-tool-cards-summary,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-cards-group > .ai-tool-cards-summary {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-tool-cards > .ai-tool-cards-summary,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-cards-group > .ai-tool-cards-summary {
     display: flex !important;
     align-items: center !important;
     gap: 4px !important;
@@ -3186,17 +3258,17 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card-header,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card-actions,
-#wpadminbar .ai-assistant-standalone-panel .ai-pending-bulk-actions,
-#wpadminbar .ai-assistant-standalone-panel .ai-action-buttons {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-header,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-actions,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-pending-bulk-actions,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-buttons {
     display: flex;
     align-items: center !important;
     gap: 6px !important;
     margin: 0 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card-spinner {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-spinner {
     flex: 0 0 auto !important;
     width: 14px !important;
     height: 14px !important;
@@ -3207,21 +3279,21 @@ body,
     border-radius: 50% !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card-name {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-name {
     color: #1d2327 !important;
     font-size: 12px !important;
     font-weight: 600 !important;
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card-status,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card-desc {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-status,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-desc {
     color: #50575e !important;
     font-size: 11px !important;
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card-size {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-size {
     margin-left: auto !important;
     padding: 2px 6px !important;
     border-radius: 3px !important;
@@ -3232,44 +3304,44 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card-actions:empty {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-actions:empty {
     display: none !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card-desc,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card-preview,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card-actions,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-params,
-#wpadminbar .ai-assistant-standalone-panel .ai-ability-approval-slot,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-output {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-desc,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-preview,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-actions,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-params,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-ability-approval-slot,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-output {
     padding-left: 22px !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card-desc,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card-preview,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card-actions,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-params,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-output,
-#wpadminbar .ai-assistant-standalone-panel .ai-ability-approval-slot,
-#wpadminbar .ai-assistant-standalone-panel .ai-action-preview {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-desc,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-preview,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-actions,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-params,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-output,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-ability-approval-slot,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-preview {
     margin-top: 6px !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-approval-body {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-approval-body {
     padding: 14px 16px 16px !important;
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-ability-approval-body {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-ability-approval-body {
     padding: 9px !important;
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-ability-approval-body * {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-ability-approval-body * {
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-action-preview-content {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-preview-content {
     height: auto !important;
     width: auto !important;
     margin: 6px 0 0 !important;
@@ -3282,16 +3354,16 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-action-preview.expanded .ai-action-preview-content {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-preview.expanded .ai-action-preview-content {
     display: block !important;
     max-height: 350px !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-assistant-chat-container.expanded .ai-action-preview.expanded .ai-action-preview-content {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-chat-container.expanded .ai-action-preview.expanded .ai-action-preview-content {
     max-height: 500px !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-action-preview-content pre.ai-code-preview {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-preview-content pre.ai-code-preview {
     height: auto !important;
     width: auto !important;
     margin: 0 !important;
@@ -3308,13 +3380,47 @@ body,
     word-wrap: break-word !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-action-preview-content pre.ai-code-preview *,
-#wpadminbar .ai-assistant-standalone-panel .ai-code-preview .ai-line {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-preview-content pre.ai-code-preview *,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-code-preview .ai-line {
+    font-family: inherit !important;
+    font-size: inherit !important;
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-card-actions button,
-#wpadminbar .ai-assistant-standalone-panel #ai-assistant-pending-actions-header button {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-code-preview .ai-line {
+    display: block !important;
+    min-height: 1.4em !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-code-preview .ai-line-number {
+    display: inline-block !important;
+    width: 3em !important;
+    margin: 0 !important;
+    padding: 0 1em 0 0 !important;
+    color: #a0a5aa !important;
+    text-align: right !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-code-preview .ai-line-content {
+    display: inline !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-code-preview .ai-diff-line {
+    display: block !important;
+    margin: 0 -10px !important;
+    padding: 1px 6px !important;
+    font-size: 12px !important;
+    white-space: pre !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-actions button,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-pending-actions-header button {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -3329,22 +3435,42 @@ body,
     line-height: 1.5 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-action-preview-content pre.ai-code-preview,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-params pre,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-approval-params pre,
-#wpadminbar .ai-assistant-standalone-panel .ai-ability-param-value {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-actions .ai-approve-btn:hover,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-pending-actions-header .ai-approve-btn:hover {
+    border-color: var(--ai-assistant-accent-hover) !important;
+    color: #fff !important;
+    background: var(--ai-assistant-accent-hover) !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-actions .ai-always-approve-btn:hover,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-pending-actions-header .ai-always-approve-btn:hover {
+    border-color: var(--ai-assistant-accent-border) !important;
+    color: var(--ai-assistant-accent-hover) !important;
+    background: var(--ai-assistant-accent-highlight) !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-actions .ai-skip-btn:hover,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-pending-actions-header .ai-skip-btn:hover {
+    border-color: #8c8f94 !important;
+    color: #2c3338 !important;
+    background: #f0f0f1 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-preview-content pre.ai-code-preview,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-params pre,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-approval-params pre,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-ability-param-value {
     background: #fff !important;
     color: #1d2327 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-action-preview-content pre.ai-code-preview *,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-params pre *,
-#wpadminbar .ai-assistant-standalone-panel .ai-tool-approval-params pre *,
-#wpadminbar .ai-assistant-standalone-panel .ai-ability-param-value * {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-params pre *,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-approval-params pre *,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-ability-param-value * {
     color: inherit !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-ability-approval-details code {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-ability-approval-details code {
     display: inline !important;
     padding: 1px 4px !important;
     border-radius: 3px !important;
@@ -3355,7 +3481,7 @@ body,
     line-height: 1.4 !important;
 }
 
-#wpadminbar .ai-assistant-standalone-panel .ai-ability-info-toggle {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-ability-info-toggle {
     display: inline-flex !important;
     width: auto !important;
     min-width: 0 !important;
@@ -3370,6 +3496,13 @@ body,
     font-size: 11px !important;
     font-weight: 500 !important;
     line-height: 1.35 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-ability-info-toggle:hover,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-ability-info-toggle:focus,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-ability-info-toggle[aria-expanded="true"] {
+    color: var(--ai-assistant-accent-hover) !important;
+    background: transparent !important;
 }
 
 /* Button container - matches #screen-meta-links positioning */
