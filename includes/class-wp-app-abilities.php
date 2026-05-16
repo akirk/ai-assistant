@@ -88,10 +88,12 @@ class Wp_App_Abilities {
         }
 
         $input = is_array($input) ? $input : [];
-        $slug = $this->normalize_slug($input['slug'] ?? '');
-        if ($slug === '') {
+        $base_slug = $this->normalize_slug($input['slug'] ?? '');
+        if ($base_slug === '') {
             return $this->error('missing_slug', 'A valid plugin slug is required.');
         }
+        $slug = $this->ensure_mywp_suffix($base_slug);
+        $display_slug = $this->strip_mywp_suffix($base_slug);
 
         $plugins_dir = defined('WP_PLUGIN_DIR') ? WP_PLUGIN_DIR : trailingslashit(WP_CONTENT_DIR) . 'plugins';
         $target_dir = $plugins_dir . DIRECTORY_SEPARATOR . $slug;
@@ -103,7 +105,8 @@ class Wp_App_Abilities {
             return $this->error('plugin_exists', "The plugin directory already exists: {$slug}");
         }
 
-        $plugin_name = $this->string_arg($input, 'plugin_name', \Akirk\CreateWpApp\Scaffolder::slug_to_title($slug));
+        $plugin_name = $this->string_arg($input, 'plugin_name', \Akirk\CreateWpApp\Scaffolder::slug_to_title($display_slug));
+        $url_path = $this->normalize_mywp_url_path($input['url_path'] ?? $slug, $slug);
 
         try {
             $result = \Akirk\CreateWpApp\Scaffolder::create([
@@ -111,7 +114,7 @@ class Wp_App_Abilities {
                 'plugin_name'     => $plugin_name,
                 'namespace'       => $this->string_arg($input, 'namespace', \Akirk\CreateWpApp\Scaffolder::to_namespace($plugin_name)),
                 'author'          => $this->string_arg($input, 'author', ''),
-                'url_path'        => $this->normalize_url_path($input['url_path'] ?? $slug),
+                'url_path'        => $url_path,
                 'setup_type'      => $this->normalize_setup_type($input['setup_type'] ?? 'minimal'),
                 'target_dir'      => $target_dir,
                 'overwrite'       => $overwrite,
@@ -162,7 +165,7 @@ class Wp_App_Abilities {
             'properties'           => [
                 'slug' => [
                     'type'        => 'string',
-                    'description' => 'Plugin slug and directory basename for the product/domain, e.g. timetable. Do not include the generic word app or use an -app suffix unless the user explicitly named the product that way.',
+                    'description' => 'Plugin slug and directory basename for the product/domain, e.g. timetable. Do not include the generic word app or use an -app suffix unless the user explicitly named the product that way. A single -mywp suffix is appended automatically when missing.',
                     'pattern'     => '^[a-z0-9][a-z0-9-]*$',
                 ],
                 'plugin_name' => [
@@ -179,7 +182,7 @@ class Wp_App_Abilities {
                 ],
                 'url_path' => [
                     'type'        => 'string',
-                    'description' => 'URL path where the app should be mounted. Defaults to slug.',
+                    'description' => 'URL path where the app should be mounted. Defaults to slug. A single -mywp suffix is appended to the final path segment when missing.',
                 ],
                 'setup_type' => [
                     'type'        => 'string',
@@ -229,6 +232,22 @@ class Wp_App_Abilities {
         return preg_match('/^[a-z0-9][a-z0-9-]*$/', $slug) ? $slug : '';
     }
 
+    private function ensure_mywp_suffix(string $slug): string {
+        if ($slug === '' || substr($slug, -5) === '-mywp') {
+            return $slug;
+        }
+
+        return $slug . '-mywp';
+    }
+
+    private function strip_mywp_suffix(string $slug): string {
+        if (substr($slug, -5) !== '-mywp') {
+            return $slug;
+        }
+
+        return substr($slug, 0, -5);
+    }
+
     private function has_create_wp_app_dependency(): bool {
         return class_exists('\Akirk\CreateWpApp\Scaffolder');
     }
@@ -239,6 +258,16 @@ class Wp_App_Abilities {
         $path = preg_replace('/[^a-z0-9\/-]+/', '-', $path);
         $path = preg_replace('#/+#', '/', (string) $path);
         return trim((string) $path, '/-') ?: 'app';
+    }
+
+    private function normalize_mywp_url_path($path, string $fallback): string {
+        $path = is_scalar($path) && trim((string) $path) !== '' ? $path : $fallback;
+        $path = $this->normalize_url_path($path);
+        $segments = explode('/', $path);
+        $last = array_pop($segments);
+        $segments[] = $this->ensure_mywp_suffix((string) $last);
+
+        return implode('/', $segments);
     }
 
     private function normalize_setup_type($setup_type): string {

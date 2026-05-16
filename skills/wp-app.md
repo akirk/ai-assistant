@@ -19,10 +19,11 @@ Do not hand-write the scaffold first. Use the WordPress Ability API integration 
 2. Load `ai/create-wp-app`.
 3. Ask only for required values that cannot be inferred.
 4. Execute the ability with structured arguments.
-5. After scaffolding, read the generated main plugin file, `src/App.php`, and relevant template files before modifying them. Follow the generated lifecycle and extension points instead of guessing where code should run.
-6. Activate the generated plugin if requested or if the ability supports `activate`.
-7. Continue the current build flow in-place. Do not use the `navigate` tool to visit the generated app route during scaffolding or intermediate implementation work.
-8. In the final response, report the returned `url` so the user can open it when ready.
+5. Immediately after scaffolding, create `IMPLEMENTATION_PLAN.md` in the generated plugin root before making follow-up code changes. Keep it current enough that a later assistant can resume if the model is cut off mid-implementation.
+6. After scaffolding, read the generated main plugin file, `src/App.php`, and relevant template files before modifying them. Follow the generated lifecycle and extension points instead of guessing where code should run.
+7. Activate the generated plugin if requested or if the ability supports `activate`.
+8. Continue the current build flow in-place. Do not use the `navigate` tool to visit the generated app route during scaffolding or intermediate implementation work.
+9. In the final response, report the returned `url` so the user can open it when ready.
 
 Navigation changes the browser page and can interrupt the assistant workflow. Only navigate to the generated app when the user explicitly asks to open or visually test it. If route verification is needed later, do it as a separate final verification step after file changes are complete and after confirming that navigation is acceptable.
 
@@ -34,17 +35,32 @@ Infer defaults when reasonable:
 
 | Argument | Default rule |
 |----------|--------------|
-| `slug` | Lowercase kebab-case folder name for the product/domain, e.g. `timetable`; do not include the generic word `app` or use an `-app` suffix |
+| `slug` | Lowercase kebab-case folder name for the product/domain, e.g. `timetable`; do not include the generic word `app` or use an `-app` suffix; the ability appends `-mywp` to the generated plugin slug when missing |
 | `plugin_name` | Human name from the product/domain, e.g. `Timetable`; do not add the generic word `App` unless the user explicitly names it that way |
 | `namespace` | PascalCase from plugin name, e.g. `Timetable` |
 | `author` | Empty unless the user provides it |
-| `url_path` | Same as slug, without leading slash |
+| `url_path` | Same as slug, without leading slash; the ability appends `-mywp` to the final path segment when missing |
 | `setup_type` | Prefer `full` for AI-built apps when the ability exposes this option |
 | `activate` | `true` when the user wants to try the app immediately |
 
-When the user says "create a {thing} app", treat "app" as the type of work, not part of the name. For example, "create a timetable app" should use `slug: "timetable"`, `plugin_name: "Timetable"`, and `url_path: "timetable"`, not `timetable-app`.
+When the user says "create a {thing} app", treat "app" as the type of work, not part of the name. For example, "create a timetable app" should use `slug: "timetable"`, `plugin_name: "Timetable"`, and `url_path: "timetable"`, not `timetable-app`. The ability will generate the plugin slug and URL as `timetable-mywp`.
 
 Do not expose arbitrary target paths unless the ability explicitly supports and validates them. Generated apps should live under `wp-content/plugins/{slug}/`.
+
+## Continuity Plan
+
+Before editing generated app code, write `IMPLEMENTATION_PLAN.md` in the generated plugin root. Update it after each meaningful milestone and before risky or broad edits.
+
+The plan should be concise but resumable:
+
+- Original user request and inferred app purpose.
+- Generated `plugin_slug`, `plugin_dir`, `plugin_file`, `url_path`, and `url`.
+- Current implementation status.
+- Checklist of remaining tasks with completed items marked.
+- Files already read or changed, plus the reason for each change.
+- Decisions, assumptions, blockers, test results, and known follow-up risks.
+
+Do not include secrets, API keys, or unnecessary conversation transcript. If the build is finished, mark the remaining checklist complete instead of deleting the file.
 
 ## Ability Call
 
@@ -76,6 +92,8 @@ The ability returns:
 - `warnings`
 
 AI Assistant's bridge fixes the generated target to `wp-content/plugins/{slug}` and calls `create-wp-app` in no-Composer mode: `dependency_mode=copy` and `autoload_mode=polyfill`. The generated plugin is self-contained and can later replace the polyfill by running Composer.
+
+The bridge also enforces a single `-mywp` suffix for generated app plugin slugs. If the model passes `slug: "timetable"` and `url_path: "timetable"`, the returned values use `timetable-mywp` for the plugin directory, main plugin file, plugin slug, and app URL path. If the suffix is already present, it is not duplicated.
 
 Do not immediately navigate to the returned `url`. Treat it as output to report or use after the app build is complete.
 
