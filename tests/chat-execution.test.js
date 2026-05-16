@@ -556,6 +556,162 @@ describe('queued message handoff', function() {
     });
 });
 
+describe('tool call round limits', function() {
+    function createRoundLimitAssistant(overrides) {
+        overrides = overrides || {};
+        let calls = 0;
+        const assistant = createAssistant(Object.assign({
+            streamComplete: true,
+            pendingToolResults: [],
+            messages: [],
+            deduplicateFileReads() {},
+            flushQueuedMessages() {
+                return false;
+            },
+            updateTokenCount() {},
+            autoSaveConversation() {},
+            callLLM() {
+                calls++;
+            }
+        }, overrides));
+        assistant._getCallCount = function() {
+            return calls;
+        };
+        return assistant;
+    }
+
+    it('does not stop at the old 10-round limit', function() {
+        const assistant = createRoundLimitAssistant({
+            toolCallRounds: 9
+        });
+
+        assistant.handleToolResults([
+            {
+                id: 'toolu_1',
+                name: 'read_file',
+                input: { path: 'demo.txt' },
+                result: { content: 'Demo' },
+                success: true
+            }
+        ], 'anthropic');
+
+        assert.strictEqual(assistant.toolCallRounds, 10);
+        assert.strictEqual(assistant.usesCodingToolWorkflow, true);
+        assert.strictEqual(assistant.messages.length, 1);
+        assert.strictEqual(assistant._getCallCount(), 1);
+    });
+
+    it('stops at the configured default round limit', function() {
+        const assistant = createRoundLimitAssistant({
+            config: {
+                toolRoundLimits: {
+                    default: 2,
+                    coding: 10,
+                    consecutiveFailures: 3
+                }
+            },
+            toolCallRounds: 1
+        });
+
+        assistant.handleToolResults([
+            {
+                id: 'toolu_1',
+                name: 'ability',
+                input: { action: 'list' },
+                result: { abilities: [] },
+                success: true
+            }
+        ], 'anthropic');
+
+        assert.strictEqual(assistant.toolCallRounds, 0);
+        assert.strictEqual(assistant.messages.length, 2);
+        assert.match(assistant.messages[1].content, /current tool call round limit of 2 rounds/);
+        assert.strictEqual(assistant._getCallCount(), 1);
+    });
+
+    it('uses the larger coding limit after file or app-building tool rounds', function() {
+        const assistant = createRoundLimitAssistant({
+            config: {
+                toolRoundLimits: {
+                    default: 2,
+                    coding: 4,
+                    consecutiveFailures: 3
+                }
+            },
+            toolCallRounds: 1
+        });
+
+        assistant.handleToolResults([
+            {
+                id: 'toolu_1',
+                name: 'ability',
+                input: { action: 'execute', ability: 'ai/create-wp-app' },
+                result: { plugin_slug: 'weekly-schedule' },
+                success: true
+            }
+        ], 'anthropic');
+
+        assert.strictEqual(assistant.toolCallRounds, 2);
+        assert.strictEqual(assistant.usesCodingToolWorkflow, true);
+        assert.strictEqual(assistant.messages.length, 1);
+
+        assistant.handleToolResults([
+            {
+                id: 'toolu_2',
+                name: 'ability',
+                input: { action: 'get', ability: 'ai/create-wp-app' },
+                result: { id: 'ai/create-wp-app' },
+                success: true
+            }
+        ], 'anthropic');
+
+        assert.strictEqual(assistant.toolCallRounds, 3);
+        assert.strictEqual(assistant.messages.length, 2);
+
+        assistant.handleToolResults([
+            {
+                id: 'toolu_3',
+                name: 'ability',
+                input: { action: 'list' },
+                result: { abilities: [] },
+                success: true
+            }
+        ], 'anthropic');
+
+        assert.strictEqual(assistant.toolCallRounds, 0);
+        assert.strictEqual(assistant.messages.length, 4);
+        assert.match(assistant.messages[3].content, /current tool call round limit of 4 rounds/);
+    });
+
+    it('stops quickly after consecutive failed tool rounds', function() {
+        const assistant = createRoundLimitAssistant({
+            config: {
+                toolRoundLimits: {
+                    default: 25,
+                    coding: 50,
+                    consecutiveFailures: 2
+                }
+            },
+            consecutiveFailedToolRounds: 1
+        });
+
+        assistant.handleToolResults([
+            {
+                id: 'toolu_1',
+                name: 'edit_file',
+                input: { path: 'plugins/demo/demo.php' },
+                result: { error: 'Malformed edits' },
+                success: false
+            }
+        ], 'anthropic');
+
+        assert.strictEqual(assistant.toolCallRounds, 0);
+        assert.strictEqual(assistant.consecutiveFailedToolRounds, 0);
+        assert.strictEqual(assistant.messages.length, 2);
+        assert.match(assistant.messages[1].content, /failed for 2 consecutive rounds/);
+    });
+});
+
 describe('activation wpok verification', function() {
     it('passes through activated plugin results when wpok succeeds', async function() {
         const assistant = createAssistant({

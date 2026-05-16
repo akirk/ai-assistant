@@ -1541,6 +1541,104 @@
             return 'You can open [' + linkText + '](' + markdownUrl + ').';
         },
 
+        getConfiguredToolRoundLimit: function(name, fallback) {
+            var limits = (typeof aiAssistantConfig !== 'undefined' && aiAssistantConfig.toolRoundLimits) || {};
+            var value = limits[name];
+            var parsed = parseInt(value, 10);
+            return parsed > 0 ? parsed : fallback;
+        },
+
+        isCodingToolRound: function(results) {
+            var codingTools = [
+                'read_file',
+                'write_file',
+                'edit_file',
+                'delete_file',
+                'find',
+                'list_directory',
+                'search_files',
+                'search_content'
+            ];
+
+            return (results || []).some(function(result) {
+                var toolName = result && (result.name || result.tool);
+                if (codingTools.indexOf(toolName) >= 0) {
+                    return true;
+                }
+
+                var input = result && result.input;
+                var ability = input && (input.ability || (input.arguments && input.arguments.ability));
+                return (toolName === 'ability' || toolName === 'execute_ability') && ability === 'ai/create-wp-app';
+            });
+        },
+
+        getMaxToolCallRounds: function() {
+            if (this.usesCodingToolWorkflow) {
+                return this.getConfiguredToolRoundLimit('coding', 50);
+            }
+
+            return this.getConfiguredToolRoundLimit('default', 25);
+        },
+
+        getMaxConsecutiveFailedToolRounds: function() {
+            return this.getConfiguredToolRoundLimit('consecutiveFailures', 3);
+        },
+
+        updateToolRoundProgress: function(results) {
+            if (this.isCodingToolRound(results)) {
+                this.usesCodingToolWorkflow = true;
+            }
+
+            var hasSuccess = (results || []).some(function(result) {
+                return !!(result && result.success);
+            });
+
+            if (hasSuccess) {
+                this.consecutiveFailedToolRounds = 0;
+            } else if ((results || []).length > 0) {
+                this.consecutiveFailedToolRounds = (this.consecutiveFailedToolRounds || 0) + 1;
+            }
+        },
+
+        buildToolRoundLimitMessage: function(reason, limit) {
+            if (reason === 'failed_rounds') {
+                return 'Tool execution has failed for ' + limit + ' consecutive rounds. Stop calling tools and explain what is blocking completion, what changed successfully, and what remains to be done.';
+            }
+
+            return 'You have reached the current tool call round limit of ' + limit + ' rounds. Stop calling tools and explain what you accomplished, what remains to be done, and any blockers or failed tool results.';
+        },
+
+        maybeStopForToolRoundLimit: function(results) {
+            this.updateToolRoundProgress(results);
+            this.toolCallRounds++;
+
+            var failedLimit = this.getMaxConsecutiveFailedToolRounds();
+            if (failedLimit > 0 && (this.consecutiveFailedToolRounds || 0) >= failedLimit) {
+                this.toolCallRounds = 0;
+                this.consecutiveFailedToolRounds = 0;
+                this.usesCodingToolWorkflow = false;
+                this.messages.push({
+                    role: 'user',
+                    content: this.buildToolRoundLimitMessage('failed_rounds', failedLimit)
+                });
+                return true;
+            }
+
+            var roundLimit = this.getMaxToolCallRounds();
+            if (this.toolCallRounds >= roundLimit) {
+                this.toolCallRounds = 0;
+                this.consecutiveFailedToolRounds = 0;
+                this.usesCodingToolWorkflow = false;
+                this.messages.push({
+                    role: 'user',
+                    content: this.buildToolRoundLimitMessage('rounds', roundLimit)
+                });
+                return true;
+            }
+
+            return false;
+        },
+
         handleToolResults: function(results, provider) {
             var self = this;
 
@@ -1624,17 +1722,13 @@
 
             if (sentQueuedMessages) {
                 this.toolCallRounds = 0;
+                this.consecutiveFailedToolRounds = 0;
+                this.usesCodingToolWorkflow = false;
                 this.callLLM();
                 return;
             }
 
-            this.toolCallRounds++;
-            if (this.toolCallRounds >= 10) {
-                this.toolCallRounds = 0;
-                this.messages.push({
-                    role: 'user',
-                    content: 'You have reached the maximum number of tool call rounds. Summarize what you accomplished and what, if anything, remains to be done.'
-                });
+            if (this.maybeStopForToolRoundLimit(allResults)) {
                 this.callLLM();
                 return;
             }
