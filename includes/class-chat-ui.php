@@ -103,7 +103,7 @@ class Chat_UI {
         wp_enqueue_script(
             'ai-assistant-chat-ui',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-ui.js',
-            ['ai-assistant-chat-core', 'ai-assistant-chat-files'],
+            ['ai-assistant-chat-core', 'ai-assistant-chat-settings', 'ai-assistant-chat-files'],
             AI_ASSISTANT_VERSION,
             true
         );

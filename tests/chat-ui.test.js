@@ -111,6 +111,51 @@ describe('navigation suggestion links', function() {
     });
 });
 
+describe('model lifecycle notices', function() {
+    it('renders a warning when the active model has a replacement', function() {
+        const assistant = loadUiMixin({ settingsUrl: 'http://example.test/settings' });
+        const messages = [];
+
+        assistant.getModelUpgradeInfo = function() {
+            return {
+                status: 'deprecated',
+                replacement: 'claude-sonnet-4-6',
+                replacementName: 'Claude Sonnet 4.6',
+                retirement: 'June 15, 2026'
+            };
+        };
+        assistant.addMessage = function(role, content, extraClass) {
+            messages.push({ role, content, extraClass });
+        };
+
+        assistant.showModelUpgradeNotice('anthropic', 'claude-sonnet-4-20250514');
+
+        assert.strictEqual(messages.length, 1);
+        assert.strictEqual(messages[0].role, 'system');
+        assert.strictEqual(messages[0].extraClass, 'ai-model-warning');
+        assert.match(messages[0].content, /deprecated/);
+        assert.match(messages[0].content, /claude-sonnet-4-6/);
+        assert.match(messages[0].content, /June 15, 2026/);
+        assert.match(messages[0].content, /Settings/);
+    });
+
+    it('does not render a warning when no replacement is available', function() {
+        const assistant = loadUiMixin();
+        let count = 0;
+
+        assistant.getModelUpgradeInfo = function() {
+            return null;
+        };
+        assistant.addMessage = function() {
+            count++;
+        };
+
+        assistant.showModelUpgradeNotice('anthropic', 'claude-sonnet-4-6');
+
+        assert.strictEqual(count, 0);
+    });
+});
+
 describe('pick_image media upload helpers', function() {
     it('builds a safe filename from selected image metadata', function() {
         const assistant = loadUiMixin();

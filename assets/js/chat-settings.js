@@ -2,6 +2,103 @@
     'use strict';
 
     var STORAGE_PREFIX = 'aiAssistant_';
+    var DEFAULT_MODEL = 'claude-sonnet-4-6';
+    var MODEL_REPLACEMENTS = {
+        anthropic: {
+            'claude-sonnet-4-20250514': {
+                replacement: 'claude-sonnet-4-6',
+                status: 'deprecated',
+                retirement: 'June 15, 2026'
+            },
+            'claude-opus-4-20250514': {
+                replacement: 'claude-opus-4-7',
+                status: 'deprecated',
+                retirement: 'June 15, 2026'
+            },
+            'claude-3-7-sonnet-20250219': {
+                replacement: 'claude-sonnet-4-6',
+                status: 'retired'
+            },
+            'claude-3-5-sonnet-20241022': {
+                replacement: 'claude-sonnet-4-6',
+                status: 'retired'
+            },
+            'claude-3-5-sonnet-20240620': {
+                replacement: 'claude-sonnet-4-6',
+                status: 'retired'
+            },
+            'claude-3-sonnet-20240229': {
+                replacement: 'claude-sonnet-4-6',
+                status: 'retired'
+            },
+            'claude-3-5-haiku-20241022': {
+                replacement: 'claude-haiku-4-5-20251001',
+                status: 'retired'
+            },
+            'claude-3-haiku-20240307': {
+                replacement: 'claude-haiku-4-5-20251001',
+                status: 'retired'
+            },
+            'claude-3-opus-20240229': {
+                replacement: 'claude-opus-4-7',
+                status: 'retired'
+            }
+        }
+    };
+
+    function normalizeModelId(model) {
+        return String(model || '').trim();
+    }
+
+    function parseClaudeModelId(model) {
+        var id = normalizeModelId(model);
+        var familyMatch = id.match(/^claude-(opus|sonnet|haiku)-(.+)$/);
+        var versionParts;
+        var date = 0;
+
+        if (familyMatch) {
+            versionParts = familyMatch[2].split('-');
+            if (/^\d{8}$/.test(versionParts[versionParts.length - 1])) {
+                date = Number(versionParts.pop());
+            }
+            return {
+                family: familyMatch[1],
+                version: versionParts.map(function(part) {
+                    return /^\d+$/.test(part) ? Number(part) : 0;
+                }),
+                date: date
+            };
+        }
+
+        var legacyMatch = id.match(/^claude-(\d+)(?:-(\d+))?-(opus|sonnet|haiku)(?:-(\d{8}))?$/);
+        if (!legacyMatch) return null;
+
+        versionParts = [Number(legacyMatch[1])];
+        if (legacyMatch[2]) {
+            versionParts.push(Number(legacyMatch[2]));
+        }
+
+        return {
+            family: legacyMatch[3],
+            version: versionParts,
+            date: legacyMatch[4] ? Number(legacyMatch[4]) : 0
+        };
+    }
+
+    function compareClaudeModels(a, b) {
+        var maxLength = Math.max(a.version.length, b.version.length);
+        for (var i = 0; i < maxLength; i++) {
+            var aPart = a.version[i] || 0;
+            var bPart = b.version[i] || 0;
+            if (aPart !== bPart) {
+                return aPart > bPart ? 1 : -1;
+            }
+        }
+        if (a.date !== b.date) {
+            return a.date > b.date ? 1 : -1;
+        }
+        return 0;
+    }
 
     $.extend(window.aiAssistant, {
         getSetting: function(key) {
@@ -153,7 +250,7 @@
             var override = this.getSetting('model');
             if (override) return override;
 
-            return 'claude-sonnet-4-20250514';
+            return DEFAULT_MODEL;
         },
 
         setModel: function(model) {
@@ -240,6 +337,93 @@
                 }
             }
             return [];
+        },
+
+        getModelDisplayName: function(provider, model) {
+            var id = normalizeModelId(model);
+            var models = this.getAvailableModels(provider);
+            for (var i = 0; i < models.length; i++) {
+                if (normalizeModelId(models[i].id) === id) {
+                    return models[i].name || models[i].id;
+                }
+            }
+            return id;
+        },
+
+        getNewerAvailableModels: function(provider, model) {
+            provider = provider || this.getProvider();
+            model = normalizeModelId(model);
+            if (provider !== 'anthropic' || !model) return [];
+
+            var current = parseClaudeModelId(model);
+            if (!current) return [];
+
+            var models = this.getAvailableModels(provider);
+            var newer = [];
+
+            for (var i = 0; i < models.length; i++) {
+                var candidateId = normalizeModelId(models[i].id);
+                if (!candidateId || candidateId === model) continue;
+
+                var candidate = parseClaudeModelId(candidateId);
+                if (!candidate || candidate.family !== current.family) continue;
+                if (compareClaudeModels(candidate, current) <= 0) continue;
+
+                newer.push({
+                    id: candidateId,
+                    name: models[i].name || candidateId,
+                    parsed: candidate
+                });
+            }
+
+            newer.sort(function(a, b) {
+                return compareClaudeModels(b.parsed, a.parsed);
+            });
+
+            return newer.map(function(candidate) {
+                return {
+                    id: candidate.id,
+                    name: candidate.name
+                };
+            });
+        },
+
+        getNewestAvailableModel: function(provider, model) {
+            var newer = this.getNewerAvailableModels(provider, model);
+            return newer.length > 0 ? newer[0] : null;
+        },
+
+        getModelUpgradeInfo: function(provider, model) {
+            provider = provider || this.getProvider();
+            model = normalizeModelId(model);
+            if (!provider || !model) return null;
+
+            var replacements = MODEL_REPLACEMENTS[provider] || {};
+            var replacement = replacements[model];
+            if (replacement) {
+                return {
+                    provider: provider,
+                    model: model,
+                    status: replacement.status,
+                    replacement: replacement.replacement,
+                    replacementName: this.getModelDisplayName(provider, replacement.replacement),
+                    retirement: replacement.retirement || ''
+                };
+            }
+
+            var newerModels = this.getNewerAvailableModels(provider, model);
+            if (newerModels.length <= 2) return null;
+
+            var newer = newerModels[0];
+
+            return {
+                provider: provider,
+                model: model,
+                status: 'older',
+                replacement: newer.id,
+                replacementName: newer.name,
+                retirement: ''
+            };
         },
 
         /**
