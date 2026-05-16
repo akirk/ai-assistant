@@ -474,3 +474,108 @@ describe('REST API tool card descriptions', function() {
         );
     });
 });
+
+describe('tool result display', function() {
+    it('renders read_file results as file content with the file language', function() {
+        const assistant = loadUiMixin();
+        assistant.getLanguageFromPath = function(path) {
+            return path.endsWith('.php') ? 'php' : null;
+        };
+
+        const display = assistant.getToolResultDisplay('read_file', {
+            path: 'plugins/example/example.php',
+            content: "<?php\necho 'Hello';\n",
+            size: 22
+        });
+
+        assert.strictEqual(display.text, "<?php\necho 'Hello';\n");
+        assert.strictEqual(display.language, 'php');
+        assert.strictEqual(display.label, 'Content');
+    });
+
+    it('marks structured tool results as JSON', function() {
+        const assistant = loadUiMixin();
+
+        const display = assistant.getToolResultDisplay('db_query', {
+            query: 'SELECT option_name FROM wp_options',
+            rows: [{ option_name: 'siteurl' }],
+            count: 1
+        });
+
+        assert.strictEqual(display.language, 'json');
+        assert.match(display.text, /"rows"/);
+        assert.match(display.text, /"siteurl"/);
+    });
+
+    it('detects JSON returned as a string', function() {
+        const assistant = loadUiMixin();
+
+        const display = assistant.getToolResultDisplay('run_php', {
+            output: '{"name":"Ada","active":true}'
+        });
+
+        assert.strictEqual(display.language, 'json');
+        assert.strictEqual(display.text, '{"name":"Ada","active":true}');
+    });
+
+    it('normalizes language classes for highlighted code blocks', function() {
+        const assistant = loadUiMixin();
+
+        assert.strictEqual(assistant.getCodeLanguageClass('json'), 'ai-language-json');
+        assert.strictEqual(assistant.getCodeLanguageClass('text/x-sql'), 'ai-language-text-x-sql');
+    });
+
+    it('normalizes JavaScript-labelled JSON content to JSON highlighting', function() {
+        const assistant = loadUiMixin();
+        const classList = ['ai-language-javascript'];
+        classList.add = function(className) {
+            if (!this.includes(className)) this.push(className);
+        };
+        classList.remove = function(className) {
+            const index = this.indexOf(className);
+            if (index >= 0) this.splice(index, 1);
+        };
+        const element = {
+            textContent: '',
+            classList
+        };
+
+        assistant.highlightCode(element, '{"id":3360212}', 'javascript', false);
+
+        assert.ok(classList.includes('ai-language-json'));
+        assert.ok(!classList.includes('ai-language-javascript'));
+        assert.strictEqual(element.textContent, '{"id":3360212}');
+    });
+
+    it('marks CodeMirror JSON string tokens followed by a colon as keys', function() {
+        const assistant = loadUiMixin();
+        const classes = [];
+        const valueClasses = [];
+        const key = {
+            nextSibling: { nodeType: 3, textContent: ': ' },
+            classList: {
+                add(className) {
+                    classes.push(className);
+                }
+            }
+        };
+        const value = {
+            nextSibling: { nodeType: 3, textContent: ',' },
+            classList: {
+                add(className) {
+                    valueClasses.push(className);
+                }
+            }
+        };
+
+        assistant.markJsonPropertyTokens({
+            querySelectorAll(selector) {
+                assert.strictEqual(selector, '.cm-string');
+                return [key, value];
+            }
+        });
+
+        assert.deepStrictEqual(classes, ['ai-json-key', 'cm-property']);
+        assert.deepStrictEqual(valueClasses, []);
+    });
+});

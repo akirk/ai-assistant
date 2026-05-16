@@ -2313,7 +2313,7 @@
                 'html': 'htmlmixed',
                 'htm': 'htmlmixed',
                 'xml': 'xml',
-                'json': 'javascript',
+                'json': 'json',
                 'md': 'markdown',
                 'sql': 'sql',
                 'sh': 'shell',
@@ -2364,13 +2364,13 @@
                 case 'execute_ability':
                     if (args.arguments && Object.keys(args.arguments).length > 0) {
                         content = JSON.stringify(args.arguments, null, 2);
-                        language = 'javascript';
+                        language = 'json';
                     }
                     break;
                 case 'ability':
                     if (args.action === 'execute' && args.arguments && Object.keys(args.arguments).length > 0) {
                         content = JSON.stringify(args.arguments, null, 2);
-                        language = 'javascript';
+                        language = 'json';
                     }
                     break;
             }
