@@ -404,6 +404,7 @@
                 return {
                     provider: provider,
                     model: model,
+                    severity: 'warning',
                     status: replacement.status,
                     replacement: replacement.replacement,
                     replacementName: this.getModelDisplayName(provider, replacement.replacement),
@@ -412,14 +413,16 @@
             }
 
             var newerModels = this.getNewerAvailableModels(provider, model);
-            if (newerModels.length <= 2) return null;
+            if (newerModels.length === 0) return null;
 
             var newer = newerModels[0];
+            var isOutdated = newerModels.length > 2;
 
             return {
                 provider: provider,
                 model: model,
-                status: 'older',
+                severity: isOutdated ? 'warning' : 'note',
+                status: isOutdated ? 'outdated' : 'newer_available',
                 replacement: newer.id,
                 replacementName: newer.name,
                 retirement: ''

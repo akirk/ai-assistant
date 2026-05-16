@@ -1435,21 +1435,34 @@
                 replacementText = '`' + replacement + '`';
             }
 
-            var statusText = upgrade.status === 'retired' ? 'retired' :
-                             upgrade.status === 'deprecated' ? 'deprecated' : 'older';
-            var message = 'Model warning: `' + model + '` is ' + statusText + '.';
+            var severity = upgrade.severity || 'warning';
+            var isWarning = severity === 'warning';
+            var message;
+
+            if (isWarning) {
+                var statusText = upgrade.status === 'retired' ? 'retired' :
+                                 upgrade.status === 'deprecated' ? 'deprecated' :
+                                 upgrade.status === 'outdated' ? 'several versions behind' : 'outdated';
+                message = 'Model warning: `' + model + '` is ' + statusText + '.';
+            } else {
+                message = 'Model note: A newer model is available.';
+            }
 
             if (replacementText) {
-                message += ' Use ' + replacementText + ' for newer results.';
+                message += isWarning
+                    ? ' Use ' + replacementText + ' for newer results.'
+                    : ' Newer option: ' + replacementText + '.';
             }
             if (upgrade.retirement) {
                 message += ' Retirement: ' + upgrade.retirement + '.';
             }
             if (typeof aiAssistantConfig !== 'undefined' && aiAssistantConfig.settingsUrl) {
-                message += ' Change it in [Settings](' + aiAssistantConfig.settingsUrl + ').';
+                message += isWarning
+                    ? ' Change it in [Settings](' + aiAssistantConfig.settingsUrl + ').'
+                    : ' Review options in [Settings](' + aiAssistantConfig.settingsUrl + ').';
             }
 
-            this.addMessage('system', message, 'ai-model-warning');
+            this.addMessage('system', message, isWarning ? 'ai-model-warning' : 'ai-model-note');
         },
 
         /**

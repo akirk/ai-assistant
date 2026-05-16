@@ -118,6 +118,7 @@ describe('model lifecycle notices', function() {
 
         assistant.getModelUpgradeInfo = function() {
             return {
+                severity: 'warning',
                 status: 'deprecated',
                 replacement: 'claude-sonnet-4-6',
                 replacementName: 'Claude Sonnet 4.6',
@@ -139,7 +140,33 @@ describe('model lifecycle notices', function() {
         assert.match(messages[0].content, /Settings/);
     });
 
-    it('does not render a warning when no replacement is available', function() {
+    it('renders a note when a newer model exists but the active model is not outdated', function() {
+        const assistant = loadUiMixin({ settingsUrl: 'http://example.test/settings' });
+        const messages = [];
+
+        assistant.getModelUpgradeInfo = function() {
+            return {
+                severity: 'note',
+                status: 'newer_available',
+                replacement: 'claude-sonnet-4-6',
+                replacementName: 'Claude Sonnet 4.6'
+            };
+        };
+        assistant.addMessage = function(role, content, extraClass) {
+            messages.push({ role, content, extraClass });
+        };
+
+        assistant.showModelUpgradeNotice('anthropic', 'claude-sonnet-4-5-20250929');
+
+        assert.strictEqual(messages.length, 1);
+        assert.strictEqual(messages[0].role, 'system');
+        assert.strictEqual(messages[0].extraClass, 'ai-model-note');
+        assert.match(messages[0].content, /Model note/);
+        assert.match(messages[0].content, /Claude Sonnet 4\.6/);
+        assert.doesNotMatch(messages[0].content, /warning/i);
+    });
+
+    it('does not render a model lifecycle message when no replacement is available', function() {
         const assistant = loadUiMixin();
         let count = 0;
 

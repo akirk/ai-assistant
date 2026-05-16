@@ -63,13 +63,14 @@ describe('chat settings model lifecycle', function() {
 
         assert.strictEqual(upgrade.provider, 'anthropic');
         assert.strictEqual(upgrade.model, 'claude-sonnet-4-20250514');
+        assert.strictEqual(upgrade.severity, 'warning');
         assert.strictEqual(upgrade.status, 'deprecated');
         assert.strictEqual(upgrade.replacement, 'claude-sonnet-4-6');
         assert.strictEqual(upgrade.replacementName, 'claude-sonnet-4-6');
         assert.strictEqual(upgrade.retirement, 'June 15, 2026');
     });
 
-    it('does not warn when a Claude model is only one or two available versions behind', function() {
+    it('returns a note when a Claude model is only one or two available versions behind', function() {
         const assistant = loadSettingsMixin({
             providers: {
                 source: 'connectors',
@@ -89,7 +90,12 @@ describe('chat settings model lifecycle', function() {
             }
         });
 
-        assert.strictEqual(assistant.getModelUpgradeInfo('anthropic', 'claude-sonnet-4-4-20250701'), null);
+        const upgrade = assistant.getModelUpgradeInfo('anthropic', 'claude-sonnet-4-4-20250701');
+
+        assert.strictEqual(upgrade.severity, 'note');
+        assert.strictEqual(upgrade.status, 'newer_available');
+        assert.strictEqual(upgrade.replacement, 'claude-sonnet-4-6');
+        assert.strictEqual(upgrade.replacementName, 'Claude Sonnet 4.6');
     });
 
     it('warns when a Claude model is more than two available versions behind', function() {
@@ -114,7 +120,8 @@ describe('chat settings model lifecycle', function() {
 
         const upgrade = assistant.getModelUpgradeInfo('anthropic', 'claude-sonnet-4-3-20250601');
 
-        assert.strictEqual(upgrade.status, 'older');
+        assert.strictEqual(upgrade.severity, 'warning');
+        assert.strictEqual(upgrade.status, 'outdated');
         assert.strictEqual(upgrade.replacement, 'claude-sonnet-4-6');
         assert.strictEqual(upgrade.replacementName, 'Claude Sonnet 4.6');
     });

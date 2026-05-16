@@ -371,7 +371,7 @@ body,
 }
 
 /* Hide messages when pending new chat (undo available), except welcome and model notices */
-#ai-assistant-messages.ai-pending-new-chat > *:not(.ai-welcome-message):not(.ai-model-info):not(.ai-model-warning) {
+#ai-assistant-messages.ai-pending-new-chat > *:not(.ai-welcome-message):not(.ai-model-info):not(.ai-model-warning):not(.ai-model-note) {
     display: none;
 }
 
@@ -465,6 +465,11 @@ body,
 .ai-model-warning .ai-message-content {
     background: #fcf0f1;
     border-color: #d63638;
+}
+
+.ai-model-note .ai-message-content {
+    background: #f0f6fc;
+    border-color: #72aee6;
 }
 
 /* Message action buttons */
@@ -2789,6 +2794,11 @@ body.wp-admin .ai-assistant-standalone-wrap {
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-model-warning .ai-message-content {
     background: #fcf0f1 !important;
     border-color: #d63638 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-model-note .ai-message-content {
+    background: #f0f6fc !important;
+    border-color: #72aee6 !important;
 }
 
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-attachments {
