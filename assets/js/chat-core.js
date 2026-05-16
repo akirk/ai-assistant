@@ -14,6 +14,8 @@
         messages: [],
         pendingActions: [],
         toolCallRounds: 0,
+        consecutiveFailedToolRounds: 0,
+        usesCodingToolWorkflow: false,
         isLoading: false,
         systemPrompt: '',
         isFullPage: false,

@@ -108,6 +108,8 @@
             }
 
             this.toolCallRounds = 0;
+            this.consecutiveFailedToolRounds = 0;
+            this.usesCodingToolWorkflow = false;
             this.autoSaveConversation();
             this.callLLM();
             return true;
@@ -174,6 +176,8 @@
             this.processedToolIds = {};
             this.pickImageToolCallInCurrentResponse = '';
             this.toolCallRounds = 0;
+            this.consecutiveFailedToolRounds = 0;
+            this.usesCodingToolWorkflow = false;
             this.addToDraftHistory(message);
             var messageContent = this.buildUserMessageContent
                 ? this.buildUserMessageContent(message, attachments)
