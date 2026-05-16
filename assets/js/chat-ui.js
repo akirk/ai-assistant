@@ -1416,8 +1416,53 @@
                 var modelInfo = model ? ' (' + model + ')' : '';
                 this.addMessage('assistant', 'Hello! I\'m your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?', 'ai-welcome-message');
                 this.addMessage('system', 'You\'re chatting with **' + providerName + '**' + modelInfo, 'ai-model-info');
+                this.showModelUpgradeNotice(provider, model);
                 this.showLegacyKeyMigrationNotice();
             }
+        },
+
+        showModelUpgradeNotice: function(provider, model) {
+            if (!this.getModelUpgradeInfo) return;
+
+            var upgrade = this.getModelUpgradeInfo(provider, model);
+            if (!upgrade) return;
+
+            var replacement = upgrade.replacement || '';
+            var replacementText = replacement;
+            if (upgrade.replacementName && upgrade.replacementName !== replacement) {
+                replacementText = '**' + upgrade.replacementName + '** (`' + replacement + '`)';
+            } else if (replacement) {
+                replacementText = '`' + replacement + '`';
+            }
+
+            var severity = upgrade.severity || 'warning';
+            var isWarning = severity === 'warning';
+            var message;
+
+            if (isWarning) {
+                var statusText = upgrade.status === 'retired' ? 'retired' :
+                                 upgrade.status === 'deprecated' ? 'deprecated' :
+                                 upgrade.status === 'outdated' ? 'several versions behind' : 'outdated';
+                message = 'Model warning: `' + model + '` is ' + statusText + '.';
+            } else {
+                message = 'Model note: A newer model is available.';
+            }
+
+            if (replacementText) {
+                message += isWarning
+                    ? ' Use ' + replacementText + ' for newer results.'
+                    : ' Newer option: ' + replacementText + '.';
+            }
+            if (upgrade.retirement) {
+                message += ' Retirement: ' + upgrade.retirement + '.';
+            }
+            if (typeof aiAssistantConfig !== 'undefined' && aiAssistantConfig.settingsUrl) {
+                message += isWarning
+                    ? ' Change it in [Settings](' + aiAssistantConfig.settingsUrl + ').'
+                    : ' Review options in [Settings](' + aiAssistantConfig.settingsUrl + ').';
+            }
+
+            this.addMessage('system', message, isWarning ? 'ai-model-warning' : 'ai-model-note');
         },
 
         /**
@@ -1455,6 +1500,7 @@
                 var providerName = this.getProviderName(provider);
                 var modelInfo = model ? ' (' + model + ')' : '';
                 this.addMessage('system', 'You\'re chatting with **' + providerName + '**' + modelInfo, 'ai-model-info');
+                this.showModelUpgradeNotice(provider, model);
             }
         },
 

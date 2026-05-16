@@ -370,8 +370,8 @@ body,
     background: #f0f0f1;
 }
 
-/* Hide messages when pending new chat (undo available), except welcome and model info */
-#ai-assistant-messages.ai-pending-new-chat > *:not(.ai-welcome-message):not(.ai-model-info) {
+/* Hide messages when pending new chat (undo available), except welcome and model notices */
+#ai-assistant-messages.ai-pending-new-chat > *:not(.ai-welcome-message):not(.ai-model-info):not(.ai-model-warning):not(.ai-model-note) {
     display: none;
 }
 
@@ -460,6 +460,16 @@ body,
     background: #fff8e5;
     color: #1d2327;
     border: 1px solid #dba617;
+}
+
+.ai-model-warning .ai-message-content {
+    background: #fcf0f1;
+    border-color: #d63638;
+}
+
+.ai-model-note .ai-message-content {
+    background: #f0f6fc;
+    border-color: #72aee6;
 }
 
 /* Message action buttons */
@@ -2779,6 +2789,16 @@ body.wp-admin .ai-assistant-standalone-wrap {
     color: #1d2327 !important;
     background: #fff8e5 !important;
     border: 1px solid #dba617 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-model-warning .ai-message-content {
+    background: #fcf0f1 !important;
+    border-color: #d63638 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-model-note .ai-message-content {
+    background: #f0f6fc !important;
+    border-color: #72aee6 !important;
 }
 
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-attachments {
