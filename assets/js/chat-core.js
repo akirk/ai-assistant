@@ -52,8 +52,15 @@
         isUploadingFiles: false,
         toolCallSubscriptions: existingAiAssistant.toolCallSubscriptions || [],
         nextToolCallSubscriptionId: existingAiAssistant.nextToolCallSubscriptionId || 1,
+        initialized: existingAiAssistant.initialized || false,
 
         init: function() {
+            if (this.initialized) {
+                return;
+            }
+
+            this.initialized = true;
+
             var self = this;
             this.setupAjaxErrorTracking();
             this.bindEvents();
@@ -967,6 +974,10 @@
     });
 
     $(document).ready(function() {
+        if (window.aiAssistantBootstrap && window.aiAssistantBootstrap.deferInit) {
+            return;
+        }
+
         window.aiAssistant.init();
     });
 
