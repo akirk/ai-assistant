@@ -1704,7 +1704,7 @@
             }
 
             // Try CodeMirror syntax highlighting
-            if (language && wp.CodeMirror && wp.CodeMirror.runMode) {
+            if (language && window.wp && wp.CodeMirror && wp.CodeMirror.runMode) {
                 var CM = wp.CodeMirror;
                 // Only map languages that differ from their CodeMirror mode name
                 var modeMap = {
