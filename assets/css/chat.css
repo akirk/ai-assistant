@@ -2041,6 +2041,25 @@ body,
     font-family: Consolas, Monaco, monospace;
 }
 
+.ai-code-preview.ai-language-json .cm-string {
+    color: #0a7d48;
+}
+
+.ai-code-preview.ai-language-json .cm-string.ai-json-key,
+.ai-code-preview.ai-language-json .cm-property,
+.ai-code-preview.ai-language-json .cm-attribute {
+    color: #0550ae;
+    font-weight: 600;
+}
+
+.ai-code-preview.ai-language-json .cm-number {
+    color: #8a5a00;
+}
+
+.ai-code-preview.ai-language-json .cm-atom {
+    color: #7a3db8;
+}
+
 /* Diff styling */
 .ai-diff-line {
     display: block;

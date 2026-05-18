@@ -1203,8 +1203,110 @@
             return true;
         },
 
+        getToolResultDisplay: function(toolName, output) {
+            if (output === undefined || output === null) return;
+
+            if (typeof output !== 'object') {
+                var scalarText = String(output);
+                return {
+                    text: scalarText,
+                    language: this.inferToolResultLanguage(toolName, output, scalarText),
+                    label: 'Result'
+                };
+            }
+
+            if (toolName === 'read_file' && typeof output.content === 'string') {
+                return {
+                    text: output.content,
+                    language: this.getLanguageFromPath ? this.getLanguageFromPath(output.path || '') : null,
+                    label: 'Content'
+                };
+            }
+
+            if (toolName === 'navigate') return;
+
+            var outputText = '';
+            var language = null;
+            if (output.ability !== undefined && output.success !== undefined) {
+                var r = output.result;
+                if (r !== null && r !== undefined) {
+                    if (typeof r === 'string') {
+                        outputText = r;
+                    } else {
+                        outputText = JSON.stringify(r, null, 2);
+                        language = 'json';
+                    }
+                }
+            } else {
+                if (output.output !== undefined && output.output !== null) {
+                    outputText += typeof output.output === 'string' ? output.output : JSON.stringify(output.output, null, 2);
+                }
+                if (output.result !== undefined && output.result !== null) {
+                    var rs;
+                    if (typeof output.result === 'string') {
+                        rs = output.result;
+                    } else {
+                        rs = JSON.stringify(output.result, null, 2);
+                        if (!outputText) {
+                            language = 'json';
+                        }
+                    }
+                    if (outputText) outputText += '\n';
+                    outputText += rs;
+                }
+                if (!outputText.trim() && typeof output === 'object') {
+                    outputText = JSON.stringify(output, null, 2);
+                    language = 'json';
+                }
+            }
+
+            if (!outputText.trim()) return null;
+
+            return {
+                text: outputText,
+                language: language || this.inferToolResultLanguage(toolName, output, outputText),
+                label: 'Result'
+            };
+        },
+
+        inferToolResultLanguage: function(toolName, output, outputText) {
+            var text = String(outputText || '').trim();
+
+            if (this.isJsonLikeText(text)) {
+                return 'json';
+            }
+
+            if (toolName === 'read_file' && output && output.path && this.getLanguageFromPath) {
+                return this.getLanguageFromPath(output.path);
+            }
+
+            if (toolName === 'get_page_html' || /^<!doctype html/i.test(text) || /^<html[\s>]/i.test(text)) {
+                return 'htmlmixed';
+            }
+
+            if (/^(select|show|describe|desc)\s/i.test(text)) {
+                return 'sql';
+            }
+
+            return null;
+        },
+
+        isJsonLikeText: function(text) {
+            text = String(text || '').trim();
+            if (!text || ['{', '['].indexOf(text.charAt(0)) < 0) {
+                return false;
+            }
+
+            try {
+                JSON.parse(text);
+                return true;
+            } catch (e) {
+                return false;
+            }
+        },
+
         renderToolResultOutput: function($card, toolName, output) {
-            if (!output) return;
+            if (output === undefined || output === null) return;
             if (toolName === 'navigate') return;
             if (toolName === 'pick_image' && this.renderPickedImageOutput($card, output)) {
                 return;
@@ -1213,35 +1315,26 @@
                 this.renderRestApiResultLinks($card, output);
             }
 
-            var outputText = '';
-            if (output.ability !== undefined && output.success !== undefined) {
-                var r = output.result;
-                if (r !== null && r !== undefined) {
-                    outputText = typeof r === 'string' ? r : JSON.stringify(r, null, 2);
-                }
-            } else {
-                if (output.output) outputText += output.output;
-                if (output.result !== undefined && output.result !== null) {
-                    var rs = typeof output.result === 'string' ? output.result : JSON.stringify(output.result, null, 2);
-                    if (outputText) outputText += '\n';
-                    outputText += rs;
-                }
-                if (!outputText.trim() && typeof output === 'object') {
-                    outputText = JSON.stringify(output, null, 2);
-                }
-            }
-            if (!outputText.trim()) return;
+            var display = this.getToolResultDisplay(toolName, output);
+            if (!display || !display.text || !display.text.trim()) return;
+
+            var outputText = display.text;
             var lineCount = (outputText.match(/\n/g) || []).length + 1;
             var autoExpand = lineCount <= 10 && toolName !== 'db_query';
             var $output = $('<div class="ai-tool-output">' +
-                '<div class="ai-action-preview' + (autoExpand ? ' expanded' : '') + '">' +
+                '<div class="ai-action-preview' + (autoExpand ? ' expanded' : '') + '" data-language="' + this.escapeHtml(display.language || '') + '">' +
                 '<button type="button" class="ai-action-preview-toggle">' +
                 '<span class="ai-action-preview-icon" aria-hidden="true">&gt;</span>' +
-                'Result (' + lineCount + ' line' + (lineCount !== 1 ? 's' : '') + ')' +
+                this.escapeHtml(display.label || 'Result') + ' (' + lineCount + ' line' + (lineCount !== 1 ? 's' : '') + ')' +
                 '</button>' +
                 '<div class="ai-action-preview-content"><pre class="ai-code-preview"></pre></div>' +
                 '</div></div>');
-            $output.find('.ai-code-preview').text(outputText);
+            var $pre = $output.find('.ai-code-preview');
+            if (display.language && typeof this.highlightCode === 'function') {
+                this.highlightCode($pre[0], outputText, display.language, !!display.isEdit);
+            } else {
+                $pre.text(outputText);
+            }
             $card.append($output);
         },
 
@@ -1675,9 +1768,57 @@
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         },
 
+        getCodeLanguageClass: function(language) {
+            language = String(language || '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+            return language ? 'ai-language-' + language : '';
+        },
+
+        setCodeLanguageClass: function(element, language) {
+            var languageClass = this.getCodeLanguageClass(language);
+            Array.prototype.slice.call(element.classList || []).forEach(function(className) {
+                if (className.indexOf('ai-language-') === 0) {
+                    element.classList.remove(className);
+                }
+            });
+            if (languageClass) {
+                element.classList.add(languageClass);
+            }
+        },
+
+        markJsonPropertyTokens: function(element) {
+            if (!element || typeof element.querySelectorAll !== 'function') {
+                return;
+            }
+
+            Array.prototype.slice.call(element.querySelectorAll('.cm-string')).forEach(function(token) {
+                var sibling = token.nextSibling;
+                while (sibling) {
+                    var text = sibling.textContent || '';
+                    if (sibling.nodeType === 3) {
+                        if (/^\s*:/.test(text)) {
+                            token.classList.add('ai-json-key');
+                            token.classList.add('cm-property');
+                        }
+                        if (text.trim() !== '') {
+                            return;
+                        }
+                    } else if (sibling.nodeType === 1 && text.trim() !== '') {
+                        return;
+                    }
+                    sibling = sibling.nextSibling;
+                }
+            });
+        },
+
         highlightCode: function(element, code, language, isEdit) {
+            var effectiveLanguage = language;
+            if ((language === 'javascript' || language === 'js') && this.isJsonLikeText && this.isJsonLikeText(code)) {
+                effectiveLanguage = 'json';
+            }
+
             // Clear existing content
             element.textContent = '';
+            this.setCodeLanguageClass(element, effectiveLanguage);
 
             if (isEdit) {
                 // For diffs, render with line-by-line coloring using DOM methods
@@ -1704,7 +1845,7 @@
             }
 
             // Try CodeMirror syntax highlighting
-            if (language && window.wp && wp.CodeMirror && wp.CodeMirror.runMode) {
+            if (effectiveLanguage && typeof wp !== 'undefined' && wp.CodeMirror && wp.CodeMirror.runMode) {
                 var CM = wp.CodeMirror;
                 // Only map languages that differ from their CodeMirror mode name
                 var modeMap = {
@@ -1712,7 +1853,7 @@
                     'html': 'htmlmixed',
                     'json': {name: 'javascript', json: true}
                 };
-                var modeName = modeMap[language] || language;
+                var modeName = modeMap[effectiveLanguage] || effectiveLanguage;
 
                 try {
                     var codeToHighlight = code;
@@ -1741,6 +1882,9 @@
                     } else {
                         // Add line numbers (only when we didn't prepend <?php)
                         this.addLineNumbers(element);
+                        if (effectiveLanguage === 'json') {
+                            this.markJsonPropertyTokens(element);
+                        }
                     }
                     return;
                 } catch (e) {
