@@ -85,6 +85,92 @@ class Git_Tracker {
     }
 
     /**
+     * Track multiple file changes in a single ai-changes commit.
+     *
+     * @param array $changes Each change requires path and change_type, with original_content for modified/deleted files.
+     * @return int Number of valid changes accepted for tracking.
+     */
+    public function track_changes(array $changes, string $reason = '', ?int $conversation_id = null): int {
+        $entries = $this->read_index();
+        $created = $this->get_created_files();
+        $valid_changes = [];
+
+        foreach ($changes as $change) {
+            if (!is_array($change)) {
+                continue;
+            }
+
+            $path = isset($change['path']) ? (string) $change['path'] : '';
+            $relative_path = $this->to_relative_path($path);
+            if (!$relative_path) {
+                continue;
+            }
+
+            $change_type = isset($change['change_type']) ? (string) $change['change_type'] : '';
+            $original_content = $change['original_content'] ?? null;
+            if ($change_type !== 'created' && !is_string($original_content)) {
+                continue;
+            }
+
+            $valid_changes[] = [
+                'path' => $relative_path,
+                'change_type' => $change_type,
+                'original_content' => $original_content,
+            ];
+        }
+
+        if (empty($valid_changes)) {
+            return 0;
+        }
+
+        $this->ensure_git_structure();
+
+        $index_changed = false;
+        $created_changed = false;
+        $tracked_count = 0;
+
+        foreach ($valid_changes as $change) {
+            $relative_path = $change['path'];
+            $already_tracked = isset($entries[$relative_path]) || in_array($relative_path, $created, true);
+
+            if ($change['change_type'] === 'created') {
+                if (!$already_tracked) {
+                    $created[] = $relative_path;
+                    $created_changed = true;
+                }
+                $tracked_count++;
+                continue;
+            }
+
+            if (!$already_tracked) {
+                $original_content = (string) $change['original_content'];
+                $blob_sha = $this->write_blob($original_content);
+                $entries[$relative_path] = [
+                    'sha' => $blob_sha,
+                    'size' => strlen($original_content),
+                    'mode' => 0x81A4,
+                ];
+                $index_changed = true;
+            }
+
+            $tracked_count++;
+        }
+
+        if ($index_changed) {
+            $this->write_index($entries);
+            $this->update_commit();
+        }
+
+        if ($created_changed) {
+            $this->write_created_files($created);
+        }
+
+        $this->update_ai_changes_branch($reason, $conversation_id);
+
+        return $tracked_count;
+    }
+
+    /**
      * Get all tracked changes grouped by subdirectory.
      */
     public function get_changes_by_directory(): array {

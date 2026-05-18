@@ -365,6 +365,7 @@ class Wp_App_Abilities {
         }
 
         $reason = sprintf('Scaffold %s WpApp plugin', $plugin_name);
+        $changes = [];
 
         foreach ($created_files as $file) {
             $file = ltrim(str_replace('\\', '/', (string) $file), '/');
@@ -372,7 +373,15 @@ class Wp_App_Abilities {
                 continue;
             }
 
-            $this->git_tracker_manager->track_change('plugins/' . $slug . '/' . $file, 'created', null, $reason);
+            $changes[] = [
+                'path' => 'plugins/' . $slug . '/' . $file,
+                'change_type' => 'created',
+                'original_content' => null,
+            ];
+        }
+
+        if (!empty($changes)) {
+            $this->git_tracker_manager->track_changes($changes, $reason);
         }
     }
 

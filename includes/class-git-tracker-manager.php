@@ -460,6 +460,51 @@ class Git_Tracker_Manager {
     }
 
     /**
+     * Track multiple file changes, grouped by plugin/theme tracker.
+     *
+     * @param array $changes Each change requires path and change_type, with original_content for modified/deleted files.
+     * @param string $reason Reason for the change
+     * @param int|null $conversation_id Conversation ID
+     * @return int Number of valid changes accepted for tracking
+     */
+    public function track_changes(array $changes, string $reason = '', ?int $conversation_id = null): int {
+        $by_tracker = [];
+
+        foreach ($changes as $change) {
+            if (!is_array($change) || empty($change['path']) || empty($change['change_type'])) {
+                continue;
+            }
+
+            $path = (string) $change['path'];
+            $tracker = $this->get_tracker_for_path($path);
+            if ($tracker === null) {
+                continue;
+            }
+
+            $root = $tracker->get_work_tree();
+            if (!isset($by_tracker[$root])) {
+                $by_tracker[$root] = [
+                    'tracker' => $tracker,
+                    'changes' => [],
+                ];
+            }
+
+            $by_tracker[$root]['changes'][] = [
+                'path' => $this->path_relative_to_tracker($path, $tracker),
+                'change_type' => (string) $change['change_type'],
+                'original_content' => $change['original_content'] ?? null,
+            ];
+        }
+
+        $tracked = 0;
+        foreach ($by_tracker as $group) {
+            $tracked += $group['tracker']->track_changes($group['changes'], $reason, $conversation_id);
+        }
+
+        return $tracked;
+    }
+
+    /**
      * Get wp-content relative path for a root directory.
      *
      * @param string $root Absolute path

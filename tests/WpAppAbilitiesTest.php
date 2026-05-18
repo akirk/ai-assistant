@@ -112,6 +112,8 @@ class WpAppAbilitiesTest extends TestCase {
         $paths = array_column($changes['plugins/sample-app-mywp']['files'], 'path');
         $this->assertContains('plugins/sample-app-mywp/sample-app-mywp.php', $paths);
         $this->assertContains('plugins/sample-app-mywp/vendor/autoload.php', $paths);
+        $this->assertCount(1, $changes['plugins/sample-app-mywp']['commits']);
+        $this->assertSame('Scaffold Sample App WpApp plugin', $changes['plugins/sample-app-mywp']['commits'][0]['message']);
         $this->assertFileExists($this->plugins_dir . '/sample-app-mywp/.git/refs/heads/ai-changes');
     }
 

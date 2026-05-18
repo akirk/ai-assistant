@@ -85,6 +85,36 @@ class GitTrackerTest extends TestCase {
         $this->assertTrue($this->tracker->is_tracked('new-file.txt'));
     }
 
+    public function test_track_changes_groups_created_files_into_single_commit(): void {
+        file_put_contents($this->plugin_dir . '/first.txt', 'first content');
+        file_put_contents($this->plugin_dir . '/second.txt', 'second content');
+
+        $result = $this->tracker->track_changes([
+            [
+                'path' => 'first.txt',
+                'change_type' => 'created',
+                'original_content' => null,
+            ],
+            [
+                'path' => 'second.txt',
+                'change_type' => 'created',
+                'original_content' => null,
+            ],
+        ], 'Create scaffold');
+
+        $this->assertSame(2, $result);
+        $this->assertTrue($this->tracker->is_tracked('first.txt'));
+        $this->assertTrue($this->tracker->is_tracked('second.txt'));
+
+        $commits = $this->tracker->get_recent_commits();
+        $this->assertCount(1, $commits);
+        $this->assertSame('Create scaffold', $commits[0]['message']);
+
+        $diff = $this->tracker->get_commit_diff($commits[0]['sha']);
+        $this->assertStringContainsString('diff --git a/first.txt b/first.txt', $diff);
+        $this->assertStringContainsString('diff --git a/second.txt b/second.txt', $diff);
+    }
+
     public function test_track_change_for_modified_file(): void {
         $test_file = $this->plugin_dir . '/modified.txt';
         file_put_contents($test_file, 'modified content');
