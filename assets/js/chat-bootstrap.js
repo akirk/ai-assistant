@@ -143,38 +143,88 @@
         $button.trigger('click');
     }
 
+    function getScreenMetaPanel($button) {
+        return $('#' + $button.attr('aria-controls'));
+    }
+
+    function closeScreenMetaPanel($panel, $button) {
+        if (window.screenMeta && typeof window.screenMeta.close === 'function') {
+            window.screenMeta.close($panel, $button);
+            return;
+        }
+
+        $panel.slideUp('fast', function() {
+            $button.removeClass('screen-meta-active').attr('aria-expanded', 'false');
+            $('.screen-meta-toggle').css('visibility', '');
+            $screenMetaSafe($panel).hide();
+            $panel.addClass('hidden');
+        });
+    }
+
+    function hideSiblingScreenMetaPanel($panel, $button) {
+        $panel.stop(true, true).slideUp('fast', function() {
+            $panel.addClass('hidden');
+        });
+        $button.removeClass('screen-meta-active').attr('aria-expanded', 'false');
+    }
+
+    function openScreenMetaPanel($panel, $button, onOpen) {
+        if (window.screenMeta && typeof window.screenMeta.open === 'function') {
+            window.screenMeta.open($panel, $button);
+            if (typeof onOpen === 'function') {
+                onOpen();
+            }
+            return;
+        }
+
+        $('#screen-meta-links').find('.screen-meta-toggle').not($button.parent()).css('visibility', 'hidden');
+        $screenMetaSafe($panel).show();
+        $panel.slideDown('fast', function() {
+            $panel.removeClass('hidden').trigger('focus');
+            $button.addClass('screen-meta-active').attr('aria-expanded', 'true');
+            if (typeof onOpen === 'function') {
+                onOpen();
+            }
+        });
+    }
+
+    function $screenMetaSafe($panel) {
+        var $parent = $panel.parent();
+        return $parent.length ? $parent : $('#screen-meta');
+    }
+
     function bindScreenMeta($screenMeta, $button) {
         $('#contextual-help-link, #show-settings-link')
             .off('click.aiAssistantBootstrap')
             .on('click.aiAssistantBootstrap', function() {
-                var $wrap = $('#ai-assistant-wrap');
-                if ($wrap.hasClass('screen-meta-active')) {
-                    $wrap.slideUp('fast', function() {
-                        $wrap.removeClass('screen-meta-active').addClass('hidden');
-                    });
-                    $('#ai-assistant-link').attr('aria-expanded', 'false');
+                var $wrap = getScreenMetaPanel($('#ai-assistant-link'));
+                var $aiButton = $('#ai-assistant-link');
+                if ($aiButton.attr('aria-expanded') === 'true' || $aiButton.hasClass('screen-meta-active')) {
+                    hideSiblingScreenMetaPanel($wrap, $aiButton);
                 }
             });
 
-        $button.off('click.aiAssistantBootstrap').on('click.aiAssistantBootstrap', function() {
-            var $wrap = $('#ai-assistant-wrap');
+        $button.off('click.aiAssistantBootstrap').on('click.aiAssistantBootstrap', function(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+
             var $clicked = $(this);
+            var $wrap = getScreenMetaPanel($clicked);
             var isExpanded = $clicked.attr('aria-expanded') === 'true';
 
-            $screenMeta.find('.screen-meta-active').not($wrap).slideUp('fast', function() {
-                $(this).removeClass('screen-meta-active').addClass('hidden');
+            $screenMeta.find('> div').not($wrap).filter(':visible').each(function() {
+                var $panel = $(this);
+                var $otherButton = $('.screen-meta-toggle button[aria-controls="' + $panel.attr('id') + '"]');
+                hideSiblingScreenMetaPanel($panel, $otherButton);
             });
-            $('.screen-meta-toggle button').not($clicked).attr('aria-expanded', 'false');
 
             if (isExpanded) {
-                $wrap.slideUp('fast', function() {
-                    $wrap.removeClass('screen-meta-active').addClass('hidden');
-                });
-                $clicked.attr('aria-expanded', 'false');
+                closeScreenMetaPanel($wrap, $clicked);
             } else {
-                $wrap.removeClass('hidden').addClass('screen-meta-active').slideDown('fast', focusInputAndScroll);
-                $clicked.attr('aria-expanded', 'true');
-                preloadConversationIfNeeded();
+                openScreenMetaPanel($wrap, $clicked, function() {
+                    focusInputAndScroll();
+                    preloadConversationIfNeeded();
+                });
             }
         });
 
