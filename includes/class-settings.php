@@ -1883,7 +1883,7 @@ class Settings {
      * Frontend access checkbox field
      */
     public function frontend_field_callback() {
-        $show_on_frontend = get_option('ai_assistant_show_on_frontend', '0');
+        $show_on_frontend = get_option('ai_assistant_show_on_frontend', '1');
         ?>
         <label>
             <input type="checkbox"
