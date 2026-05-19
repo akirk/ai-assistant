@@ -1312,6 +1312,8 @@
             if (!args.ability) return false;
             if (this.isAbilityReadonly(toolCall)) return true;
             var autoApproved = (window.aiAssistantConfig && window.aiAssistantConfig.autoApprovedAbilities) || [];
+            if (autoApproved === '*') return true;
+            if (!Array.isArray(autoApproved)) return false;
             return autoApproved.indexOf(args.ability) >= 0;
         },
 
@@ -1328,6 +1330,8 @@
 
         saveAutoApprovedAbility: function(abilityId) {
             var autoApproved = (window.aiAssistantConfig && window.aiAssistantConfig.autoApprovedAbilities) || [];
+            if (autoApproved === '*') return;
+            if (!Array.isArray(autoApproved)) autoApproved = [];
             if (autoApproved.indexOf(abilityId) < 0) {
                 autoApproved.push(abilityId);
                 window.aiAssistantConfig.autoApprovedAbilities = autoApproved;
