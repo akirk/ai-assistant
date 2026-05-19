@@ -195,7 +195,7 @@ Use them to describe what the assistant can help with from the user's point of v
 
 The top-level array key is the first URL path component for a route your plugin actually renders. Do not invent keys for abilities, concepts, or possible tasks that are not addressable pages. For example, if your plugin has a `/wordopedia/` app but no `/wordopedia/snippets/` route, put the tips under `wordopedia` and mention snippets in a message or ability metadata instead of creating a separate `wordopedia-snippets` key.
 
-The tips appear before the default welcome message, are not added to conversation history, and are kept intentionally brief so the chat panel still feels like a place to start a task.
+The tips are blended into the default welcome message, are not added to conversation history, and are kept intentionally brief so the chat panel still feels like a place to start a task.
 
 Register tips with `ai_assistant_welcome_tips`. Each top-level key is a route component, and the value is one tip string or an array of tip strings. Multiple tips can share the same key when they offer different useful starting points for the same screen. For a cookbook app, recipe variations and ingredient substitutions are separate tips, but both belong to the real `cookbook` route.
 
@@ -204,8 +204,8 @@ add_filter( 'ai_assistant_welcome_tips', 'myplugin_ai_assistant_welcome_tips', 1
 
 function myplugin_ai_assistant_welcome_tips( $tips, $context ) {
     $tips['cookbook'] = [
-        __( 'Tip: Ask me to make a recipe vegan, low carb, gluten-free, or better suited to what you have on hand.', 'my-plugin' ),
-        __( 'Tip: Missing an ingredient? Ask me for substitutions and how they change the recipe.', 'my-plugin' ),
+        __( 'Ask me to make a recipe vegan, low carb, gluten-free, or better suited to what you have on hand.', 'my-plugin' ),
+        __( 'Missing an ingredient? Ask me for substitutions and how they change the recipe.', 'my-plugin' ),
     ];
 
     return $tips;

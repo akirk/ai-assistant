@@ -237,8 +237,8 @@ class Chat_UI {
          * ```php
          * add_filter( 'ai_assistant_welcome_tips', function ( $tips ) {
          *     $tips['cookbook'] = [
-         *         'Tip: Ask me to make a recipe vegan, low carb, or gluten-free.',
-         *         'Tip: Missing an ingredient? Ask me for substitutions.',
+         *         'Ask me to make a recipe vegan, low carb, or gluten-free.',
+         *         'Missing an ingredient? Ask me for substitutions.',
          *     ];
          *     return $tips;
          * } );

@@ -55,6 +55,38 @@ function imageResponse(body, type) {
     };
 }
 
+describe('welcome message', function() {
+    it('blends configured tips into the assistant welcome message', function() {
+        const assistant = loadUiMixin({
+            homeUrl: 'http://example.test',
+            welcomeTips: [
+                'Tip: Ask me to make a recipe vegan or low carb.',
+                'Missing an ingredient? Ask me for substitutions.'
+            ]
+        });
+
+        const message = assistant.buildWelcomeMessage();
+
+        assert.match(message, /Hello! I'm your AI Assistant/);
+        assert.match(message, /A few tips for this area of your WordPress:/);
+        assert.match(message, /- Ask me to make a recipe vegan or low carb\./);
+        assert.match(message, /- Missing an ingredient\? Ask me for substitutions\./);
+        assert.doesNotMatch(message, /- Tip:/);
+    });
+
+    it('uses a My WordPress-specific welcome intro on my.wordpress.net', function() {
+        const assistant = loadUiMixin({
+            homeUrl: 'https://my.wordpress.net/scope:default',
+            welcomeTips: []
+        });
+
+        const message = assistant.buildWelcomeMessage();
+
+        assert.match(message, /shape My WordPress into a personal software home/);
+        assert.doesNotMatch(message, /manage your WordPress installation - read and modify files/);
+    });
+});
+
 describe('navigation suggestion links', function() {
     it('reloads only plain same-page ai-open navigation clicks', function() {
         let replacedUrl = '';
