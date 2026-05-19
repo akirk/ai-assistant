@@ -231,12 +231,6 @@
                 self.scrollToBottom(true);
             });
 
-            $(document).on('click', '#ai-assistant-messages .ai-navigation-suggestion a[href]', function(e) {
-                if (typeof self.handleNavigationSuggestionClick === 'function') {
-                    self.handleNavigationSuggestionClick(e, this);
-                }
-            });
-
             $(document).on('scroll', '#ai-assistant-messages', function() {
                 $('#ai-assistant-scroll-bottom').toggle(!self.isNearBottom(100));
             });

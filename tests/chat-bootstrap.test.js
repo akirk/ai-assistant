@@ -353,8 +353,6 @@ function createHarness(useCoreScreenMeta) {
                     preloadCount++;
                 }
             },
-            location: { hash: '' },
-            history: { replaceState() {} }
         },
         document: {
             nodeType: 9,
@@ -362,7 +360,6 @@ function createHarness(useCoreScreenMeta) {
                 return elements[id] || null;
             }
         },
-        history: { replaceState() {} },
         jQuery: $,
         setTimeout(callback) {
             callback();
