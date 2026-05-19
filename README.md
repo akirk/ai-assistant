@@ -155,6 +155,8 @@ Other plugins can expose their functionality to the AI by registering **WordPres
 
 For best results, expose focused abilities with clear input/output schemas instead of requiring the AI to infer database structure or call plugin internals. Register `ai_assistant_ability_domains` keywords so the assistant considers your plugin's abilities specifically for relevant user requests. If your plugin works with images, prefer accepting a Media Library attachment ID when a local asset is required. The assistant can ask the user to choose or drop an image with `pick_image`, which uploads selected files from the browser and returns `attachment_id`, local `url`, attribution, and source metadata. If browser download or Media Library upload fails for a search result, the picker offers the remote image URL as a fallback.
 
+Plugins can add contextual first-message tips with `ai_assistant_welcome_tip_rules`. AI Assistant matches rules deterministically by the first URL path component, caps the final list, and displays matching tips before the normal welcome message without saving them to conversation history.
+
 Plugins with browser UI can also register JavaScript callbacks for completed tool calls. For example, a page script can listen for its own `ability` execution and refresh visible UI after the server-side ability succeeds.
 
 ## Development

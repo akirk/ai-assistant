@@ -1491,6 +1491,34 @@
             return html.join('');
         },
 
+        getWelcomeTips: function() {
+            var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+            var tips = config.welcomeTips || [];
+
+            if (typeof tips === 'string') {
+                tips = [tips];
+            }
+            if (!Array.isArray(tips)) {
+                return [];
+            }
+
+            return tips.map(function(tip) {
+                return typeof tip === 'string' ? tip.trim() : '';
+            }).filter(function(tip) {
+                return tip !== '';
+            });
+        },
+
+        renderWelcomeTips: function() {
+            var tips = this.getWelcomeTips();
+            if (!tips.length) {
+                return false;
+            }
+
+            this.addMessage('assistant', tips.join('\n\n'), 'ai-welcome-message ai-welcome-tips');
+            return true;
+        },
+
         loadWelcomeMessage: function() {
             if (!this.isProviderConfigured()) {
                 var hasConnectors = typeof aiAssistantProviders !== 'undefined' && aiAssistantProviders.source === 'connectors';
@@ -1507,6 +1535,7 @@
                 var model = this.getModel();
                 var providerName = this.getProviderName(provider);
                 var modelInfo = model ? ' (' + model + ')' : '';
+                this.renderWelcomeTips();
                 this.addMessage('assistant', 'Hello! I\'m your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?', 'ai-welcome-message');
                 this.addMessage('system', 'You\'re chatting with **' + providerName + '**' + modelInfo, 'ai-model-info');
                 this.showModelUpgradeNotice(provider, model);
@@ -1587,6 +1616,7 @@
         },
 
         loadConversationWelcome: function(provider, model) {
+            this.renderWelcomeTips();
             this.addMessage('assistant', 'Hello! I\'m your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?', 'ai-welcome-message');
             // Only show model info if the conversation has it saved
             if (provider) {
