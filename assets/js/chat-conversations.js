@@ -136,26 +136,16 @@
 
         restoreUrlComponentContext: function() {
             var current = this.getCurrentUrlComponent();
-            var lastKey = this.urlComponentStorageKey || 'aiAssistant_lastUrlComponent';
-            var pendingKey = this.pendingUrlComponentStorageKey || 'aiAssistant_pendingNewChatUrlComponent';
+            var key = this.urlComponentStorageKey || 'aiAssistant_lastUrlComponent';
 
             this.previousUrlComponent = '';
-            this.pendingSuggestionUrlComponent = '';
             this.conversationInteracted = false;
 
             try {
-                this.previousUrlComponent = localStorage.getItem(lastKey) || '';
-                var storedPending = localStorage.getItem(pendingKey) || '';
-
-                if (this.previousUrlComponent && current && this.previousUrlComponent !== current) {
-                    this.pendingSuggestionUrlComponent = current;
-                    localStorage.setItem(pendingKey, current);
-                } else if (storedPending && current && storedPending === current) {
-                    this.pendingSuggestionUrlComponent = storedPending;
-                }
-
-                if (current) {
-                    localStorage.setItem(lastKey, current);
+                this.previousUrlComponent = localStorage.getItem(key) || '';
+                if (!this.previousUrlComponent && current) {
+                    this.previousUrlComponent = current;
+                    localStorage.setItem(key, current);
                 }
             } catch (e) {
                 console.warn('[AI Assistant] Could not restore URL component context:', e);
@@ -164,21 +154,26 @@
 
         markConversationInteracted: function() {
             this.conversationInteracted = true;
-            this.clearAreaChangeSuggestionPending();
+            this.storeCurrentUrlComponent();
             this.hideAreaChangeSuggestion();
         },
 
-        clearAreaChangeSuggestionPending: function() {
-            this.pendingSuggestionUrlComponent = '';
+        storeCurrentUrlComponent: function() {
+            var current = this.getCurrentUrlComponent();
+            if (!current) {
+                return;
+            }
 
             try {
-                localStorage.removeItem(this.pendingUrlComponentStorageKey || 'aiAssistant_pendingNewChatUrlComponent');
+                localStorage.setItem(this.urlComponentStorageKey || 'aiAssistant_lastUrlComponent', current);
+                this.previousUrlComponent = current;
             } catch (e) {
-                console.warn('[AI Assistant] Could not clear URL component prompt:', e);
+                console.warn('[AI Assistant] Could not store URL component context:', e);
             }
         },
 
         shouldSuggestNewChatForCurrentArea: function(current) {
+            var origin = this.previousUrlComponent || '';
             current = current || this.getCurrentUrlComponent();
 
             return !!(
@@ -186,9 +181,9 @@
                 this.messages.length > 0 &&
                 !this.pendingNewChat &&
                 !this.conversationInteracted &&
-                this.pendingSuggestionUrlComponent &&
+                origin &&
                 current &&
-                this.pendingSuggestionUrlComponent === current
+                origin !== current
             );
         },
 
@@ -199,12 +194,7 @@
             }
 
             $suggestion = $('<div id="ai-assistant-area-suggestion" class="ai-assistant-area-suggestion" role="status" aria-live="polite" hidden>' +
-                '<span class="ai-area-suggestion-text">Start a new chat for this page?</span>' +
-                '<div class="ai-area-suggestion-actions">' +
-                    '<a href="#" id="ai-assistant-area-new-chat">New chat</a>' +
-                    '<span aria-hidden="true">/</span>' +
-                    '<a href="#" id="ai-assistant-area-keep-chat">Keep</a>' +
-                '</div>' +
+                'Click to <a href="#" id="ai-assistant-area-new-chat">start a new chat</a> or just <a href="#" id="ai-assistant-area-keep-chat">continue the conversation</a>.' +
             '</div>');
 
             $('#ai-assistant-messages').append($suggestion);

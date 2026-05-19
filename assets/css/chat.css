@@ -2268,11 +2268,7 @@ body,
 }
 
 .ai-assistant-area-suggestion {
-    align-self: center;
-    display: inline-flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 7px;
+    align-self: flex-start;
     max-width: 100%;
     padding: 1px 4px;
     color: #646970;
@@ -2284,18 +2280,7 @@ body,
     display: none;
 }
 
-.ai-area-suggestion-text {
-    min-width: 0;
-}
-
-.ai-area-suggestion-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    color: #8c8f94;
-}
-
-.ai-area-suggestion-actions a {
+.ai-assistant-area-suggestion a {
     white-space: nowrap;
 }
 
