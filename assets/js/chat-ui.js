@@ -1540,7 +1540,7 @@
 
         getWelcomeIntro: function() {
             if (this.isMyWordPressSite()) {
-                return 'Hello! I\'m your AI Assistant. I can help you shape My WordPress into your personal software home - create private apps, organize data and memories, manage plugins, and adapt workflows. What would you like to do?';
+                return 'Hello! I\'m your AI Assistant. I can help you shape My WordPress into your personal software home: create private apps, organize data and memories, manage plugins, and adapt workflows. What would you like to do?';
             }
 
             return 'Hello! I\'m your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?';
