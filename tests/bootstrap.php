@@ -225,9 +225,9 @@ if (!is_dir(WP_CONTENT_DIR . '/themes')) {
 
 // WordPress function stubs needed for environment_info tool
 if (!function_exists('get_bloginfo'))   { function get_bloginfo($show = '') { return '6.7'; } }
-if (!function_exists('get_site_url'))   { function get_site_url() { return 'http://localhost'; } }
+if (!function_exists('get_site_url'))   { function get_site_url() { return $GLOBALS['wp_test_site_url'] ?? 'http://localhost'; } }
 if (!function_exists('site_url'))       { function site_url() { return 'http://localhost'; } }
-if (!function_exists('home_url'))       { function home_url($path = '') { return 'http://localhost' . $path; } }
+if (!function_exists('home_url'))       { function home_url($path = '') { return rtrim($GLOBALS['wp_test_site_url'] ?? 'http://localhost', '/') . $path; } }
 if (!function_exists('wp_parse_url'))   { function wp_parse_url($url, $component = -1) { return parse_url($url, $component); } }
 if (!function_exists('is_admin'))       { function is_admin() { return true; } }
 if (!function_exists('get_template'))   { function get_template() { return 'twentytwentyfive'; } }
