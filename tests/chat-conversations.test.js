@@ -371,7 +371,7 @@ describe('conversation exports', function() {
 });
 
 describe('conversation area suggestions', function() {
-    it('stores the previous URL component before updating it to the server-provided current area', function() {
+    it('stores a pending suggestion before updating the last URL component', function() {
         const { assistant, storage } = loadConversationMixin({
             aiAssistant_lastUrlComponent: 'my-apps'
         }, {
@@ -382,12 +382,15 @@ describe('conversation area suggestions', function() {
 
         assert.strictEqual(assistant.getCurrentUrlComponent(), 'other-app');
         assert.strictEqual(assistant.previousUrlComponent, 'my-apps');
+        assert.strictEqual(assistant.pendingSuggestionUrlComponent, 'other-app');
         assert.strictEqual(storage.getItem('aiAssistant_lastUrlComponent'), 'other-app');
+        assert.strictEqual(storage.getItem('aiAssistant_pendingNewChatUrlComponent'), 'other-app');
     });
 
-    it('suggests a new chat only before interaction with a loaded conversation from another area', function() {
-        const { assistant } = loadConversationMixin({
-            aiAssistant_lastUrlComponent: 'my-apps'
+    it('keeps a pending suggestion across reload until interaction', function() {
+        const { assistant, storage } = loadConversationMixin({
+            aiAssistant_lastUrlComponent: 'other-app',
+            aiAssistant_pendingNewChatUrlComponent: 'other-app'
         }, {
             urlComponent: 'other-app'
         });
@@ -399,6 +402,7 @@ describe('conversation area suggestions', function() {
 
         assistant.markConversationInteracted();
         assert.strictEqual(assistant.shouldSuggestNewChatForCurrentArea(), false);
+        assert.strictEqual(storage.getItem('aiAssistant_pendingNewChatUrlComponent'), null);
 
         assistant.messages = [];
         assistant.conversationInteracted = false;

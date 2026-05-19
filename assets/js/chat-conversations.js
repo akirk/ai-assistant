@@ -136,15 +136,26 @@
 
         restoreUrlComponentContext: function() {
             var current = this.getCurrentUrlComponent();
-            var key = this.urlComponentStorageKey || 'aiAssistant_lastUrlComponent';
+            var lastKey = this.urlComponentStorageKey || 'aiAssistant_lastUrlComponent';
+            var pendingKey = this.pendingUrlComponentStorageKey || 'aiAssistant_pendingNewChatUrlComponent';
 
             this.previousUrlComponent = '';
+            this.pendingSuggestionUrlComponent = '';
             this.conversationInteracted = false;
 
             try {
-                this.previousUrlComponent = localStorage.getItem(key) || '';
+                this.previousUrlComponent = localStorage.getItem(lastKey) || '';
+                var storedPending = localStorage.getItem(pendingKey) || '';
+
+                if (this.previousUrlComponent && current && this.previousUrlComponent !== current) {
+                    this.pendingSuggestionUrlComponent = current;
+                    localStorage.setItem(pendingKey, current);
+                } else if (storedPending && current && storedPending === current) {
+                    this.pendingSuggestionUrlComponent = storedPending;
+                }
+
                 if (current) {
-                    localStorage.setItem(key, current);
+                    localStorage.setItem(lastKey, current);
                 }
             } catch (e) {
                 console.warn('[AI Assistant] Could not restore URL component context:', e);
@@ -153,11 +164,21 @@
 
         markConversationInteracted: function() {
             this.conversationInteracted = true;
+            this.clearAreaChangeSuggestionPending();
             this.hideAreaChangeSuggestion();
         },
 
-        shouldSuggestNewChatForCurrentArea: function(origin, current) {
-            origin = origin || this.previousUrlComponent || '';
+        clearAreaChangeSuggestionPending: function() {
+            this.pendingSuggestionUrlComponent = '';
+
+            try {
+                localStorage.removeItem(this.pendingUrlComponentStorageKey || 'aiAssistant_pendingNewChatUrlComponent');
+            } catch (e) {
+                console.warn('[AI Assistant] Could not clear URL component prompt:', e);
+            }
+        },
+
+        shouldSuggestNewChatForCurrentArea: function(current) {
             current = current || this.getCurrentUrlComponent();
 
             return !!(
@@ -165,9 +186,9 @@
                 this.messages.length > 0 &&
                 !this.pendingNewChat &&
                 !this.conversationInteracted &&
-                origin &&
+                this.pendingSuggestionUrlComponent &&
                 current &&
-                origin !== current
+                this.pendingSuggestionUrlComponent === current
             );
         },
 
@@ -177,13 +198,11 @@
                 return $suggestion;
             }
 
-            $suggestion = $('<div id="ai-assistant-area-suggestion" class="ai-message ai-message-system ai-assistant-area-suggestion" role="status" aria-live="polite" hidden>' +
-                '<div class="ai-message-content">' +
-                    '<p>Start a new chat for this page?</p>' +
-                    '<div class="ai-area-suggestion-actions">' +
-                        '<button type="button" id="ai-assistant-area-new-chat" class="button button-primary button-small">Start new chat</button>' +
-                        '<button type="button" id="ai-assistant-area-keep-chat" class="button button-small">Keep chatting</button>' +
-                    '</div>' +
+            $suggestion = $('<div id="ai-assistant-area-suggestion" class="ai-assistant-area-suggestion" role="status" aria-live="polite" hidden>' +
+                '<span class="ai-area-suggestion-text">Start a new chat for this page?</span>' +
+                '<div class="ai-area-suggestion-actions">' +
+                    '<button type="button" id="ai-assistant-area-new-chat" class="button button-primary button-small">New chat</button>' +
+                    '<button type="button" id="ai-assistant-area-keep-chat" class="button button-small">Keep</button>' +
                 '</div>' +
             '</div>');
 
@@ -196,10 +215,9 @@
         },
 
         updateAreaChangeSuggestion: function() {
-            var origin = this.previousUrlComponent || '';
             var current = this.getCurrentUrlComponent();
 
-            if (!this.shouldSuggestNewChatForCurrentArea(origin, current)) {
+            if (!this.shouldSuggestNewChatForCurrentArea(current)) {
                 this.hideAreaChangeSuggestion();
                 return;
             }

@@ -2268,39 +2268,45 @@ body,
 }
 
 .ai-assistant-area-suggestion {
-    max-width: 85%;
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-width: 100%;
+    padding: 5px 7px 5px 10px;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    background: #fff;
+    color: #50575e;
+    font-size: 12px;
+    line-height: 1.4;
 }
 
 .ai-assistant-area-suggestion[hidden] {
     display: none;
 }
 
-.ai-assistant-area-suggestion .ai-message-content {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.ai-assistant-area-suggestion .ai-message-content p {
-    margin: 0;
+.ai-area-suggestion-text {
+    min-width: 0;
 }
 
 .ai-area-suggestion-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 4px;
 }
 
 .ai-area-suggestion-actions .button {
-    min-height: 28px;
-    padding: 3px 10px;
+    min-height: 24px;
+    padding: 1px 8px;
     border: 1px solid #c3c4c7;
     border-radius: 3px;
     background: #f6f7f7;
     color: #1d2327;
     cursor: pointer;
     font-size: 12px;
-    line-height: 1.5;
+    line-height: 1.4;
     white-space: nowrap;
 }
 
