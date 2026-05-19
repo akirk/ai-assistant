@@ -175,6 +175,37 @@ describe('processToolCallImmediate', function() {
         assert.strictEqual(assistant.pendingActions.length, 0);
     });
 
+    it('executes abilities immediately when all abilities are auto-approved', function() {
+        let executed = false;
+        const assistant = createAssistant({
+            config: {
+                autoApprovedAbilities: '*'
+            },
+            executeSingleTool(toolCall) {
+                executed = true;
+                return Promise.resolve({
+                    id: toolCall.id,
+                    name: toolCall.name,
+                    input: toolCall.arguments,
+                    result: { ok: true },
+                    success: true
+                });
+            },
+            checkAllToolsResolved() {}
+        });
+
+        assistant.processToolCallImmediate(
+            'tool-auto-all',
+            'ability',
+            { action: 'execute', ability: 'demo/new-runtime-ability' },
+            'anthropic'
+        );
+
+        assert.strictEqual(executed, true);
+        assert.deepStrictEqual(assistant._states[0], { id: 'tool-auto-all', state: 'executing' });
+        assert.strictEqual(assistant.pendingActions.length, 0);
+    });
+
     it('requires confirmation before executing legacy ability calls', async function() {
         const assistant = createAssistant();
 
