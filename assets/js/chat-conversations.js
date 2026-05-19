@@ -201,8 +201,9 @@
             $suggestion = $('<div id="ai-assistant-area-suggestion" class="ai-assistant-area-suggestion" role="status" aria-live="polite" hidden>' +
                 '<span class="ai-area-suggestion-text">Start a new chat for this page?</span>' +
                 '<div class="ai-area-suggestion-actions">' +
-                    '<button type="button" id="ai-assistant-area-new-chat" class="button button-primary button-small">New chat</button>' +
-                    '<button type="button" id="ai-assistant-area-keep-chat" class="button button-small">Keep</button>' +
+                    '<a href="#" id="ai-assistant-area-new-chat">New chat</a>' +
+                    '<span aria-hidden="true">/</span>' +
+                    '<a href="#" id="ai-assistant-area-keep-chat">Keep</a>' +
                 '</div>' +
             '</div>');
 
