@@ -330,39 +330,6 @@
             }
         },
 
-        saveConversationThenNavigate: function(targetUrl) {
-            var self = this;
-
-            // Add hash to reopen panel after navigation
-            var urlWithHash = targetUrl + (targetUrl.indexOf('#') === -1 ? '#' : '&') + 'ai-open';
-
-            if (this.messages.length === 0) {
-                window.location.href = urlWithHash;
-                return;
-            }
-
-            $.ajax({
-                url: aiAssistantConfig.ajaxUrl,
-                type: 'POST',
-                data: {
-                    action: 'ai_assistant_save_conversation',
-                    _wpnonce: aiAssistantConfig.nonce,
-                    conversation_id: this.conversationId,
-                    messages: btoa(unescape(encodeURIComponent(JSON.stringify(this.messages)))),
-                    title: this.getConversationTitleForSave(),
-                    provider: this.conversationProvider,
-                    model: this.conversationModel
-                },
-                success: function() {
-                    window.location.href = urlWithHash;
-                },
-                error: function() {
-                    console.error('[AI Assistant] Failed to save conversation before navigation');
-                    window.location.href = urlWithHash;
-                }
-            });
-        },
-
         loadConversation: function(conversationId) {
             var self = this;
 

@@ -1512,15 +1512,7 @@
             this.handleToolResults([], this.currentProvider);
         },
 
-        getNavigationUrlWithOpenHash: function(url) {
-            url = String(url || '');
-            if (!url || url.indexOf('ai-open') !== -1) {
-                return url;
-            }
-            return url + (url.indexOf('#') === -1 ? '#ai-open' : '&ai-open');
-        },
-
-        getNavigationLinkText: function(result) {
+        getNavigationSuggestionContent: function(result) {
             var text = result && (result.link_text || result.label);
             text = String(text || 'Open this page');
             text = text
@@ -1531,14 +1523,9 @@
             if (text.length > 80) {
                 text = text.substring(0, 77).trim() + '...';
             }
-            return text || 'Open this page';
-        },
 
-        getNavigationSuggestionContent: function(result) {
-            var url = this.getNavigationUrlWithOpenHash(result && result.url);
-            var linkText = this.getNavigationLinkText(result);
-            var markdownUrl = String(url || '').replace(/\)/g, '%29');
-            return 'You can open [' + linkText + '](' + markdownUrl + ').';
+            var markdownUrl = String((result && result.url) || '').replace(/\)/g, '%29');
+            return 'You can open [' + (text || 'Open this page') + '](' + markdownUrl + ').';
         },
 
         getConfiguredToolRoundLimit: function(name, fallback) {
@@ -1711,7 +1698,7 @@
             if (navigateResult && !sentQueuedMessages) {
                 var suggestionContent = this.getNavigationSuggestionContent(navigateResult.result);
                 this.messages.push({ role: 'assistant', content: suggestionContent });
-                this.addMessage('assistant', suggestionContent, 'ai-navigation-suggestion');
+                this.addMessage('assistant', suggestionContent);
                 this.updateTokenCount();
                 this.setLoading(false);
                 this.autoSaveConversation();

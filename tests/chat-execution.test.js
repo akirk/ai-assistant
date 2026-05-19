@@ -556,6 +556,22 @@ describe('queued message handoff', function() {
     });
 });
 
+describe('navigation suggestions', function() {
+    it('uses the navigate tool URL without adding a reopen hash', function() {
+        const assistant = createAssistant();
+
+        const content = assistant.getNavigationSuggestionContent({
+            url: 'http://example.test/wp-admin/edit.php?post_type=page',
+            link_text: 'Pages'
+        });
+
+        assert.strictEqual(
+            content,
+            'You can open [Pages](http://example.test/wp-admin/edit.php?post_type=page).'
+        );
+    });
+});
+
 describe('tool call round limits', function() {
     function createRoundLimitAssistant(overrides) {
         overrides = overrides || {};

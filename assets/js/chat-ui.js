@@ -140,44 +140,6 @@
             this.updateSummarizeVisibility();
         },
 
-        handleNavigationSuggestionClick: function(event, link) {
-            if (
-                !event ||
-                !link ||
-                event.defaultPrevented ||
-                event.metaKey ||
-                event.ctrlKey ||
-                event.shiftKey ||
-                event.altKey ||
-                (event.which && event.which !== 1) ||
-                (typeof event.button === 'number' && event.button !== 0)
-            ) {
-                return false;
-            }
-
-            try {
-                var target = new URL(link.getAttribute('href'), window.location.href);
-                var current = new URL(window.location.href);
-                if (
-                    target.hash.indexOf('ai-open') === -1 ||
-                    target.origin + target.pathname + target.search !== current.origin + current.pathname + current.search
-                ) {
-                    return false;
-                }
-
-                event.preventDefault();
-                if (window.history && typeof window.history.replaceState === 'function') {
-                    window.history.replaceState(null, '', target.href);
-                } else {
-                    window.location.href = target.href;
-                }
-                window.location.reload();
-                return true;
-            } catch (e) {
-                return false;
-            }
-        },
-
         getImageSearchUrl: function(query, page) {
             var url = new URL('https://api.openverse.org/v1/images/');
             url.searchParams.set('q', query);

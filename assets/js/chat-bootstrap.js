@@ -134,15 +134,6 @@
         }
     }
 
-    function consumeOpenHash($button) {
-        if (window.location.hash.indexOf('ai-open') === -1) {
-            return;
-        }
-
-        history.replaceState(null, '', window.location.href.replace(/#.*ai-open.*$/, ''));
-        $button.trigger('click');
-    }
-
     function getScreenMetaPanel($button) {
         return $('#' + $button.attr('aria-controls'));
     }
@@ -227,8 +218,6 @@
                 });
             }
         });
-
-        consumeOpenHash($button);
     }
 
     function bindStandalone($wrap) {
@@ -266,8 +255,6 @@
                 $button.trigger('click');
             }
         });
-
-        consumeOpenHash($button);
     }
 
     function render() {
