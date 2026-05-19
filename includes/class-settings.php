@@ -2786,6 +2786,78 @@ class Settings {
     }
 
     /**
+     * Get normalized host names that can identify where WordPress is running.
+     */
+    private function get_current_hosts(): array {
+        $hosts = [];
+
+        foreach ([get_site_url(), home_url()] as $url) {
+            $host = wp_parse_url($url, PHP_URL_HOST);
+            if ($host) {
+                $hosts[] = $host;
+            }
+        }
+
+        foreach (['HTTP_HOST', 'SERVER_NAME'] as $server_key) {
+            if (!empty($_SERVER[$server_key])) {
+                $hosts[] = $_SERVER[$server_key];
+            }
+        }
+
+        $hosts = array_map([$this, 'normalize_host'], $hosts);
+        $hosts = array_filter($hosts, static fn($host) => $host !== '');
+
+        return array_values(array_unique($hosts));
+    }
+
+    /**
+     * Normalize a host name for prompt context checks.
+     */
+    private function normalize_host($host): string {
+        $host = strtolower(trim((string) $host));
+        $host = preg_replace('/:\d+$/', '', $host);
+        return trim((string) $host, '.');
+    }
+
+    /**
+     * Check whether any known host identifies My WordPress.
+     */
+    private function is_my_wordpress_host(): bool {
+        foreach ($this->get_current_hosts() as $host) {
+            if ($host === 'my.wordpress.net' || substr($host, -strlen('.my.wordpress.net')) === '.my.wordpress.net') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Add runtime instructions for browser-based Playground environments.
+     */
+    private function get_playground_context_prompt(array $enabled_tools): string {
+        if (!ai_assistant_is_playground()) {
+            return '';
+        }
+
+        $has_skill_tool = in_array('get_skill', $enabled_tools, true);
+
+        $prompt = "\n\nPLAYGROUND:\n";
+        $prompt .= "- Browser-based WordPress; do not promise inbound/public reachability.\n";
+
+        if ($this->is_my_wordpress_host()) {
+            $prompt .= "- my.wordpress.net is My WordPress: personal browser-local WordPress. Public URLs, federation/followers, inbound webhooks, or shared access need hosted WordPress.\n";
+        }
+
+        $prompt .= "- For \"what can I do\", inspect plugins/abilities as useful and suggest concrete personal workflows this install supports.\n";
+        $prompt .= $has_skill_tool
+            ? "- For My WordPress/personal-use questions, load skill \"my-wordpress\" if needed.\n"
+            : "";
+
+        return $prompt;
+    }
+
+    /**
      * Get skills help tab content
      */
     private function get_skills_help_content(): string {
@@ -2906,6 +2978,7 @@ class Settings {
         }
         $page_hints = $this->get_page_selector_hints();
         $current_user = wp_get_current_user();
+        $enabled_tools = $this->get_user_enabled_tools();
         $wp_info = [
             'siteUrl' => get_site_url(),
             'currentPath' => $current_path,
@@ -2931,6 +3004,8 @@ PROMPT;
             $prompt .= "\n\nPAGE STRUCTURE (useful CSS selectors for get_page_html on this page):\n" . $page_hints;
         }
 
+        $prompt .= $this->get_playground_context_prompt($enabled_tools);
+
         /**
          * Filter the ability domains injected into the AI system prompt.
          *
@@ -2950,7 +3025,6 @@ PROMPT;
          * @return array<string,string> The filtered domains map.
          */
         $ability_domains = apply_filters('ai_assistant_ability_domains', []);
-        $enabled_tools = $this->get_user_enabled_tools();
 
         $prompt .= <<<'PROMPT'
 

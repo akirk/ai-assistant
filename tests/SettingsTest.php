@@ -19,6 +19,7 @@ class SettingsTest extends TestCase {
         $GLOBALS['wp_test_abilities'] = [];
         $GLOBALS['wp_test_json_response'] = null;
         $_POST = [];
+        unset($_SERVER['HTTP_HOST'], $_SERVER['SERVER_NAME'], $_SERVER['REQUEST_URI']);
 
         $this->settings = new Settings();
     }
@@ -279,6 +280,33 @@ class SettingsTest extends TestCase {
         $this->assertStringContainsString('personal WordPress can be used for', $prompt);
         $this->assertStringContainsString('inspect installed plugins before recommending uses', $prompt);
         $this->assertStringContainsString('my.wordpress.net', $prompt);
+    }
+
+    public function test_system_prompt_includes_playground_context(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
+        $GLOBALS['wp_test_is_playground'] = true;
+        $_SERVER['HTTP_HOST'] = 'playground.wordpress.net';
+
+        $prompt = $this->settings->get_system_prompt();
+
+        $this->assertStringContainsString('PLAYGROUND:', $prompt);
+        $this->assertStringContainsString('Browser-based WordPress', $prompt);
+        $this->assertStringContainsString('do not promise inbound/public reachability', $prompt);
+    }
+
+    public function test_system_prompt_includes_my_wordpress_reachability_context(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
+        $GLOBALS['wp_test_is_playground'] = true;
+        $_SERVER['HTTP_HOST'] = 'my.wordpress.net';
+
+        $prompt = $this->settings->get_system_prompt();
+
+        $this->assertStringContainsString('my.wordpress.net is My WordPress', $prompt);
+        $this->assertStringContainsString('federation/followers', $prompt);
+        $this->assertStringContainsString('need hosted WordPress', $prompt);
+        $this->assertStringContainsString('For "what can I do"', $prompt);
+        $this->assertStringContainsString('inspect plugins/abilities as useful', $prompt);
+        $this->assertStringContainsString('load skill "my-wordpress" if needed', $prompt);
     }
 
     public function test_sample_readonly_ability_returns_output(): void {

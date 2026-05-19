@@ -11,6 +11,7 @@ This document covers only the AI Assistant-specific integration points: how the 
 - [Annotations](#annotations)
 - [Image Inputs](#image-inputs)
 - [AI Assistant Filters](#ai-assistant-filters)
+- [`ai_assistant_welcome_tip_rules`](#ai_assistant_welcome_tip_rules)
 - [Browser Callbacks After Tool Calls](#browser-callbacks-after-tool-calls)
 - [Conversation Export Formats](#conversation-export-formats)
 - [Checklist](#checklist)
@@ -185,6 +186,45 @@ Parameters:
 - `$ability_id`: The ability that was just executed, for example `my-plugin/get-invoice`.
 - `$args`: The arguments passed by the assistant.
 - `$result`: The value returned by the ability callback.
+
+### `ai_assistant_welcome_tip_rules`
+
+Use this filter to register plugin-specific tips as candidates for the first assistant message in the welcome area. AI Assistant displays them deterministically without asking the model: it keeps only rules whose first URL path component exactly matches the current page, deduplicates matching messages, sorts by priority, caps the final list, and then renders the messages in the UI.
+
+A rule for `my-apps` matches `/my-apps/`, `/my-apps/?tab=one`, and `/my-apps/abc/`, but does not match `/my-apps-other/`. Query strings are ignored for matching.
+
+```php
+add_filter( 'ai_assistant_welcome_tip_rules', 'myplugin_ai_assistant_tip_rules', 10, 2 );
+
+function myplugin_ai_assistant_tip_rules( $rules, $context ) {
+    $rules['my-plugin/my-apps'] = [
+        'url_component' => 'my-apps',
+        'message'       => 'Tip: Ask me to summarize overdue invoices, draft a payment reminder, or create a new invoice for a customer.',
+        'priority'      => 20,
+    ];
+
+    return $rules;
+}
+```
+
+Context fields:
+
+- `$context['user_id']`: Current WordPress user ID.
+- `$context['is_admin']`: Whether the assistant is rendering in wp-admin.
+- `$context['screen_id']`: Current admin screen ID when available.
+- `$context['path']`: Current site-relative request path.
+- `$context['url_component']`: Current first path component used for rule matching.
+
+Rule fields:
+
+- `message`: Plain text or Markdown string to display.
+- `url_component`: First path component to match, such as `my-apps`.
+- `component`: Alias for `url_component`.
+- `path`: Optional path; AI Assistant extracts its first component.
+- `url`: Optional URL; AI Assistant extracts its first path component.
+- `priority`: Lower numbers display first. Defaults to `100`.
+
+AI Assistant shows at most two matching tips by default and trims each rendered tip to 280 characters. Site owners can adjust those guards with `ai_assistant_welcome_tip_limit` and `ai_assistant_welcome_tip_max_length`.
 
 ## Browser Callbacks After Tool Calls
 

@@ -188,6 +188,7 @@ class Chat_UI {
             'restApiUrl' => rest_url(),
             'restApiNonce' => wp_create_nonce('wp_rest'),
             'userDisplayName' => $current_user->display_name,
+            'welcomeTips' => $this->get_welcome_tips(),
             'maxClientFileBytes' => (int) apply_filters('ai_assistant_client_file_context_bytes', 128 * 1024),
             'compactClientFileBytes' => (int) apply_filters('ai_assistant_client_file_compact_bytes', 32 * 1024),
             'maxMediaUploadBytes' => (int) wp_max_upload_size(),
@@ -213,6 +214,236 @@ class Chat_UI {
                 'close' => __('Close', 'ai-assistant'),
             ],
         ];
+    }
+
+    /**
+     * Get URL-matched plugin tips to show before the default welcome message.
+     */
+    private function get_welcome_tips() {
+        $context = $this->get_welcome_tip_context();
+
+        /**
+         * Filter URL-scoped tip rules shown in the welcome area.
+         *
+         * Each rule should include a `message` and either `url_component`, `component`,
+         * `path`, or `url`. URL/path values are matched by first path component only:
+         * a rule for `my-apps` matches `/my-apps/`, `/my-apps/?tab=one`, and
+         * `/my-apps/item/`, but not `/my-apps-other/`.
+         *
+         * Example:
+         * ```php
+         * add_filter( 'ai_assistant_welcome_tip_rules', function ( $rules ) {
+         *     $rules['my-plugin/invoices'] = [
+         *         'url_component' => 'my-apps',
+         *         'message'       => 'Tip: Ask me to create an invoice or summarize overdue payments.',
+         *         'priority'      => 20,
+         *     ];
+         *     return $rules;
+         * } );
+         * ```
+         *
+         * @param array<string,array<string,mixed>> $rules   Tip rules keyed by stable IDs.
+         * @param array<string,mixed>              $context Current UI context.
+         * @return array<string,array<string,mixed>> Filtered tip rules.
+         */
+        $rules = apply_filters('ai_assistant_welcome_tip_rules', [], $context);
+
+        if (!is_array($rules) || empty($context['url_component'])) {
+            return [];
+        }
+
+        $candidates = [];
+        $seen_messages = [];
+        $order = 0;
+
+        foreach ($rules as $id => $rule) {
+            $order++;
+
+            if (!is_array($rule)) {
+                continue;
+            }
+
+            $message = $this->normalize_welcome_tip_message($rule['message'] ?? $rule['tip'] ?? '');
+            if ($message === '') {
+                continue;
+            }
+
+            $component = $this->get_welcome_tip_rule_component($rule);
+            if ($component === '' || $component !== $context['url_component']) {
+                continue;
+            }
+
+            $message_key = strtolower(preg_replace('/\s+/', ' ', $message));
+            if (isset($seen_messages[$message_key])) {
+                continue;
+            }
+
+            $seen_messages[$message_key] = true;
+            $candidates[] = [
+                'id' => is_string($id) ? $id : (string) $order,
+                'message' => $message,
+                'priority' => isset($rule['priority']) ? (int) $rule['priority'] : 100,
+                'order' => $order,
+            ];
+        }
+
+        usort($candidates, function ($a, $b) {
+            if ($a['priority'] === $b['priority']) {
+                return $a['order'] <=> $b['order'];
+            }
+
+            return $a['priority'] <=> $b['priority'];
+        });
+
+        $limit = (int) apply_filters('ai_assistant_welcome_tip_limit', 2, $context);
+        $limit = max(0, $limit);
+        $max_length = (int) apply_filters('ai_assistant_welcome_tip_max_length', 280, $context);
+        $max_length = max(0, $max_length);
+
+        $tips = [];
+        foreach ($candidates as $candidate) {
+            if (count($tips) >= $limit) {
+                break;
+            }
+
+            $tips[] = $this->limit_welcome_tip_message($candidate['message'], $max_length);
+        }
+
+        return $tips;
+    }
+
+    /**
+     * Build context used to match welcome tip rules.
+     */
+    private function get_welcome_tip_context() {
+        $screen_id = '';
+        if (is_admin() && function_exists('get_current_screen')) {
+            $screen = get_current_screen();
+            if ($screen) {
+                $screen_id = $screen->id;
+            }
+        }
+
+        $request_uri = $_SERVER['REQUEST_URI'] ?? '/';
+        $path = $this->normalize_welcome_tip_path($request_uri);
+
+        return [
+            'user_id' => get_current_user_id(),
+            'is_admin' => is_admin(),
+            'screen_id' => $screen_id,
+            'path' => $path,
+            'url_component' => $this->get_first_url_component($path),
+        ];
+    }
+
+    /**
+     * Normalize a URL or path to a site-relative path.
+     */
+    private function normalize_welcome_tip_path($value) {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return '/';
+        }
+
+        $path = wp_parse_url($value, PHP_URL_PATH);
+        if (!is_string($path)) {
+            $path = $value;
+        }
+
+        $path = '/' . ltrim($path, '/');
+        $site_path = wp_parse_url(home_url(), PHP_URL_PATH);
+        if (is_string($site_path) && $site_path !== '' && $site_path !== '/') {
+            $site_path = '/' . trim($site_path, '/');
+            if ($path === $site_path) {
+                $path = '/';
+            } elseif (strpos($path, $site_path . '/') === 0) {
+                $path = substr($path, strlen($site_path));
+            }
+        }
+
+        return $path ?: '/';
+    }
+
+    /**
+     * Get the first path component from a URL, path, or component string.
+     */
+    private function get_first_url_component($value) {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (strpos($value, '/') !== false || strpos($value, '?') !== false || strpos($value, '://') !== false) {
+            $value = $this->normalize_welcome_tip_path($value);
+        }
+
+        $value = trim($value, "/ \t\n\r\0\x0B");
+        if ($value === '') {
+            return '';
+        }
+
+        $parts = explode('/', $value);
+        return strtolower(rawurldecode($parts[0]));
+    }
+
+    /**
+     * Get the URL component declared by a tip rule.
+     */
+    private function get_welcome_tip_rule_component(array $rule) {
+        foreach (['url_component', 'component', 'path', 'url'] as $key) {
+            if (!isset($rule[$key]) || !is_scalar($rule[$key])) {
+                continue;
+            }
+
+            $component = $this->get_first_url_component($rule[$key]);
+            if ($component !== '') {
+                return $component;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Normalize a tip message.
+     */
+    private function normalize_welcome_tip_message($message) {
+        if (!is_scalar($message)) {
+            return '';
+        }
+
+        return trim((string) $message);
+    }
+
+    /**
+     * Limit tip length so careless integrations cannot dominate the welcome area.
+     */
+    private function limit_welcome_tip_message($message, $max_length) {
+        if ($max_length <= 0) {
+            return $message;
+        }
+
+        if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+            if (mb_strlen($message) <= $max_length) {
+                return $message;
+            }
+
+            if ($max_length <= 3) {
+                return mb_substr($message, 0, $max_length);
+            }
+
+            return rtrim(mb_substr($message, 0, $max_length - 3)) . '...';
+        }
+
+        if (strlen($message) <= $max_length) {
+            return $message;
+        }
+
+        if ($max_length <= 3) {
+            return substr($message, 0, $max_length);
+        }
+
+        return rtrim(substr($message, 0, $max_length - 3)) . '...';
     }
 
     /**
