@@ -223,77 +223,67 @@ class Chat_UI {
         $context = $this->get_welcome_tip_context();
 
         /**
-         * Filter URL-scoped tip rules shown in the welcome area.
+         * Filter welcome tips keyed by first URL path component.
          *
-         * Each rule should include a `message` and either `url_component`, `component`,
-         * `path`, or `url`. URL/path values are matched by first path component only:
-         * a rule for `my-apps` matches `/my-apps/`, `/my-apps/?tab=one`, and
-         * `/my-apps/item/`, but not `/my-apps-other/`.
+         * Top-level keys should be actual route components the integrating plugin
+         * renders. A key of `my-apps` matches `/my-apps/`, `/my-apps/?tab=one`, and
+         * `/my-apps/item/`, but not `/my-apps-other/`. Values may be a single tip
+         * string or an array of tip strings.
+         *
+         * Keep tips broad and user-facing. Route-specific or dynamic behavior belongs
+         * in ability descriptions, annotations, and post-execution instructions.
          *
          * Example:
          * ```php
-         * add_filter( 'ai_assistant_welcome_tip_rules', function ( $rules ) {
-         *     $rules['my-plugin/invoices'] = [
-         *         'url_component' => 'my-apps',
-         *         'message'       => 'Tip: Ask me to create an invoice or summarize overdue payments.',
-         *         'priority'      => 20,
+         * add_filter( 'ai_assistant_welcome_tips', function ( $tips ) {
+         *     $tips['cookbook'] = [
+         *         'Tip: Ask me to make a recipe vegan, low carb, or gluten-free.',
+         *         'Tip: Missing an ingredient? Ask me for substitutions.',
          *     ];
-         *     return $rules;
+         *     return $tips;
          * } );
          * ```
          *
-         * @param array<string,array<string,mixed>> $rules   Tip rules keyed by stable IDs.
+         * @param array<string,string|array<int|string,string>> $tips Tips keyed by URL component.
          * @param array<string,mixed>              $context Current UI context.
-         * @return array<string,array<string,mixed>> Filtered tip rules.
+         * @return array<string,string|array<int|string,string>> Filtered tips.
          */
-        $rules = apply_filters('ai_assistant_welcome_tip_rules', [], $context);
+        $tips_by_component = apply_filters('ai_assistant_welcome_tips', [], $context);
 
-        if (!is_array($rules) || empty($context['url_component'])) {
+        if (!is_array($tips_by_component) || empty($context['url_component'])) {
             return [];
         }
 
         $candidates = [];
         $seen_messages = [];
-        $order = 0;
 
-        foreach ($rules as $id => $rule) {
-            $order++;
-
-            if (!is_array($rule)) {
+        foreach ($tips_by_component as $component => $component_tips) {
+            if ($this->normalize_welcome_tip_component_key($component) !== $context['url_component']) {
                 continue;
             }
 
-            $message = $this->normalize_welcome_tip_message($rule['message'] ?? $rule['tip'] ?? '');
-            if ($message === '') {
+            if (is_array($component_tips) && $this->is_welcome_tip_object_shape($component_tips)) {
                 continue;
             }
 
-            $component = $this->get_welcome_tip_rule_component($rule);
-            if ($component === '' || $component !== $context['url_component']) {
-                continue;
-            }
+            $component_tips = is_array($component_tips) ? $component_tips : [$component_tips];
+            foreach ($component_tips as $tip) {
+                $message = $this->normalize_welcome_tip_message($tip);
+                if ($message === '') {
+                    continue;
+                }
 
-            $message_key = strtolower(preg_replace('/\s+/', ' ', $message));
-            if (isset($seen_messages[$message_key])) {
-                continue;
-            }
+                $message_key = strtolower(preg_replace('/\s+/', ' ', $message));
+                if (isset($seen_messages[$message_key])) {
+                    continue;
+                }
 
-            $seen_messages[$message_key] = true;
-            $candidates[] = [
-                'id' => is_string($id) ? $id : (string) $order,
-                'message' => $message,
-                'priority' => isset($rule['priority']) ? (int) $rule['priority'] : 100,
-                'order' => $order,
-            ];
+                $seen_messages[$message_key] = true;
+                $candidates[] = [
+                    'message' => $message,
+                ];
+            }
         }
-
-        usort($candidates, function ($a, $b) {
-            if ($a['priority'] === $b['priority']) {
-                return $a['order'] <=> $b['order'];
-            }
-
-            return $a['priority'] <=> $b['priority'];
-        });
 
         $limit = (int) apply_filters('ai_assistant_welcome_tip_limit', 2, $context);
         $limit = max(0, $limit);
@@ -313,7 +303,7 @@ class Chat_UI {
     }
 
     /**
-     * Build context used to match welcome tip rules.
+     * Build context used to match welcome tips.
      */
     private function get_welcome_tip_context() {
         $screen_id = '';
@@ -387,21 +377,28 @@ class Chat_UI {
     }
 
     /**
-     * Get the URL component declared by a tip rule.
+     * Normalize a welcome tip array key. Keys must be URL components, not paths.
      */
-    private function get_welcome_tip_rule_component(array $rule) {
-        foreach (['url_component', 'component', 'path', 'url'] as $key) {
-            if (!isset($rule[$key]) || !is_scalar($rule[$key])) {
-                continue;
-            }
+    private function normalize_welcome_tip_component_key($key) {
+        $key = trim((string) $key);
+        if ($key === '' || strpos($key, '/') !== false || strpos($key, '?') !== false || strpos($key, '://') !== false) {
+            return '';
+        }
 
-            $component = $this->get_first_url_component($rule[$key]);
-            if ($component !== '') {
-                return $component;
+        return $this->get_first_url_component($key);
+    }
+
+    /**
+     * Detect the removed object-style tip shape so its fields are not rendered.
+     */
+    private function is_welcome_tip_object_shape(array $tips) {
+        foreach (['message', 'tip', 'url_component', 'component', 'path', 'url', 'priority'] as $key) {
+            if (array_key_exists($key, $tips)) {
+                return true;
             }
         }
 
-        return '';
+        return false;
     }
 
     /**

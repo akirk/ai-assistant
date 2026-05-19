@@ -8,7 +8,7 @@ use ReflectionClass;
 require_once dirname(__DIR__) . '/includes/class-chat-ui.php';
 
 /**
- * Unit tests for Chat_UI welcome tip rule matching.
+ * Unit tests for Chat_UI welcome tip matching.
  */
 class ChatUITest extends TestCase {
 
@@ -21,25 +21,19 @@ class ChatUITest extends TestCase {
         unset($_SERVER['REQUEST_URI']);
     }
 
-    public function test_welcome_tip_rules_match_first_url_component_only(): void {
-        $this->add_test_filter('ai_assistant_welcome_tip_rules', function ($rules) {
-            $rules['example/one'] = [
-                'path' => '/my-apps/abc/',
-                'message' => 'Second matching tip',
-                'priority' => 20,
+    public function test_welcome_tips_match_first_url_component_only(): void {
+        $this->add_test_filter('ai_assistant_welcome_tips', function ($tips) {
+            $tips['my-apps'] = [
+                'First matching tip',
+                'Second matching tip',
             ];
-            $rules['example/two'] = [
+            $tips['my-apps-other'] = ['Non-matching tip'];
+            $tips['my-apps/legacy-id'] = [
                 'url_component' => 'my-apps',
-                'message' => 'First matching tip',
-                'priority' => 10,
-            ];
-            $rules['example/nope'] = [
-                'url_component' => 'my-apps-other',
-                'message' => 'Non-matching tip',
-                'priority' => 1,
+                'message' => 'Legacy object should not leak',
             ];
 
-            return $rules;
+            return $tips;
         });
 
         $this->assertSame(
@@ -48,27 +42,17 @@ class ChatUITest extends TestCase {
         );
     }
 
-    public function test_welcome_tip_rules_are_deduped_limited_and_trimmed(): void {
+    public function test_welcome_tips_are_deduped_limited_and_trimmed(): void {
         $_SERVER['REQUEST_URI'] = '/my-apps/abc/';
 
-        $this->add_test_filter('ai_assistant_welcome_tip_rules', function ($rules) {
-            $rules['example/one'] = [
-                'url_component' => 'my-apps',
-                'message' => 'Repeat tip',
-                'priority' => 10,
-            ];
-            $rules['example/duplicate'] = [
-                'url_component' => 'my-apps',
-                'message' => 'Repeat tip',
-                'priority' => 20,
-            ];
-            $rules['example/long'] = [
-                'url_component' => 'my-apps',
-                'message' => '123456789012345',
-                'priority' => 30,
+        $this->add_test_filter('ai_assistant_welcome_tips', function ($tips) {
+            $tips['my-apps'] = [
+                'Repeat tip',
+                'Repeat tip',
+                '123456789012345',
             ];
 
-            return $rules;
+            return $tips;
         });
         $this->add_test_filter('ai_assistant_welcome_tip_limit', fn() => 2);
         $this->add_test_filter('ai_assistant_welcome_tip_max_length', fn() => 10);
@@ -77,6 +61,20 @@ class ChatUITest extends TestCase {
             ['Repeat tip', '1234567...'],
             $this->get_welcome_tips()
         );
+    }
+
+    public function test_welcome_tips_ignore_removed_object_shape(): void {
+        $this->add_test_filter('ai_assistant_welcome_tips', function ($tips) {
+            $tips['my-apps'] = [
+                'url_component' => 'my-apps',
+                'message' => 'Legacy object should not render',
+                'priority' => 10,
+            ];
+
+            return $tips;
+        });
+
+        $this->assertSame([], $this->get_welcome_tips());
     }
 
     private function get_welcome_tips(): array {

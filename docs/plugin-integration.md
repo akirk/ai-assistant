@@ -11,7 +11,7 @@ This document covers only the AI Assistant-specific integration points: how the 
 - [Annotations](#annotations)
 - [Image Inputs](#image-inputs)
 - [AI Assistant Filters](#ai-assistant-filters)
-- [`ai_assistant_welcome_tip_rules`](#ai_assistant_welcome_tip_rules)
+- [Contextual Welcome Tips](#contextual-welcome-tips)
 - [Browser Callbacks After Tool Calls](#browser-callbacks-after-tool-calls)
 - [Conversation Export Formats](#conversation-export-formats)
 - [Checklist](#checklist)
@@ -187,44 +187,32 @@ Parameters:
 - `$args`: The arguments passed by the assistant.
 - `$result`: The value returned by the ability callback.
 
-### `ai_assistant_welcome_tip_rules`
+### Contextual Welcome Tips
 
-Use this filter to register plugin-specific tips as candidates for the first assistant message in the welcome area. AI Assistant displays them deterministically without asking the model: it keeps only rules whose first URL path component exactly matches the current page, deduplicates matching messages, sorts by priority, caps the final list, and then renders the messages in the UI.
+Welcome tips are short, contextual starting points for the first assistant message. They work best on plugin screens where users commonly need a few concrete prompts, such as summarizing records, creating a new item, or changing a setting.
 
-A rule for `my-apps` matches `/my-apps/`, `/my-apps/?tab=one`, and `/my-apps/abc/`, but does not match `/my-apps-other/`. Query strings are ignored for matching.
+Use them to describe what the assistant can help with from the user's point of view, not to explain your plugin's implementation. A good integration usually contributes one or a few broad tips for a top-level app or admin page. Avoid parsing `$context['path']` to add a different tip for every subroute; detailed, dynamic guidance belongs in ability descriptions, annotations, and post-execution instructions.
+
+The top-level array key is the first URL path component for a route your plugin actually renders. Do not invent keys for abilities, concepts, or possible tasks that are not addressable pages. For example, if your plugin has a `/wordopedia/` app but no `/wordopedia/snippets/` route, put the tips under `wordopedia` and mention snippets in a message or ability metadata instead of creating a separate `wordopedia-snippets` key.
+
+The tips appear before the default welcome message, are not added to conversation history, and are kept intentionally brief so the chat panel still feels like a place to start a task.
+
+Register tips with `ai_assistant_welcome_tips`. Each top-level key is a route component, and the value is one tip string or an array of tip strings. Multiple tips can share the same key when they offer different useful starting points for the same screen. For a cookbook app, recipe variations and ingredient substitutions are separate tips, but both belong to the real `cookbook` route.
 
 ```php
-add_filter( 'ai_assistant_welcome_tip_rules', 'myplugin_ai_assistant_tip_rules', 10, 2 );
+add_filter( 'ai_assistant_welcome_tips', 'myplugin_ai_assistant_welcome_tips', 10, 2 );
 
-function myplugin_ai_assistant_tip_rules( $rules, $context ) {
-    $rules['my-plugin/my-apps'] = [
-        'url_component' => 'my-apps',
-        'message'       => 'Tip: Ask me to summarize overdue invoices, draft a payment reminder, or create a new invoice for a customer.',
-        'priority'      => 20,
+function myplugin_ai_assistant_welcome_tips( $tips, $context ) {
+    $tips['cookbook'] = [
+        __( 'Tip: Ask me to make a recipe vegan, low carb, gluten-free, or better suited to what you have on hand.', 'my-plugin' ),
+        __( 'Tip: Missing an ingredient? Ask me for substitutions and how they change the recipe.', 'my-plugin' ),
     ];
 
-    return $rules;
+    return $tips;
 }
 ```
 
-Context fields:
-
-- `$context['user_id']`: Current WordPress user ID.
-- `$context['is_admin']`: Whether the assistant is rendering in wp-admin.
-- `$context['screen_id']`: Current admin screen ID when available.
-- `$context['path']`: Current site-relative request path.
-- `$context['url_component']`: Current first path component used for rule matching.
-
-Rule fields:
-
-- `message`: Plain text or Markdown string to display.
-- `url_component`: First path component to match, such as `my-apps`.
-- `component`: Alias for `url_component`.
-- `path`: Optional path; AI Assistant extracts its first component.
-- `url`: Optional URL; AI Assistant extracts its first path component.
-- `priority`: Lower numbers display first. Defaults to `100`.
-
-AI Assistant shows at most two matching tips by default and trims each rendered tip to 280 characters. Site owners can adjust those guards with `ai_assistant_welcome_tip_limit` and `ai_assistant_welcome_tip_max_length`.
+AI Assistant intentionally matches tips by first URL path component only. Tips under `cookbook` appear on `/cookbook/`, `/cookbook/?recipe=chili`, and `/cookbook/recipes/123/`, but not `/cookbook-archive/`. Tips are shown in array order. AI Assistant shows at most two matching tips by default and trims long messages; site owners can tune those guards with `ai_assistant_welcome_tip_limit` and `ai_assistant_welcome_tip_max_length`.
 
 ## Browser Callbacks After Tool Calls
 
