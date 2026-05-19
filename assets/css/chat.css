@@ -2267,6 +2267,31 @@ body,
     overflow-wrap: anywhere;
 }
 
+.ai-assistant-area-suggestion {
+    align-self: flex-start;
+    max-width: 100%;
+    padding: 1px 4px;
+    color: #646970;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.ai-assistant-area-suggestion[hidden] {
+    display: none;
+}
+
+#ai-assistant-area-suggestion a,
+#ai-assistant-area-suggestion a:visited,
+#ai-assistant-area-suggestion a:active {
+    color: var(--ai-assistant-accent) !important;
+    white-space: nowrap;
+}
+
+#ai-assistant-area-suggestion a:hover,
+#ai-assistant-area-suggestion a:focus {
+    color: var(--ai-assistant-accent-hover) !important;
+}
+
 /* Input area */
 .ai-assistant-input-area {
     display: flex;

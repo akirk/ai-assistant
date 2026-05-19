@@ -23,6 +23,7 @@
         queuedMessages: [],
         draftStorageKey: 'aiAssistant_draftMessage',
         draftHistoryKey: 'aiAssistant_draftHistory',
+        urlComponentStorageKey: 'aiAssistant_lastUrlComponent',
         yoloStorageKey: 'aiAssistant_yoloMode',
         conversationPreloaded: false,
         yoloMode: false,
@@ -34,6 +35,8 @@
         draftHistoryMax: 10,
         pendingNewChat: false,
         pendingChatOriginalHtml: null,
+        previousUrlComponent: '',
+        conversationInteracted: false,
         saveInProgress: false,
         savePending: false,
         savePendingSilent: true,
@@ -68,6 +71,9 @@
             this.restoreDraft();
             this.restoreYoloMode();
             this.loadDraftHistory();
+            if (this.restoreUrlComponentContext) {
+                this.restoreUrlComponentContext();
+            }
 
             this.conversationProvider = this.getProvider();
             this.conversationModel = this.getModel();
@@ -147,6 +153,11 @@
             $(document).on('click', '#ai-assistant-undo-new-chat', function(e) {
                 e.preventDefault();
                 self.undoNewChat();
+            });
+
+            $(document).on('click', '#ai-assistant-area-new-chat', function(e) {
+                e.preventDefault();
+                self.newChat();
             });
 
             $(document).on('click', '#ai-confirm-all', function(e) {
@@ -329,6 +340,9 @@
             $(document).on('click', '.ai-conversation-load', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
+                if (self.markConversationInteracted) {
+                    self.markConversationInteracted();
+                }
                 var id = $(this).data('id');
                 self.loadConversation(id);
                 $('#ai-conversation-modal').hide();
@@ -395,6 +409,9 @@
                 }
 
                 var timeout = setTimeout(function() {
+                    if (self.markConversationInteracted) {
+                        self.markConversationInteracted();
+                    }
                     self.loadConversation(id);
                 }, 250);
                 $item.data('clickTimeout', timeout);
@@ -440,6 +457,9 @@
             $('#ai-assistant-input').focus();
 
             this.preloadMostRecentConversation();
+            if (this.updateAreaChangeSuggestion) {
+                this.updateAreaChangeSuggestion();
+            }
         },
 
         close: function() {

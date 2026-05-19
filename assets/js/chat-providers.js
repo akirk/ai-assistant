@@ -15,6 +15,10 @@
         queueUserMessage: function(message, attachments) {
             attachments = attachments || [];
 
+            if (this.markConversationInteracted) {
+                this.markConversationInteracted();
+            }
+
             var messageContent = this.buildUserMessageContent
                 ? this.buildUserMessageContent(message, attachments)
                 : message;
@@ -143,6 +147,10 @@
                 return;
             }
 
+            if (this.markConversationInteracted) {
+                this.markConversationInteracted();
+            }
+
             if (this.pendingNewChat) {
                 this.messages = [];
                 this.pendingActions = [];
@@ -164,6 +172,9 @@
                 $('#ai-token-count').show();
                 $('#ai-assistant-pending-actions').empty().hide();
                 $('#ai-assistant-undo-new-chat').text('New Chat').attr('id', 'ai-assistant-new-chat');
+                if (this.hideAreaChangeSuggestion) {
+                    this.hideAreaChangeSuggestion();
+                }
                 this.updateSidebarSelection();
                 this.loadWelcomeMessage();
             }

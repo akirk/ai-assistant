@@ -370,6 +370,43 @@ describe('conversation exports', function() {
     });
 });
 
+describe('conversation area suggestions', function() {
+    it('does not update the stored URL component until interaction', function() {
+        const { assistant, storage } = loadConversationMixin({
+            aiAssistant_lastUrlComponent: 'my-apps'
+        }, {
+            urlComponent: 'other-app'
+        });
+
+        assistant.restoreUrlComponentContext();
+
+        assert.strictEqual(assistant.getCurrentUrlComponent(), 'other-app');
+        assert.strictEqual(assistant.previousUrlComponent, 'my-apps');
+        assert.strictEqual(storage.getItem('aiAssistant_lastUrlComponent'), 'my-apps');
+    });
+
+    it('keeps suggesting across reload until interaction updates the stored component', function() {
+        const { assistant, storage } = loadConversationMixin({
+            aiAssistant_lastUrlComponent: 'my-apps'
+        }, {
+            urlComponent: 'other-app'
+        });
+
+        assistant.restoreUrlComponentContext();
+        assistant.messages = [{ role: 'user', content: 'Current chat' }];
+
+        assert.strictEqual(assistant.shouldSuggestNewChatForCurrentArea(), true);
+
+        assistant.markConversationInteracted();
+        assert.strictEqual(assistant.shouldSuggestNewChatForCurrentArea(), false);
+        assert.strictEqual(storage.getItem('aiAssistant_lastUrlComponent'), 'other-app');
+
+        assistant.messages = [];
+        assistant.conversationInteracted = false;
+        assert.strictEqual(assistant.shouldSuggestNewChatForCurrentArea(), false);
+    });
+});
+
 describe('loading recent conversations', function() {
     it('loads the newest conversation that has saved messages', function() {
         let loadedConversationId = 0;
