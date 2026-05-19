@@ -125,6 +125,10 @@
                 self.stopGeneration();
             });
 
+            $(window).on('pagehide.aiAssistant', function(e) {
+                self.handlePageHide(e);
+            });
+
             $(document).on('keydown', '#ai-assistant-input', function(e) {
                 if (e.which === 13 && !e.shiftKey && !e.altKey) {
                     e.preventDefault();
@@ -520,6 +524,9 @@
             }
 
             var statusText = this.getQueuedMessageStatusText();
+            if (!statusText && this.isLoading) {
+                statusText = 'Generating. Leaving this page will stop this response.';
+            }
             $status.text(statusText).toggle(!!statusText);
 
             if (this.isLoading || statusText) {
@@ -548,7 +555,6 @@
                 setTimeout(function() {
                     self.scrollToBottom(true);
                 }, 0);
-                $(window).on('beforeunload.aiAssistant', this.beforeUnloadHandler);
             } else {
                 this.abortController = null;
                 $stop.hide();
@@ -556,7 +562,6 @@
                 this.updateSendButton();
                 this.updateLoadingStatus();
                 $input.focus();
-                $(window).off('beforeunload.aiAssistant');
             }
         },
 
@@ -576,9 +581,26 @@
             }
         },
 
-        beforeUnloadHandler: function(e) {
-            e.preventDefault();
-            return e.returnValue = 'AI Assistant is still processing. Are you sure you want to leave?';
+        handlePageHide: function(e) {
+            var originalEvent = e && e.originalEvent ? e.originalEvent : e;
+            var hasPendingActions = this.pendingActions && this.pendingActions.length > 0;
+            var shouldPersist = this.isLoading || hasPendingActions || this.getQueuedMessageCount() > 0;
+
+            if (!shouldPersist) {
+                return;
+            }
+
+            if (typeof this.captureInterruptedReply === 'function') {
+                this.captureInterruptedReply('Response interrupted because the page changed.');
+            }
+
+            if (typeof this.persistConversationForPageExit === 'function') {
+                this.persistConversationForPageExit();
+            }
+
+            if (this.abortController && !(originalEvent && originalEvent.persisted)) {
+                this.abortController.abort();
+            }
         },
 
         isPanelOpen: function() {

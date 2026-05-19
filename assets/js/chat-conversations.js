@@ -307,6 +307,31 @@
             return this.conversationTitleIsPlaceholder ? '' : this.conversationTitle;
         },
 
+        getEncodedMessagesForSave: function() {
+            return btoa(unescape(encodeURIComponent(JSON.stringify(this.messages))));
+        },
+
+        getConversationSaveData: function(overrides) {
+            return $.extend({
+                action: 'ai_assistant_save_conversation',
+                _wpnonce: aiAssistantConfig.nonce,
+                conversation_id: this.conversationId,
+                messages: this.getEncodedMessagesForSave(),
+                title: this.getConversationTitleForSave(),
+                provider: this.conversationProvider || this.getProvider(),
+                model: this.conversationModel || this.getModel(),
+                system_prompt: this.systemPrompt || ''
+            }, overrides || {});
+        },
+
+        createConversationSaveBody: function(data) {
+            var body = new URLSearchParams();
+            Object.keys(data).forEach(function(key) {
+                body.append(key, data[key] == null ? '' : data[key]);
+            });
+            return body;
+        },
+
         saveConversation: function(silent, callback) {
             var self = this;
 
@@ -343,19 +368,11 @@
             var saveSucceeded = false;
             var saveResponse = null;
             var titleForSave = this.getConversationTitleForSave();
+            var saveData = this.getConversationSaveData({ title: titleForSave });
             $.ajax({
                 url: aiAssistantConfig.ajaxUrl,
                 type: 'POST',
-                data: {
-                    action: 'ai_assistant_save_conversation',
-                    _wpnonce: aiAssistantConfig.nonce,
-                    conversation_id: this.conversationId,
-                    messages: btoa(unescape(encodeURIComponent(JSON.stringify(this.messages)))),
-                    title: titleForSave,
-                    provider: this.conversationProvider || this.getProvider(),
-                    model: this.conversationModel || this.getModel(),
-                    system_prompt: this.systemPrompt || ''
-                },
+                data: saveData,
                 success: function(response) {
                     saveResponse = response;
                     if (response.success) {
@@ -427,6 +444,57 @@
                 }
                 this.saveConversation(true);
             }
+        },
+
+        persistConversationForPageExit: function() {
+            if (!this.messages || this.messages.length === 0) {
+                return false;
+            }
+
+            if (this.saveInProgress && !this.conversationId) {
+                return false;
+            }
+
+            if (typeof aiAssistantConfig === 'undefined' || !aiAssistantConfig.ajaxUrl) {
+                return false;
+            }
+
+            var body;
+            try {
+                body = this.createConversationSaveBody(this.getConversationSaveData());
+            } catch (e) {
+                console.error('[AI Assistant] Failed to prepare page-exit save:', e);
+                return false;
+            }
+
+            var bodyString = body.toString();
+            var contentType = 'application/x-www-form-urlencoded; charset=UTF-8';
+
+            if (navigator.sendBeacon && typeof Blob !== 'undefined') {
+                var blob = new Blob([bodyString], { type: contentType });
+                if (navigator.sendBeacon(aiAssistantConfig.ajaxUrl, blob)) {
+                    return true;
+                }
+            }
+
+            if (window.fetch) {
+                try {
+                    window.fetch(aiAssistantConfig.ajaxUrl, {
+                        method: 'POST',
+                        body: bodyString,
+                        headers: {
+                            'Content-Type': contentType
+                        },
+                        credentials: 'same-origin',
+                        keepalive: true
+                    }).catch(function() {});
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            return false;
         },
 
         loadConversation: function(conversationId) {

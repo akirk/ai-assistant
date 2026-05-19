@@ -140,6 +140,35 @@
             this.updateSummarizeVisibility();
         },
 
+        captureInterruptedReply: function(reason) {
+            var $streaming = $('#ai-assistant-messages .ai-message-streaming').last();
+            if (!$streaming.length || $streaming.attr('data-interrupted-captured') === '1') {
+                return false;
+            }
+
+            var content = $streaming.attr('data-raw-content') || $streaming.find('.ai-message-content').text();
+            content = $.trim(content || '');
+            if (!content) {
+                return false;
+            }
+
+            var note = '[' + (reason || 'Response interrupted.') + ']';
+            if (content.indexOf(note) === -1) {
+                content += '\n\n' + note;
+            }
+
+            $streaming.attr('data-interrupted-captured', '1');
+            this.updateReply($streaming, content);
+            this.finalizeReply($streaming);
+            this.messages.push({ role: 'assistant', content: content });
+            this.updateTokenCount();
+            if (this.updateExportButton) {
+                this.updateExportButton();
+            }
+
+            return true;
+        },
+
         getImageSearchUrl: function(query, page) {
             var url = new URL('https://api.openverse.org/v1/images/');
             url.searchParams.set('q', query);
