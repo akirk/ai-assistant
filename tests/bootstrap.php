@@ -374,5 +374,6 @@ require_once $plugin_dir . '/includes/class-git-tracker.php';
 require_once $plugin_dir . '/includes/class-git-tracker-manager.php';
 require_once $plugin_dir . '/includes/class-admin-colors.php';
 require_once $plugin_dir . '/includes/class-conversations.php';
+require_once $plugin_dir . '/includes/class-conversations-app.php';
 require_once $plugin_dir . '/includes/class-settings.php';
 require_once $plugin_dir . '/includes/class-wp-app-abilities.php';

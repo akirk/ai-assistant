@@ -77,6 +77,7 @@ final class AI_Assistant {
     private $plugin_recovery_admin;
     private $connectors_bridge;
     private $wp_app_abilities;
+    private $conversations_app;
 
     public static function instance() {
         if (is_null(self::$instance)) {
@@ -116,6 +117,7 @@ final class AI_Assistant {
         $this->plugin_downloads = new AI_Assistant\Plugin_Downloads($this->git_tracker_manager);
         $this->changes_admin = new AI_Assistant\Changes_Admin($this->git_tracker_manager);
         $this->plugin_recovery_admin = new AI_Assistant\Plugin_Recovery_Admin();
+        $this->conversations_app = new AI_Assistant\Conversations_App();
         $this->wp_app_abilities = new AI_Assistant\Wp_App_Abilities($this->git_tracker_manager);
     }
 
@@ -141,7 +143,7 @@ final class AI_Assistant {
         $apps['ai-assistant'] = [
             'name' => __('AI Assistant', 'ai-assistant'),
             'dashicon' => 'dashicons-format-chat',
-            'url' => admin_url('tools.php?page=ai-conversations'),
+            'url' => AI_Assistant\Conversations_App::get_url(),
         ];
 
         return $apps;
@@ -152,6 +154,13 @@ final class AI_Assistant {
      */
     public function conversations() {
         return $this->conversations;
+    }
+
+    /**
+     * Get conversations app instance
+     */
+    public function conversations_app() {
+        return $this->conversations_app;
     }
 
     /**
@@ -171,6 +180,8 @@ final class AI_Assistant {
         delete_option('ai_assistant_local_endpoint');
         delete_option('ai_assistant_local_model');
         delete_option('ai_assistant_summarization_model');
+
+        update_option('wp_app_flush_rewrite_rules', true);
     }
 
     /**

@@ -171,7 +171,7 @@ class Changes_Admin {
 
         $screen->set_help_sidebar(
             '<p><strong>' . __('For more information:', 'ai-assistant') . '</strong></p>'
-            . '<p><a href="' . esc_url(admin_url('tools.php?page=ai-conversations')) . '">' . __('AI Conversations', 'ai-assistant') . '</a></p>'
+            . '<p><a href="' . esc_url(Conversations_App::get_url()) . '">' . __('AI Conversations', 'ai-assistant') . '</a></p>'
             . '<p><a href="' . esc_url(admin_url('options-general.php?page=ai-assistant-settings')) . '">' . __('Plugin Settings', 'ai-assistant') . '</a></p>'
         );
     }
@@ -239,7 +239,7 @@ class Changes_Admin {
                                         <span class="ai-commit-sha"><?php echo esc_html($commit['short_sha']); ?></span>
                                         <span class="ai-commit-message"><?php echo esc_html($commit['message']); ?></span>
                                         <?php if (!empty($commit['conversation_id'])): ?>
-                                        <a href="<?php echo esc_url(admin_url('tools.php?page=ai-conversations&conversation_id=' . $commit['conversation_id'])); ?>"
+                                        <a href="<?php echo esc_url(Conversations_App::get_conversation_url($commit['conversation_id'])); ?>"
                                            class="ai-commit-conversation"
                                            data-id="<?php echo esc_attr($commit['conversation_id']); ?>"
                                            title="<?php esc_attr_e('View conversation', 'ai-assistant'); ?>">

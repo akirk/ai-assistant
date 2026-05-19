@@ -38,6 +38,8 @@ class Chat_UI {
             return;
         }
 
+        wp_enqueue_style('dashicons');
+
         wp_enqueue_style(
             'ai-assistant-chat',
             AI_ASSISTANT_PLUGIN_URL . 'assets/css/chat.css',
@@ -467,11 +469,15 @@ class Chat_UI {
             $render_latch = $this->should_render_latch();
         }
 
+        $history_url = class_exists('\WpApp\WpApp')
+            ? Conversations_App::get_url()
+            : admin_url('tools.php?page=ai-conversations');
+
         return [
             'deferInit' => true,
             'renderLatch' => (bool) $render_latch,
             'urls' => [
-                'history' => admin_url('tools.php?page=ai-conversations'),
+                'history' => $history_url,
                 'settings' => admin_url('options-general.php?page=ai-assistant-settings'),
             ],
             'strings' => [

@@ -1173,7 +1173,7 @@ class Conversations {
     }
 
     public function render_continue_meta_box($post) {
-        $conversation_url = admin_url('tools.php?page=ai-conversations&conversation=' . $post->ID);
+        $conversation_url = Conversations_App::get_conversation_url($post->ID);
         echo '<p>';
         echo '<a href="' . esc_url($conversation_url) . '" class="button button-primary button-large" style="width:100%;text-align:center;">';
         echo esc_html__('Continue this conversation', 'ai-assistant');

@@ -161,7 +161,7 @@ class Settings {
      * Render the dedicated chat page
      */
     public function render_chat_page() {
-        $conversation_id = isset($_GET['conversation']) ? intval($_GET['conversation']) : 0;
+        $conversation_id = Conversations_App::get_request_conversation_id();
         $settings_url = admin_url('options-general.php?page=ai-assistant-settings');
         ?>
         <style>
@@ -185,92 +185,12 @@ class Settings {
                 }
             }
         </style>
-        <div class="wrap ai-assistant-page">
-            <div class="ai-chat-layout">
-                <!-- Sidebar -->
-                <div class="ai-chat-sidebar">
-                    <div class="ai-sidebar-header">
-                        <button type="button" id="ai-assistant-new-chat" class="button button-primary">
-                            + <?php esc_html_e('New Chat', 'ai-assistant'); ?>
-                        </button>
-                    </div>
-                    <div class="ai-sidebar-conversations" id="ai-sidebar-conversations">
-                        <div class="ai-sidebar-loading"><?php esc_html_e('Loading...', 'ai-assistant'); ?></div>
-                    </div>
-                    <div class="ai-sidebar-footer">
-                        <a href="<?php echo esc_url($settings_url); ?>" class="ai-sidebar-link">
-                            <span class="dashicons dashicons-admin-settings"></span>
-                            <?php esc_html_e('Settings', 'ai-assistant'); ?>
-                        </a>
-                    </div>
-                </div>
-
-                <!-- Main Chat Area -->
-                <div class="ai-chat-main">
-                    <div class="ai-chat-main-header">
-                        <button type="button" class="ai-sidebar-toggle" id="ai-sidebar-toggle">
-                            <span class="dashicons dashicons-menu"></span> <?php esc_html_e('Chats', 'ai-assistant'); ?>
-                        </button>
-                        <div class="ai-header-actions ai-conversation-header-actions">
-                            <span id="ai-token-count" class="ai-token-count" title="<?php esc_attr_e('Estimated token usage', 'ai-assistant'); ?>">0 tokens</span>
-                            <button type="button" id="ai-assistant-summarize" class="ai-header-btn" title="<?php esc_attr_e('Generate conversation summary', 'ai-assistant'); ?>" style="display: none;">
-                                <span class="dashicons dashicons-media-text"></span>
-                            </button>
-                            <span class="ai-header-right-actions">
-                                <label class="ai-yolo-label" title="<?php esc_attr_e('Skip confirmation prompts for destructive actions', 'ai-assistant'); ?>"><input type="checkbox" id="ai-assistant-yolo"> YOLO Mode</label>
-                                <span class="ai-export-menu-wrap">
-                                    <button type="button" id="ai-assistant-export" class="ai-header-btn ai-export-toggle" title="<?php esc_attr_e('Export conversation', 'ai-assistant'); ?>" aria-haspopup="true" aria-expanded="false">
-                                        <span class="dashicons dashicons-download"></span>
-                                    </button>
-                                    <span id="ai-assistant-export-menu" class="ai-export-menu" role="menu" hidden></span>
-                                </span>
-                            </span>
-                        </div>
-                    </div>
-                    <div class="ai-assistant-chat-container">
-                        <div id="ai-assistant-messages"></div>
-                        <div class="ai-assistant-drop-zone" aria-hidden="true">
-                            <div class="ai-assistant-drop-zone-inner"><?php esc_html_e('Drop files to attach', 'ai-assistant'); ?></div>
-                        </div>
-                        <div id="ai-assistant-loading" style="display: none;">
-                            <div class="ai-loading-dots"><span></span><span></span><span></span></div>
-                            <div class="ai-loading-status" aria-live="polite" style="display: none;"></div>
-                        </div>
-                        <div id="ai-assistant-pending-actions"></div>
-                        <div id="ai-assistant-attachments" class="ai-assistant-attachments"></div>
-                        <div class="ai-assistant-input-area">
-                            <input type="file" id="ai-assistant-file-input" multiple hidden>
-                            <button type="button" id="ai-assistant-attach" class="button" title="<?php esc_attr_e('Attach files', 'ai-assistant'); ?>">
-                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21.44 11.05l-8.49 8.49a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.19 9.19a2 2 0 01-2.83-2.83l8.49-8.49"/></svg>
-                            </button>
-                            <textarea id="ai-assistant-input" placeholder="<?php esc_attr_e('Ask me anything about your WordPress site...', 'ai-assistant'); ?>" rows="3"></textarea>
-                            <button type="button" id="ai-assistant-send" class="button button-primary"><?php esc_html_e('Send', 'ai-assistant'); ?></button>
-                            <button type="button" id="ai-assistant-stop" class="button" style="display: none;" title="<?php esc_attr_e('Stop generation', 'ai-assistant'); ?>">
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <script>
-            var aiAssistantPageConfig = {
-                conversationId: <?php echo intval($conversation_id); ?>,
-                isFullPage: true
-            };
-            jQuery(document).ready(function($) {
-                $('#ai-sidebar-toggle').on('click', function() {
-                    $('.ai-chat-sidebar').toggleClass('mobile-visible');
-                });
-                // Hide sidebar when conversation is selected on mobile
-                $(document).on('click', '.ai-conv-item', function() {
-                    if (window.innerWidth <= 782) {
-                        $('.ai-chat-sidebar').removeClass('mobile-visible');
-                    }
-                });
-            });
-        </script>
         <?php
+        Conversations_App::render_chat_shell([
+            'conversation_id' => $conversation_id,
+            'settings_url' => $settings_url,
+            'container_class' => 'wrap ai-assistant-page',
+        ]);
     }
 
     public function map_tool_cap($caps, $cap, $user_id) {
