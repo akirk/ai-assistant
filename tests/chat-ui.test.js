@@ -82,7 +82,7 @@ describe('welcome message', function() {
 
         const message = assistant.buildWelcomeMessage();
 
-        assert.match(message, /shape My WordPress into a personal software home/);
+        assert.match(message, /shape My WordPress into your personal software home/);
         assert.doesNotMatch(message, /manage your WordPress installation - read and modify files/);
     });
 });
