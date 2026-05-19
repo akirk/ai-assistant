@@ -1727,7 +1727,7 @@ class Settings {
 
                 $layout.find('.ai-ability-select').removeClass('selected').removeAttr('aria-current');
                 $button.addClass('selected').attr('aria-current', 'true');
-                $panel.html(html);
+                $panel.html(html).scrollTop(0);
                 highlightCodeBlocks($panel);
                 $panel.find('.ai-ability-sample[data-auto-sample="1"]').each(function() {
                     loadAbilitySample($(this), {}, null);
@@ -2222,12 +2222,16 @@ class Settings {
                 overflow-wrap: anywhere;
             }
             .ai-ability-info-panel {
+                align-self: start;
                 background: transparent;
                 border-left: 1px solid #dcdcde;
                 box-shadow: none;
+                max-height: calc(100vh - 72px);
                 min-height: 120px;
                 overflow: auto;
                 padding: 0 0 0 14px;
+                position: sticky;
+                top: 48px;
             }
             .ai-ability-info-empty {
                 color: #646970;
@@ -2481,6 +2485,9 @@ class Settings {
                 }
                 .ai-ability-info-panel {
                     margin-top: 12px;
+                    max-height: none;
+                    overflow: visible;
+                    position: static;
                 }
             }
         </style>
