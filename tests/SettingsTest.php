@@ -18,6 +18,7 @@ class SettingsTest extends TestCase {
         $GLOBALS['wp_test_is_playground'] = false;
         $GLOBALS['wp_test_abilities'] = [];
         $GLOBALS['wp_test_json_response'] = null;
+        $GLOBALS['wp_test_site_url'] = 'http://localhost';
         $_POST = [];
         unset($_SERVER['HTTP_HOST'], $_SERVER['SERVER_NAME'], $_SERVER['REQUEST_URI']);
 
@@ -282,31 +283,34 @@ class SettingsTest extends TestCase {
         $this->assertStringContainsString('my.wordpress.net', $prompt);
     }
 
-    public function test_system_prompt_includes_playground_context(): void {
+    public function test_system_prompt_includes_compact_playground_context(): void {
         $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
         $GLOBALS['wp_test_is_playground'] = true;
-        $_SERVER['HTTP_HOST'] = 'playground.wordpress.net';
+        $GLOBALS['wp_test_site_url'] = 'https://playground.wordpress.net/scope:default';
 
         $prompt = $this->settings->get_system_prompt();
 
         $this->assertStringContainsString('PLAYGROUND:', $prompt);
         $this->assertStringContainsString('Browser-based WordPress', $prompt);
         $this->assertStringContainsString('do not promise inbound/public reachability', $prompt);
+        $this->assertStringContainsString('For "what can I do"', $prompt);
+        $this->assertStringNotContainsString('my.wordpress.net is My WordPress', $prompt);
     }
 
     public function test_system_prompt_includes_my_wordpress_reachability_context(): void {
         $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
         $GLOBALS['wp_test_is_playground'] = true;
-        $_SERVER['HTTP_HOST'] = 'my.wordpress.net';
+        $GLOBALS['wp_test_site_url'] = 'https://my.wordpress.net/scope:default';
 
         $prompt = $this->settings->get_system_prompt();
 
         $this->assertStringContainsString('my.wordpress.net is My WordPress', $prompt);
-        $this->assertStringContainsString('federation/followers', $prompt);
+        $this->assertStringContainsString('a personal software home', $prompt);
+        $this->assertStringContainsString('reshapeable workflows', $prompt);
+        $this->assertStringContainsString('Public/inbound features', $prompt);
         $this->assertStringContainsString('need hosted WordPress', $prompt);
-        $this->assertStringContainsString('For "what can I do"', $prompt);
+        $this->assertStringContainsString('exporting backups and importing them at a host', $prompt);
         $this->assertStringContainsString('inspect plugins/abilities as useful', $prompt);
-        $this->assertStringContainsString('load skill "my-wordpress" if needed', $prompt);
     }
 
     public function test_sample_readonly_ability_returns_output(): void {
