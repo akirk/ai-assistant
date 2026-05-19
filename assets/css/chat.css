@@ -3662,7 +3662,7 @@ body.wp-admin .ai-assistant-standalone-wrap {
 .ai-assistant-standalone-trigger button {
     display: block;
     margin: 0 !important;
-    padding: 3px 6px 3px 16px !important;
+    padding: 3px 6px 3px 12px !important;
     height: auto !important;
     min-height: 0 !important;
     width: auto !important;
@@ -3718,7 +3718,7 @@ body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
     content: " \25BC";
     font-size: 11px;
     display: inline-block;
-    margin-left: 2px;
+    margin-left: 6px;
     transform: translateY(-1px);
 }
 
