@@ -51,6 +51,9 @@
         recoveryMessageShown: false,
         wordpressRecoveryCheckInProgress: false,
         abortController: null,
+        isPageExiting: false,
+        pageExitPrepared: false,
+        conversationDirty: false,
         pendingAttachments: [],
         isUploadingFiles: false,
         toolCallSubscriptions: existingAiAssistant.toolCallSubscriptions || [],
@@ -123,6 +126,32 @@
             $(document).on('click', '#ai-assistant-stop', function(e) {
                 e.preventDefault();
                 self.stopGeneration();
+            });
+
+            $(window).on('beforeunload.aiAssistant', function(e) {
+                self.prepareForPageExit(e, {
+                    abort: false,
+                    captureInterruptedReply: false,
+                    markExiting: false
+                });
+
+                if (self.shouldConfirmPageExit()) {
+                    e.preventDefault();
+                    if (e.originalEvent) {
+                        e.originalEvent.returnValue = '';
+                    }
+                    e.returnValue = '';
+                    return '';
+                }
+            });
+
+            $(window).on('pagehide.aiAssistant', function(e) {
+                self.prepareForPageExit(e, { abort: true });
+            });
+
+            $(window).on('pageshow.aiAssistant', function() {
+                self.isPageExiting = false;
+                self.pageExitPrepared = false;
             });
 
             $(document).on('keydown', '#ai-assistant-input', function(e) {
@@ -520,6 +549,9 @@
             }
 
             var statusText = this.getQueuedMessageStatusText();
+            if (!statusText && this.isLoading) {
+                statusText = 'Generating. Leaving this page will stop this response.';
+            }
             $status.text(statusText).toggle(!!statusText);
 
             if (this.isLoading || statusText) {
@@ -548,7 +580,6 @@
                 setTimeout(function() {
                     self.scrollToBottom(true);
                 }, 0);
-                $(window).on('beforeunload.aiAssistant', this.beforeUnloadHandler);
             } else {
                 this.abortController = null;
                 $stop.hide();
@@ -556,7 +587,6 @@
                 this.updateSendButton();
                 this.updateLoadingStatus();
                 $input.focus();
-                $(window).off('beforeunload.aiAssistant');
             }
         },
 
@@ -576,9 +606,67 @@
             }
         },
 
-        beforeUnloadHandler: function(e) {
-            e.preventDefault();
-            return e.returnValue = 'AI Assistant is still processing. Are you sure you want to leave?';
+        isExpectedGenerationAbort: function(error) {
+            if (error && error.name === 'AbortError') {
+                return true;
+            }
+
+            return !!(
+                this.isPageExiting ||
+                (this.abortController && this.abortController.signal && this.abortController.signal.aborted)
+            );
+        },
+
+        shouldConfirmPageExit: function() {
+            var hasPendingActions = this.pendingActions && this.pendingActions.length > 0;
+
+            return !!(
+                this.conversationDirty ||
+                this.saveInProgress ||
+                this.isLoading ||
+                hasPendingActions ||
+                this.getQueuedMessageCount() > 0
+            );
+        },
+
+        prepareForPageExit: function(e, options) {
+            options = options || {};
+            var originalEvent = e && e.originalEvent ? e.originalEvent : e;
+            var isPersistedPage = !!(originalEvent && originalEvent.persisted);
+            var hasPendingActions = this.pendingActions && this.pendingActions.length > 0;
+            var shouldPersist = this.conversationDirty || this.isLoading || hasPendingActions || this.getQueuedMessageCount() > 0;
+
+            if (options.markExiting !== false) {
+                this.isPageExiting = !isPersistedPage;
+            }
+
+            if (!shouldPersist) {
+                return;
+            }
+
+            if (!this.pageExitPrepared || options.captureInterruptedReply === false) {
+                if (typeof this.captureInterruptedReply === 'function') {
+                    if (options.captureInterruptedReply !== false) {
+                        this.captureInterruptedReply('Response interrupted because the page changed.');
+                    }
+                }
+
+                if (typeof this.persistConversationForPageExit === 'function') {
+                    this.persistConversationForPageExit();
+                }
+
+                if (options.captureInterruptedReply !== false) {
+                    this.pageExitPrepared = true;
+                }
+            }
+
+            if (options.abort !== false && this.abortController && !isPersistedPage) {
+                this.abortController.abort();
+            }
+        },
+
+        handlePageHide: function(e) {
+            this.prepareForPageExit(e, { abort: true });
         },
 
         isPanelOpen: function() {

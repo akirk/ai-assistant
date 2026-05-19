@@ -268,6 +268,7 @@
             this.titleGenerationToken++;
             this.conversationTitleIsPlaceholder = false;
             this.pendingNewChat = false;
+            this.conversationDirty = false;
             this.pendingAttachments = [];
             if (this.renderPendingAttachments) {
                 this.renderPendingAttachments();
@@ -307,6 +308,48 @@
             return this.conversationTitleIsPlaceholder ? '' : this.conversationTitle;
         },
 
+        getMessagesForSave: function(options) {
+            options = options || {};
+            var messages = Array.isArray(this.messages) ? this.messages.slice() : [];
+            var queuedMessages = options.includeQueued === false || !Array.isArray(this.queuedMessages)
+                ? []
+                : this.queuedMessages;
+
+            queuedMessages.forEach(function(item) {
+                if (item && item.content) {
+                    messages.push({ role: 'user', content: item.content });
+                }
+            });
+
+            return messages;
+        },
+
+        getEncodedMessagesForSave: function(messages) {
+            messages = messages || this.getMessagesForSave();
+            return btoa(unescape(encodeURIComponent(JSON.stringify(messages))));
+        },
+
+        getConversationSaveData: function(overrides) {
+            return $.extend({
+                action: 'ai_assistant_save_conversation',
+                _wpnonce: aiAssistantConfig.nonce,
+                conversation_id: this.conversationId,
+                messages: this.getEncodedMessagesForSave(),
+                title: this.getConversationTitleForSave(),
+                provider: this.conversationProvider || this.getProvider(),
+                model: this.conversationModel || this.getModel(),
+                system_prompt: this.systemPrompt || ''
+            }, overrides || {});
+        },
+
+        createConversationSaveBody: function(data) {
+            var body = new URLSearchParams();
+            Object.keys(data).forEach(function(key) {
+                body.append(key, data[key] == null ? '' : data[key]);
+            });
+            return body;
+        },
+
         saveConversation: function(silent, callback) {
             var self = this;
 
@@ -321,7 +364,9 @@
                 }
             }
 
-            if (this.messages.length === 0) {
+            var messagesForSave = this.getMessagesForSave();
+
+            if (messagesForSave.length === 0) {
                 if (!silent) {
                     this.addMessage('system', 'No messages to save.');
                 }
@@ -343,19 +388,14 @@
             var saveSucceeded = false;
             var saveResponse = null;
             var titleForSave = this.getConversationTitleForSave();
+            var saveData = this.getConversationSaveData({
+                messages: this.getEncodedMessagesForSave(messagesForSave),
+                title: titleForSave
+            });
             $.ajax({
                 url: aiAssistantConfig.ajaxUrl,
                 type: 'POST',
-                data: {
-                    action: 'ai_assistant_save_conversation',
-                    _wpnonce: aiAssistantConfig.nonce,
-                    conversation_id: this.conversationId,
-                    messages: btoa(unescape(encodeURIComponent(JSON.stringify(this.messages)))),
-                    title: titleForSave,
-                    provider: this.conversationProvider || this.getProvider(),
-                    model: this.conversationModel || this.getModel(),
-                    system_prompt: this.systemPrompt || ''
-                },
+                data: saveData,
                 success: function(response) {
                     saveResponse = response;
                     if (response.success) {
@@ -412,13 +452,15 @@
                                 pendingCallback(success, response);
                             });
                         });
+                    } else if (saveSucceeded) {
+                        self.conversationDirty = false;
                     }
                 }
             });
         },
 
         autoSaveConversation: function() {
-            if (this.autoSave && this.messages.length > 0) {
+            if (this.autoSave && this.getMessagesForSave().length > 0) {
                 if (this.shouldGenerateConversationTitle && this.shouldGenerateConversationTitle()) {
                     this.titleGenerationAttempted = true;
                     this.saveConversation(true);
@@ -427,6 +469,57 @@
                 }
                 this.saveConversation(true);
             }
+        },
+
+        persistConversationForPageExit: function() {
+            var messages = this.getMessagesForSave();
+
+            if (messages.length === 0) {
+                return false;
+            }
+
+            if (typeof aiAssistantConfig === 'undefined' || !aiAssistantConfig.ajaxUrl) {
+                return false;
+            }
+
+            var body;
+            try {
+                body = this.createConversationSaveBody(this.getConversationSaveData({
+                    messages: this.getEncodedMessagesForSave(messages)
+                }));
+            } catch (e) {
+                console.error('[AI Assistant] Failed to prepare page-exit save:', e);
+                return false;
+            }
+
+            var bodyString = body.toString();
+            var contentType = 'application/x-www-form-urlencoded; charset=UTF-8';
+
+            if (navigator.sendBeacon && typeof Blob !== 'undefined') {
+                var blob = new Blob([bodyString], { type: contentType });
+                if (navigator.sendBeacon(aiAssistantConfig.ajaxUrl, blob)) {
+                    return true;
+                }
+            }
+
+            if (window.fetch) {
+                try {
+                    window.fetch(aiAssistantConfig.ajaxUrl, {
+                        method: 'POST',
+                        body: bodyString,
+                        headers: {
+                            'Content-Type': contentType
+                        },
+                        credentials: 'same-origin',
+                        keepalive: true
+                    }).catch(function() {});
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            return false;
         },
 
         loadConversation: function(conversationId) {
@@ -456,6 +549,7 @@
                         self.pendingToolResults = [];
                         self.pendingToolChecks = 0;
                         self.executingToolCount = 0;
+                        self.conversationDirty = false;
                         if (self.clearQueuedMessages) {
                             self.clearQueuedMessages();
                         }

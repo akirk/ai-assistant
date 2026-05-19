@@ -31,6 +31,7 @@
                 content: messageContent,
                 queuedAt: Date.now()
             });
+            this.conversationDirty = true;
 
             this.addToDraftHistory(message);
             this.pendingAttachments = [];
@@ -44,6 +45,9 @@
             this.draftHistoryDraft = '';
             this.updateSendButton();
             this.updateLoadingStatus();
+            if (this.saveConversation) {
+                this.saveConversation(true);
+            }
         },
 
         clearQueuedMessages: function() {
@@ -97,6 +101,7 @@
                 this.messages.push({ role: 'user', content: contents.join('\n\n') });
             }
 
+            this.conversationDirty = true;
             this.updateSendButton();
             this.updateLoadingStatus();
             this.updateTokenCount();
@@ -195,6 +200,7 @@
                 : message;
             this.addMessage('user', messageContent);
             this.messages.push({ role: 'user', content: messageContent });
+            this.conversationDirty = true;
             if (this.updateExportButton) {
                 this.updateExportButton();
             }
@@ -208,6 +214,9 @@
             this.draftHistoryDraft = '';
 
             this.updateTokenCount();
+            if (this.autoSaveConversation) {
+                this.autoSaveConversation();
+            }
             this.callLLM();
         },
 
@@ -679,6 +688,15 @@
                 }
 
             } catch (error) {
+                if (this.isPageExiting) {
+                    if (typeof this.prepareForPageExit === 'function') {
+                        this.prepareForPageExit(null, { abort: false });
+                    }
+                    return;
+                }
+                var expectedAbort = this.isExpectedGenerationAbort
+                    ? this.isExpectedGenerationAbort(error)
+                    : error.name === 'AbortError';
                 this.hideToolProgress();
                 this.pendingToolResults = [];
                 this.pendingActions = [];
@@ -687,7 +705,8 @@
                     this.showToolApprovalModal();
                 }
                 this.setLoading(false);
-                if (error.name !== 'AbortError') {
+                if (!expectedAbort) {
+                    this.autoSaveConversation();
                     this.addMessage('error', 'Anthropic API error: ' + error.message);
                 }
             }
@@ -823,6 +842,15 @@
                 }
 
             } catch (error) {
+                if (this.isPageExiting) {
+                    if (typeof this.prepareForPageExit === 'function') {
+                        this.prepareForPageExit(null, { abort: false });
+                    }
+                    return;
+                }
+                var expectedAbort = this.isExpectedGenerationAbort
+                    ? this.isExpectedGenerationAbort(error)
+                    : error.name === 'AbortError';
                 this.hideToolProgress();
                 this.pendingToolResults = [];
                 this.pendingActions = [];
@@ -831,7 +859,8 @@
                     this.showToolApprovalModal();
                 }
                 this.setLoading(false);
-                if (error.name !== 'AbortError') {
+                if (!expectedAbort) {
+                    this.autoSaveConversation();
                     this.addMessage('error', 'OpenAI API error: ' + error.message);
                 }
             }
@@ -1163,6 +1192,15 @@
                 }
 
             } catch (error) {
+                if (this.isPageExiting) {
+                    if (typeof this.prepareForPageExit === 'function') {
+                        this.prepareForPageExit(null, { abort: false });
+                    }
+                    return;
+                }
+                var expectedAbort = this.isExpectedGenerationAbort
+                    ? this.isExpectedGenerationAbort(error)
+                    : error.name === 'AbortError';
                 if ($reply) $reply.remove();
                 this.hideToolProgress();
                 this.pendingToolResults = [];
@@ -1172,7 +1210,8 @@
                     this.showToolApprovalModal();
                 }
                 this.setLoading(false);
-                if (error.name !== 'AbortError') {
+                if (!expectedAbort) {
+                    this.autoSaveConversation();
                     this.addMessage('error', 'Local LLM error: ' + error.message);
                 }
             }
