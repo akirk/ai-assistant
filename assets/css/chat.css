@@ -2281,7 +2281,13 @@ body,
 }
 
 .ai-assistant-area-suggestion a {
+    color: var(--ai-assistant-accent);
     white-space: nowrap;
+}
+
+.ai-assistant-area-suggestion a:hover,
+.ai-assistant-area-suggestion a:focus {
+    color: var(--ai-assistant-accent-hover);
 }
 
 /* Input area */

@@ -160,13 +160,6 @@
                 self.newChat();
             });
 
-            $(document).on('click', '#ai-assistant-area-keep-chat', function(e) {
-                e.preventDefault();
-                if (self.markConversationInteracted) {
-                    self.markConversationInteracted();
-                }
-            });
-
             $(document).on('click', '#ai-confirm-all', function(e) {
                 e.preventDefault();
                 self.confirmAllActions(true);
@@ -229,9 +222,6 @@
             });
 
             $(document).on('input', '#ai-assistant-input', function() {
-                if (self.markConversationInteracted) {
-                    self.markConversationInteracted();
-                }
                 self.saveDraft();
                 self.updateSendButton();
             });

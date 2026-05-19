@@ -194,7 +194,7 @@
             }
 
             $suggestion = $('<div id="ai-assistant-area-suggestion" class="ai-assistant-area-suggestion" role="status" aria-live="polite" hidden>' +
-                'Click to <a href="#" id="ai-assistant-area-new-chat">start a new chat</a> or just <a href="#" id="ai-assistant-area-keep-chat">continue the conversation</a>.' +
+                'Click to <a href="#" id="ai-assistant-area-new-chat">start a new chat</a> or just continue the conversation.' +
             '</div>');
 
             $('#ai-assistant-messages').append($suggestion);
