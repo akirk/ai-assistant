@@ -4,7 +4,7 @@
     var STORAGE_PREFIX = 'aiAssistant_';
     var DEFAULT_MODELS = {
         anthropic: 'claude-sonnet-4-6',
-        openai: 'gpt-5.4'
+        openai: 'gpt-5.5'
     };
     var MODEL_REPLACEMENTS = {
         anthropic: {

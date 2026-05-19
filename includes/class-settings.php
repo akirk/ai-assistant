@@ -509,7 +509,7 @@ class Settings {
             var STORAGE_PREFIX = 'aiAssistant_';
             var DEFAULT_MODELS = {
                 anthropic: 'claude-sonnet-4-6',
-                openai: 'gpt-5.4'
+                openai: 'gpt-5.5'
             };
             var PREFERRED_MODELS = {
                 anthropic: [
@@ -518,8 +518,8 @@ class Settings {
                     'claude-sonnet-4-20250514'
                 ],
                 openai: [
-                    'gpt-5.4',
                     'gpt-5.5',
+                    'gpt-5.4',
                     'gpt-5.4-mini',
                     'gpt-5.1',
                     'gpt-5',

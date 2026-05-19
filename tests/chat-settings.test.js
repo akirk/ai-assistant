@@ -64,7 +64,7 @@ describe('chat settings model lifecycle', function() {
             }
         });
 
-        assert.strictEqual(assistant.getModel(), 'gpt-5.4');
+        assert.strictEqual(assistant.getModel(), 'gpt-5.5');
     });
 
     it('does not reuse a legacy Claude model for OpenAI', function() {
@@ -76,7 +76,7 @@ describe('chat settings model lifecycle', function() {
             }
         });
 
-        assert.strictEqual(assistant.getModel(), 'gpt-5.4');
+        assert.strictEqual(assistant.getModel(), 'gpt-5.5');
     });
 
     it('does not reuse a legacy OpenAI model for Anthropic', function() {
@@ -84,7 +84,7 @@ describe('chat settings model lifecycle', function() {
             storage: {
                 aiAssistant_provider: 'anthropic',
                 aiAssistant_anthropicApiKey: 'test-key',
-                aiAssistant_model: 'gpt-5.4'
+                aiAssistant_model: 'gpt-5.5'
             }
         });
 
