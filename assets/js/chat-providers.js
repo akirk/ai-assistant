@@ -896,6 +896,12 @@
         callLocalLLM: async function(endpointOverride) {
             var self = this;
             var endpoint = (endpointOverride || this.getLocalEndpoint()).replace(/\/$/, '');
+            var model = this.conversationModel || this.getModel();
+            if (!model) {
+                this.addMessage('error', 'No local model selected. Choose a model in Settings before using a local LLM.');
+                this.setLoading(false);
+                return;
+            }
 
             try {
                 var requestMessages = [
@@ -903,7 +909,6 @@
                     ...this.sanitizeMessages(this.messages)
                 ];
 
-                var model = this.conversationModel || this.getModel();
                 var useOllamaApi = false;
 
                 var abortSignal = this.abortController ? this.abortController.signal : undefined;

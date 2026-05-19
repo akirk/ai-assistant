@@ -56,6 +56,68 @@ describe('chat settings model lifecycle', function() {
         assert.strictEqual(assistant.getModel(), 'claude-sonnet-4-6');
     });
 
+    it('uses an OpenAI model as the OpenAI fallback', function() {
+        const assistant = loadSettingsMixin({
+            storage: {
+                aiAssistant_provider: 'openai',
+                aiAssistant_openaiApiKey: 'test-key'
+            }
+        });
+
+        assert.strictEqual(assistant.getModel(), 'gpt-5.5');
+    });
+
+    it('does not reuse a legacy Claude model for OpenAI', function() {
+        const assistant = loadSettingsMixin({
+            storage: {
+                aiAssistant_provider: 'openai',
+                aiAssistant_openaiApiKey: 'test-key',
+                aiAssistant_model: 'claude-sonnet-4-6'
+            }
+        });
+
+        assert.strictEqual(assistant.getModel(), 'gpt-5.5');
+    });
+
+    it('does not reuse a legacy OpenAI model for Anthropic', function() {
+        const assistant = loadSettingsMixin({
+            storage: {
+                aiAssistant_provider: 'anthropic',
+                aiAssistant_anthropicApiKey: 'test-key',
+                aiAssistant_model: 'gpt-5.5'
+            }
+        });
+
+        assert.strictEqual(assistant.getModel(), 'claude-sonnet-4-6');
+    });
+
+    it('keeps selected models separate by provider', function() {
+        const assistant = loadSettingsMixin({
+            storage: {
+                aiAssistant_provider: 'openai',
+                aiAssistant_openaiApiKey: 'test-key',
+                aiAssistant_model_openai: 'gpt-5.5',
+                aiAssistant_model_anthropic: 'claude-sonnet-4-6'
+            }
+        });
+
+        assert.strictEqual(assistant.getModel(), 'gpt-5.5');
+
+        assistant.setProvider('anthropic');
+
+        assert.strictEqual(assistant.getModel(), 'claude-sonnet-4-6');
+    });
+
+    it('does not return a Claude fallback for local providers', function() {
+        const assistant = loadSettingsMixin({
+            storage: {
+                aiAssistant_provider: 'local'
+            }
+        });
+
+        assert.strictEqual(assistant.getModel(), '');
+    });
+
     it('warns about deprecated Anthropic models with a recommended replacement', function() {
         const assistant = loadSettingsMixin();
 

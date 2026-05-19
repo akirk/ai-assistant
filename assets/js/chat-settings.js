@@ -2,7 +2,10 @@
     'use strict';
 
     var STORAGE_PREFIX = 'aiAssistant_';
-    var DEFAULT_MODEL = 'claude-sonnet-4-6';
+    var DEFAULT_MODELS = {
+        anthropic: 'claude-sonnet-4-6',
+        openai: 'gpt-5.5'
+    };
     var MODEL_REPLACEMENTS = {
         anthropic: {
             'claude-sonnet-4-20250514': {
@@ -48,6 +51,44 @@
 
     function normalizeModelId(model) {
         return String(model || '').trim();
+    }
+
+    function getModelSettingKey(provider) {
+        provider = normalizeModelId(provider);
+        return provider ? 'model_' + provider : 'model';
+    }
+
+    function isOpenAIModelId(model) {
+        model = normalizeModelId(model);
+        return /^gpt-\d/.test(model) ||
+            /^o\d/.test(model) ||
+            model.indexOf('chatgpt-') === 0 ||
+            model.indexOf('computer-use-preview') === 0 ||
+            /^ft:(gpt-\d|o\d)/.test(model);
+    }
+
+    function isAnthropicModelId(model) {
+        return normalizeModelId(model).indexOf('claude-') === 0;
+    }
+
+    function isModelCompatibleWithProvider(provider, model) {
+        provider = normalizeModelId(provider);
+        model = normalizeModelId(model);
+        if (!model) return false;
+
+        if (provider === 'anthropic') {
+            return isAnthropicModelId(model);
+        }
+
+        if (provider === 'openai') {
+            return isOpenAIModelId(model);
+        }
+
+        if (provider === 'local') {
+            return !isAnthropicModelId(model) && !isOpenAIModelId(model);
+        }
+
+        return true;
     }
 
     function parseClaudeModelId(model) {
@@ -237,6 +278,19 @@
             return this.setSetting('provider', provider);
         },
 
+        getDefaultModel: function(provider) {
+            provider = provider || this.getProvider();
+            return DEFAULT_MODELS[provider] || '';
+        },
+
+        getModelSettingKey: function(provider) {
+            return getModelSettingKey(provider || this.getProvider());
+        },
+
+        isModelCompatibleWithProvider: function(provider, model) {
+            return isModelCompatibleWithProvider(provider || this.getProvider(), model);
+        },
+
         getModel: function() {
             var provider = this.getProvider();
 
@@ -247,13 +301,28 @@
                 }
             }
 
-            var override = this.getSetting('model');
-            if (override) return override;
+            var providerOverride = this.getSetting(getModelSettingKey(provider));
+            if (providerOverride) return providerOverride;
 
-            return DEFAULT_MODEL;
+            if (provider === 'local') {
+                var localModel = this.getLocalModel();
+                if (localModel) return localModel;
+            }
+
+            var legacyOverride = this.getSetting('model');
+            if (isModelCompatibleWithProvider(provider, legacyOverride)) {
+                return legacyOverride;
+            }
+
+            return this.getDefaultModel(provider);
         },
 
-        setModel: function(model) {
+        setModel: function(model, provider) {
+            provider = provider || this.getProvider();
+            this.setSetting(getModelSettingKey(provider), model);
+            if (provider === 'local') {
+                this.setLocalModel(model);
+            }
             return this.setSetting('model', model);
         },
 
@@ -484,7 +553,18 @@
         },
 
         clearAllSettings: function() {
-            var keys = ['provider', 'model', 'summarizationModel', 'anthropicApiKey', 'openaiApiKey', 'localEndpoint', 'localModel'];
+            var keys = [
+                'provider',
+                'model',
+                'model_anthropic',
+                'model_openai',
+                'model_local',
+                'summarizationModel',
+                'anthropicApiKey',
+                'openaiApiKey',
+                'localEndpoint',
+                'localModel'
+            ];
             var self = this;
             keys.forEach(function(key) {
                 self.removeSetting(key);

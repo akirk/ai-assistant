@@ -279,6 +279,40 @@ describe('Pending approval send guard', function() {
     });
 });
 
+describe('Local LLM requests', function() {
+    it('does not send a request when no local model is selected', async function() {
+        let fetchCalled = false;
+        const messages = [];
+        const assistant = Object.assign(loadProvidersMixin({
+            fetch() {
+                fetchCalled = true;
+                throw new Error('fetch should not be called');
+            }
+        }), {
+            conversationModel: '',
+            getModel() {
+                return '';
+            },
+            getLocalEndpoint() {
+                return 'http://localhost:11434';
+            },
+            addMessage(role, content) {
+                messages.push({ role, content });
+            },
+            setLoading(value) {
+                this.loadingState = value;
+            }
+        });
+
+        await assistant.callLocalLLM();
+
+        assert.equal(fetchCalled, false);
+        assert.equal(assistant.loadingState, false);
+        assert.equal(messages[0].role, 'error');
+        assert.match(messages[0].content, /No local model selected/);
+    });
+});
+
 describe('queued user messages', function() {
     it('queues input instead of starting a second request while loading', function() {
         const input = createInputJQuery('Please do this next.');

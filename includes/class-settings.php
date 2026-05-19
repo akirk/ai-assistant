@@ -507,6 +507,26 @@ class Settings {
         <script>
         jQuery(function($) {
             var STORAGE_PREFIX = 'aiAssistant_';
+            var DEFAULT_MODELS = {
+                anthropic: 'claude-sonnet-4-6',
+                openai: 'gpt-5.5'
+            };
+            var PREFERRED_MODELS = {
+                anthropic: [
+                    'claude-sonnet-4-6',
+                    'claude-sonnet-4-5-20250929',
+                    'claude-sonnet-4-20250514'
+                ],
+                openai: [
+                    'gpt-5.5',
+                    'gpt-5.4',
+                    'gpt-5.4-mini',
+                    'gpt-5.1',
+                    'gpt-5',
+                    'gpt-4.1',
+                    'gpt-4o'
+                ]
+            };
 
             function getSetting(key) {
                 return localStorage.getItem(STORAGE_PREFIX + key) || '';
@@ -517,6 +537,97 @@ class Settings {
                     localStorage.setItem(STORAGE_PREFIX + key, value);
                 } else {
                     localStorage.removeItem(STORAGE_PREFIX + key);
+                }
+            }
+
+            function normalizeModelId(model) {
+                return String(model || '').trim();
+            }
+
+            function getModelSettingKey(provider) {
+                provider = normalizeModelId(provider);
+                return provider ? 'model_' + provider : 'model';
+            }
+
+            function isOpenAIModelId(model) {
+                model = normalizeModelId(model);
+                return /^gpt-\d/.test(model) ||
+                    /^o\d/.test(model) ||
+                    model.indexOf('chatgpt-') === 0 ||
+                    model.indexOf('computer-use-preview') === 0 ||
+                    /^ft:(gpt-\d|o\d)/.test(model);
+            }
+
+            function isAnthropicModelId(model) {
+                return normalizeModelId(model).indexOf('claude-') === 0;
+            }
+
+            function isModelCompatibleWithProvider(provider, model) {
+                provider = normalizeModelId(provider);
+                model = normalizeModelId(model);
+                if (!model) return false;
+
+                if (provider === 'anthropic') {
+                    return isAnthropicModelId(model);
+                }
+
+                if (provider === 'openai') {
+                    return isOpenAIModelId(model);
+                }
+
+                if (provider === 'local') {
+                    return !isAnthropicModelId(model) && !isOpenAIModelId(model);
+                }
+
+                return true;
+            }
+
+            function getStoredModel(provider) {
+                var providerModel = getSetting(getModelSettingKey(provider));
+                if (providerModel) {
+                    return providerModel;
+                }
+
+                if (provider === 'local') {
+                    var localModel = getSetting('localModel');
+                    if (localModel) {
+                        return localModel;
+                    }
+                }
+
+                var legacyModel = getSetting('model');
+                return isModelCompatibleWithProvider(provider, legacyModel) ? legacyModel : '';
+            }
+
+            function hasModel(models, id) {
+                id = normalizeModelId(id);
+                return (models || []).some(function(model) {
+                    return normalizeModelId(model.id) === id;
+                });
+            }
+
+            function getRecommendedModel(provider, models) {
+                models = models || [];
+                var preferred = PREFERRED_MODELS[provider] || [];
+
+                for (var i = 0; i < preferred.length; i++) {
+                    if (hasModel(models, preferred[i])) {
+                        return preferred[i];
+                    }
+                }
+
+                if (DEFAULT_MODELS[provider] && hasModel(models, DEFAULT_MODELS[provider])) {
+                    return DEFAULT_MODELS[provider];
+                }
+
+                return models.length > 0 ? models[0].id : (DEFAULT_MODELS[provider] || '');
+            }
+
+            function persistModelSelection(provider, model) {
+                setSetting(getModelSettingKey(provider), model);
+                setSetting('model', model);
+                if (provider === 'local') {
+                    setSetting('localModel', model);
                 }
             }
 
@@ -583,7 +694,7 @@ class Settings {
                 var provider = $('#ai_provider').val();
                 var $modelSelect = $('#ai_model');
                 var $sumSelect = $('#ai_summarization_model');
-                var currentModel = getSetting('model');
+                var currentModel = getStoredModel(provider);
                 var currentSumModel = getSetting('summarizationModel');
 
                 $modelSelect.html('<option value=""><?php echo esc_js(__('Loading...', 'ai-assistant')); ?></option>');
@@ -630,12 +741,29 @@ class Settings {
                 $sumSelect.empty().append('<option value=""><?php echo esc_js(__('Same as chat model', 'ai-assistant')); ?></option>');
 
                 if (models && models.length > 0) {
+                    var selectedModel = currentModel && hasModel(models, currentModel)
+                        ? currentModel
+                        : getRecommendedModel(provider, models);
+                    var usedRecommendation = currentModel !== selectedModel;
                     models.forEach(function(m) {
-                        var selected = m.id === currentModel ? 'selected' : '';
-                        $modelSelect.append('<option value="' + m.id + '" ' + selected + '>' + m.name + '</option>');
-                        var sumSelected = m.id === currentSumModel ? 'selected' : '';
-                        $sumSelect.append('<option value="' + m.id + '" ' + sumSelected + '>' + m.name + '</option>');
+                        var modelName = m.name;
+                        if (m.id === selectedModel && usedRecommendation) {
+                            modelName += ' - <?php echo esc_js(__('Recommended', 'ai-assistant')); ?>';
+                        }
+                        $('<option>')
+                            .val(m.id)
+                            .text(modelName)
+                            .prop('selected', m.id === selectedModel)
+                            .appendTo($modelSelect);
+                        $('<option>')
+                            .val(m.id)
+                            .text(m.name)
+                            .prop('selected', m.id === currentSumModel)
+                            .appendTo($sumSelect);
                     });
+                    if (selectedModel) {
+                        persistModelSelection(provider, selectedModel);
+                    }
                 } else if (provider !== 'local') {
                     $modelSelect.html('<option value=""><?php echo esc_js(__('Enter API key first', 'ai-assistant')); ?></option>');
                 } else {
@@ -828,6 +956,10 @@ class Settings {
 
             // Refresh models button
             $('#ai-refresh-models').on('click', function() { loadModels(); });
+
+            $('#ai_model').on('change', function() {
+                persistModelSelection($('#ai_provider').val(), $(this).val());
+            });
 
             // Reload models when API key changes
             $('#ai_anthropic_key, #ai_openai_key, #ai_local_endpoint').on('change', function() { loadModels(); });
@@ -2398,6 +2530,24 @@ class Settings {
                         localStorage.setItem(storageKey, value);
                     } else {
                         localStorage.removeItem(storageKey);
+                    }
+
+                    if (key === 'model') {
+                        var provider = $('#ai_provider').val();
+                        if (provider) {
+                            var providerModelKey = 'aiAssistant_model_' + provider;
+                            if (value) {
+                                localStorage.setItem(providerModelKey, value);
+                                if (provider === 'local') {
+                                    localStorage.setItem('aiAssistant_localModel', value);
+                                }
+                            } else {
+                                localStorage.removeItem(providerModelKey);
+                                if (provider === 'local') {
+                                    localStorage.removeItem('aiAssistant_localModel');
+                                }
+                            }
+                        }
                     }
                 });
             });
