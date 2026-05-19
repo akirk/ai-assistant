@@ -370,6 +370,42 @@ describe('conversation exports', function() {
     });
 });
 
+describe('conversation area suggestions', function() {
+    it('stores the previous URL component before updating it to the server-provided current area', function() {
+        const { assistant, storage } = loadConversationMixin({
+            aiAssistant_lastUrlComponent: 'my-apps'
+        }, {
+            urlComponent: 'other-app'
+        });
+
+        assistant.restoreUrlComponentContext();
+
+        assert.strictEqual(assistant.getCurrentUrlComponent(), 'other-app');
+        assert.strictEqual(assistant.previousUrlComponent, 'my-apps');
+        assert.strictEqual(storage.getItem('aiAssistant_lastUrlComponent'), 'other-app');
+    });
+
+    it('suggests a new chat only before interaction with a loaded conversation from another area', function() {
+        const { assistant } = loadConversationMixin({
+            aiAssistant_lastUrlComponent: 'my-apps'
+        }, {
+            urlComponent: 'other-app'
+        });
+
+        assistant.restoreUrlComponentContext();
+        assistant.messages = [{ role: 'user', content: 'Current chat' }];
+
+        assert.strictEqual(assistant.shouldSuggestNewChatForCurrentArea(), true);
+
+        assistant.markConversationInteracted();
+        assert.strictEqual(assistant.shouldSuggestNewChatForCurrentArea(), false);
+
+        assistant.messages = [];
+        assistant.conversationInteracted = false;
+        assert.strictEqual(assistant.shouldSuggestNewChatForCurrentArea(), false);
+    });
+});
+
 describe('loading recent conversations', function() {
     it('loads the newest conversation that has saved messages', function() {
         let loadedConversationId = 0;

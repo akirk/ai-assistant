@@ -2267,6 +2267,66 @@ body,
     overflow-wrap: anywhere;
 }
 
+.ai-assistant-area-suggestion {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 9px 14px;
+    border-top: 1px solid #c3c4c7;
+    background: #fff;
+    flex-shrink: 0;
+}
+
+.ai-assistant-area-suggestion[hidden] {
+    display: none;
+}
+
+.ai-area-suggestion-text {
+    min-width: 0;
+    color: #2c3338;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.ai-area-suggestion-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.ai-area-suggestion-actions .button {
+    min-height: 28px;
+    padding: 3px 10px;
+    border: 1px solid #c3c4c7;
+    border-radius: 3px;
+    background: #f6f7f7;
+    color: #1d2327;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+
+.ai-area-suggestion-actions .button:hover {
+    background: #f0f0f1;
+    border-color: #8c8f94;
+}
+
+.ai-area-suggestion-actions .button-primary {
+    background: var(--ai-assistant-accent);
+    border-color: var(--ai-assistant-accent);
+    color: #fff;
+}
+
+.ai-area-suggestion-actions .button-primary:hover {
+    background: var(--ai-assistant-accent-hover);
+    border-color: var(--ai-assistant-accent-hover);
+    color: #fff;
+}
+
 /* Input area */
 .ai-assistant-input-area {
     display: flex;

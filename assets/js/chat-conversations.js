@@ -127,9 +127,102 @@
             input.selectionStart = input.selectionEnd = input.value.length;
         },
 
+        // Route area tracking uses the same server-side URL component as welcome tips.
+        getCurrentUrlComponent: function() {
+            return typeof aiAssistantConfig !== 'undefined' && aiAssistantConfig.urlComponent
+                ? String(aiAssistantConfig.urlComponent)
+                : '';
+        },
+
+        formatUrlComponentLabel: function(component) {
+            component = String(component || '').trim();
+            return component ? '/' + component : 'this area';
+        },
+
+        restoreUrlComponentContext: function() {
+            var current = this.getCurrentUrlComponent();
+            var key = this.urlComponentStorageKey || 'aiAssistant_lastUrlComponent';
+
+            this.previousUrlComponent = '';
+            this.conversationInteracted = false;
+
+            try {
+                this.previousUrlComponent = localStorage.getItem(key) || '';
+                if (current) {
+                    localStorage.setItem(key, current);
+                }
+            } catch (e) {
+                console.warn('[AI Assistant] Could not restore URL component context:', e);
+            }
+        },
+
+        markConversationInteracted: function() {
+            this.conversationInteracted = true;
+            this.hideAreaChangeSuggestion();
+        },
+
+        shouldSuggestNewChatForCurrentArea: function(origin, current) {
+            origin = origin || this.previousUrlComponent || '';
+            current = current || this.getCurrentUrlComponent();
+
+            return !!(
+                this.messages &&
+                this.messages.length > 0 &&
+                !this.pendingNewChat &&
+                !this.conversationInteracted &&
+                origin &&
+                current &&
+                origin !== current
+            );
+        },
+
+        ensureAreaChangeSuggestion: function() {
+            var $suggestion = $('#ai-assistant-area-suggestion');
+            if ($suggestion.length) {
+                return $suggestion;
+            }
+
+            $suggestion = $('<div id="ai-assistant-area-suggestion" class="ai-assistant-area-suggestion" role="status" aria-live="polite" hidden>' +
+                '<div class="ai-area-suggestion-text"></div>' +
+                '<div class="ai-area-suggestion-actions">' +
+                    '<button type="button" id="ai-assistant-area-new-chat" class="button button-primary button-small">Start new chat</button>' +
+                    '<button type="button" id="ai-assistant-area-keep-chat" class="button button-small">Keep chatting</button>' +
+                '</div>' +
+            '</div>');
+
+            $('.ai-assistant-input-area').before($suggestion);
+            return $suggestion;
+        },
+
+        hideAreaChangeSuggestion: function() {
+            $('#ai-assistant-area-suggestion').prop('hidden', true);
+        },
+
+        updateAreaChangeSuggestion: function() {
+            var origin = this.previousUrlComponent || '';
+            var current = this.getCurrentUrlComponent();
+
+            if (!this.shouldSuggestNewChatForCurrentArea(origin, current)) {
+                this.hideAreaChangeSuggestion();
+                return;
+            }
+
+            var $suggestion = this.ensureAreaChangeSuggestion();
+            $suggestion.find('.ai-area-suggestion-text').text(
+                'You moved from ' + this.formatUrlComponentLabel(origin) +
+                ' to ' + this.formatUrlComponentLabel(current) +
+                '. Start a new chat for this area?'
+            );
+            $suggestion.prop('hidden', false);
+        },
+
         // New chat
         newChat: function() {
             var self = this;
+
+            if (this.markConversationInteracted) {
+                this.markConversationInteracted();
+            }
 
             if (this.isFullPage) {
                 this.startNewChat();
@@ -145,6 +238,7 @@
                 this.loadWelcomeMessage();
                 $('#ai-token-count').hide();
                 $('#ai-assistant-new-chat').text('Undo').attr('id', 'ai-assistant-undo-new-chat');
+                this.hideAreaChangeSuggestion();
 
                 $('#ai-assistant-input').focus();
                 return;
@@ -183,6 +277,7 @@
             $('#ai-token-count').show();
             $('#ai-assistant-pending-actions').empty().hide();
             $('#ai-assistant-undo-new-chat').text('New Chat').attr('id', 'ai-assistant-new-chat');
+            this.hideAreaChangeSuggestion();
             this.updateSidebarSelection();
             this.loadWelcomeMessage();
             this.updateSummarizeButton();
@@ -201,6 +296,7 @@
             $('#ai-assistant-undo-new-chat').text('New Chat').attr('id', 'ai-assistant-new-chat');
 
             this.scrollToBottom();
+            this.hideAreaChangeSuggestion();
             $('#ai-assistant-input').focus();
         },
 
@@ -285,6 +381,7 @@
 
                         self.updateSummarizeButton();
                         self.updateExportButton();
+                        self.updateAreaChangeSuggestion();
                     } else {
                         console.error('[AI Assistant] Save failed:', response.data);
                         if (!silent) {
@@ -428,6 +525,7 @@
                         $('#ai-assistant-input').focus();
                         self.updateSummarizeButton();
                         self.updateExportButton();
+                        self.updateAreaChangeSuggestion();
 
                     } else {
                         self.addMessage('error', 'Failed to load: ' + (response.data.message || 'Unknown error'));
@@ -475,6 +573,7 @@
                         self.loadWelcomeMessage();
                         $emptyMessages.css('visibility', 'visible');
                         self.updateExportButton();
+                        self.hideAreaChangeSuggestion();
                     } else {
                         // No conversations - show fresh welcome
                         var $messages = $('#ai-assistant-messages');
@@ -482,6 +581,7 @@
                         self.loadWelcomeMessage();
                         $messages.css('visibility', 'visible');
                         self.updateExportButton();
+                        self.hideAreaChangeSuggestion();
                     }
                 },
                 error: function() {
@@ -491,6 +591,7 @@
                     self.loadWelcomeMessage();
                     $messages.css('visibility', 'visible');
                     self.updateExportButton();
+                    self.hideAreaChangeSuggestion();
                 }
             });
         },

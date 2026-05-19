@@ -165,6 +165,7 @@ class Chat_UI {
     private function get_chat_config() {
         $settings = ai_assistant()->settings();
         $current_user = wp_get_current_user();
+        $welcome_tip_context = $this->get_welcome_tip_context();
 
         return [
             'ajaxUrl' => admin_url('admin-ajax.php'),
@@ -188,7 +189,8 @@ class Chat_UI {
             'restApiUrl' => rest_url(),
             'restApiNonce' => wp_create_nonce('wp_rest'),
             'userDisplayName' => $current_user->display_name,
-            'welcomeTips' => $this->get_welcome_tips(),
+            'welcomeTips' => $this->get_welcome_tips($welcome_tip_context),
+            'urlComponent' => $welcome_tip_context['url_component'],
             'maxClientFileBytes' => (int) apply_filters('ai_assistant_client_file_context_bytes', 128 * 1024),
             'compactClientFileBytes' => (int) apply_filters('ai_assistant_client_file_compact_bytes', 32 * 1024),
             'maxMediaUploadBytes' => (int) wp_max_upload_size(),
@@ -219,8 +221,8 @@ class Chat_UI {
     /**
      * Get URL-matched plugin tips to show before the default welcome message.
      */
-    private function get_welcome_tips() {
-        $context = $this->get_welcome_tip_context();
+    private function get_welcome_tips($context = null) {
+        $context = is_array($context) ? $context : $this->get_welcome_tip_context();
 
         /**
          * Filter welcome tips keyed by first URL path component.
