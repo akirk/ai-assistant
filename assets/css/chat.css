@@ -2280,14 +2280,16 @@ body,
     display: none;
 }
 
-.ai-assistant-area-suggestion a {
-    color: var(--ai-assistant-accent);
+#ai-assistant-area-suggestion a,
+#ai-assistant-area-suggestion a:visited,
+#ai-assistant-area-suggestion a:active {
+    color: var(--ai-assistant-accent) !important;
     white-space: nowrap;
 }
 
-.ai-assistant-area-suggestion a:hover,
-.ai-assistant-area-suggestion a:focus {
-    color: var(--ai-assistant-accent-hover);
+#ai-assistant-area-suggestion a:hover,
+#ai-assistant-area-suggestion a:focus {
+    color: var(--ai-assistant-accent-hover) !important;
 }
 
 /* Input area */
