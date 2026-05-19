@@ -134,11 +134,6 @@
                 : '';
         },
 
-        formatUrlComponentLabel: function(component) {
-            component = String(component || '').trim();
-            return component ? '/' + component : 'this area';
-        },
-
         restoreUrlComponentContext: function() {
             var current = this.getCurrentUrlComponent();
             var key = this.urlComponentStorageKey || 'aiAssistant_lastUrlComponent';
@@ -182,15 +177,17 @@
                 return $suggestion;
             }
 
-            $suggestion = $('<div id="ai-assistant-area-suggestion" class="ai-assistant-area-suggestion" role="status" aria-live="polite" hidden>' +
-                '<div class="ai-area-suggestion-text"></div>' +
-                '<div class="ai-area-suggestion-actions">' +
-                    '<button type="button" id="ai-assistant-area-new-chat" class="button button-primary button-small">Start new chat</button>' +
-                    '<button type="button" id="ai-assistant-area-keep-chat" class="button button-small">Keep chatting</button>' +
+            $suggestion = $('<div id="ai-assistant-area-suggestion" class="ai-message ai-message-system ai-assistant-area-suggestion" role="status" aria-live="polite" hidden>' +
+                '<div class="ai-message-content">' +
+                    '<p>Start a new chat for this page?</p>' +
+                    '<div class="ai-area-suggestion-actions">' +
+                        '<button type="button" id="ai-assistant-area-new-chat" class="button button-primary button-small">Start new chat</button>' +
+                        '<button type="button" id="ai-assistant-area-keep-chat" class="button button-small">Keep chatting</button>' +
+                    '</div>' +
                 '</div>' +
             '</div>');
 
-            $('.ai-assistant-input-area').before($suggestion);
+            $('#ai-assistant-messages').append($suggestion);
             return $suggestion;
         },
 
@@ -208,12 +205,8 @@
             }
 
             var $suggestion = this.ensureAreaChangeSuggestion();
-            $suggestion.find('.ai-area-suggestion-text').text(
-                'You moved from ' + this.formatUrlComponentLabel(origin) +
-                ' to ' + this.formatUrlComponentLabel(current) +
-                '. Start a new chat for this area?'
-            );
             $suggestion.prop('hidden', false);
+            this.scrollToBottom(true);
         },
 
         // New chat

@@ -2268,33 +2268,27 @@ body,
 }
 
 .ai-assistant-area-suggestion {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 12px;
-    padding: 9px 14px;
-    border-top: 1px solid #c3c4c7;
-    background: #fff;
-    flex-shrink: 0;
+    max-width: 85%;
 }
 
 .ai-assistant-area-suggestion[hidden] {
     display: none;
 }
 
-.ai-area-suggestion-text {
-    min-width: 0;
-    color: #2c3338;
-    font-size: 12px;
-    line-height: 1.4;
+.ai-assistant-area-suggestion .ai-message-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ai-assistant-area-suggestion .ai-message-content p {
+    margin: 0;
 }
 
 .ai-area-suggestion-actions {
     display: flex;
-    flex: 0 0 auto;
+    flex-wrap: wrap;
     gap: 6px;
-    margin-left: auto;
 }
 
 .ai-area-suggestion-actions .button {
