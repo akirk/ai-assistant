@@ -51,6 +51,9 @@
         recoveryMessageShown: false,
         wordpressRecoveryCheckInProgress: false,
         abortController: null,
+        isPageExiting: false,
+        pageExitPrepared: false,
+        conversationDirty: false,
         pendingAttachments: [],
         isUploadingFiles: false,
         toolCallSubscriptions: existingAiAssistant.toolCallSubscriptions || [],
@@ -125,8 +128,30 @@
                 self.stopGeneration();
             });
 
+            $(window).on('beforeunload.aiAssistant', function(e) {
+                self.prepareForPageExit(e, {
+                    abort: false,
+                    captureInterruptedReply: false,
+                    markExiting: false
+                });
+
+                if (self.shouldConfirmPageExit()) {
+                    e.preventDefault();
+                    if (e.originalEvent) {
+                        e.originalEvent.returnValue = '';
+                    }
+                    e.returnValue = '';
+                    return '';
+                }
+            });
+
             $(window).on('pagehide.aiAssistant', function(e) {
-                self.handlePageHide(e);
+                self.prepareForPageExit(e, { abort: true });
+            });
+
+            $(window).on('pageshow.aiAssistant', function() {
+                self.isPageExiting = false;
+                self.pageExitPrepared = false;
             });
 
             $(document).on('keydown', '#ai-assistant-input', function(e) {
@@ -581,26 +606,67 @@
             }
         },
 
-        handlePageHide: function(e) {
-            var originalEvent = e && e.originalEvent ? e.originalEvent : e;
+        isExpectedGenerationAbort: function(error) {
+            if (error && error.name === 'AbortError') {
+                return true;
+            }
+
+            return !!(
+                this.isPageExiting ||
+                (this.abortController && this.abortController.signal && this.abortController.signal.aborted)
+            );
+        },
+
+        shouldConfirmPageExit: function() {
             var hasPendingActions = this.pendingActions && this.pendingActions.length > 0;
-            var shouldPersist = this.isLoading || hasPendingActions || this.getQueuedMessageCount() > 0;
+
+            return !!(
+                this.conversationDirty ||
+                this.saveInProgress ||
+                this.isLoading ||
+                hasPendingActions ||
+                this.getQueuedMessageCount() > 0
+            );
+        },
+
+        prepareForPageExit: function(e, options) {
+            options = options || {};
+            var originalEvent = e && e.originalEvent ? e.originalEvent : e;
+            var isPersistedPage = !!(originalEvent && originalEvent.persisted);
+            var hasPendingActions = this.pendingActions && this.pendingActions.length > 0;
+            var shouldPersist = this.conversationDirty || this.isLoading || hasPendingActions || this.getQueuedMessageCount() > 0;
+
+            if (options.markExiting !== false) {
+                this.isPageExiting = !isPersistedPage;
+            }
 
             if (!shouldPersist) {
                 return;
             }
 
-            if (typeof this.captureInterruptedReply === 'function') {
-                this.captureInterruptedReply('Response interrupted because the page changed.');
+            if (!this.pageExitPrepared || options.captureInterruptedReply === false) {
+                if (typeof this.captureInterruptedReply === 'function') {
+                    if (options.captureInterruptedReply !== false) {
+                        this.captureInterruptedReply('Response interrupted because the page changed.');
+                    }
+                }
+
+                if (typeof this.persistConversationForPageExit === 'function') {
+                    this.persistConversationForPageExit();
+                }
+
+                if (options.captureInterruptedReply !== false) {
+                    this.pageExitPrepared = true;
+                }
             }
 
-            if (typeof this.persistConversationForPageExit === 'function') {
-                this.persistConversationForPageExit();
-            }
-
-            if (this.abortController && !(originalEvent && originalEvent.persisted)) {
+            if (options.abort !== false && this.abortController && !isPersistedPage) {
                 this.abortController.abort();
             }
+        },
+
+        handlePageHide: function(e) {
+            this.prepareForPageExit(e, { abort: true });
         },
 
         isPanelOpen: function() {

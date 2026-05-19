@@ -161,6 +161,7 @@
             this.updateReply($streaming, content);
             this.finalizeReply($streaming);
             this.messages.push({ role: 'assistant', content: content });
+            this.conversationDirty = true;
             this.updateTokenCount();
             if (this.updateExportButton) {
                 this.updateExportButton();

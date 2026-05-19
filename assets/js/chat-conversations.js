@@ -268,6 +268,7 @@
             this.titleGenerationToken++;
             this.conversationTitleIsPlaceholder = false;
             this.pendingNewChat = false;
+            this.conversationDirty = false;
             this.pendingAttachments = [];
             if (this.renderPendingAttachments) {
                 this.renderPendingAttachments();
@@ -307,8 +308,25 @@
             return this.conversationTitleIsPlaceholder ? '' : this.conversationTitle;
         },
 
-        getEncodedMessagesForSave: function() {
-            return btoa(unescape(encodeURIComponent(JSON.stringify(this.messages))));
+        getMessagesForSave: function(options) {
+            options = options || {};
+            var messages = Array.isArray(this.messages) ? this.messages.slice() : [];
+            var queuedMessages = options.includeQueued === false || !Array.isArray(this.queuedMessages)
+                ? []
+                : this.queuedMessages;
+
+            queuedMessages.forEach(function(item) {
+                if (item && item.content) {
+                    messages.push({ role: 'user', content: item.content });
+                }
+            });
+
+            return messages;
+        },
+
+        getEncodedMessagesForSave: function(messages) {
+            messages = messages || this.getMessagesForSave();
+            return btoa(unescape(encodeURIComponent(JSON.stringify(messages))));
         },
 
         getConversationSaveData: function(overrides) {
@@ -346,7 +364,9 @@
                 }
             }
 
-            if (this.messages.length === 0) {
+            var messagesForSave = this.getMessagesForSave();
+
+            if (messagesForSave.length === 0) {
                 if (!silent) {
                     this.addMessage('system', 'No messages to save.');
                 }
@@ -368,7 +388,10 @@
             var saveSucceeded = false;
             var saveResponse = null;
             var titleForSave = this.getConversationTitleForSave();
-            var saveData = this.getConversationSaveData({ title: titleForSave });
+            var saveData = this.getConversationSaveData({
+                messages: this.getEncodedMessagesForSave(messagesForSave),
+                title: titleForSave
+            });
             $.ajax({
                 url: aiAssistantConfig.ajaxUrl,
                 type: 'POST',
@@ -429,13 +452,15 @@
                                 pendingCallback(success, response);
                             });
                         });
+                    } else if (saveSucceeded) {
+                        self.conversationDirty = false;
                     }
                 }
             });
         },
 
         autoSaveConversation: function() {
-            if (this.autoSave && this.messages.length > 0) {
+            if (this.autoSave && this.getMessagesForSave().length > 0) {
                 if (this.shouldGenerateConversationTitle && this.shouldGenerateConversationTitle()) {
                     this.titleGenerationAttempted = true;
                     this.saveConversation(true);
@@ -447,11 +472,9 @@
         },
 
         persistConversationForPageExit: function() {
-            if (!this.messages || this.messages.length === 0) {
-                return false;
-            }
+            var messages = this.getMessagesForSave();
 
-            if (this.saveInProgress && !this.conversationId) {
+            if (messages.length === 0) {
                 return false;
             }
 
@@ -461,7 +484,9 @@
 
             var body;
             try {
-                body = this.createConversationSaveBody(this.getConversationSaveData());
+                body = this.createConversationSaveBody(this.getConversationSaveData({
+                    messages: this.getEncodedMessagesForSave(messages)
+                }));
             } catch (e) {
                 console.error('[AI Assistant] Failed to prepare page-exit save:', e);
                 return false;
@@ -524,6 +549,7 @@
                         self.pendingToolResults = [];
                         self.pendingToolChecks = 0;
                         self.executingToolCount = 0;
+                        self.conversationDirty = false;
                         if (self.clearQueuedMessages) {
                             self.clearQueuedMessages();
                         }
