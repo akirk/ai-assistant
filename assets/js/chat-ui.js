@@ -1509,14 +1509,58 @@
             });
         },
 
-        renderWelcomeTips: function() {
-            var tips = this.getWelcomeTips();
-            if (!tips.length) {
-                return false;
+        normalizeWelcomeTipForMessage: function(tip) {
+            return String(tip || '').trim().replace(/^tip:\s*/i, '');
+        },
+
+        isMyWordPressSite: function() {
+            var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+            var urls = [
+                config.homeUrl || '',
+                config.adminUrl || '',
+                config.restApiUrl || ''
+            ];
+
+            if (typeof window !== 'undefined' && window.location && window.location.href) {
+                urls.push(window.location.href);
             }
 
-            this.addMessage('assistant', tips.join('\n\n'), 'ai-welcome-message ai-welcome-tips');
-            return true;
+            return urls.some(function(url) {
+                if (!url) {
+                    return false;
+                }
+
+                try {
+                    return new URL(url, window.location && window.location.href ? window.location.href : undefined).hostname === 'my.wordpress.net';
+                } catch (e) {
+                    return false;
+                }
+            });
+        },
+
+        getWelcomeIntro: function() {
+            if (this.isMyWordPressSite()) {
+                return 'Hello! I\'m your AI Assistant. I can help you shape My WordPress into your personal software home: create private apps, organize data and memories, manage plugins, and adapt workflows. What would you like to do?';
+            }
+
+            return 'Hello! I\'m your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?';
+        },
+
+        buildWelcomeMessage: function() {
+            var message = this.getWelcomeIntro();
+            var tips = this.getWelcomeTips();
+            if (!tips.length) {
+                return message;
+            }
+
+            tips = tips.map(this.normalizeWelcomeTipForMessage).filter(function(tip) {
+                return tip !== '';
+            });
+            if (!tips.length) {
+                return message;
+            }
+
+            return message + '\n\nA few tips for this area of your WordPress:\n- ' + tips.join('\n- ');
         },
 
         loadWelcomeMessage: function() {
@@ -1535,8 +1579,7 @@
                 var model = this.getModel();
                 var providerName = this.getProviderName(provider);
                 var modelInfo = model ? ' (' + model + ')' : '';
-                this.renderWelcomeTips();
-                this.addMessage('assistant', 'Hello! I\'m your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?', 'ai-welcome-message');
+                this.addMessage('assistant', this.buildWelcomeMessage(), 'ai-welcome-message');
                 this.addMessage('system', 'You\'re chatting with **' + providerName + '**' + modelInfo, 'ai-model-info');
                 this.showModelUpgradeNotice(provider, model);
                 this.showLegacyKeyMigrationNotice();
@@ -1616,8 +1659,7 @@
         },
 
         loadConversationWelcome: function(provider, model) {
-            this.renderWelcomeTips();
-            this.addMessage('assistant', 'Hello! I\'m your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?', 'ai-welcome-message');
+            this.addMessage('assistant', this.buildWelcomeMessage(), 'ai-welcome-message');
             // Only show model info if the conversation has it saved
             if (provider) {
                 var providerName = this.getProviderName(provider);
