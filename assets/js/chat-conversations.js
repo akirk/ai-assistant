@@ -1067,7 +1067,11 @@
 
             $menu = $('<div id="ai-conv-context-menu" class="ai-conv-context-menu" role="menu" hidden></div>');
 
-            $('body').append($menu);
+            var $mount = $('.ai-assistant-app-page').first();
+            if ($mount.length === 0) {
+                $mount = $('body');
+            }
+            $mount.append($menu);
             return $menu;
         },
 
