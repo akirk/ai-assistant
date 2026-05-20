@@ -275,14 +275,22 @@
                 $('#ai-assistant-scroll-bottom').toggle(!self.isNearBottom(100));
             });
 
-	            $(document).on('click', '#ai-assistant-expand', function() {
-	                var $container = $('.ai-assistant-chat-container');
-	                var isExpanded = $container.toggleClass('expanded').hasClass('expanded');
-	                var expandPath = 'M9.5 13.09l1.41 1.41-4.5 4.5H10v2H4v-6h2v3.59l4.5-4.5zm5-2.18L13.09 9.5l4.5-4.5H14v-2h6v6h-2V5.41l-4.5 4.5z';
-	                var collapsePath = 'M5.41 4l4.5 4.5L8.5 9.91 4 5.41V9H2V3h6v2H4.41zm13.18 16l-4.5-4.5 1.41-1.41 4.5 4.5V15h2v6h-6v-2h3.59z';
-	                $(this).find('.ai-expand-icon path').attr('d', isExpanded ? collapsePath : expandPath);
-	                $(this).attr('title', isExpanded ? 'Collapse' : 'Expand');
-	            });
+            $(document).on('pointerdown', '#ai-assistant-expand', function(e) {
+                self.startAssistantPanelResize(e, this);
+            });
+
+            $(document).on('dblclick', '#ai-assistant-expand', function(e) {
+                e.preventDefault();
+                self.toggleAssistantPanelMax($(this).closest('.ai-assistant-chat-container'));
+            });
+
+            $(document).on('keydown', '#ai-assistant-expand', function(e) {
+                self.handleAssistantPanelResizeKeydown(e, this);
+            });
+
+            $(window).on('resize.aiAssistantPanelResize', function() {
+                self.clampAssistantPanelHeight();
+            });
 
             $(document).on('click', '#ai-assistant-save-chat', function(e) {
                 e.preventDefault();
@@ -708,6 +716,226 @@
                 $messages.scrollTop($messages[0].scrollHeight);
                 $('#ai-assistant-scroll-bottom').hide();
             }
+        },
+
+        getAssistantPanelResizeLimits: function($container) {
+            var viewportHeight = window.innerHeight || $(window).height() || 0;
+            var rect = $container.length && $container[0].getBoundingClientRect
+                ? $container[0].getBoundingClientRect()
+                : { top: 0 };
+            var bottomPadding = $container.closest('.ai-assistant-standalone-panel').length ? 20 : 24;
+            var max = Math.floor(viewportHeight - rect.top - bottomPadding);
+
+            if (!isFinite(max) || max < 260) {
+                max = Math.max(260, viewportHeight - bottomPadding);
+            }
+
+            var min = viewportHeight < 520 ? 240 : 300;
+            min = Math.min(min, max);
+
+            return {
+                min: min,
+                max: Math.max(min, max)
+            };
+        },
+
+        getAssistantPanelDefaultHeight: function(limits) {
+            var defaultHeight = window.matchMedia && window.matchMedia('(max-width: 782px)').matches ? 300 : 380;
+
+            if (limits) {
+                return Math.min(defaultHeight, limits.max);
+            }
+
+            return defaultHeight;
+        },
+
+        readAssistantPanelHeight: function($container, limits) {
+            if (!$container.length) {
+                return 0;
+            }
+
+            var rawHeight = $container[0].style.getPropertyValue('--ai-assistant-chat-height');
+            var parsedHeight = rawHeight ? parseFloat(rawHeight) : NaN;
+
+            if (isFinite(parsedHeight)) {
+                return parsedHeight;
+            }
+
+            var currentHeight = $container.outerHeight();
+            if (isFinite(currentHeight) && currentHeight > 0) {
+                return currentHeight;
+            }
+
+            return this.getAssistantPanelDefaultHeight(limits);
+        },
+
+        updateAssistantPanelResizeHandle: function($container, height, limits) {
+            var $handle = $container.find('#ai-assistant-expand');
+            if (!$handle.length) {
+                return;
+            }
+
+            $handle.attr({
+                'aria-valuemin': Math.round(limits.min),
+                'aria-valuemax': Math.round(limits.max),
+                'aria-valuenow': Math.round(height)
+            });
+        },
+
+        applyAssistantPanelHeight: function($container, height, limits) {
+            if (!$container.length) {
+                return 0;
+            }
+
+            limits = limits || this.getAssistantPanelResizeLimits($container);
+            if (!isFinite(height)) {
+                height = this.getAssistantPanelDefaultHeight(limits);
+            }
+
+            var nextHeight = Math.round(Math.max(limits.min, Math.min(height, limits.max)));
+            $container[0].style.setProperty('--ai-assistant-chat-height', nextHeight + 'px');
+            $container.toggleClass('expanded', nextHeight >= limits.max - 2);
+            this.updateAssistantPanelResizeHandle($container, nextHeight, limits);
+
+            return nextHeight;
+        },
+
+        startAssistantPanelResize: function(event, handle) {
+            var originalEvent = event.originalEvent || event;
+            if (originalEvent.button !== undefined && originalEvent.button !== 0) {
+                return;
+            }
+
+            var $handle = $(handle);
+            var $container = $handle.closest('.ai-assistant-chat-container');
+            if (!$container.length || !isFinite(originalEvent.clientY)) {
+                return;
+            }
+
+            var self = this;
+            var limits = this.getAssistantPanelResizeLimits($container);
+            var startHeight = this.applyAssistantPanelHeight($container, this.readAssistantPanelHeight($container, limits), limits);
+            var startY = originalEvent.clientY;
+            var pointerId = originalEvent.pointerId;
+
+            $container.addClass('is-resizing').removeClass('expanded');
+            $('body').addClass('ai-assistant-panel-resizing');
+
+            if (handle.setPointerCapture && pointerId !== undefined) {
+                try {
+                    handle.setPointerCapture(pointerId);
+                } catch (error) {
+                    // Pointer capture can fail if the browser has already canceled the pointer.
+                }
+            }
+
+            $(document).off('.aiAssistantResize');
+            $(document).on('pointermove.aiAssistantResize', function(moveEvent) {
+                var moveOriginal = moveEvent.originalEvent || moveEvent;
+                if (pointerId !== undefined && moveOriginal.pointerId !== undefined && moveOriginal.pointerId !== pointerId) {
+                    return;
+                }
+                if (!isFinite(moveOriginal.clientY)) {
+                    return;
+                }
+
+                self.applyAssistantPanelHeight($container, startHeight + moveOriginal.clientY - startY);
+                moveEvent.preventDefault();
+            });
+
+            $(document).on('pointerup.aiAssistantResize pointercancel.aiAssistantResize', function(upEvent) {
+                var upOriginal = upEvent.originalEvent || upEvent;
+                if (pointerId !== undefined && upOriginal.pointerId !== undefined && upOriginal.pointerId !== pointerId) {
+                    return;
+                }
+
+                $(document).off('.aiAssistantResize');
+                $container.removeClass('is-resizing');
+                $('body').removeClass('ai-assistant-panel-resizing');
+
+                if (handle.releasePointerCapture && pointerId !== undefined) {
+                    try {
+                        handle.releasePointerCapture(pointerId);
+                    } catch (error) {
+                        // Pointer capture may already be released after pointer cancellation.
+                    }
+                }
+            });
+
+            event.preventDefault();
+        },
+
+        toggleAssistantPanelMax: function($container) {
+            if (!$container.length) {
+                return;
+            }
+
+            var limits = this.getAssistantPanelResizeLimits($container);
+            var currentHeight = this.readAssistantPanelHeight($container, limits);
+            var defaultHeight = this.getAssistantPanelDefaultHeight(limits);
+            var targetHeight = currentHeight >= limits.max - 2 ? defaultHeight : limits.max;
+
+            this.applyAssistantPanelHeight($container, targetHeight, limits);
+            this.scrollToBottom();
+        },
+
+        handleAssistantPanelResizeKeydown: function(event, handle) {
+            var $container = $(handle).closest('.ai-assistant-chat-container');
+            if (!$container.length) {
+                return;
+            }
+
+            var limits = this.getAssistantPanelResizeLimits($container);
+            var currentHeight = this.readAssistantPanelHeight($container, limits);
+            var step = event.shiftKey ? 60 : 24;
+            var targetHeight = null;
+
+            switch (event.key) {
+                case 'ArrowDown':
+                    targetHeight = currentHeight + step;
+                    break;
+                case 'ArrowUp':
+                    targetHeight = currentHeight - step;
+                    break;
+                case 'PageDown':
+                    targetHeight = currentHeight + 120;
+                    break;
+                case 'PageUp':
+                    targetHeight = currentHeight - 120;
+                    break;
+                case 'Home':
+                    targetHeight = limits.min;
+                    break;
+                case 'End':
+                    targetHeight = limits.max;
+                    break;
+                case 'Enter':
+                case ' ':
+                case 'Spacebar':
+                    this.toggleAssistantPanelMax($container);
+                    event.preventDefault();
+                    return;
+                default:
+                    return;
+            }
+
+            this.applyAssistantPanelHeight($container, targetHeight, limits);
+            this.scrollToBottom();
+            event.preventDefault();
+        },
+
+        clampAssistantPanelHeight: function() {
+            var self = this;
+
+            $('.ai-assistant-chat-container').each(function() {
+                var $container = $(this);
+                if (!$container.find('#ai-assistant-expand').length) {
+                    return;
+                }
+
+                var limits = self.getAssistantPanelResizeLimits($container);
+                self.applyAssistantPanelHeight($container, self.readAssistantPanelHeight($container, limits), limits);
+            });
         },
 
         truncateFromUserMessage: function(content) {

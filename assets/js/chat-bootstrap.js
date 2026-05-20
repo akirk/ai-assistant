@@ -41,10 +41,10 @@
         return escapeHtml(value);
     }
 
-    function expandIcon() {
-        return '<svg class="ai-expand-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
-            '<path d="M9.5 13.09l1.41 1.41-4.5 4.5H10v2H4v-6h2v3.59l4.5-4.5zm5-2.18L13.09 9.5l4.5-4.5H14v-2h6v6h-2V5.41l-4.5 4.5z"/>' +
-            '</svg>';
+    function resizeHandle() {
+        return '<div id="ai-assistant-expand" class="ai-assistant-resize-handle" role="separator" tabindex="0" aria-controls="ai-assistant-messages" aria-orientation="horizontal" aria-valuemin="300" aria-valuemax="900" aria-valuenow="380" aria-label="' + escapeAttr(text('resizePanel', 'Resize AI Assistant')) + '" title="' + escapeAttr(text('resizePanelTitle', 'Drag to resize AI Assistant. Double-click to fit the window.')) + '">' +
+            '<span class="ai-resize-grip" aria-hidden="true"></span>' +
+            '</div>';
     }
 
     function attachIcon() {
@@ -71,8 +71,6 @@
                             '<a href="' + escapeAttr(url('history')) + '" class="ai-header-link">' + escapeHtml(text('history', 'Conversations')) + '</a>' +
                             '<span class="ai-header-sep">|</span>' +
                             '<a href="' + escapeAttr(url('settings')) + '" class="ai-header-link">' + escapeHtml(text('settings', 'Settings')) + '</a>' +
-                            '<span class="ai-header-sep">|</span>' +
-                            '<button type="button" id="ai-assistant-expand" class="ai-header-link" title="' + escapeAttr(text('expand', 'Expand')) + '">' + expandIcon() + '</button>' +
                         '</div>' +
                     '</div>' +
                     '<div id="ai-assistant-messages"></div>' +
@@ -93,6 +91,7 @@
                         '<button type="button" id="ai-assistant-send" class="button button-primary">' + escapeHtml(text('send', 'Send')) + '</button>' +
                         '<button type="button" id="ai-assistant-stop" class="button" style="display: none;" title="' + escapeAttr(text('stopGeneration', 'Stop generation')) + '"></button>' +
                     '</div>' +
+                    resizeHandle() +
                 '</div>' +
             '</div>' +
         '</div>';
