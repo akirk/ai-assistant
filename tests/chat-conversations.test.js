@@ -118,6 +118,7 @@ function createJQuery(input, options) {
 }
 
 function loadConversationMixin(initialStorage, config, options) {
+    options = options || {};
     const input = {
         value: '',
         selectionStart: 0,
@@ -132,12 +133,19 @@ function loadConversationMixin(initialStorage, config, options) {
         draftHistoryMax: 10
     };
     const storage = createStorage(initialStorage);
+    const windowObject = Object.assign({
+        aiAssistant,
+        URL
+    }, options.window || {});
+    windowObject.aiAssistant = aiAssistant;
+
     const context = {
-        window: { aiAssistant },
+        window: windowObject,
+        URL,
         jQuery: createJQuery(input, options),
         aiAssistantConfig: config || {},
         localStorage: storage,
-        fetch: options && options.fetch,
+        fetch: options.fetch,
         btoa(value) {
             return Buffer.from(value, 'binary').toString('base64');
         },
@@ -404,6 +412,155 @@ describe('conversation area suggestions', function() {
         assistant.messages = [];
         assistant.conversationInteracted = false;
         assert.strictEqual(assistant.shouldSuggestNewChatForCurrentArea(), false);
+    });
+});
+
+describe('conversation page history', function() {
+    it('builds a conversation URL while preserving unrelated query params', function() {
+        const { assistant } = loadConversationMixin(null, {}, {
+            window: {
+                location: new URL('http://example.test/ai-assistant/conversations/?conversation=12&filter=open#messages')
+            }
+        });
+
+        assert.strictEqual(
+            assistant.getConversationRouteUrl(34),
+            '/ai-assistant/conversations/?filter=open&conversation=34#messages'
+        );
+        assert.strictEqual(
+            assistant.getConversationRouteUrl(0),
+            '/ai-assistant/conversations/?filter=open#messages'
+        );
+    });
+
+    it('pushes a conversation URL on the full-page conversations app', function() {
+        const pushed = [];
+        const location = new URL('http://example.test/ai-assistant/conversations/');
+        const { assistant } = loadConversationMixin(null, {}, {
+            window: {
+                location,
+                history: {
+                    pushState(state, title, url) {
+                        pushed.push({ state, title, url });
+                        const next = new URL(url, location.href);
+                        location.href = next.href;
+                    },
+                    replaceState() {}
+                }
+            }
+        });
+
+        assistant.isFullPage = true;
+        assistant.updateConversationRoute(42);
+
+        assert.strictEqual(pushed.length, 1);
+        assert.strictEqual(pushed[0].state.aiAssistantConversationId, 42);
+        assert.strictEqual(pushed[0].title, '');
+        assert.strictEqual(pushed[0].url, '/ai-assistant/conversations/?conversation=42');
+    });
+
+    it('loads the URL conversation on browser history navigation without pushing again', function() {
+        let popstateHandler = null;
+        let loadedConversationId = 0;
+        let loadOptions = null;
+        const { assistant } = loadConversationMixin(null, {}, {
+            window: {
+                location: new URL('http://example.test/ai-assistant/conversations/?conversation=42'),
+                history: {
+                    pushState() {},
+                    replaceState() {}
+                },
+                addEventListener(type, handler) {
+                    if (type === 'popstate') {
+                        popstateHandler = handler;
+                    }
+                }
+            }
+        });
+
+        assistant.isFullPage = true;
+        assistant.conversationId = 12;
+        assistant.loadConversation = function(conversationId, options) {
+            loadedConversationId = conversationId;
+            loadOptions = options;
+        };
+
+        assistant.bindConversationHistoryEvents();
+        popstateHandler();
+
+        assert.strictEqual(loadedConversationId, 42);
+        assert.strictEqual(loadOptions.updateHistory, false);
+    });
+
+    it('restores the default recent conversation for a bare conversations URL history entry', function() {
+        let popstateHandler = null;
+        let recentOptions = null;
+        let newChatStarted = false;
+        const { assistant } = loadConversationMixin(null, {}, {
+            window: {
+                location: new URL('http://example.test/ai-assistant/conversations/'),
+                history: {
+                    pushState() {},
+                    replaceState() {}
+                },
+                addEventListener(type, handler) {
+                    if (type === 'popstate') {
+                        popstateHandler = handler;
+                    }
+                }
+            }
+        });
+
+        assistant.isFullPage = true;
+        assistant.conversationId = 42;
+        assistant.messages = [{ role: 'user', content: 'Current conversation' }];
+        assistant.loadMostRecentConversation = function(options) {
+            recentOptions = options;
+        };
+        assistant.startNewChat = function() {
+            newChatStarted = true;
+        };
+
+        assistant.bindConversationHistoryEvents();
+        popstateHandler({ state: null });
+
+        assert.strictEqual(newChatStarted, false);
+        assert.strictEqual(recentOptions.updateHistory, false);
+    });
+
+    it('restores new chat state for a pushed bare conversations URL', function() {
+        let popstateHandler = null;
+        let newChatOptions = null;
+        let recentLoaded = false;
+        const { assistant } = loadConversationMixin(null, {}, {
+            window: {
+                location: new URL('http://example.test/ai-assistant/conversations/'),
+                history: {
+                    pushState() {},
+                    replaceState() {}
+                },
+                addEventListener(type, handler) {
+                    if (type === 'popstate') {
+                        popstateHandler = handler;
+                    }
+                }
+            }
+        });
+
+        assistant.isFullPage = true;
+        assistant.conversationId = 42;
+        assistant.loadMostRecentConversation = function() {
+            recentLoaded = true;
+        };
+        assistant.startNewChat = function(options) {
+            newChatOptions = options;
+        };
+
+        assistant.bindConversationHistoryEvents();
+        popstateHandler({ state: { aiAssistantConversationId: 0 } });
+
+        assert.strictEqual(recentLoaded, false);
+        assert.strictEqual(newChatOptions.updateHistory, false);
     });
 });
 

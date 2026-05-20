@@ -218,6 +218,142 @@
             this.scrollToBottom(true);
         },
 
+        shouldUseConversationHistory: function() {
+            return !!(
+                this.isFullPage &&
+                typeof window !== 'undefined' &&
+                window.history &&
+                typeof window.history.pushState === 'function' &&
+                typeof window.history.replaceState === 'function' &&
+                window.location
+            );
+        },
+
+        getConversationRouteUrlConstructor: function() {
+            if (typeof window !== 'undefined' && window.URL) {
+                return window.URL;
+            }
+
+            if (typeof URL !== 'undefined') {
+                return URL;
+            }
+
+            return null;
+        },
+
+        getConversationRouteUrl: function(conversationId) {
+            if (typeof window === 'undefined' || !window.location) {
+                return '';
+            }
+
+            var UrlConstructor = this.getConversationRouteUrlConstructor();
+            if (!UrlConstructor) {
+                return '';
+            }
+
+            var id = parseInt(conversationId, 10) || 0;
+            var url;
+
+            try {
+                url = new UrlConstructor(window.location.href);
+            } catch (e) {
+                return '';
+            }
+
+            url.searchParams.delete('conversation');
+            url.searchParams.delete('conversation_id');
+
+            if (id > 0) {
+                url.searchParams.set('conversation', String(id));
+            }
+
+            return url.pathname + url.search + url.hash;
+        },
+
+        getCurrentConversationRouteId: function() {
+            if (typeof window === 'undefined' || !window.location) {
+                return 0;
+            }
+
+            var UrlConstructor = this.getConversationRouteUrlConstructor();
+            if (!UrlConstructor) {
+                return 0;
+            }
+
+            try {
+                var url = new UrlConstructor(window.location.href);
+                var id = parseInt(url.searchParams.get('conversation') || url.searchParams.get('conversation_id'), 10);
+                return id > 0 ? id : 0;
+            } catch (e) {
+                return 0;
+            }
+        },
+
+        getCurrentConversationRouteUrl: function() {
+            if (typeof window === 'undefined' || !window.location) {
+                return '';
+            }
+
+            return window.location.pathname + window.location.search + window.location.hash;
+        },
+
+        updateConversationRoute: function(conversationId, options) {
+            if (!this.shouldUseConversationHistory()) {
+                return;
+            }
+
+            options = options || {};
+
+            var id = parseInt(conversationId, 10) || 0;
+            var url = this.getConversationRouteUrl(id);
+            if (!url || url === this.getCurrentConversationRouteUrl()) {
+                return;
+            }
+
+            var method = options.replace ? 'replaceState' : 'pushState';
+            window.history[method]({
+                aiAssistantConversationId: id
+            }, '', url);
+        },
+
+        bindConversationHistoryEvents: function() {
+            var self = this;
+
+            if (this.conversationHistoryEventsBound || typeof window === 'undefined' || !window.addEventListener) {
+                return;
+            }
+
+            this.conversationHistoryEventsBound = true;
+
+            window.addEventListener('popstate', function(event) {
+                if (!self.shouldUseConversationHistory()) {
+                    return;
+                }
+
+                var conversationId = self.getCurrentConversationRouteId();
+                var currentConversationId = parseInt(self.conversationId, 10) || 0;
+                var stateConversationId = event && event.state
+                    ? parseInt(event.state.aiAssistantConversationId, 10)
+                    : null;
+
+                if (conversationId > 0) {
+                    if (conversationId !== currentConversationId) {
+                        self.loadConversation(conversationId, { updateHistory: false });
+                    }
+                    return;
+                }
+
+                if (stateConversationId === 0) {
+                    self.startNewChat({ updateHistory: false });
+                    return;
+                }
+
+                if (currentConversationId > 0 || (self.messages && self.messages.length > 0)) {
+                    self.loadMostRecentConversation({ updateHistory: false });
+                }
+            });
+        },
+
         // New chat
         newChat: function() {
             var self = this;
@@ -249,7 +385,8 @@
             this.startNewChat();
         },
 
-        startNewChat: function() {
+        startNewChat: function(options) {
+            options = options || {};
             this.messages = [];
             this.pendingActions = [];
             this.pendingToolChecks = 0;
@@ -285,6 +422,9 @@
             this.loadWelcomeMessage();
             this.updateSummarizeButton();
             this.updateExportButton();
+            if (options.updateHistory !== false) {
+                this.updateConversationRoute(0);
+            }
             $('#ai-assistant-input').focus();
         },
 
@@ -413,6 +553,7 @@
                             self.conversationTitleIsPlaceholder = false;
                         }
                         self.updateSidebarSelection();
+                        self.updateConversationRoute(self.conversationId);
                         if (!silent) {
                             self.addMessage('system', 'Conversation saved.');
                         }
@@ -522,8 +663,9 @@
             return false;
         },
 
-        loadConversation: function(conversationId) {
+        loadConversation: function(conversationId, options) {
             var self = this;
+            options = options || {};
 
             // Hide immediately to avoid showing stale content during load
             $('#ai-assistant-messages').css('visibility', 'hidden');
@@ -589,6 +731,11 @@
                         self.updateSummarizeButton();
                         self.updateExportButton();
                         self.updateAreaChangeSuggestion();
+                        if (options.updateHistory !== false) {
+                            self.updateConversationRoute(self.conversationId, {
+                                replace: !!options.replaceHistory
+                            });
+                        }
 
                     } else {
                         self.addMessage('error', 'Failed to load: ' + (response.data.message || 'Unknown error'));
@@ -601,8 +748,9 @@
             });
         },
 
-        loadMostRecentConversation: function() {
+        loadMostRecentConversation: function(options) {
             var self = this;
+            options = options || {};
 
             // Hide immediately to avoid showing stale content during load
             $('#ai-assistant-messages').css('visibility', 'hidden');
@@ -626,7 +774,9 @@
                         }
 
                         if (mostRecent) {
-                            self.loadConversation(mostRecent.id);
+                            self.loadConversation(mostRecent.id, {
+                                updateHistory: options.updateHistory !== false
+                            });
                             return;
                         }
 
