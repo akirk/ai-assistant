@@ -77,6 +77,12 @@ class Conversations {
         return json_decode($json, true) ?: [];
     }
 
+    private function get_raw_conversation_title($post_id) {
+        $title = get_post_field('post_title', $post_id, 'raw');
+
+        return is_string($title) ? $title : '';
+    }
+
     public function register_default_export_formats($formats, $conversation = null) {
         $formats = (array) $formats;
 
@@ -478,15 +484,15 @@ class Conversations {
     public function admin_post_export_conversation() {
         check_admin_referer('ai_assistant_chat');
 
-        $conversation_id = intval($_GET['conversation_id'] ?? 0);
-        $format_slug = sanitize_key($_GET['format'] ?? 'markdown');
+        $conversation_id = intval(wp_unslash($_GET['conversation_id'] ?? 0));
+        $format_slug = sanitize_key(wp_unslash($_GET['format'] ?? 'markdown'));
         $conversation = $this->get_conversation_export_data($conversation_id);
 
         if (is_wp_error($conversation)) {
             wp_die(esc_html($conversation->get_error_message()), '', ['response' => 403]);
         }
 
-        $conversation['include_tool_calls'] = isset($_GET['include_tool_calls']) && $_GET['include_tool_calls'] === '1';
+        $conversation['include_tool_calls'] = isset($_GET['include_tool_calls']) && wp_unslash($_GET['include_tool_calls']) === '1';
         $conversation = $this->prepare_conversation_messages_for_export($conversation, [
             'format' => $format_slug,
             'extension' => $format_slug,
@@ -1269,11 +1275,11 @@ class Conversations {
             wp_send_json_error(['message' => 'Permission denied']);
         }
 
-        $conversation_id = intval($_POST['conversation_id'] ?? 0);
-        $messages_base64 = $_POST['messages'] ?? '';
-        $title = sanitize_text_field($_POST['title'] ?? '');
-        $provider = sanitize_text_field($_POST['provider'] ?? '');
-        $model = sanitize_text_field($_POST['model'] ?? '');
+        $conversation_id = intval(wp_unslash($_POST['conversation_id'] ?? 0));
+        $messages_base64 = sanitize_text_field(wp_unslash($_POST['messages'] ?? ''));
+        $title = sanitize_text_field(wp_unslash($_POST['title'] ?? ''));
+        $provider = sanitize_text_field(wp_unslash($_POST['provider'] ?? ''));
+        $model = sanitize_text_field(wp_unslash($_POST['model'] ?? ''));
         $system_prompt = isset($_POST['system_prompt']) && is_scalar($_POST['system_prompt'])
             ? (string) wp_unslash($_POST['system_prompt'])
             : '';
@@ -1330,7 +1336,7 @@ class Conversations {
 
         wp_send_json_success([
             'conversation_id' => $post_id,
-            'title' => get_the_title($post_id),
+            'title' => $this->get_raw_conversation_title($post_id),
             'title_status' => $title_status,
         ]);
     }
@@ -1338,7 +1344,7 @@ class Conversations {
     public function ajax_load_conversation() {
         check_ajax_referer('ai_assistant_chat', '_wpnonce');
 
-        $conversation_id = intval($_POST['conversation_id'] ?? 0);
+        $conversation_id = intval(wp_unslash($_POST['conversation_id'] ?? 0));
 
         if ($conversation_id <= 0) {
             wp_send_json_error(['message' => 'Invalid conversation ID']);
@@ -1413,7 +1419,7 @@ class Conversations {
     public function ajax_delete_conversation() {
         check_ajax_referer('ai_assistant_chat', '_wpnonce');
 
-        $conversation_id = intval($_POST['conversation_id'] ?? 0);
+        $conversation_id = intval(wp_unslash($_POST['conversation_id'] ?? 0));
 
         if ($conversation_id <= 0) {
             wp_send_json_error(['message' => 'Invalid conversation ID']);
@@ -1436,9 +1442,9 @@ class Conversations {
     public function ajax_rename_conversation() {
         check_ajax_referer('ai_assistant_chat', '_wpnonce');
 
-        $conversation_id = intval($_POST['conversation_id'] ?? 0);
-        $title = sanitize_text_field($_POST['title'] ?? '');
-        $title_status = sanitize_key($_POST['title_status'] ?? 'manual');
+        $conversation_id = intval(wp_unslash($_POST['conversation_id'] ?? 0));
+        $title = sanitize_text_field(wp_unslash($_POST['title'] ?? ''));
+        $title_status = sanitize_key(wp_unslash($_POST['title_status'] ?? 'manual'));
 
         if ($conversation_id <= 0) {
             wp_send_json_error(['message' => 'Invalid conversation ID']);
@@ -1477,7 +1483,7 @@ class Conversations {
     public function ajax_get_conversation_for_summary() {
         check_ajax_referer('ai_assistant_chat', '_wpnonce');
 
-        $conversation_id = intval($_POST['conversation_id'] ?? 0);
+        $conversation_id = intval(wp_unslash($_POST['conversation_id'] ?? 0));
 
         if ($conversation_id <= 0) {
             wp_send_json_error(['message' => 'Invalid conversation ID']);
@@ -1537,8 +1543,8 @@ class Conversations {
             wp_send_json_error(['message' => 'Permission denied']);
         }
 
-        $conversation_id = intval($_POST['conversation_id'] ?? 0);
-        $summary = sanitize_textarea_field($_POST['summary'] ?? '');
+        $conversation_id = intval(wp_unslash($_POST['conversation_id'] ?? 0));
+        $summary = sanitize_textarea_field(wp_unslash($_POST['summary'] ?? ''));
 
         if ($conversation_id <= 0) {
             wp_send_json_error(['message' => 'Invalid conversation ID']);
