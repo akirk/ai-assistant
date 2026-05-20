@@ -70,6 +70,9 @@
             var self = this;
             this.setupAjaxErrorTracking();
             this.bindEvents();
+            if (this.bindConversationHistoryEvents) {
+                this.bindConversationHistoryEvents();
+            }
             this.buildSystemPrompt();
             this.restoreDraft();
             this.restoreYoloMode();
@@ -98,7 +101,7 @@
                 if (aiAssistantPageConfig.conversationId > 0) {
                     this.loadConversation(aiAssistantPageConfig.conversationId);
                 } else {
-                    this.loadMostRecentConversation();
+                    this.loadMostRecentConversation({ updateHistory: false });
                 }
             } else {
                 this.loadWelcomeMessage();
