@@ -11,26 +11,54 @@ if (!defined('ABSPATH')) {
 class Wp_App_Abilities {
 
     private ?Git_Tracker_Manager $git_tracker_manager;
+    private bool $category_registered = false;
+    private bool $abilities_registered = false;
+    private bool $category_deferred = false;
+    private bool $abilities_deferred = false;
 
     public function __construct(?Git_Tracker_Manager $git_tracker_manager = null) {
         $this->git_tracker_manager = $git_tracker_manager;
 
-        if (function_exists('did_action') && did_action('wp_abilities_api_categories_init')) {
-            $this->register_category();
-        } else {
-            add_action('wp_abilities_api_categories_init', [$this, 'register_category']);
-        }
-
-        if (function_exists('did_action') && did_action('wp_abilities_api_init')) {
-            $this->register_abilities();
-        } else {
-            add_action('wp_abilities_api_init', [$this, 'register_abilities']);
-        }
+        $this->add_init_safe_action('wp_abilities_api_categories_init', 'register_category');
+        $this->add_init_safe_action('wp_abilities_api_init', 'register_abilities');
 
         add_filter('ai_assistant_ability_domains', [$this, 'register_ability_domain']);
     }
 
+    private function add_init_safe_action(string $hook, string $method): void {
+        if (function_exists('did_action') && did_action($hook)) {
+            $this->$method();
+            return;
+        }
+
+        add_action($hook, [$this, $method]);
+    }
+
+    private function is_init_or_later(): bool {
+        if (!function_exists('did_action')) {
+            return true;
+        }
+
+        if (did_action('init')) {
+            return true;
+        }
+
+        return function_exists('doing_action') && doing_action('init');
+    }
+
     public function register_category(): void {
+        if ($this->category_registered) {
+            return;
+        }
+
+        if (!$this->is_init_or_later()) {
+            if (!$this->category_deferred) {
+                add_action('init', [$this, 'register_category'], 0);
+                $this->category_deferred = true;
+            }
+            return;
+        }
+
         if (!function_exists('wp_register_ability_category')) {
             return;
         }
@@ -39,9 +67,23 @@ class Wp_App_Abilities {
             'label'       => __('Create WpApp', 'ai-assistant'),
             'description' => __('Scaffold WordPress app plugins powered by WpApp.', 'ai-assistant'),
         ]);
+
+        $this->category_registered = true;
     }
 
     public function register_abilities(): void {
+        if ($this->abilities_registered) {
+            return;
+        }
+
+        if (!$this->is_init_or_later()) {
+            if (!$this->abilities_deferred) {
+                add_action('init', [$this, 'register_abilities'], 0);
+                $this->abilities_deferred = true;
+            }
+            return;
+        }
+
         if (!function_exists('wp_register_ability')) {
             return;
         }
@@ -67,6 +109,8 @@ class Wp_App_Abilities {
                 'show_in_rest' => false,
             ],
         ]);
+
+        $this->abilities_registered = true;
     }
 
     public function register_ability_domain(array $domains): array {

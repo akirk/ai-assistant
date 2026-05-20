@@ -92,15 +92,12 @@ final class AI_Assistant {
 
     private function init_hooks() {
         add_action('plugins_loaded', [$this, 'init']);
-        add_filter('my_apps_plugins', [$this, 'register_my_apps_icon']);
+        add_action('init', [$this, 'register_my_apps_integration'], 0);
         register_activation_hook(__FILE__, [$this, 'activate']);
         register_deactivation_hook(__FILE__, [$this, 'deactivate']);
     }
 
     public function init() {
-        // Load text domain
-        load_plugin_textdomain('ai-assistant', false, dirname(AI_ASSISTANT_PLUGIN_BASENAME) . '/languages');
-
         // Initialize Connectors bridge (WordPress 7.0+)
         if (AI_Assistant\Connectors_Bridge::is_available()) {
             $this->connectors_bridge = new AI_Assistant\Connectors_Bridge();
@@ -119,6 +116,13 @@ final class AI_Assistant {
         $this->plugin_recovery_admin = new AI_Assistant\Plugin_Recovery_Admin();
         $this->conversations_app = new AI_Assistant\Conversations_App();
         $this->wp_app_abilities = new AI_Assistant\Wp_App_Abilities($this->git_tracker_manager);
+    }
+
+    /**
+     * Register integrations that expose translated visible labels.
+     */
+    public function register_my_apps_integration() {
+        add_filter('my_apps_plugins', [$this, 'register_my_apps_icon']);
     }
 
     /**

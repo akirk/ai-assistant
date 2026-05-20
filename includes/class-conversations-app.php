@@ -23,7 +23,7 @@ class Conversations_App {
             AI_ASSISTANT_PLUGIN_DIR . 'templates/conversations',
             self::URL_PATH,
             [
-                'app_name' => __('AI Assistant', 'ai-assistant'),
+                'app_name' => 'AI Assistant',
                 'require_capability' => 'edit_posts',
                 'admin_bar_app_link' => false,
                 'my_apps' => false,
