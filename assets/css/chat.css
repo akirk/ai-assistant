@@ -106,15 +106,20 @@ body,
 
 /* Chat container inside the panel */
 .ai-assistant-chat-container {
+    --ai-assistant-chat-default-height: 380px;
+    --ai-assistant-chat-min-height: 300px;
+    --ai-assistant-chat-max-height: calc(100vh - 150px);
     display: flex;
     flex-direction: column;
-    height: 380px;
+    height: min(var(--ai-assistant-chat-height, var(--ai-assistant-chat-default-height)), var(--ai-assistant-chat-max-height));
+    min-height: var(--ai-assistant-chat-min-height);
+    max-height: var(--ai-assistant-chat-max-height);
     border: 1px solid #c3c4c7;
     border-radius: 4px;
     background: #fff;
     overflow: hidden;
     position: relative;
-    transition: height 0.3s ease;
+    transition: height 0.18s ease;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
     font-size: 13px;
     font-weight: 400;
@@ -133,7 +138,11 @@ body,
 }
 
 .ai-assistant-chat-container.expanded {
-    height: calc(100vh - 150px);
+    /* State hook for roomier nested previews when the panel is maximized. */
+}
+
+.ai-assistant-chat-container.is-resizing {
+    transition: none;
 }
 
 /* Header */
@@ -267,24 +276,46 @@ body,
     text-transform: uppercase;
 }
 
-#ai-assistant-expand {
-    background: none;
-    border: none;
+.ai-assistant-resize-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 12px;
+    width: 100%;
+    height: 12px;
+    margin: 0;
     padding: 0;
-    cursor: pointer;
-    line-height: 1;
-    vertical-align: middle;
+    border: 0;
+    border-top: 1px solid #dcdcde;
+    background: #f6f7f7;
+    color: #646970;
+    cursor: ns-resize;
+    touch-action: none;
 }
 
-#ai-assistant-expand svg {
-    width: 16px;
-    height: 16px;
-    fill: currentColor;
-    vertical-align: middle;
+.ai-assistant-resize-handle:hover,
+.ai-assistant-resize-handle:focus {
+    background: #f0f0f1;
+    color: var(--ai-assistant-accent);
+    outline: none;
 }
 
-#ai-assistant-expand:hover {
-    text-decoration: none;
+.ai-assistant-resize-handle:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--ai-assistant-accent);
+}
+
+.ai-resize-grip {
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-top: 1px solid currentColor;
+    border-bottom: 1px solid currentColor;
+    opacity: 0.65;
+}
+
+body.ai-assistant-panel-resizing {
+    cursor: ns-resize;
+    user-select: none;
 }
 
 .ai-header-sep {
@@ -2697,19 +2728,20 @@ body.wp-admin .ai-assistant-standalone-wrap {
 }
 
 .ai-assistant-standalone-panel .ai-assistant-chat-container {
-    height: 380px;
+    --ai-assistant-chat-default-height: 380px;
 }
 
 .ai-assistant-standalone-panel .ai-assistant-chat-container.expanded {
-    height: calc(100vh - 150px);
+    /* State hook for roomier nested previews when the panel is maximized. */
 }
 
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-chat-container {
+    --ai-assistant-chat-max-height: calc(100vh - var(--ai-assistant-adminbar-offset) - var(--ai-assistant-standalone-panel-chrome));
     display: flex !important;
     flex-direction: column !important;
-    height: min(380px, calc(100vh - var(--ai-assistant-adminbar-offset) - var(--ai-assistant-standalone-panel-chrome))) !important;
-    min-height: 0 !important;
-    max-height: calc(100vh - var(--ai-assistant-adminbar-offset) - var(--ai-assistant-standalone-panel-chrome)) !important;
+    height: min(var(--ai-assistant-chat-height, var(--ai-assistant-chat-default-height)), var(--ai-assistant-chat-max-height)) !important;
+    min-height: var(--ai-assistant-chat-min-height) !important;
+    max-height: var(--ai-assistant-chat-max-height) !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
@@ -2725,7 +2757,7 @@ body.wp-admin .ai-assistant-standalone-wrap {
 }
 
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-chat-container.expanded {
-    height: calc(100vh - var(--ai-assistant-adminbar-offset) - var(--ai-assistant-standalone-panel-chrome)) !important;
+    /* State hook for roomier nested previews when the panel is maximized. */
 }
 
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-header {
@@ -2794,35 +2826,47 @@ body.wp-admin .ai-assistant-standalone-wrap {
     padding: 0 !important;
 }
 
-.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-expand {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-expand.ai-assistant-resize-handle {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    flex: 0 0 16px !important;
-    width: 16px !important;
-    min-width: 16px !important;
-    max-width: 16px !important;
-    height: 16px !important;
-    min-height: 16px !important;
-    max-height: 16px !important;
+    flex: 0 0 12px !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    height: 12px !important;
+    min-height: 12px !important;
+    max-height: 12px !important;
     margin: 0 !important;
     padding: 0 !important;
-    border: none !important;
-    background: none !important;
+    border: 0 !important;
+    border-top: 1px solid #dcdcde !important;
+    background: #f6f7f7 !important;
     box-shadow: none !important;
-    color: var(--ai-assistant-accent) !important;
-    cursor: pointer !important;
+    color: #646970 !important;
+    cursor: ns-resize !important;
     font-size: 0 !important;
     line-height: 0 !important;
+    touch-action: none !important;
 }
 
-.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-expand svg {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-expand.ai-assistant-resize-handle:hover,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-expand.ai-assistant-resize-handle:focus {
+    background: #f0f0f1 !important;
+    color: var(--ai-assistant-accent) !important;
+    outline: none !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-expand.ai-assistant-resize-handle .ai-resize-grip {
     display: block;
-    flex: 0 0 16px !important;
-    width: 16px !important;
-    height: 16px !important;
+    flex: 0 0 auto !important;
+    width: 36px !important;
+    height: 4px !important;
     margin: 0 !important;
     padding: 0 !important;
+    border-top: 1px solid currentColor !important;
+    border-bottom: 1px solid currentColor !important;
+    opacity: 0.65 !important;
 }
 
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-messages {
@@ -3736,7 +3780,8 @@ body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
 /* Responsive */
 @media screen and (max-width: 782px) {
     .ai-assistant-chat-container {
-        height: 300px;
+        --ai-assistant-chat-default-height: 300px;
+        --ai-assistant-chat-min-height: 260px;
     }
 
     .ai-message {
@@ -4031,6 +4076,7 @@ body.ai-assistant-app-body {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    max-height: none;
 }
 
 .ai-chat-main #ai-assistant-messages {
