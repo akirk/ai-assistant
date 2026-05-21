@@ -2762,7 +2762,7 @@ class Settings {
             .ai-skill-item { border: 1px solid #ddd; margin-bottom: -1px; }
             .ai-skill-header { display: block; padding: 10px 12px; background: #f9f9f9; cursor: pointer; text-decoration: none; color: inherit; }
             .ai-skill-header:hover { background: #f0f0f0; }
-            .ai-skill-header:focus { outline: 2px solid var(--ai-assistant-accent, var(--wp-admin-theme-color, #2271b1)); outline-offset: -2px; }
+            .ai-skill-header:focus { outline: 2px solid var(--ai-assistant-accent, var(--wp-admin-theme-color)); outline-offset: -2px; }
             .ai-skill-header .dashicons { float: right; color: #666; transition: transform 0.2s; }
             .ai-skill-item.open .ai-skill-header .dashicons { transform: rotate(180deg); }
             .ai-skill-header code { background: #e0e0e0; padding: 2px 6px; border-radius: 3px; }

@@ -5,45 +5,29 @@ use PHPUnit\Framework\TestCase;
 
 final class AdminColorsTest extends TestCase {
 
-    protected function setUp(): void {
-        parent::setUp();
-        $GLOBALS['wp_test_user_options'] = [];
-        $GLOBALS['_wp_admin_css_colors'] = [];
-    }
-
-    public function test_custom_scheme_uses_wordpress_admin_theme_variables_with_current_scheme_fallbacks(): void {
-        $GLOBALS['wp_test_user_options']['admin_color'] = 'white-accent';
-        $GLOBALS['_wp_admin_css_colors']['white-accent'] = (object) [
-            'colors' => ['#f6f7f7', '#ffffff'],
-        ];
-
+    public function test_css_uses_runtime_admin_color_tokens_without_hardcoded_color_fallbacks(): void {
         $css = Admin_Colors::get_current_scheme_css('.ai-test');
 
-        $this->assertStringContainsString('--ai-assistant-accent: var(--wp-admin-theme-color, #ffffff);', $css);
-        $this->assertStringContainsString('--ai-assistant-accent-rgb: var(--wp-admin-theme-color--rgb, 255, 255, 255);', $css);
-        $this->assertStringContainsString('--ai-assistant-accent-hover: var(--wp-admin-theme-color-darker-10, #e6e6e6);', $css);
-        $this->assertStringNotContainsString('accent-contrast', $css);
+        $this->assertStringContainsString('--ai-assistant-accent: var(--wp-app-admin-color-primary, var(--wp-admin-theme-color));', $css);
+        $this->assertStringContainsString('--ai-assistant-accent-hover: var(--wp-app-admin-color-primary-hover, var(--wp-app-admin-color-primary, var(--wp-admin-theme-color-darker-10, var(--ai-assistant-accent))));', $css);
+        $this->assertStringContainsString('--ai-assistant-accent-active: var(--wp-app-admin-color-primary-active, var(--wp-app-admin-color-primary, var(--wp-admin-theme-color-darker-20, var(--ai-assistant-accent-hover))));', $css);
+        $this->assertStringNotContainsString('#', $css);
     }
 
-    public function test_frontend_shell_css_uses_current_scheme_values_directly(): void {
-        $GLOBALS['wp_test_user_options']['admin_color'] = 'modern';
-
-        $css = Admin_Colors::get_current_scheme_css('.ai-test', false);
-
-        $this->assertStringContainsString('--ai-assistant-accent: #3858e9;', $css);
-        $this->assertStringContainsString('--ai-assistant-accent-rgb: 56, 88, 233;', $css);
-        $this->assertStringContainsString('--ai-assistant-accent-hover: #2145e6;', $css);
-        $this->assertStringContainsString('--ai-assistant-accent-active: #183ad6;', $css);
-        $this->assertStringNotContainsString('--wp-admin-theme-color', $css);
+    public function test_empty_selector_returns_empty_css(): void {
+        $this->assertSame('', Admin_Colors::get_current_scheme_css('   '));
     }
 
-    public function test_default_scheme_uses_wordpress_admin_theme_variables_with_fallbacks(): void {
-        $GLOBALS['wp_test_user_options']['admin_color'] = 'fresh';
+    public function test_stylesheets_do_not_hardcode_colors_in_assistant_custom_properties(): void {
+        foreach (['chat.css', 'changes.css'] as $file) {
+            $css = file_get_contents(dirname(__DIR__) . '/assets/css/' . $file);
+            $this->assertIsString($css);
 
-        $css = Admin_Colors::get_current_scheme_css('.ai-test');
+            preg_match_all('/^\s*--ai-assistant-[\w-]+:\s*[^;]+;/m', $css, $matches);
 
-        $this->assertStringContainsString('--ai-assistant-accent: var(--wp-admin-theme-color, #2271b1);', $css);
-        $this->assertStringContainsString('--ai-assistant-accent-hover: var(--wp-admin-theme-color-darker-10, #135e96);', $css);
-        $this->assertStringContainsString('--ai-assistant-accent-active: var(--wp-admin-theme-color-darker-20, #0a4b78);', $css);
+            foreach ($matches[0] as $definition) {
+                $this->assertDoesNotMatchRegularExpression('/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i', $definition, $file . ': ' . $definition);
+            }
+        }
     }
 }
