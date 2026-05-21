@@ -67,7 +67,7 @@ class Admin_Colors {
         ],
     ];
 
-    public static function get_current_scheme_css(string $selector): string {
+    public static function get_current_scheme_css(string $selector, bool $use_admin_css_variables = true): string {
         $colors = self::get_current_scheme_colors();
         $selector = trim($selector);
 
@@ -75,18 +75,31 @@ class Admin_Colors {
             return '';
         }
 
+        $accent = $use_admin_css_variables
+            ? sprintf('var(--wp-admin-theme-color, %s)', $colors['accent'])
+            : $colors['accent'];
+        $accent_rgb = $use_admin_css_variables
+            ? sprintf('var(--wp-admin-theme-color--rgb, %s)', $colors['accent_rgb'])
+            : $colors['accent_rgb'];
+        $hover = $use_admin_css_variables
+            ? sprintf('var(--wp-admin-theme-color-darker-10, %s)', $colors['hover'])
+            : $colors['hover'];
+        $active = $use_admin_css_variables
+            ? sprintf('var(--wp-admin-theme-color-darker-20, %s)', $colors['active'])
+            : $colors['active'];
+
         return sprintf(
             "%s {\n" .
-            "    --ai-assistant-accent: var(--wp-admin-theme-color, %s);\n" .
-            "    --ai-assistant-accent-rgb: var(--wp-admin-theme-color--rgb, %s);\n" .
-            "    --ai-assistant-accent-hover: var(--wp-admin-theme-color-darker-10, %s);\n" .
-            "    --ai-assistant-accent-active: var(--wp-admin-theme-color-darker-20, %s);\n" .
+            "    --ai-assistant-accent: %s;\n" .
+            "    --ai-assistant-accent-rgb: %s;\n" .
+            "    --ai-assistant-accent-hover: %s;\n" .
+            "    --ai-assistant-accent-active: %s;\n" .
             "}\n",
             $selector,
-            $colors['accent'],
-            $colors['accent_rgb'],
-            $colors['hover'],
-            $colors['active']
+            $accent,
+            $accent_rgb,
+            $hover,
+            $active
         );
     }
 

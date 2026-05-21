@@ -48,7 +48,7 @@ class Chat_UI {
         );
         wp_add_inline_style(
             'ai-assistant-chat',
-            Admin_Colors::get_current_scheme_css(':root, body, #ai-assistant-wrap, .ai-assistant-standalone-wrap, .ai-assistant-page, .ai-assistant-chat-container')
+            $this->get_color_css()
         );
 
         wp_enqueue_script('wp-codemirror');
@@ -517,7 +517,7 @@ class Chat_UI {
             'inlineStyles' => [
                 [
                     'id' => 'ai-assistant-chat-colors',
-                    'css' => Admin_Colors::get_current_scheme_css(':root, body, #ai-assistant-wrap, .ai-assistant-standalone-wrap, .ai-assistant-page, .ai-assistant-chat-container'),
+                    'css' => $this->get_color_css(),
                 ],
             ],
             'scripts' => [
@@ -573,6 +573,17 @@ class Chat_UI {
                 ],
             ],
         ];
+    }
+
+    /**
+     * Get color custom properties for admin and isolated frontend shells.
+     */
+    private function get_color_css() {
+        // Admin pages can follow live wp-admin CSS vars. Frontend shells get the
+        // current user's scheme values directly, so block/theme CSS cannot point
+        // assistant components at an unrelated frontend color.
+        return Admin_Colors::get_current_scheme_css(':root, body, #ai-assistant-wrap, .ai-assistant-chat-container')
+            . Admin_Colors::get_current_scheme_css('body:not(.wp-admin) .ai-assistant-standalone-wrap, .ai-assistant-page.ai-assistant-app-page', false);
     }
 
     /**

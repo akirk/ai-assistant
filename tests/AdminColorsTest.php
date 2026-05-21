@@ -25,6 +25,18 @@ final class AdminColorsTest extends TestCase {
         $this->assertStringNotContainsString('accent-contrast', $css);
     }
 
+    public function test_frontend_shell_css_uses_current_scheme_values_directly(): void {
+        $GLOBALS['wp_test_user_options']['admin_color'] = 'modern';
+
+        $css = Admin_Colors::get_current_scheme_css('.ai-test', false);
+
+        $this->assertStringContainsString('--ai-assistant-accent: #3858e9;', $css);
+        $this->assertStringContainsString('--ai-assistant-accent-rgb: 56, 88, 233;', $css);
+        $this->assertStringContainsString('--ai-assistant-accent-hover: #2145e6;', $css);
+        $this->assertStringContainsString('--ai-assistant-accent-active: #183ad6;', $css);
+        $this->assertStringNotContainsString('--wp-admin-theme-color', $css);
+    }
+
     public function test_default_scheme_uses_wordpress_admin_theme_variables_with_fallbacks(): void {
         $GLOBALS['wp_test_user_options']['admin_color'] = 'fresh';
 

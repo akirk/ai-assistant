@@ -2403,7 +2403,7 @@ body.ai-assistant-panel-resizing {
 #ai-assistant-input {
     flex: 1;
     padding: 8px 10px;
-    border: 1px solid #8c8f94;
+    border: 1px solid var(--ai-assistant-accent);
     border-radius: 4px;
     font-family: inherit;
     font-size: 13px;
@@ -3284,7 +3284,7 @@ body.wp-admin .ai-assistant-standalone-wrap {
     padding: 8px 10px !important;
     overflow-y: auto !important;
     resize: none !important;
-    border: 1px solid #8c8f94 !important;
+    border: 1px solid var(--ai-assistant-accent) !important;
     border-radius: 4px !important;
     color: #1d2327 !important;
     background: #fff !important;
@@ -3849,17 +3849,10 @@ body.ai-assistant-app-body {
     background: var(--wp-app-color-surface, #fff);
 }
 
-body.ai-assistant-app-body,
 .ai-assistant-page.ai-assistant-app-page {
-    --ai-assistant-accent: var(--wp-app-color-primary, var(--wp-admin-theme-color, #2271b1));
-    --ai-assistant-accent-hover: var(--wp-app-color-primary-hover, var(--wp-admin-theme-color-darker-10, #135e96));
-}
-
-.ai-assistant-app-page .ai-chat-main .ai-message.ai-message-user > .ai-message-content,
-.ai-assistant-app-page .ai-message-user .ai-message-content,
-.ai-assistant-app-page .ai-conv-item.active {
-    background: var(--wp-app-color-primary, var(--ai-assistant-accent)) !important;
-    color: #fff !important;
+    /* Bridge WpApp buttons to the assistant accent token instead of styling each button. */
+    --wp-app-color-primary: var(--ai-assistant-accent);
+    --wp-app-color-primary-hover: var(--ai-assistant-accent-hover);
 }
 
 .ai-assistant-app-page .ai-sidebar-link,
