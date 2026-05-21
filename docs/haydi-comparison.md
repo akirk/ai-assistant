@@ -33,7 +33,7 @@ In short:
 | --- | --- | --- |
 | Primary target | WordPress Playground, local models, flexible admin/frontend assistant | Production WP admin automation through WordPress Connectors |
 | Availability model | Ambient latch follows logged-in users across wp-admin and the frontend through the WordPress admin/master bar | Dedicated Haydi admin screen plus REST/MCP access |
-| WordPress requirement | WordPress 6.0+; Connector proxy is used only when Connectors are available | WordPress 7.0+ |
+| WordPress requirement | WordPress 6.0+; Connector proxy is used only when Connectors are available | WordPress 7.0+ because Haydi depends on WordPress Connectors |
 | PHP requirement | PHP 7.4+ | PHP 8.0+ in `readme.txt` |
 | AI provider path | Connector-backed Anthropic/OpenAI use a transparent PHP proxy; pre-Connector cloud calls and local LLM endpoints remain browser-direct | PHP calls WordPress AI Client / Connectors |
 | Response streaming | True provider/token streaming for supported providers; Connector cloud calls stream through the PHP proxy when cURL streaming is available | Server-sent progress events, not provider token streaming |
@@ -203,9 +203,10 @@ In short:
 
 ### Weaknesses
 
-- It requires WordPress 7.0 Connectors, which narrows the install base. By
-  contrast, `ai-assistant` can still run on pre-Connector WordPress installs
-  using its legacy browser-direct provider path.
+- It requires WordPress 7.0 because it depends on WordPress Connectors, which
+  narrows the install base. By contrast, `ai-assistant` can still run on
+  pre-Connector WordPress installs using its legacy browser-direct provider
+  path.
 - It does not solve the remote-host/local-LLM problem the same way. If the AI
   provider must be reached from PHP, local-only endpoints are harder unless a
   Connector can reach them from the server environment.
