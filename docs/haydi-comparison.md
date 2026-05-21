@@ -1,17 +1,16 @@
 # AI Assistant vs Haydi
 
 This document compares the current `ai-assistant` plugin with the sibling
-`../haydi` project. Both are WordPress admin AI assistants, but they optimize
+Haydi project. Both are WordPress admin AI assistants, but they optimize
 for different deployment assumptions and risk profiles.
 
 ## Executive Summary
 
 `ai-assistant` is a Playground- and local-LLM-oriented WordPress workbench. It
-uses a hybrid provider path: Connector-backed Anthropic/OpenAI calls go through
-a transparent PHP proxy so cloud API keys stay server-side, while pre-Connector
-WordPress installs and local endpoints such as Ollama and LM Studio continue to
-use the browser-direct path. It exposes a broad tool surface, integrates with
-WordPress Abilities, and tracks AI file changes with a git-compatible history.
+supports server-side cloud credentials when WordPress Connectors are available,
+while still supporting older WordPress installs and local endpoints such as
+Ollama and LM Studio. It exposes a broad tool surface, integrates with WordPress
+Abilities, and tracks AI file changes with a git-compatible history.
 
 `Haydi` is a production-admin-oriented site management assistant. It routes AI
 calls through WordPress 7.0 Connectors on the server, keeps API credentials out
