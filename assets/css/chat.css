@@ -3,17 +3,12 @@
 :root,
 body,
 :where(#ai-assistant-wrap, .ai-assistant-standalone-wrap, .ai-assistant-page, .ai-assistant-chat-container) {
-    --ai-assistant-accent: var(--wp-app-admin-color-primary, var(--wp-admin-theme-color, #2271b1));
-    --ai-assistant-accent-rgb: var(--wp-admin-theme-color--rgb, 34, 113, 177);
-    --ai-assistant-accent-hover: var(--wp-app-admin-color-background, var(--wp-admin-theme-color-darker-10, #135e96));
-    --ai-assistant-accent-active: var(--wp-app-admin-color-background, var(--wp-admin-theme-color-darker-20, #0a4b78));
-    --ai-assistant-accent-soft: rgba(var(--ai-assistant-accent-rgb), 0.08);
+    --ai-assistant-accent: var(--wp-app-admin-color-primary, var(--wp-admin-theme-color));
+    --ai-assistant-accent-hover: var(--wp-app-admin-color-primary-hover, var(--wp-app-admin-color-primary, var(--wp-admin-theme-color-darker-10, var(--ai-assistant-accent))));
+    --ai-assistant-accent-active: var(--wp-app-admin-color-primary-active, var(--wp-app-admin-color-primary, var(--wp-admin-theme-color-darker-20, var(--ai-assistant-accent-hover))));
     --ai-assistant-accent-soft: color-mix(in srgb, var(--ai-assistant-accent) 8%, transparent);
-    --ai-assistant-accent-softer: rgba(var(--ai-assistant-accent-rgb), 0.04);
     --ai-assistant-accent-softer: color-mix(in srgb, var(--ai-assistant-accent) 4%, transparent);
-    --ai-assistant-accent-highlight: rgba(var(--ai-assistant-accent-rgb), 0.14);
     --ai-assistant-accent-highlight: color-mix(in srgb, var(--ai-assistant-accent) 14%, transparent);
-    --ai-assistant-accent-border: rgba(var(--ai-assistant-accent-rgb), 0.35);
     --ai-assistant-accent-border: color-mix(in srgb, var(--ai-assistant-accent) 35%, transparent);
 }
 
@@ -2229,7 +2224,7 @@ body.ai-assistant-panel-resizing {
     justify-content: center;
     z-index: 30;
     padding: 20px;
-    background: rgba(var(--ai-assistant-accent-rgb), 0.1);
+    background: var(--ai-assistant-accent-soft);
     border: 2px dashed var(--ai-assistant-accent);
     color: var(--ai-assistant-accent-hover);
     font-size: 14px;
@@ -2403,7 +2398,7 @@ body.ai-assistant-panel-resizing {
 #ai-assistant-input {
     flex: 1;
     padding: 8px 10px;
-    border: 1px solid #8c8f94;
+    border: 1px solid var(--ai-assistant-accent);
     border-radius: 4px;
     font-family: inherit;
     font-size: 13px;
@@ -3131,7 +3126,7 @@ body.wp-admin .ai-assistant-standalone-wrap {
     padding: 20px !important;
     border: 2px dashed var(--ai-assistant-accent) !important;
     color: var(--ai-assistant-accent-hover) !important;
-    background: rgba(var(--ai-assistant-accent-rgb), 0.1) !important;
+    background: var(--ai-assistant-accent-soft) !important;
     pointer-events: none !important;
     font-size: 14px !important;
     font-weight: 600 !important;
@@ -3284,7 +3279,7 @@ body.wp-admin .ai-assistant-standalone-wrap {
     padding: 8px 10px !important;
     overflow-y: auto !important;
     resize: none !important;
-    border: 1px solid #8c8f94 !important;
+    border: 1px solid var(--ai-assistant-accent) !important;
     border-radius: 4px !important;
     color: #1d2327 !important;
     background: #fff !important;
@@ -3847,6 +3842,24 @@ body.ai-assistant-app-body {
 .ai-assistant-app-page .ai-chat-main .ai-assistant-input-area,
 .ai-assistant-app-page .ai-chat-main .ai-assistant-attachments {
     background: var(--wp-app-color-surface, #fff);
+}
+
+.ai-assistant-app-page .ai-sidebar-link,
+.ai-assistant-app-page .ai-sidebar-link:visited {
+    background: transparent !important;
+    color: #646970 !important;
+    text-decoration: none !important;
+}
+
+.ai-assistant-app-page .ai-sidebar-link:hover,
+.ai-assistant-app-page .ai-sidebar-link:focus {
+    background: transparent !important;
+    color: var(--ai-assistant-accent) !important;
+    text-decoration: none !important;
+}
+
+.ai-assistant-app-page .ai-sidebar-link .dashicons {
+    text-decoration: none !important;
 }
 
 .ai-chat-layout {
