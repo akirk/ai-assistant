@@ -1982,8 +1982,9 @@
                 $('#ai-assistant-messages').append($container);
             } else {
                 // Move container to end of messages if it already exists
-                // This handles cases where LLM responds multiple times with tool calls
-                $container.attr('open', '');
+                // This handles cases where LLM responds multiple times with tool calls.
+                // Preserve the current open/closed state so progress updates do not
+                // fight the user's choice while tools are running.
                 $('#ai-assistant-messages').append($container);
             }
             return $container;
@@ -2003,11 +2004,11 @@
             var names = [];
             ids.forEach(function(id) { var n = state[id].name; if (n && !seen[n]) { seen[n] = true; names.push(n); } });
             var base = (total === 1 ? '1 tool' : total + ' tools') + (names.length ? ': ' + names.join(', ') : '');
+            $container.toggleClass('ai-tool-cards-complete', done === total && total > 0);
             if (done === total && total > 0) {
-                $container.removeAttr('open');
-                $container.find('.ai-tool-cards-summary').text(base);
+                $container.find('.ai-tool-cards-summary').text(base + ' - complete');
             } else {
-                $container.find('.ai-tool-cards-summary').text(base + ' \u2013 ' + done + '/' + total + ' done');
+                $container.find('.ai-tool-cards-summary').text(base + ' - ' + done + '/' + total + ' done');
             }
         },
 
@@ -2275,13 +2276,28 @@
         },
 
         clearToolCards: function() {
+            var previousState = this.toolCardsState || {};
             this.toolCardsState = {};
             var $container = $('#ai-assistant-tool-cards');
             var $finished = $container.find('.ai-tool-card-completed, .ai-tool-card-error, .ai-tool-card-skipped');
             if ($finished.length > 0) {
-                var state = this.toolCardsState;
                 var seen = {}, names = [];
-                Object.keys(state).forEach(function(id) { var n = state[id].name; if (n && !seen[n]) { seen[n] = true; names.push(n); } });
+                Object.keys(previousState).forEach(function(id) {
+                    var n = previousState[id].name;
+                    if (n && !seen[n]) {
+                        seen[n] = true;
+                        names.push(n);
+                    }
+                });
+                if (names.length === 0) {
+                    $finished.find('.ai-tool-card-name').each(function() {
+                        var n = $(this).text();
+                        if (n && !seen[n]) {
+                            seen[n] = true;
+                            names.push(n);
+                        }
+                    });
+                }
                 var count = $finished.length;
                 var label = (count === 1 ? '1 tool' : count + ' tools') + (names.length ? ': ' + names.join(', ') : '');
                 var $group = $('<details class="ai-tool-cards-group"><summary class="ai-tool-cards-summary">' + this.escapeHtml(label) + '</summary></details>');

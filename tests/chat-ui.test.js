@@ -7,6 +7,16 @@ const vm = require('node:vm');
 function loadUiMixin(config, globals) {
     const aiAssistant = {};
     globals = globals || {};
+    const jQuery = globals.jQuery || {
+        extend(target, ...sources) {
+            return Object.assign(target, ...sources);
+        }
+    };
+    if (!jQuery.extend) {
+        jQuery.extend = function(target, ...sources) {
+            return Object.assign(target, ...sources);
+        };
+    }
     const windowGlobals = {
         aiAssistant,
         aiAssistantConfig: config || {}
@@ -16,11 +26,7 @@ function loadUiMixin(config, globals) {
         aiAssistantConfig: config || {},
         fetch: globals.fetch || fetch,
         URL,
-        jQuery: {
-            extend(target, ...sources) {
-                return Object.assign(target, ...sources);
-            }
-        },
+        jQuery,
         console
     };
 
@@ -31,6 +37,181 @@ function loadUiMixin(config, globals) {
     );
     vm.runInContext(source, context);
     return aiAssistant;
+}
+
+function createToolCardsDom() {
+    class Element {
+        constructor(tagName, attrs, text) {
+            this.tagName = tagName;
+            this.attrs = Object.assign({}, attrs || {});
+            this.classes = new Set();
+            this.children = [];
+            this.parent = null;
+            this.textContent = text || '';
+
+            if (this.attrs.class) {
+                this.attrs.class.split(/\s+/).filter(Boolean).forEach(className => {
+                    this.classes.add(className);
+                });
+            }
+        }
+    }
+
+    const byId = {};
+    const messages = new Element('div', { id: 'ai-assistant-messages' });
+    byId['ai-assistant-messages'] = messages;
+
+    function register(element) {
+        if (element.attrs.id) {
+            byId[element.attrs.id] = element;
+        }
+        element.children.forEach(register);
+    }
+
+    function matches(element, selector) {
+        selector = selector.trim();
+        if (!selector) return false;
+        if (selector[0] === '.') {
+            return element.classes.has(selector.slice(1));
+        }
+        if (selector[0] === '#') {
+            return element.attrs.id === selector.slice(1);
+        }
+        return element.tagName === selector.toLowerCase();
+    }
+
+    function findAll(root, selector) {
+        const selectors = selector.split(',').map(item => item.trim()).filter(Boolean);
+        const results = [];
+
+        function visit(element) {
+            if (selectors.some(item => matches(element, item))) {
+                results.push(element);
+            }
+            element.children.forEach(visit);
+        }
+
+        root.children.forEach(visit);
+        return results;
+    }
+
+    function detach(element) {
+        if (!element.parent) return;
+        element.parent.children = element.parent.children.filter(child => child !== element);
+        element.parent = null;
+    }
+
+    function wrapper(elements) {
+        elements = elements || [];
+        return {
+            length: elements.length,
+            elements,
+            append(childWrapper) {
+                const children = childWrapper && childWrapper.elements ? childWrapper.elements : [];
+                elements.forEach(parent => {
+                    children.forEach(child => {
+                        detach(child);
+                        child.parent = parent;
+                        parent.children.push(child);
+                        register(child);
+                    });
+                });
+                return this;
+            },
+            attr(name, value) {
+                if (value === undefined) {
+                    return elements[0] ? elements[0].attrs[name] : undefined;
+                }
+                elements.forEach(element => {
+                    element.attrs[name] = String(value);
+                    if (name === 'class') {
+                        element.classes = new Set(String(value).split(/\s+/).filter(Boolean));
+                    }
+                });
+                return this;
+            },
+            removeAttr(name) {
+                elements.forEach(element => {
+                    delete element.attrs[name];
+                });
+                return this;
+            },
+            find(selector) {
+                return wrapper(elements.flatMap(element => findAll(element, selector)));
+            },
+            text(value) {
+                if (value === undefined) {
+                    return elements.map(element => element.textContent).join('');
+                }
+                elements.forEach(element => {
+                    element.textContent = String(value);
+                });
+                return this;
+            },
+            toggleClass(className, enabled) {
+                elements.forEach(element => {
+                    if (enabled) {
+                        element.classes.add(className);
+                    } else {
+                        element.classes.delete(className);
+                    }
+                    element.attrs.class = Array.from(element.classes).join(' ');
+                });
+                return this;
+            },
+            hasClass(className) {
+                return !!(elements[0] && elements[0].classes.has(className));
+            }
+        };
+    }
+
+    function createDetailsFromHtml(html) {
+        const open = /\sopen(?:[>\s])/.test(html);
+        const idMatch = html.match(/id="([^"]+)"/);
+        const summaryClassMatch = html.match(/<summary[^>]*class="([^"]+)"/);
+        const summaryTextMatch = html.match(/<summary[^>]*>(.*?)<\/summary>/);
+        const details = new Element('details', {
+            id: idMatch ? idMatch[1] : undefined
+        });
+        if (open) {
+            details.attrs.open = '';
+        }
+        const summary = new Element('summary', {
+            class: summaryClassMatch ? summaryClassMatch[1] : ''
+        }, summaryTextMatch ? summaryTextMatch[1] : '');
+        summary.parent = details;
+        details.children.push(summary);
+        register(details);
+        return details;
+    }
+
+    function jQueryStub(selector) {
+        if (typeof selector === 'string' && selector[0] === '<') {
+            return wrapper([createDetailsFromHtml(selector)]);
+        }
+        if (selector === '#ai-assistant-messages') {
+            return wrapper([messages]);
+        }
+        if (typeof selector === 'string' && selector[0] === '#') {
+            const element = byId[selector.slice(1)];
+            return wrapper(element ? [element] : []);
+        }
+        return wrapper([]);
+    }
+
+    jQueryStub.extend = function(target, ...sources) {
+        return Object.assign(target, ...sources);
+    };
+
+    return {
+        $: jQueryStub,
+        get container() {
+            return byId['ai-assistant-tool-cards'];
+        },
+        get summary() {
+            return byId['ai-assistant-tool-cards'].children[0];
+        }
+    };
 }
 
 function imageResponse(body, type) {
@@ -48,6 +229,38 @@ function imageResponse(body, type) {
         }
     };
 }
+
+describe('tool card details behavior', function() {
+    it('does not collapse the live tool cards when all tools finish', function() {
+        const dom = createToolCardsDom();
+        const assistant = loadUiMixin({}, { jQuery: dom.$ });
+
+        assistant.getToolCardsContainer();
+        assistant.toolCardsState = {
+            'tool-1': {
+                name: 'read_file',
+                state: 'completed'
+            }
+        };
+
+        assistant.updateToolCardsSummary();
+
+        assert.strictEqual(Object.prototype.hasOwnProperty.call(dom.container.attrs, 'open'), true);
+        assert.strictEqual(dom.summary.textContent, '1 tool: read_file - complete');
+        assert.strictEqual(dom.container.classes.has('ai-tool-cards-complete'), true);
+    });
+
+    it('does not reopen live tool cards after the user closes them', function() {
+        const dom = createToolCardsDom();
+        const assistant = loadUiMixin({}, { jQuery: dom.$ });
+
+        assistant.getToolCardsContainer();
+        dom.$('#ai-assistant-tool-cards').removeAttr('open');
+        assistant.getToolCardsContainer();
+
+        assert.strictEqual(Object.prototype.hasOwnProperty.call(dom.container.attrs, 'open'), false);
+    });
+});
 
 describe('welcome message', function() {
     it('blends configured tips into the assistant welcome message', function() {

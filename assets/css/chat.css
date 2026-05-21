@@ -814,6 +814,10 @@ body.ai-assistant-panel-resizing {
     color: #1d2327;
 }
 
+#ai-assistant-tool-cards.ai-tool-cards-complete > .ai-tool-cards-summary {
+    color: #646970;
+}
+
 /* Tool card base */
 .ai-tool-card {
     background: #fff;
