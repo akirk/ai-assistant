@@ -63,8 +63,8 @@ In short:
   Anthropic/OpenAI requests are proxied through PHP; local LLMs and
   pre-Connector installs still use the browser-direct path.
 - Local LLM use remains practical even when WordPress is hosted somewhere else.
-  A remote PHP server does not need to reach `localhost:11434`; the user's
-  browser can.
+  A remote PHP server cannot reach `localhost:11434` on the user's machine; the
+  user's browser can.
 - True response streaming remains a core advantage. Browser-direct providers
   stream directly to JavaScript, and Connector-backed cloud calls can stream
   through the transparent PHP proxy when the host supports cURL streaming.
