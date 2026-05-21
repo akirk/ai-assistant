@@ -227,7 +227,7 @@
             // Must have at least one model to be usable
             if (!config.models || config.models.length === 0) return false;
             if (config.type === 'server') return true;
-            return !!(config.apiKey);
+            return !!(config.serverSideAuth || config.apiKey);
         },
 
         /**
@@ -343,7 +343,11 @@
                 if (providerConfig && providerConfig.apiKey) {
                     return providerConfig.apiKey;
                 }
-                // Fall through to localStorage for local or unconfigured providers
+                // Connector-backed cloud keys stay server-side and are used via the LLM proxy.
+                if (providerConfig && providerConfig.serverSideAuth) {
+                    return '';
+                }
+                // Fall through to localStorage for local or unconfigured providers.
             }
 
             if (provider === 'anthropic') {
@@ -547,7 +551,10 @@
 
             // Mask API keys
             var apiKey = this.getApiKey();
-            settings.apiKey = apiKey ? '***' + apiKey.slice(-4) : '';
+            var providerConfig = this.isConnectorsMode() && typeof aiAssistantProviders !== 'undefined'
+                ? aiAssistantProviders.available[settings.provider]
+                : null;
+            settings.apiKey = apiKey ? '***' + apiKey.slice(-4) : (providerConfig && providerConfig.serverSideAuth ? 'server-side' : '');
 
             return settings;
         },

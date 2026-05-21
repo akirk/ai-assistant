@@ -11,9 +11,9 @@ if (!defined('ABSPATH')) {
 /**
  * Bridge between WordPress 7.0 Connectors API and our browser-direct JS client.
  *
- * Reads provider configuration (API keys, models, endpoints) from the core
- * php-ai-client registry and exposes it for wp_localize_script so the JS
- * client can make direct streaming calls to provider APIs.
+ * Reads provider configuration (models, provider types, endpoints) from the
+ * core php-ai-client registry and exposes safe metadata for wp_localize_script.
+ * Cloud API keys stay server-side and are used by LLM_Proxy.
  */
 class Connectors_Bridge {
 
@@ -48,10 +48,8 @@ class Connectors_Bridge {
      *
      * Returns an array suitable for wp_localize_script with:
      *   - source: 'connectors'
-     *   - available: keyed by provider ID, each with name, type, endpoint, apiKey, models
+     *   - available: keyed by provider ID, each with name, type, endpoint, models
      *   - hasLocal: whether a server-type provider (e.g. Ollama) is configured
-     *
-     * Only users with prompt_ai capability receive API keys.
      */
     public function get_providers_config(): array {
         if (!self::is_available()) {
@@ -60,7 +58,10 @@ class Connectors_Bridge {
 
         $registry = AiClient::defaultRegistry();
         $provider_ids = $registry->getRegisteredProviderIds();
-        $can_prompt = current_user_can('prompt_ai') || current_user_can('ai_assistant_full');
+        $can_prompt = current_user_can('prompt_ai')
+            || current_user_can('ai_assistant_full')
+            || current_user_can('ai_assistant_read_only')
+            || current_user_can('ai_assistant_chat_only');
 
         $available = [];
         $has_local = false;
@@ -70,6 +71,8 @@ class Connectors_Bridge {
             'can_prompt'      => $can_prompt,
             'can_prompt_ai'   => current_user_can('prompt_ai'),
             'can_full'        => current_user_can('ai_assistant_full'),
+            'can_read_only'   => current_user_can('ai_assistant_read_only'),
+            'can_chat_only'   => current_user_can('ai_assistant_chat_only'),
             'user_id'         => $current_user->ID,
             'user_roles'      => $current_user->roles,
             'providers'       => [],
@@ -116,9 +119,13 @@ class Connectors_Bridge {
 
             $type = (string) $meta->getType();
 
-            // Treat as server-type if: declared server, OR configured with no API key value.
-            // The latter catches local Ollama which WordPress registers as 'cloud' type.
-            $effective_type = ($type === 'server' || !$has_api_key_value) ? 'server' : $type;
+            // Treat key-free non-browser providers as server-type. This catches local
+            // providers like Ollama if WordPress classifies them as cloud, without
+            // misrouting known cloud providers that simply have no API key configured.
+            $effective_type = (
+                $type === 'server' ||
+                (!$has_api_key_value && !in_array($id, self::SUPPORTED_BROWSER_PROVIDERS, true))
+            ) ? 'server' : $type;
             $provider_debug['effectiveType'] = $effective_type;
 
             // Local/server-type providers don't need an API key — skip the isConfigured check
@@ -173,21 +180,10 @@ class Connectors_Bridge {
                 $endpoint = rtrim($endpoint, '/');
             }
 
-            // Get API key only for users with appropriate capability and cloud providers
-            $api_key = '';
-            if ($can_prompt && in_array($id, self::SUPPORTED_BROWSER_PROVIDERS, true)) {
-                try {
-                    $auth = $registry->getProviderRequestAuthentication($id);
-                    if ($auth instanceof ApiKeyRequestAuthentication) {
-                        $api_key = $auth->getApiKey();
-                    }
-                } catch (\Throwable $e) {
-                    // Auth may not be set
-                }
-            }
+            $server_side_auth = $can_prompt && $has_api_key_value && in_array($id, self::SUPPORTED_BROWSER_PROVIDERS, true);
 
             $provider_debug['endpoint'] = $endpoint;
-            $provider_debug['apiKeyMasked'] = $api_key ? '***' . substr($api_key, -4) : '(empty)';
+            $provider_debug['serverSideAuth'] = $server_side_auth;
             $provider_debug['modelCount'] = count($models);
             $browser_supported = in_array($id, self::SUPPORTED_BROWSER_PROVIDERS, true) || $effective_type === 'server';
 
@@ -199,7 +195,9 @@ class Connectors_Bridge {
                 'name'     => $meta->getName(),
                 'type'     => $effective_type,
                 'endpoint' => $endpoint,
-                'apiKey'   => $api_key,
+                'apiKey'   => '',
+                'serverSideAuth' => $server_side_auth,
+                'proxySupported' => $server_side_auth,
                 'models'   => $models,
                 'browserSupported' => $browser_supported,
             ];

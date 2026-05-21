@@ -917,7 +917,7 @@ class Settings {
         $configured_count = 0;
         if (!empty($config['available'])) {
             foreach ($config['available'] as $provider) {
-                if ((!empty($provider['apiKey']) || $provider['type'] === 'server') && !empty($provider['models'])) {
+                if ((!empty($provider['serverSideAuth']) || $provider['type'] === 'server') && !empty($provider['models'])) {
                     $configured_count++;
                 }
             }
@@ -970,7 +970,7 @@ class Settings {
                             'name' => $p['name'],
                             'type' => $p['type'],
                             'modelCount' => count($p['models']),
-                            'available' => (!empty($p['apiKey']) || $p['type'] === 'server') && !empty($p['models']),
+                            'available' => (!empty($p['serverSideAuth']) || $p['type'] === 'server') && !empty($p['models']),
                         ];
                     }, array_keys($config['available']), array_values($config['available']))); ?>;
 

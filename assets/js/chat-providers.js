@@ -284,6 +284,52 @@
             }
         },
 
+        shouldProxyProvider: function(provider) {
+            if (!this.isConnectorsMode() || provider === 'local') {
+                return false;
+            }
+
+            var config = aiAssistantProviders.available[provider];
+            return !!(config && config.proxySupported && config.serverSideAuth);
+        },
+
+        fetchLLMProvider: function(provider, endpoint, headers, payload, signal) {
+            if (this.shouldProxyProvider(provider)) {
+                var params = new URLSearchParams();
+                params.append('action', 'ai_assistant_llm_proxy');
+                params.append('_wpnonce', aiAssistantConfig.nonce);
+                params.append('provider', provider);
+                params.append('body', JSON.stringify(payload));
+
+                return fetch(aiAssistantConfig.ajaxUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: params,
+                    signal: signal
+                });
+            }
+
+            return fetch(endpoint, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(payload),
+                signal: signal
+            });
+        },
+
+        getProviderErrorMessage: async function(response, fallback) {
+            try {
+                var error = await response.json();
+                return error.error?.message ||
+                    error.data?.error?.message ||
+                    error.data?.message ||
+                    error.message ||
+                    fallback;
+            } catch (e) {
+                return fallback;
+            }
+        },
+
         readSSEStream: async function*(response) {
             var reader = response.body.getReader();
             var decoder = new TextDecoder();
@@ -557,28 +603,28 @@
                     return;
                 }
                 var endpoint = this.getProviderEndpoint('anthropic') || 'https://api.anthropic.com/v1/messages';
-                var response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
+                var response = await this.fetchLLMProvider(
+                    'anthropic',
+                    endpoint,
+                    {
                         'Content-Type': 'application/json',
                         'x-api-key': apiKey,
                         'anthropic-version': '2023-06-01',
                         'anthropic-dangerous-direct-browser-access': 'true'
                     },
-                    body: JSON.stringify({
+                    {
                         model: model,
                         max_tokens: 16384,
                         stream: true,
                         system: this.systemPrompt,
                         messages: requestMessages,
                         tools: this.getTools()
-                    }),
-                    signal: this.abortController ? this.abortController.signal : undefined
-                });
+                    },
+                    this.abortController ? this.abortController.signal : undefined
+                );
 
                 if (!response.ok) {
-                    var error = await response.json();
-                    throw new Error(error.error?.message || 'API request failed');
+                    throw new Error(await this.getProviderErrorMessage(response, 'API request failed'));
                 }
 
                 var $reply = this.startReply();
@@ -724,24 +770,24 @@
                 ];
 
                 var endpoint = this.getProviderEndpoint('openai') || 'https://api.openai.com/v1/chat/completions';
-                var response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
+                var response = await this.fetchLLMProvider(
+                    'openai',
+                    endpoint,
+                    {
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + apiKey
                     },
-                    body: JSON.stringify({
+                    {
                         model: model,
                         stream: true,
                         messages: requestMessages,
                         tools: this.getToolsOpenAI()
-                    }),
-                    signal: this.abortController ? this.abortController.signal : undefined
-                });
+                    },
+                    this.abortController ? this.abortController.signal : undefined
+                );
 
                 if (!response.ok) {
-                    var error = await response.json();
-                    throw new Error(error.error?.message || 'API request failed');
+                    throw new Error(await this.getProviderErrorMessage(response, 'API request failed'));
                 }
 
                 var $reply = this.startReply();
@@ -1241,23 +1287,25 @@
         },
 
         callAnthropicForSummary: function(model, prompt) {
+            var self = this;
             var apiKey = this.getApiKey('anthropic');
             var endpoint = this.getProviderEndpoint('anthropic') || 'https://api.anthropic.com/v1/messages';
             return new Promise(function(resolve, reject) {
-                fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
+                self.fetchLLMProvider(
+                    'anthropic',
+                    endpoint,
+                    {
                         'Content-Type': 'application/json',
                         'x-api-key': apiKey,
                         'anthropic-version': '2023-06-01',
                         'anthropic-dangerous-direct-browser-access': 'true'
                     },
-                    body: JSON.stringify({
+                    {
                         model: model,
                         max_tokens: 1024,
                         messages: [{ role: 'user', content: prompt }]
-                    })
-                }).then(function(response) {
+                    }
+                ).then(function(response) {
                     return response.json();
                 }).then(function(data) {
                     if (data.content && data.content[0] && data.content[0].text) {
@@ -1272,21 +1320,23 @@
         },
 
         callOpenAIForSummary: function(model, prompt) {
+            var self = this;
             var apiKey = this.getApiKey('openai');
             var endpoint = this.getProviderEndpoint('openai') || 'https://api.openai.com/v1/chat/completions';
             return new Promise(function(resolve, reject) {
-                fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
+                self.fetchLLMProvider(
+                    'openai',
+                    endpoint,
+                    {
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + apiKey
                     },
-                    body: JSON.stringify({
+                    {
                         model: model,
                         max_tokens: 1024,
                         messages: [{ role: 'user', content: prompt }]
-                    })
-                }).then(function(response) {
+                    }
+                ).then(function(response) {
                     return response.json();
                 }).then(function(data) {
                     if (data.choices && data.choices[0] && data.choices[0].message) {

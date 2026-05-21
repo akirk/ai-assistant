@@ -76,6 +76,7 @@ final class AI_Assistant {
     private $changes_admin;
     private $plugin_recovery_admin;
     private $connectors_bridge;
+    private $llm_proxy;
     private $wp_app_abilities;
     private $conversations_app;
 
@@ -110,6 +111,7 @@ final class AI_Assistant {
         $this->executor = new AI_Assistant\Executor($this->tools, $this->git_tracker_manager);
         $this->conversations = new AI_Assistant\Conversations();
         $this->chat_ui = new AI_Assistant\Chat_UI();
+        $this->llm_proxy = new AI_Assistant\LLM_Proxy();
         $this->api_handler = new AI_Assistant\API_Handler($this->tools, $this->executor);
         $this->plugin_downloads = new AI_Assistant\Plugin_Downloads($this->git_tracker_manager);
         $this->changes_admin = new AI_Assistant\Changes_Admin($this->git_tracker_manager);
