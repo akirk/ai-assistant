@@ -11,7 +11,7 @@ final class AdminColorsTest extends TestCase {
         $GLOBALS['_wp_admin_css_colors'] = [];
     }
 
-    public function test_custom_scheme_defers_to_wordpress_admin_theme_variables(): void {
+    public function test_custom_scheme_uses_wordpress_admin_theme_variables_with_current_scheme_fallbacks(): void {
         $GLOBALS['wp_test_user_options']['admin_color'] = 'white-accent';
         $GLOBALS['_wp_admin_css_colors']['white-accent'] = (object) [
             'colors' => ['#f6f7f7', '#ffffff'],
@@ -19,9 +19,9 @@ final class AdminColorsTest extends TestCase {
 
         $css = Admin_Colors::get_current_scheme_css('.ai-test');
 
-        $this->assertStringContainsString('--ai-assistant-accent: var(--wp-app-admin-color-primary, var(--wp-admin-theme-color, #ffffff));', $css);
+        $this->assertStringContainsString('--ai-assistant-accent: var(--wp-admin-theme-color, #ffffff);', $css);
         $this->assertStringContainsString('--ai-assistant-accent-rgb: var(--wp-admin-theme-color--rgb, 255, 255, 255);', $css);
-        $this->assertStringContainsString('--ai-assistant-accent-hover: var(--wp-app-admin-color-background, var(--wp-admin-theme-color-darker-10, #e6e6e6));', $css);
+        $this->assertStringContainsString('--ai-assistant-accent-hover: var(--wp-admin-theme-color-darker-10, #e6e6e6);', $css);
         $this->assertStringNotContainsString('accent-contrast', $css);
     }
 
@@ -30,8 +30,8 @@ final class AdminColorsTest extends TestCase {
 
         $css = Admin_Colors::get_current_scheme_css('.ai-test');
 
-        $this->assertStringContainsString('--ai-assistant-accent: var(--wp-app-admin-color-primary, var(--wp-admin-theme-color, #2271b1));', $css);
-        $this->assertStringContainsString('--ai-assistant-accent-hover: var(--wp-app-admin-color-background, var(--wp-admin-theme-color-darker-10, #135e96));', $css);
-        $this->assertStringContainsString('--ai-assistant-accent-active: var(--wp-app-admin-color-background, var(--wp-admin-theme-color-darker-20, #0a4b78));', $css);
+        $this->assertStringContainsString('--ai-assistant-accent: var(--wp-admin-theme-color, #2271b1);', $css);
+        $this->assertStringContainsString('--ai-assistant-accent-hover: var(--wp-admin-theme-color-darker-10, #135e96);', $css);
+        $this->assertStringContainsString('--ai-assistant-accent-active: var(--wp-admin-theme-color-darker-20, #0a4b78);', $css);
     }
 }
