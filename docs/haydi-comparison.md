@@ -1,6 +1,6 @@
 # AI Assistant vs Haydi
 
-This document compares the current `ai-assistant` plugin with Haydi. Both are
+This document compares the current AI Assistant plugin with Haydi. Both are
 WordPress admin AI assistants, but they optimize
 for different deployment assumptions and risk profiles.
 
