@@ -42,6 +42,7 @@ In short:
 | Playground role | First-class runtime/development target; useful for local/provider/browser workflows and recovery | Optional pre-apply safety sandbox for proposed PHP writes |
 | Current page inspection | Can inspect live browser DOM with `get_page_html` | No equivalent live DOM tool; mainly works from its own admin screen plus files/data |
 | Image picking | Client-side `pick_image` can search Openverse, accept dropped/uploaded images, and upload to Media Library | No equivalent picker found |
+| PHP write validation | PHP file writes/edits are parsed with `token_get_all()` before disk writes | PHP file writes/edits are parsed with `token_get_all()` before disk writes |
 | Preflight testing | Can continue repairing through direct file endpoint after a break | Optional client-side WordPress Playground preflight can test proposed PHP writes before applying |
 | File scope | `wp-content` relative paths | Explicit allowed roots: plugins, themes, optional scratch dir |
 | Change recovery | Git-compatible change tracking, patch export/import, direct recovery endpoint | Backups, health checks, auto-revert for many mutations |
@@ -107,6 +108,9 @@ In short:
   declined tool actions being fed back as skipped tool results.
 - The direct file tool endpoint can keep working when WordPress bootstrap is
   broken, which is valuable after a bad PHP edit.
+- PHP writes and edits are pre-validated before touching disk. Proposed PHP
+  content is parsed with `token_get_all()`, so syntax errors are rejected before
+  the file is changed.
 - Because file repair can continue through the browser/direct file endpoint,
   the assistant may get a few more tool calls to fix its own mistake after a
   bad intermediate state. This is especially useful for multi-file changes
@@ -171,6 +175,9 @@ In short:
   approval panel, and the user sees parameters or diffs before anything changes.
 - Backups and post-change health checks provide a practical production safety
   net. Many file operations can auto-restore if the site is confirmed broken.
+- PHP writes and edits are pre-validated before touching disk. Proposed PHP
+  content is parsed with `token_get_all()`, so syntax errors are rejected before
+  the file is changed.
 - Haydi has an optional WordPress Playground preflight path for proposed PHP
   file writes. Before applying to the live filesystem, the browser can spin up a
   Playground sandbox, mirror the relevant plugin/theme files, apply the proposed
