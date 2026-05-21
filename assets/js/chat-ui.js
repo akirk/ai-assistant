@@ -1784,42 +1784,282 @@
             this.scrollToBottom(true);
         },
 
-        estimateTokens: function() {
-            var totalChars = this.systemPrompt.length;
+        getTokenNumber: function(value) {
+            var number = parseInt(value, 10);
+            return Number.isFinite(number) && number > 0 ? number : 0;
+        },
 
-            this.messages.forEach(function(msg) {
-                if (typeof msg.content === 'string') {
-                    totalChars += msg.content.length;
-                } else if (Array.isArray(msg.content)) {
-                    msg.content.forEach(function(block) {
-                        if (block.type === 'text' && block.text) {
-                            totalChars += block.text.length;
-                        } else if (block.type === 'tool_use' && block.input) {
-                            totalChars += JSON.stringify(block.input).length;
-                        } else if (block.type === 'tool_result' && block.content) {
-                            totalChars += block.content.length;
-                        }
-                    });
-                }
-                if (msg.tool_calls) {
-                    totalChars += JSON.stringify(msg.tool_calls).length;
+        estimateCharsForMessage: function(msg) {
+            var totalChars = 0;
+
+            if (!msg) {
+                return totalChars;
+            }
+
+            if (typeof msg.content === 'string') {
+                totalChars += msg.content.length;
+            } else if (Array.isArray(msg.content)) {
+                msg.content.forEach(function(block) {
+                    if (!block) {
+                        return;
+                    }
+
+                    if (block.type === 'text' && block.text) {
+                        totalChars += block.text.length;
+                    } else if (block.type === 'tool_use' && block.input) {
+                        totalChars += JSON.stringify(block.input).length;
+                    } else if (block.type === 'tool_result' && block.content) {
+                        totalChars += String(block.content).length;
+                    }
+                });
+            }
+
+            if (msg.tool_calls) {
+                totalChars += JSON.stringify(msg.tool_calls).length;
+            }
+
+            return totalChars;
+        },
+
+        estimateTokensFromChars: function(chars) {
+            return Math.ceil(Math.max(0, chars) / 4);
+        },
+
+        estimateTokensForMessages: function(messages, includeSystemPrompt) {
+            var totalChars = includeSystemPrompt === false ? 0 : (this.systemPrompt || '').length;
+
+            (messages || []).forEach(function(msg) {
+                totalChars += this.estimateCharsForMessage(msg);
+            }, this);
+
+            return this.estimateTokensFromChars(totalChars);
+        },
+
+        estimateTokens: function() {
+            return this.estimateTokensForMessages(this.messages, true);
+        },
+
+        normalizeTokenUsage: function(usage, provider, model, source) {
+            usage = usage || {};
+
+            var cacheCreationInput = this.getTokenNumber(usage.cache_creation_input_tokens);
+            var cacheReadInput = this.getTokenNumber(usage.cache_read_input_tokens);
+            var cachedInput = this.getTokenNumber(usage.cached_input_tokens) +
+                cacheCreationInput +
+                cacheReadInput;
+
+            if (usage.prompt_tokens_details && usage.prompt_tokens_details.cached_tokens) {
+                cachedInput += this.getTokenNumber(usage.prompt_tokens_details.cached_tokens);
+            }
+
+            var inputTokens = this.getTokenNumber(usage.input_tokens);
+            if (!inputTokens) {
+                inputTokens = this.getTokenNumber(usage.prompt_tokens);
+            }
+            if (!inputTokens) {
+                inputTokens = this.getTokenNumber(usage.prompt_eval_count);
+            }
+            inputTokens += cacheCreationInput + cacheReadInput;
+
+            var outputTokens = this.getTokenNumber(usage.output_tokens);
+            if (!outputTokens) {
+                outputTokens = this.getTokenNumber(usage.completion_tokens);
+            }
+            if (!outputTokens) {
+                outputTokens = this.getTokenNumber(usage.eval_count);
+            }
+
+            var reasoningOutput = this.getTokenNumber(usage.reasoning_output_tokens);
+            if (usage.completion_tokens_details && usage.completion_tokens_details.reasoning_tokens) {
+                reasoningOutput += this.getTokenNumber(usage.completion_tokens_details.reasoning_tokens);
+            }
+
+            var totalTokens = this.getTokenNumber(usage.total_tokens);
+            if (!totalTokens) {
+                totalTokens = inputTokens + outputTokens;
+            }
+
+            return {
+                version: 1,
+                source: source || 'provider',
+                provider: provider || '',
+                model: model || '',
+                input_tokens: inputTokens,
+                output_tokens: outputTokens,
+                total_tokens: totalTokens,
+                cached_input_tokens: cachedInput,
+                reasoning_output_tokens: reasoningOutput
+            };
+        },
+
+        mergeTokenUsage: function(current, next) {
+            if (!next) {
+                return current || null;
+            }
+
+            current = current ? $.extend({}, current) : {};
+            Object.keys(next).forEach(function(key) {
+                if (next[key] !== null && next[key] !== undefined) {
+                    current[key] = next[key];
                 }
             });
 
-            return Math.ceil(totalChars / 4);
+            return current;
+        },
+
+        createEstimatedTokenUsage: function(message, provider, model, requestMessages) {
+            return this.normalizeTokenUsage({
+                input_tokens: this.estimateTokensForMessages(requestMessages || this.messages, false),
+                output_tokens: this.estimateTokensFromChars(this.estimateCharsForMessage(message))
+            }, provider, model, 'estimate');
+        },
+
+        attachTokenUsageToAssistantMessage: function(message, provider, model, providerUsage, requestMessages) {
+            if (!message || message.role !== 'assistant') {
+                return message;
+            }
+
+            var usage = providerUsage
+                ? this.normalizeTokenUsage(providerUsage, provider, model, 'provider')
+                : this.createEstimatedTokenUsage(message, provider, model, requestMessages);
+
+            if (usage.input_tokens > 0 || usage.output_tokens > 0) {
+                message._usage = usage;
+            }
+
+            return message;
+        },
+
+        getMessageTokenUsage: function(message, priorMessages) {
+            if (message && message._usage) {
+                return this.normalizeTokenUsage(
+                    message._usage,
+                    message._usage.provider || '',
+                    message._usage.model || '',
+                    message._usage.source || 'provider'
+                );
+            }
+
+            if (message && message.role === 'assistant') {
+                return this.createEstimatedTokenUsage(message, '', '', [
+                    { role: 'system', content: this.systemPrompt || '' }
+                ].concat(priorMessages || []));
+            }
+
+            return null;
+        },
+
+        getTokenUsageSummary: function() {
+            var summary = {
+                version: 1,
+                input_tokens: 0,
+                output_tokens: 0,
+                total_tokens: 0,
+                cached_input_tokens: 0,
+                reasoning_output_tokens: 0,
+                source: 'none'
+            };
+            var priorMessages = [];
+            var hasProvider = false;
+            var hasEstimate = false;
+
+            (this.messages || []).forEach(function(message) {
+                var usage = this.getMessageTokenUsage(message, priorMessages);
+                if (usage) {
+                    summary.input_tokens += usage.input_tokens;
+                    summary.output_tokens += usage.output_tokens;
+                    summary.total_tokens += usage.total_tokens || usage.input_tokens + usage.output_tokens;
+                    summary.cached_input_tokens += usage.cached_input_tokens || 0;
+                    summary.reasoning_output_tokens += usage.reasoning_output_tokens || 0;
+                    if (usage.source === 'provider') {
+                        hasProvider = true;
+                    } else {
+                        hasEstimate = true;
+                    }
+                }
+                priorMessages.push(message);
+            }, this);
+
+            summary.source = hasProvider && hasEstimate ? 'mixed' : (hasProvider ? 'provider' : (hasEstimate ? 'estimate' : 'none'));
+
+            return summary;
+        },
+
+        formatTokenNumber: function(tokens) {
+            tokens = this.getTokenNumber(tokens);
+            if (tokens >= 1000000) {
+                return (tokens / 1000000).toFixed(tokens >= 10000000 ? 0 : 1).replace(/\.0$/, '') + 'm';
+            }
+            if (tokens >= 1000) {
+                return (tokens / 1000).toFixed(tokens >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'k';
+            }
+            return tokens.toLocaleString();
+        },
+
+        formatTokenDetail: function(tokens) {
+            return this.getTokenNumber(tokens).toLocaleString();
+        },
+
+        formatTokenValue: function(tokens, estimated, compact) {
+            return (compact ? this.formatTokenNumber(tokens) : this.formatTokenDetail(tokens)) + (estimated ? '*' : '');
         },
 
         updateTokenCount: function() {
-            var tokens = this.estimateTokens();
-            var display = tokens.toLocaleString() + ' tokens';
+            var usage = this.getTokenUsageSummary();
+            var totalTokens = usage.total_tokens || usage.input_tokens + usage.output_tokens;
+            var visibleTotal = totalTokens;
+            var usageEstimated = usage.source !== 'provider';
+            var visibleEstimated = visibleTotal > 0 && usageEstimated;
+            var display = this.formatTokenValue(visibleTotal, visibleEstimated, true) + ' tokens';
+            var totalEstimated = totalTokens > 0 && usageEstimated;
+            var inputEstimated = usage.input_tokens > 0 && usageEstimated;
+            var outputEstimated = usage.output_tokens > 0 && usageEstimated;
+            var hasEstimatedValues = totalEstimated || inputEstimated || outputEstimated;
+            var cachedInputRow = usage.cached_input_tokens > 0 ? (
+                '<div class="ai-token-hover-row ai-token-explained-row">' +
+                    '<span class="ai-token-context-label">Cached input' +
+                        '<span class="ai-token-info" tabindex="0" aria-label="Cached input is input the provider reported as served from cache.">i</span>' +
+                    '</span>' +
+                    '<strong>' + this.formatTokenValue(usage.cached_input_tokens, false, false) + '</strong>' +
+                '</div>' +
+                '<div class="ai-token-help">Input tokens the provider reported as cache hits. They are still part of the context, but may be billed differently.</div>'
+            ) : '';
+            var estimatedLegend = hasEstimatedValues
+                ? '<div class="ai-token-hover-legend">* Estimated</div>'
+                : '';
+            var tooltip = '' +
+                '<span class="ai-token-count-main">' + display + '</span>' +
+                '<div class="ai-token-hover" role="tooltip">' +
+                    '<div class="ai-token-hover-title">Token usage</div>' +
+                    '<div class="ai-token-hover-row"><span>Total used so far</span><strong>' + this.formatTokenValue(totalTokens, totalEstimated, false) + '</strong></div>' +
+                    '<div class="ai-token-hover-row ai-token-explained-row">' +
+                        '<span class="ai-token-context-label">Input sent' +
+                            '<span class="ai-token-info" tabindex="0" aria-label="Input sent is the cumulative number of tokens sent to the model so far.">i</span>' +
+                        '</span>' +
+                        '<strong>' + this.formatTokenValue(usage.input_tokens, inputEstimated, false) + '</strong>' +
+                    '</div>' +
+                    '<div class="ai-token-help">Cumulative tokens sent so far. Requests resend context, so this can exceed the current conversation size.</div>' +
+                    cachedInputRow +
+                    '<div class="ai-token-hover-row ai-token-explained-row">' +
+                        '<span class="ai-token-context-label">Output generated' +
+                            '<span class="ai-token-info" tabindex="0" aria-label="Output generated is the cumulative number of tokens generated by the model so far.">i</span>' +
+                        '</span>' +
+                        '<strong>' + this.formatTokenValue(usage.output_tokens, outputEstimated, false) + '</strong>' +
+                    '</div>' +
+                    '<div class="ai-token-help">Cumulative tokens generated so far, including assistant text, tool-call JSON, and reported reasoning tokens.</div>' +
+                    estimatedLegend +
+                '</div>';
 
             var $counter = $('#ai-token-count');
-            $counter.text(display);
+            $counter.html(tooltip);
+            $counter.removeAttr('title');
+            $counter.attr('tabindex', '0');
+            $counter.attr('aria-label', display + '. Input sent ' + this.formatTokenDetail(usage.input_tokens) + ', output generated ' + this.formatTokenDetail(usage.output_tokens) + '.');
             $counter.removeClass('ai-tokens-warning ai-tokens-danger');
 
-            if (tokens > 100000) {
+            if (visibleTotal > 100000) {
                 $counter.addClass('ai-tokens-danger');
-            } else if (tokens > 50000) {
+            } else if (visibleTotal > 50000) {
                 $counter.addClass('ai-tokens-warning');
             }
         },

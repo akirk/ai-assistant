@@ -478,7 +478,8 @@
                 title: this.getConversationTitleForSave(),
                 provider: this.conversationProvider || this.getProvider(),
                 model: this.conversationModel || this.getModel(),
-                system_prompt: this.systemPrompt || ''
+                system_prompt: this.systemPrompt || '',
+                token_usage: this.getTokenUsageSummary ? JSON.stringify(this.getTokenUsageSummary()) : ''
             }, overrides || {});
         },
 
@@ -717,6 +718,7 @@
                         // Use saved provider/model, fall back to current only for API calls
                         self.conversationProvider = response.data.provider || self.getProvider();
                         self.conversationModel = response.data.model || self.getModel();
+                        self.conversationTokenUsage = response.data.token_usage || null;
                         self.updateSendButton();
                         self.updateTokenCount();
 

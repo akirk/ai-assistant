@@ -294,6 +294,81 @@ describe('welcome message', function() {
     });
 });
 
+describe('token usage accounting', function() {
+    it('summarizes context tokens separately from cumulative input and output usage', function() {
+        const assistant = loadUiMixin();
+        assistant.systemPrompt = '1234';
+        assistant.messages = [
+            { role: 'user', content: '12345678' },
+            {
+                role: 'assistant',
+                content: '1234',
+                _usage: {
+                    version: 1,
+                    source: 'provider',
+                    provider: 'openai',
+                    model: 'gpt-test',
+                    input_tokens: 10,
+                    output_tokens: 2,
+                    total_tokens: 12
+                }
+            },
+            { role: 'user', content: '1234' },
+            { role: 'assistant', content: '12345678' }
+        ];
+
+        const usage = assistant.getTokenUsageSummary();
+
+        assert.strictEqual(Object.prototype.hasOwnProperty.call(usage, 'context_tokens'), false);
+        assert.strictEqual(usage.input_tokens, 15);
+        assert.strictEqual(usage.output_tokens, 4);
+        assert.strictEqual(usage.total_tokens, 19);
+        assert.strictEqual(usage.source, 'mixed');
+    });
+
+    it('normalizes provider usage details for OpenAI-style responses', function() {
+        const assistant = loadUiMixin();
+
+        const usage = assistant.normalizeTokenUsage({
+            prompt_tokens: 100,
+            completion_tokens: 20,
+            total_tokens: 120,
+            prompt_tokens_details: {
+                cached_tokens: 40
+            },
+            completion_tokens_details: {
+                reasoning_tokens: 7
+            }
+        }, 'openai', 'gpt-test', 'provider');
+
+        assert.strictEqual(usage.input_tokens, 100);
+        assert.strictEqual(usage.output_tokens, 20);
+        assert.strictEqual(usage.total_tokens, 120);
+        assert.strictEqual(usage.cached_input_tokens, 40);
+        assert.strictEqual(usage.reasoning_output_tokens, 7);
+        assert.strictEqual(usage.source, 'provider');
+    });
+
+    it('creates fallback input estimates when provider usage is unavailable', function() {
+        const assistant = loadUiMixin();
+        assistant.systemPrompt = '1234';
+        assistant.messages = [{ role: 'user', content: '12345678' }];
+        assistant.conversationProvider = 'openai';
+
+        const fallback = assistant.createEstimatedTokenUsage(
+            { role: 'assistant', content: '1234' },
+            'openai',
+            'gpt-test',
+            [{ role: 'system', content: '1234' }, { role: 'user', content: '12345678' }]
+        );
+
+        assert.strictEqual(fallback.input_tokens, assistant.estimateTokensForMessages([
+            { role: 'system', content: '1234' },
+            { role: 'user', content: '12345678' }
+        ], false));
+    });
+});
+
 describe('model lifecycle notices', function() {
     it('renders a warning when the active model has a replacement', function() {
         const assistant = loadUiMixin({ settingsUrl: 'http://example.test/settings' });

@@ -1268,6 +1268,76 @@ class Conversations {
         }
     }
 
+    private function sanitize_token_usage_json($json) {
+        if (!is_string($json) || trim($json) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($json, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        return $this->sanitize_token_usage_array($decoded);
+    }
+
+    private function sanitize_token_count($value): int {
+        if (!is_numeric($value)) {
+            return 0;
+        }
+
+        return max(0, (int) $value);
+    }
+
+    private function sanitize_token_usage_array(array $usage): array {
+        return [
+            'version' => 1,
+            'input_tokens' => $this->sanitize_token_count($usage['input_tokens'] ?? 0),
+            'output_tokens' => $this->sanitize_token_count($usage['output_tokens'] ?? 0),
+            'total_tokens' => $this->sanitize_token_count($usage['total_tokens'] ?? 0),
+            'cached_input_tokens' => $this->sanitize_token_count($usage['cached_input_tokens'] ?? 0),
+            'reasoning_output_tokens' => $this->sanitize_token_count($usage['reasoning_output_tokens'] ?? 0),
+            'source' => sanitize_key((string) ($usage['source'] ?? 'none')) ?: 'none',
+        ];
+    }
+
+    private function build_token_usage_from_messages(array $messages): array {
+        $usage = [
+            'version' => 1,
+            'input_tokens' => 0,
+            'output_tokens' => 0,
+            'total_tokens' => 0,
+            'cached_input_tokens' => 0,
+            'reasoning_output_tokens' => 0,
+            'source' => 'none',
+        ];
+        $has_provider = false;
+        $has_estimate = false;
+
+        foreach ($messages as $message) {
+            if (!is_array($message) || ($message['role'] ?? '') !== 'assistant' || empty($message['_usage']) || !is_array($message['_usage'])) {
+                continue;
+            }
+
+            $message_usage = $this->sanitize_token_usage_array($message['_usage']);
+            $usage['input_tokens'] += $message_usage['input_tokens'];
+            $usage['output_tokens'] += $message_usage['output_tokens'];
+            $usage['total_tokens'] += $message_usage['total_tokens'] ?: $message_usage['input_tokens'] + $message_usage['output_tokens'];
+            $usage['cached_input_tokens'] += $message_usage['cached_input_tokens'];
+            $usage['reasoning_output_tokens'] += $message_usage['reasoning_output_tokens'];
+
+            if (($message_usage['source'] ?? '') === 'provider') {
+                $has_provider = true;
+            } elseif (($message_usage['source'] ?? '') !== 'none') {
+                $has_estimate = true;
+            }
+        }
+
+        $usage['source'] = $has_provider && $has_estimate ? 'mixed' : ($has_provider ? 'provider' : ($has_estimate ? 'estimate' : 'none'));
+
+        return $usage;
+    }
+
     public function ajax_save_conversation() {
         check_ajax_referer('ai_assistant_chat', '_wpnonce');
 
@@ -1283,6 +1353,7 @@ class Conversations {
         $system_prompt = isset($_POST['system_prompt']) && is_scalar($_POST['system_prompt'])
             ? (string) wp_unslash($_POST['system_prompt'])
             : '';
+        $token_usage = $this->sanitize_token_usage_json(wp_unslash($_POST['token_usage'] ?? ''));
         $existing_title_status = $conversation_id > 0 ? get_post_meta($conversation_id, '_ai_title_status', true) : '';
         $title_status = $existing_title_status ?: 'generated';
 
@@ -1333,6 +1404,7 @@ class Conversations {
         update_post_meta($post_id, '_ai_model', $model);
         update_post_meta($post_id, '_ai_title_status', $title_status);
         update_post_meta($post_id, '_ai_system_prompt', function_exists('wp_slash') ? wp_slash($system_prompt) : $system_prompt);
+        update_post_meta($post_id, '_ai_token_usage', wp_json_encode($token_usage ?: $this->build_token_usage_from_messages($messages)));
 
         wp_send_json_success([
             'conversation_id' => $post_id,
@@ -1369,9 +1441,14 @@ class Conversations {
         // Get meta in single query
         $meta = $wpdb->get_results($wpdb->prepare(
             "SELECT meta_key, meta_value FROM {$wpdb->postmeta}
-             WHERE post_id = %d AND meta_key IN ('_ai_provider', '_ai_model', '_ai_title_status')",
+             WHERE post_id = %d AND meta_key IN ('_ai_provider', '_ai_model', '_ai_title_status', '_ai_token_usage')",
             $conversation_id
         ), OBJECT_K);
+        $token_usage = [];
+        if (isset($meta['_ai_token_usage'])) {
+            $decoded_token_usage = json_decode($meta['_ai_token_usage']->meta_value, true);
+            $token_usage = is_array($decoded_token_usage) ? $this->sanitize_token_usage_array($decoded_token_usage) : [];
+        }
 
         wp_send_json_success([
             'conversation_id' => $conversation_id,
@@ -1381,6 +1458,7 @@ class Conversations {
             'provider' => isset($meta['_ai_provider']) ? $meta['_ai_provider']->meta_value : '',
             'model' => isset($meta['_ai_model']) ? $meta['_ai_model']->meta_value : '',
             'title_status' => isset($meta['_ai_title_status']) ? $meta['_ai_title_status']->meta_value : '',
+            'token_usage' => $token_usage,
         ]);
     }
 

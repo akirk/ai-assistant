@@ -489,7 +489,7 @@ class Chat_UI {
                 'send' => __('Send', 'ai-assistant'),
                 'placeholder' => __('Ask me anything about your WordPress site...', 'ai-assistant'),
                 'ariaLabel' => __('AI Assistant Tab', 'ai-assistant'),
-                'tokenCountTitle' => __('Estimated token usage', 'ai-assistant'),
+                'tokenCountTitle' => __('Token usage', 'ai-assistant'),
                 'dropFiles' => __('Drop files to attach', 'ai-assistant'),
                 'scrollBottom' => __('Scroll to bottom', 'ai-assistant'),
                 'attachFiles' => __('Attach files', 'ai-assistant'),
