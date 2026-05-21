@@ -60,7 +60,7 @@
                     '<div class="ai-assistant-header">' +
                         '<h2>' + escapeHtml(text('title', 'AI Assistant')) + '</h2>' +
                         '<div class="ai-assistant-header-actions">' +
-                            '<span id="ai-token-count" class="ai-token-count" title="' + escapeAttr(text('tokenCountTitle', 'Estimated token usage')) + '">0 tokens</span>' +
+                            '<div id="ai-token-count" class="ai-token-count" tabindex="0" aria-label="' + escapeAttr(text('tokenCountTitle', 'Token usage')) + '">0 tokens</div>' +
                             '<span class="ai-header-sep">|</span>' +
                             '<label class="ai-yolo-label" title="' + escapeAttr(text('yoloTitle', 'Skip confirmation prompts for destructive actions')) + '">' +
                                 '<input type="checkbox" id="ai-assistant-yolo"> ' + escapeHtml(text('yoloMode', 'YOLO Mode')) +

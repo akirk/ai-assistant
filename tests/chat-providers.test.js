@@ -313,6 +313,94 @@ describe('Local LLM requests', function() {
     });
 });
 
+describe('provider request message sanitization', function() {
+    it('strips private token usage metadata before sending messages to providers', function() {
+        const assistant = loadProvidersMixin();
+
+        const sanitized = assistant.sanitizeMessages([
+            { role: 'user', content: 'Hello' },
+            {
+                role: 'assistant',
+                content: 'Hi',
+                _usage: {
+                    source: 'provider',
+                    input_tokens: 12,
+                    output_tokens: 3
+                }
+            }
+        ]);
+
+        assert.strictEqual(sanitized.length, 2);
+        assert.strictEqual(Object.prototype.hasOwnProperty.call(sanitized[1], '_usage'), false);
+    });
+});
+
+describe('provider token usage capture', function() {
+    it('requests and stores OpenAI streaming usage on assistant messages', async function() {
+        let payload = null;
+        let attached = null;
+        const assistant = Object.assign(loadProvidersMixin(), {
+            messages: [{ role: 'user', content: 'Hello' }],
+            systemPrompt: 'System',
+            conversationModel: 'gpt-test',
+            abortController: null,
+            getModel() {
+                return 'fallback-model';
+            },
+            getApiKey() {
+                return 'test-key';
+            },
+            getProviderEndpoint() {
+                return 'https://example.test/v1/chat/completions';
+            },
+            getToolsOpenAI() {
+                return [];
+            },
+            fetchLLMProvider(provider, endpoint, headers, requestPayload) {
+                payload = requestPayload;
+                return Promise.resolve({ ok: true });
+            },
+            async *readSSEStream() {
+                yield { choices: [{ delta: { content: 'Hi' } }] };
+                yield {
+                    choices: [],
+                    usage: {
+                        prompt_tokens: 11,
+                        completion_tokens: 3,
+                        total_tokens: 14
+                    }
+                };
+            },
+            startReply() {
+                return { remove() {} };
+            },
+            updateReply() {},
+            finalizeReply() {},
+            updateTokenCount() {},
+            autoSaveConversation() {},
+            processToolCalls() {},
+            sendQueuedMessagesIfAvailable() {
+                return false;
+            },
+            setLoading() {},
+            attachTokenUsageToAssistantMessage(message, provider, model, usage) {
+                attached = { message, provider, model, usage };
+                message._usage = usage;
+            }
+        });
+
+        await assistant.callOpenAI();
+
+        assert.strictEqual(payload.stream_options.include_usage, true);
+        assert.strictEqual(attached.provider, 'openai');
+        assert.strictEqual(attached.model, 'gpt-test');
+        assert.strictEqual(attached.usage.prompt_tokens, 11);
+        assert.strictEqual(attached.usage.completion_tokens, 3);
+        assert.strictEqual(attached.usage.total_tokens, 14);
+        assert.strictEqual(assistant.messages[1]._usage.prompt_tokens, 11);
+    });
+});
+
 describe('queued user messages', function() {
     it('queues input instead of starting a second request while loading', function() {
         const input = createInputJQuery('Please do this next.');

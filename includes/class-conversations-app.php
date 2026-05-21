@@ -99,7 +99,7 @@ class Conversations_App {
                             <span class="dashicons dashicons-menu"></span> <?php esc_html_e('Chats', 'ai-assistant'); ?>
                         </button>
                         <div class="ai-header-actions ai-conversation-header-actions">
-                            <span id="ai-token-count" class="ai-token-count" title="<?php esc_attr_e('Estimated token usage', 'ai-assistant'); ?>">0 tokens</span>
+                            <div id="ai-token-count" class="ai-token-count" tabindex="0" aria-label="<?php esc_attr_e('Token usage', 'ai-assistant'); ?>">0 tokens</div>
                             <button type="button" id="ai-assistant-summarize" class="ai-header-btn" title="<?php esc_attr_e('Generate conversation summary', 'ai-assistant'); ?>" style="display: none;">
                                 <span class="dashicons dashicons-media-text"></span>
                             </button>

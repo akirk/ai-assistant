@@ -317,6 +317,16 @@
             });
         },
 
+        stripMessageMetadata: function(message) {
+            if (!message || typeof message !== 'object' || !Object.prototype.hasOwnProperty.call(message, '_usage')) {
+                return message;
+            }
+
+            var clean = $.extend({}, message);
+            delete clean._usage;
+            return clean;
+        },
+
         getProviderErrorMessage: async function(response, fallback) {
             try {
                 var error = await response.json();
@@ -579,7 +589,9 @@
                 this.autoSaveConversation();
             }
 
-            return prepared.messages;
+            return prepared.messages.map(function(message) {
+                return this.stripMessageMetadata(message);
+            }, this);
         },
 
         canSendAnthropicMessages: function(messages) {
@@ -633,8 +645,20 @@
                 var currentBlock = null;
                 var toolCalls = [];
                 var stopReason = null;
+                var providerUsage = null;
 
                 for await (var event of this.readSSEStream(response)) {
+                    if (event.message && event.message.usage) {
+                        providerUsage = this.mergeTokenUsage
+                            ? this.mergeTokenUsage(providerUsage, event.message.usage)
+                            : $.extend(providerUsage || {}, event.message.usage);
+                    }
+                    if (event.usage) {
+                        providerUsage = this.mergeTokenUsage
+                            ? this.mergeTokenUsage(providerUsage, event.usage)
+                            : $.extend(providerUsage || {}, event.usage);
+                    }
+
                     switch (event.type) {
                         case 'content_block_start':
                             currentBlock = { ...event.content_block };
@@ -704,7 +728,14 @@
                 var filteredBlocks = contentBlocks.filter(function(block) {
                     return block.type !== 'text' || (block.text && block.text.length > 0);
                 });
-                this.messages.push({ role: 'assistant', content: filteredBlocks });
+                var message = { role: 'assistant', content: filteredBlocks };
+                if (this.attachTokenUsageToAssistantMessage) {
+                    this.attachTokenUsageToAssistantMessage(message, 'anthropic', model, providerUsage, [
+                        { role: 'system', content: this.systemPrompt },
+                        ...requestMessages
+                    ]);
+                }
+                this.messages.push(message);
                 this.updateTokenCount();
 
                 // Save conversation before processing tools (in case user reloads while pending)
@@ -780,6 +811,7 @@
                     {
                         model: model,
                         stream: true,
+                        stream_options: { include_usage: true },
                         messages: requestMessages,
                         tools: this.getToolsOpenAI()
                     },
@@ -796,7 +828,14 @@
                 var thinkingStartTime = null;
                 var textContent = '';
                 var toolCallsMap = {};
+                var providerUsage = null;
                 for await (var chunk of this.readSSEStream(response)) {
+                    if (chunk.usage) {
+                        providerUsage = this.mergeTokenUsage
+                            ? this.mergeTokenUsage(providerUsage, chunk.usage)
+                            : $.extend(providerUsage || {}, chunk.usage);
+                    }
+
                     var delta = chunk.choices && chunk.choices[0] && chunk.choices[0].delta;
                     if (!delta) continue;
 
@@ -869,6 +908,9 @@
                 if (Object.keys(toolCallsMap).length > 0) {
                     message.tool_calls = Object.values(toolCallsMap);
                 }
+                if (this.attachTokenUsageToAssistantMessage) {
+                    this.attachTokenUsageToAssistantMessage(message, 'openai', model, providerUsage, requestMessages);
+                }
                 this.messages.push(message);
                 this.updateTokenCount();
 
@@ -927,6 +969,8 @@
 
             var result = [];
             messages.forEach(function(m) {
+                m = this.stripMessageMetadata(m);
+
                 if (m.role === 'assistant' && !m.content && !m.tool_calls) return;
                 if (m.role === 'tool' && !validToolCallIds[m.tool_call_id]) return;
 
@@ -958,7 +1002,7 @@
                 }
 
                 result.push(m);
-            });
+            }, this);
             return result;
         },
 
@@ -1062,11 +1106,17 @@
                 var toolCallsMap = {};
                 var streamTruncated = false;
                 var enableToolsIdx = null;
+                var providerUsage = null;
 
                 if (useOllamaApi) {
                     for await (var chunk of this.readOllamaStream(response)) {
                         if (chunk.error) {
                             throw new Error(chunk.error.message || chunk.error || 'Unknown error from Ollama');
+                        }
+                        if (chunk.prompt_eval_count || chunk.eval_count || chunk.usage) {
+                            providerUsage = this.mergeTokenUsage
+                                ? this.mergeTokenUsage(providerUsage, chunk.usage || chunk)
+                                : $.extend(providerUsage || {}, chunk.usage || chunk);
                         }
                         if (chunk.message && chunk.message.content) {
                             textContent += chunk.message.content;
@@ -1087,6 +1137,11 @@
                     for await (var chunk of this.readSSEStream(response)) {
                         if (chunk.error) {
                             throw new Error(chunk.error.message || chunk.message || 'Unknown error from local LLM');
+                        }
+                        if (chunk.usage) {
+                            providerUsage = this.mergeTokenUsage
+                                ? this.mergeTokenUsage(providerUsage, chunk.usage)
+                                : $.extend(providerUsage || {}, chunk.usage);
                         }
 
                         var delta = chunk.choices && chunk.choices[0] && chunk.choices[0].delta;
@@ -1218,6 +1273,9 @@
                 var message = { role: 'assistant', content: strippedContent || null };
                 if (Object.keys(toolCallsMap).length > 0) {
                     message.tool_calls = Object.values(toolCallsMap);
+                }
+                if (this.attachTokenUsageToAssistantMessage) {
+                    this.attachTokenUsageToAssistantMessage(message, useOllamaApi ? 'ollama' : 'local', model, providerUsage, requestMessages);
                 }
                 this.messages.push(message);
                 this.updateTokenCount();

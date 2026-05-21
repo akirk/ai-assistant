@@ -278,6 +278,15 @@ describe('conversation exports', function() {
         assistant.conversationTitle = 'Saved conversation';
         assistant.getProvider = function() { return 'openai'; };
         assistant.getModel = function() { return 'gpt-test'; };
+        assistant.getTokenUsageSummary = function() {
+            return {
+                version: 1,
+                input_tokens: 10,
+                output_tokens: 3,
+                total_tokens: 13,
+                source: 'provider'
+            };
+        };
         assistant.updateSidebarSelection = function() {};
         assistant.updateSummarizeButton = function() {};
         assistant.updateExportButton = function() {};
@@ -285,6 +294,13 @@ describe('conversation exports', function() {
         assistant.saveConversation(true);
 
         assert.strictEqual(postedData.system_prompt, 'Stored system prompt.');
+        assert.deepStrictEqual(JSON.parse(postedData.token_usage), {
+            version: 1,
+            input_tokens: 10,
+            output_tokens: 3,
+            total_tokens: 13,
+            source: 'provider'
+        });
     });
 
     it('reads export formats from localized config', function() {
