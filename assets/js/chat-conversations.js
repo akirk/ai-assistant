@@ -1580,6 +1580,16 @@
             var providerConfig = this.isConnectorsMode() && typeof aiAssistantProviders !== 'undefined'
                 ? aiAssistantProviders.available[provider]
                 : null;
+            var hasServerAuth = !!(providerConfig && providerConfig.serverSideAuth && providerConfig.proxySupported);
+            var fetchProvider = typeof self.fetchLLMProvider === 'function'
+                ? self.fetchLLMProvider.bind(self)
+                : function(providerId, endpoint, headers, payload) {
+                    return fetch(endpoint, {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify(payload)
+                    });
+                };
 
             var titleContext = this.buildConversationTitleContext(messages);
             var firstUserContent = this.getFirstUserTextForTitle(messages);
@@ -1603,23 +1613,24 @@
                     finishWithTitle(fallbackTitle);
                 }
 
-                if (provider === 'anthropic' && apiKey) {
+                if (provider === 'anthropic' && (apiKey || hasServerAuth)) {
                     var anthropicEndpoint = self.getProviderEndpoint(provider) || 'https://api.anthropic.com/v1/messages';
 
-                    fetch(anthropicEndpoint, {
-                        method: 'POST',
-                        headers: {
+                    fetchProvider(
+                        'anthropic',
+                        anthropicEndpoint,
+                        {
                             'Content-Type': 'application/json',
                             'x-api-key': apiKey,
                             'anthropic-version': '2023-06-01',
                             'anthropic-dangerous-direct-browser-access': 'true'
                         },
-                        body: JSON.stringify({
+                        {
                             model: model,
                             max_tokens: 30,
                             messages: [{ role: 'user', content: titlePrompt }]
-                        })
-                    })
+                        }
+                    )
                     .then(function(response) { return response.json(); })
                     .then(function(data) {
                         if (data.content && data.content[0] && data.content[0].text) {
@@ -1631,21 +1642,22 @@
                     .catch(function(err) {
                         finishWithFallback(err);
                     });
-                } else if ((provider === 'openai' || (providerConfig && providerConfig.type === 'cloud')) && apiKey) {
+                } else if (provider === 'openai' && (apiKey || hasServerAuth)) {
                     var openAIEndpoint = self.getProviderEndpoint(provider) || 'https://api.openai.com/v1/chat/completions';
 
-                    fetch(openAIEndpoint, {
-                        method: 'POST',
-                        headers: {
+                    fetchProvider(
+                        'openai',
+                        openAIEndpoint,
+                        {
                             'Content-Type': 'application/json',
                             'Authorization': 'Bearer ' + apiKey
                         },
-                        body: JSON.stringify({
+                        {
                             model: model,
                             max_tokens: 30,
                             messages: [{ role: 'user', content: titlePrompt }]
-                        })
-                    })
+                        }
+                    )
                     .then(function(response) { return response.json(); })
                     .then(function(data) {
                         if (data.choices && data.choices[0] && data.choices[0].message) {

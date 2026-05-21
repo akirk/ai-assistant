@@ -8,10 +8,11 @@ if (!defined('ABSPATH')) {
 /**
  * AJAX API Handler for tool execution
  *
- * Note: All LLM communication happens client-side via JavaScript.
- * This handler executes WordPress-backed tools. Filesystem tools normally use
- * the direct file endpoint, but remain supported here for backward
- * compatibility and internal callers.
+ * Note: The browser owns the LLM loop. Connector-backed cloud calls may go
+ * through LLM_Proxy so API keys stay server-side, but tool handling still
+ * arrives here from JavaScript. Filesystem tools normally use the direct file
+ * endpoint, but remain supported here for backward compatibility and internal
+ * callers.
  */
 class API_Handler {
 
