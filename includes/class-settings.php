@@ -928,7 +928,7 @@ class Settings {
                 <?php
                 printf(
                     /* translators: %s: link to Connectors settings page */
-                    esc_html__('LLM providers are managed through %s. Drag to reorder — the first available provider will be used.', 'ai-assistant'),
+                    esc_html__('LLM providers are managed through %s. Drag to reorder, then choose the model to use for each provider.', 'ai-assistant'),
                     '<a href="' . esc_url($connectors_url) . '">' . esc_html__('WordPress Connectors', 'ai-assistant') . '</a>'
                 );
                 ?>
@@ -936,15 +936,15 @@ class Settings {
             <?php if ($configured_count > 0) : ?>
                 <ul id="ai-provider-priority" class="ai-provider-priority">
                 </ul>
-                <p class="description"><?php esc_html_e('Priority order is stored per-browser.', 'ai-assistant'); ?>
+                <p class="description"><?php esc_html_e('Priority order and model choices are stored per-browser.', 'ai-assistant'); ?>
                 <?php if ($config['hasLocal'] ?? false) : ?>
                     <?php esc_html_e('Local providers connect directly from your browser.', 'ai-assistant'); ?>
                 <?php endif; ?>
                 </p>
                 <style>
-                    .ai-provider-priority { max-width: 500px; margin: 10px 0; padding: 0; list-style: none; }
+                    .ai-provider-priority { max-width: 760px; margin: 10px 0; padding: 0; list-style: none; }
                     .ai-provider-priority li {
-                        display: flex; align-items: center; gap: 8px;
+                        display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
                         padding: 8px 12px; margin: 4px 0;
                         background: #fff; border: 1px solid #c3c4c7; border-radius: 4px;
                         cursor: grab; user-select: none;
@@ -952,8 +952,18 @@ class Settings {
                     .ai-provider-priority li:active { cursor: grabbing; }
                     .ai-provider-priority li.dragging { opacity: 0.5; }
                     .ai-provider-priority .ai-priority-handle { color: #999; }
-                    .ai-provider-priority .ai-priority-name { flex: 1; font-weight: 500; }
+                    .ai-provider-priority .ai-priority-main {
+                        display: flex; align-items: center; gap: 8px;
+                        flex: 1 1 230px; min-width: 200px;
+                    }
+                    .ai-provider-priority .ai-priority-name { font-weight: 500; }
                     .ai-provider-priority .ai-priority-models { color: #646970; font-size: 13px; }
+                    .ai-provider-priority .ai-priority-model-control {
+                        flex: 0 1 340px; margin: 0;
+                    }
+                    .ai-provider-priority .ai-priority-model-select {
+                        width: 100%; max-width: 340px;
+                    }
                     .ai-provider-priority .ai-priority-status {
                         font-size: 12px; padding: 1px 6px;
                         border-radius: 3px;
@@ -964,15 +974,119 @@ class Settings {
                 <script>
                 jQuery(function($) {
                     var STORAGE_PREFIX = 'aiAssistant_';
+                    var DEFAULT_MODELS = {
+                        anthropic: 'claude-sonnet-4-6',
+                        openai: 'gpt-5.5'
+                    };
+                    var PREFERRED_MODELS = {
+                        anthropic: [
+                            'claude-sonnet-4-6',
+                            'claude-sonnet-4-5-20250929',
+                            'claude-sonnet-4-20250514'
+                        ],
+                        openai: [
+                            'gpt-5.5',
+                            'gpt-5.4',
+                            'gpt-5.4-mini',
+                            'gpt-5.1',
+                            'gpt-5',
+                            'gpt-4.1',
+                            'gpt-4o'
+                        ]
+                    };
                     var providers = <?php echo wp_json_encode(array_map(function($id, $p) {
                         return [
                             'id' => $id,
                             'name' => $p['name'],
                             'type' => $p['type'],
-                            'modelCount' => count($p['models']),
+                            'models' => array_values((array) ($p['models'] ?? [])),
+                            'modelCount' => count((array) ($p['models'] ?? [])),
                             'available' => (!empty($p['serverSideAuth']) || $p['type'] === 'server') && !empty($p['models']),
                         ];
                     }, array_keys($config['available']), array_values($config['available']))); ?>;
+
+                    function normalizeModelId(model) {
+                        return String(model || '').trim();
+                    }
+
+                    function getSetting(key) {
+                        try {
+                            return localStorage.getItem(STORAGE_PREFIX + key) || '';
+                        } catch (e) {
+                            return '';
+                        }
+                    }
+
+                    function setSetting(key, value) {
+                        try {
+                            if (value) {
+                                localStorage.setItem(STORAGE_PREFIX + key, value);
+                            } else {
+                                localStorage.removeItem(STORAGE_PREFIX + key);
+                            }
+                        } catch (e) {}
+                    }
+
+                    function getModelSettingKey(provider) {
+                        provider = normalizeModelId(provider);
+                        return provider ? 'model_' + provider : 'model';
+                    }
+
+                    function hasModel(models, id) {
+                        id = normalizeModelId(id);
+                        if (!id || !Array.isArray(models)) return false;
+
+                        return models.some(function(model) {
+                            return normalizeModelId(model && model.id) === id;
+                        });
+                    }
+
+                    function getRecommendedModel(provider, models) {
+                        models = Array.isArray(models) ? models : [];
+                        var preferred = PREFERRED_MODELS[provider] || [];
+
+                        for (var i = 0; i < preferred.length; i++) {
+                            if (hasModel(models, preferred[i])) {
+                                return preferred[i];
+                            }
+                        }
+
+                        if (DEFAULT_MODELS[provider] && hasModel(models, DEFAULT_MODELS[provider])) {
+                            return DEFAULT_MODELS[provider];
+                        }
+
+                        return models.length > 0 ? normalizeModelId(models[0].id) : (DEFAULT_MODELS[provider] || '');
+                    }
+
+                    function getStoredModel(provider) {
+                        var models = provider.models || [];
+                        var providerModel = getSetting(getModelSettingKey(provider.id));
+                        if (hasModel(models, providerModel)) {
+                            return providerModel;
+                        }
+
+                        if (provider.id === 'local') {
+                            var localModel = getSetting('localModel');
+                            if (hasModel(models, localModel)) {
+                                return localModel;
+                            }
+                        }
+
+                        var legacyModel = getSetting('model');
+                        if (hasModel(models, legacyModel)) {
+                            return legacyModel;
+                        }
+
+                        return getRecommendedModel(provider.id, models);
+                    }
+
+                    function persistModelSelection(provider, model) {
+                        setSetting(getModelSettingKey(provider), model);
+                        setSetting('model', model);
+                        if (provider === 'local') {
+                            setSetting('localModel', model);
+                        }
+                    }
 
                     // Load saved priority
                     var savedPriority = null;
@@ -1011,14 +1125,44 @@ class Settings {
                             var modelsText = p.modelCount === 1
                                 ? '<?php echo esc_js(__('1 model', 'ai-assistant')); ?>'
                                 : p.modelCount + ' <?php echo esc_js(__('models', 'ai-assistant')); ?>';
-                            $list.append(
-                                '<li data-provider="' + p.id + '">' +
-                                '<span class="ai-priority-handle">&#9776;</span>' +
-                                '<span class="ai-priority-name">' + $('<span>').text(p.name).html() + '</span>' +
-                                '<span class="ai-priority-models">' + modelsText + '</span>' +
-                                '<span class="ai-priority-status ' + statusClass + '">' + statusText + '</span>' +
-                                '</li>'
+                            var selectedModel = getStoredModel(p);
+                            var $li = $('<li>').attr('data-provider', p.id).attr('draggable', 'true');
+                            var $main = $('<span>').addClass('ai-priority-main');
+                            var $modelControl = $('<label>').addClass('ai-priority-model-control');
+                            var $modelSelect = $('<select>')
+                                .addClass('ai-priority-model-select')
+                                .attr('data-provider', p.id)
+                                .prop('disabled', !p.available || p.modelCount === 0);
+
+                            $main
+                                .append($('<span>').addClass('ai-priority-handle').html('&#9776;'))
+                                .append($('<span>').addClass('ai-priority-name').text(p.name))
+                                .append($('<span>').addClass('ai-priority-models').text(modelsText))
+                                .append($('<span>').addClass('ai-priority-status ' + statusClass).text(statusText));
+
+                            $modelControl.append(
+                                $('<span>').addClass('screen-reader-text').text('<?php echo esc_js(__('Model', 'ai-assistant')); ?>: ' + p.name)
                             );
+
+                            if (p.modelCount === 0) {
+                                $('<option>')
+                                    .val('')
+                                    .text('<?php echo esc_js(__('No models available', 'ai-assistant')); ?>')
+                                    .appendTo($modelSelect);
+                            } else {
+                                p.models.forEach(function(model) {
+                                    var id = normalizeModelId(model.id);
+                                    $('<option>')
+                                        .val(id)
+                                        .text(model.name || id)
+                                        .prop('selected', id === selectedModel)
+                                        .appendTo($modelSelect);
+                                });
+                            }
+
+                            $modelControl.append($modelSelect);
+                            $li.append($main).append($modelControl);
+                            $list.append($li);
                         });
                     }
 
@@ -1034,9 +1178,16 @@ class Settings {
 
                     render();
 
+                    $list.on('change', '.ai-priority-model-select', function() {
+                        persistModelSelection($(this).data('provider'), $(this).val());
+                    });
+
                     // Drag-and-drop reordering
                     var dragEl = null;
                     $list.on('dragstart', 'li', function(e) {
+                        if ($(e.target).is('select, option')) {
+                            return false;
+                        }
                         dragEl = this;
                         $(this).addClass('dragging');
                         e.originalEvent.dataTransfer.effectAllowed = 'move';
@@ -1064,7 +1215,6 @@ class Settings {
                         e.preventDefault();
                         savePriority();
                     });
-                    $list.children('li').attr('draggable', 'true');
                 });
                 </script>
             <?php else : ?>

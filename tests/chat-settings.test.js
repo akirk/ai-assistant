@@ -118,6 +118,74 @@ describe('chat settings model lifecycle', function() {
         assert.strictEqual(assistant.getModel(), '');
     });
 
+    it('uses the saved model for a Connector-backed provider', function() {
+        const assistant = loadSettingsMixin({
+            providers: {
+                source: 'connectors',
+                available: {
+                    anthropic: {
+                        name: 'Anthropic',
+                        type: 'cloud',
+                        serverSideAuth: true,
+                        models: [
+                            { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
+                            { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5' }
+                        ]
+                    }
+                }
+            },
+            storage: {
+                aiAssistant_model_anthropic: 'claude-sonnet-4-5-20250929'
+            }
+        });
+
+        assert.strictEqual(assistant.getModel(), 'claude-sonnet-4-5-20250929');
+    });
+
+    it('uses the recommended Connector model instead of blindly taking the registry order', function() {
+        const assistant = loadSettingsMixin({
+            providers: {
+                source: 'connectors',
+                available: {
+                    anthropic: {
+                        name: 'Anthropic',
+                        type: 'cloud',
+                        serverSideAuth: true,
+                        models: [
+                            { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
+                            { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' }
+                        ]
+                    }
+                }
+            }
+        });
+
+        assert.strictEqual(assistant.getModel(), 'claude-sonnet-4-6');
+    });
+
+    it('ignores stale Connector model selections that are no longer available', function() {
+        const assistant = loadSettingsMixin({
+            providers: {
+                source: 'connectors',
+                available: {
+                    anthropic: {
+                        name: 'Anthropic',
+                        type: 'cloud',
+                        serverSideAuth: true,
+                        models: [
+                            { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' }
+                        ]
+                    }
+                }
+            },
+            storage: {
+                aiAssistant_model_anthropic: 'claude-sonnet-4-20250514'
+            }
+        });
+
+        assert.strictEqual(assistant.getModel(), 'claude-sonnet-4-6');
+    });
+
     it('warns about deprecated Anthropic models with a recommended replacement', function() {
         const assistant = loadSettingsMixin();
 
