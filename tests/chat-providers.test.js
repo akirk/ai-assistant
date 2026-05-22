@@ -313,6 +313,55 @@ describe('Local LLM requests', function() {
     });
 });
 
+describe('provider proxy requests', function() {
+    it('sends connector-backed providers through the AJAX proxy with a form JSON body', async function() {
+        const calls = [];
+        const payload = {
+            model: 'claude-test',
+            system: 'Check for "recipe" posts.\nUse abilities first.',
+            messages: [{ role: 'user', content: 'did any of my friends post a recipe?' }]
+        };
+        const assistant = loadProvidersMixin({
+            aiAssistantProviders: {
+                available: {
+                    anthropic: {
+                        proxySupported: true,
+                        serverSideAuth: true
+                    }
+                }
+            },
+            aiAssistantConfig: {
+                ajaxUrl: 'http://example.test/wp-admin/admin-ajax.php?existing=1',
+                nonce: 'nonce value'
+            },
+            fetch(url, options) {
+                calls.push({ url, options });
+                return Promise.resolve({ ok: true });
+            }
+        });
+        assistant.isConnectorsMode = function() {
+            return true;
+        };
+
+        await assistant.fetchLLMProvider(
+            'anthropic',
+            'https://api.anthropic.com/v1/messages',
+            { 'Content-Type': 'application/json' },
+            payload
+        );
+
+        assert.equal(calls.length, 1);
+        assert.equal(
+            calls[0].url,
+            'http://example.test/wp-admin/admin-ajax.php?existing=1&action=ai_assistant_llm_proxy&_wpnonce=nonce%20value&provider=anthropic'
+        );
+        assert.equal(calls[0].options.method, 'POST');
+        assert.equal(calls[0].options.credentials, 'same-origin');
+        assert.equal(calls[0].options.headers, undefined);
+        assert.equal(calls[0].options.body.get('body'), JSON.stringify(payload));
+    });
+});
+
 describe('provider request message sanitization', function() {
     it('strips private underscore metadata before sending messages to providers', function() {
         const assistant = loadProvidersMixin();

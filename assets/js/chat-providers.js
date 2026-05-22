@@ -350,13 +350,17 @@
 
         fetchLLMProvider: function(provider, endpoint, headers, payload, signal) {
             if (this.shouldProxyProvider(provider)) {
+                var separator = aiAssistantConfig.ajaxUrl.indexOf('?') === -1 ? '?' : '&';
+                var proxyUrl = aiAssistantConfig.ajaxUrl +
+                    separator +
+                    'action=ai_assistant_llm_proxy&_wpnonce=' +
+                    encodeURIComponent(aiAssistantConfig.nonce) +
+                    '&provider=' +
+                    encodeURIComponent(provider);
                 var params = new URLSearchParams();
-                params.append('action', 'ai_assistant_llm_proxy');
-                params.append('_wpnonce', aiAssistantConfig.nonce);
-                params.append('provider', provider);
                 params.append('body', JSON.stringify(payload));
 
-                return fetch(aiAssistantConfig.ajaxUrl, {
+                return fetch(proxyUrl, {
                     method: 'POST',
                     credentials: 'same-origin',
                     body: params,
