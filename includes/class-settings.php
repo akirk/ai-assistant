@@ -30,6 +30,8 @@ class Settings {
 
         wp_enqueue_style('wp-codemirror');
         wp_enqueue_script('wp-codemirror');
+
+        do_action('wp_ai_provider_browser_status_scripts');
     }
 
     public function ajax_get_skill() {
@@ -917,7 +919,10 @@ class Settings {
         $configured_count = 0;
         if (!empty($config['available'])) {
             foreach ($config['available'] as $provider) {
-                if ((!empty($provider['serverSideAuth']) || $provider['type'] === 'server') && !empty($provider['models'])) {
+                if (
+                    ( ! empty( $provider['serverSideAuth'] ) && ! empty( $provider['models'] ) )
+                    || ( $provider['type'] === 'server' && ! empty( $provider['browserSupported'] ) )
+                ) {
                     $configured_count++;
                 }
             }
@@ -999,9 +1004,13 @@ class Settings {
                             'id' => $id,
                             'name' => $p['name'],
                             'type' => $p['type'],
+                            'endpoint' => $p['endpoint'] ?? '',
+                            'browserSupported' => !empty($p['browserSupported']),
+                            'serverSideAuth' => !empty($p['serverSideAuth']),
                             'models' => array_values((array) ($p['models'] ?? [])),
                             'modelCount' => count((array) ($p['models'] ?? [])),
                             'available' => (!empty($p['serverSideAuth']) || $p['type'] === 'server') && !empty($p['models']),
+                            'browserStatus' => ($p['type'] === 'server' && !empty($p['browserSupported'])) ? 'checking' : 'server',
                         ];
                     }, array_keys($config['available']), array_values($config['available']))); ?>;
 
@@ -1088,6 +1097,89 @@ class Settings {
                         }
                     }
 
+                    function providerNeedsBrowserCheck(provider) {
+                        return provider.type === 'server' && provider.browserSupported;
+                    }
+
+                    function findProvider(id) {
+                        for (var i = 0; i < providers.length; i++) {
+                            if (providers[i].id === id) {
+                                return providers[i];
+                            }
+                        }
+                        return null;
+                    }
+
+                    function normalizeBrowserModels(models) {
+                        if (!Array.isArray(models)) {
+                            return [];
+                        }
+                        return models.map(function(model) {
+                            var id = normalizeModelId(model && model.id);
+                            return {
+                                id: id,
+                                name: (model && model.name) || id,
+                                capabilities: (model && model.capabilities) || []
+                            };
+                        }).filter(function(model) {
+                            return model.id !== '';
+                        });
+                    }
+
+                    function applyBrowserStatus(status) {
+                        var provider = findProvider(status && status.providerId);
+                        if (!provider) {
+                            return;
+                        }
+
+                        provider.browserStatus = status.status || (status.reachable ? 'ready' : 'unreachable');
+
+                        if (status.reachable) {
+                            provider.models = normalizeBrowserModels(status.models);
+                            provider.modelCount = provider.models.length;
+                            provider.available = provider.modelCount > 0;
+                            if (provider.modelCount === 0 && provider.browserStatus === 'ready') {
+                                provider.browserStatus = 'no_models';
+                            }
+                        } else {
+                            provider.available = false;
+                            provider.modelCount = 0;
+                            provider.models = [];
+                        }
+
+                        render();
+                    }
+
+                    function checkBrowserProviders() {
+                        var registry = window.wpAiProviderBrowserStatus;
+                        var browserProviders = providers.filter(providerNeedsBrowserCheck);
+                        if (browserProviders.length === 0) {
+                            return;
+                        }
+
+                        if (!registry || typeof registry.check !== 'function') {
+                            browserProviders.forEach(function(provider) {
+                                provider.available = false;
+                                provider.browserStatus = 'unsupported';
+                            });
+                            render();
+                            return;
+                        }
+
+                        browserProviders.forEach(function(provider) {
+                            provider.browserStatus = 'checking';
+                            registry.check(provider).then(applyBrowserStatus).catch(function(error) {
+                                applyBrowserStatus({
+                                    providerId: provider.id,
+                                    reachable: false,
+                                    status: 'unreachable',
+                                    error: error && error.message ? error.message : ''
+                                });
+                            });
+                        });
+                        render();
+                    }
+
                     // Load saved priority
                     var savedPriority = null;
                     try {
@@ -1113,7 +1205,13 @@ class Settings {
                         providers.forEach(function(p) {
                             var statusClass = p.available ? 'available' : 'unavailable';
                             var statusText;
-                            if (p.modelCount === 0) {
+                            if (p.browserStatus === 'checking') {
+                                statusText = '<?php echo esc_js(__('checking', 'ai-assistant')); ?>';
+                            } else if (p.browserStatus === 'unreachable') {
+                                statusText = '<?php echo esc_js(__('not reachable', 'ai-assistant')); ?>';
+                            } else if (p.browserStatus === 'unsupported') {
+                                statusText = '<?php echo esc_js(__('no browser check', 'ai-assistant')); ?>';
+                            } else if (p.modelCount === 0) {
                                 statusText = '<?php echo esc_js(__('no models', 'ai-assistant')); ?>';
                             } else if (!p.available) {
                                 statusText = '<?php echo esc_js(__('no key', 'ai-assistant')); ?>';
@@ -1124,7 +1222,9 @@ class Settings {
                             }
                             var modelsText = p.modelCount === 1
                                 ? '<?php echo esc_js(__('1 model', 'ai-assistant')); ?>'
-                                : p.modelCount + ' <?php echo esc_js(__('models', 'ai-assistant')); ?>';
+                                : (p.browserStatus === 'checking'
+                                    ? '<?php echo esc_js(__('checking models', 'ai-assistant')); ?>'
+                                    : p.modelCount + ' <?php echo esc_js(__('models', 'ai-assistant')); ?>');
                             var selectedModel = getStoredModel(p);
                             var $li = $('<li>').attr('data-provider', p.id).attr('draggable', 'true');
                             var $main = $('<span>').addClass('ai-priority-main');
@@ -1144,7 +1244,12 @@ class Settings {
                                 $('<span>').addClass('screen-reader-text').text('<?php echo esc_js(__('Model', 'ai-assistant')); ?>: ' + p.name)
                             );
 
-                            if (p.modelCount === 0) {
+                            if (p.browserStatus === 'checking') {
+                                $('<option>')
+                                    .val('')
+                                    .text('<?php echo esc_js(__('Checking models...', 'ai-assistant')); ?>')
+                                    .appendTo($modelSelect);
+                            } else if (p.modelCount === 0) {
                                 $('<option>')
                                     .val('')
                                     .text('<?php echo esc_js(__('No models available', 'ai-assistant')); ?>')
@@ -1177,6 +1282,7 @@ class Settings {
                     }
 
                     render();
+                    checkBrowserProviders();
 
                     $list.on('change', '.ai-priority-model-select', function() {
                         persistModelSelection($(this).data('provider'), $(this).val());

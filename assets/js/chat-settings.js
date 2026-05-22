@@ -116,6 +116,21 @@
         });
     }
 
+    function normalizeBrowserStatusModels(models) {
+        if (!Array.isArray(models)) return [];
+
+        return models.map(function(model) {
+            var id = normalizeModelId(model && model.id);
+            return {
+                id: id,
+                name: (model && model.name) || id,
+                capabilities: (model && model.capabilities) || []
+            };
+        }).filter(function(model) {
+            return model.id !== '';
+        });
+    }
+
     function getRecommendedModel(provider, models) {
         models = Array.isArray(models) ? models : [];
         var preferred = PREFERRED_MODELS[provider] || [];
@@ -251,6 +266,116 @@
             return this.setSetting('providerPriority', JSON.stringify(priorityArray));
         },
 
+        _getBrowserStatusRegistry: function() {
+            return window.wpAiProviderBrowserStatus || null;
+        },
+
+        _providerNeedsBrowserStatus: function(id) {
+            if (!this.isConnectorsMode()) return false;
+            var config = aiAssistantProviders.available[id];
+            return !!(config && config.type === 'server' && config.browserSupported);
+        },
+
+        hasUncheckedBrowserProviderStatuses: function() {
+            if (!this.isConnectorsMode()) return false;
+
+            var ids = Object.keys(aiAssistantProviders.available || {});
+            for (var i = 0; i < ids.length; i++) {
+                if (this._providerNeedsBrowserStatus(ids[i]) && !aiAssistantProviders.available[ids[i]].browserStatusChecked) {
+                    return true;
+                }
+            }
+
+            return false;
+        },
+
+        _applyBrowserProviderStatus: function(id, status) {
+            if (!this.isConnectorsMode()) return null;
+
+            var config = aiAssistantProviders.available[id];
+            if (!config) return null;
+
+            status = status || {};
+            config.browserStatusChecked = true;
+            config.browserStatus = status.status || (status.reachable ? 'ready' : 'unreachable');
+            config.browserReachable = !!status.reachable;
+            config.browserStatusError = status.error || '';
+
+            if (status.reachable) {
+                config.models = normalizeBrowserStatusModels(status.models);
+                config.browserModelCount = config.models.length;
+                if (config.models.length === 0 && config.browserStatus === 'ready') {
+                    config.browserStatus = 'no_models';
+                }
+            } else {
+                config.models = [];
+                config.browserModelCount = 0;
+            }
+
+            return config;
+        },
+
+        ensureBrowserProviderStatus: function(id) {
+            if (!this._providerNeedsBrowserStatus(id)) {
+                return Promise.resolve(aiAssistantProviders.available[id] || null);
+            }
+
+            var config = aiAssistantProviders.available[id];
+            if (config.browserStatusChecked) {
+                return Promise.resolve(config);
+            }
+
+            this.browserProviderStatusPromises = this.browserProviderStatusPromises || {};
+            if (this.browserProviderStatusPromises[id]) {
+                return this.browserProviderStatusPromises[id];
+            }
+
+            var registry = this._getBrowserStatusRegistry();
+            if (!registry || typeof registry.check !== 'function') {
+                this._applyBrowserProviderStatus(id, {
+                    reachable: false,
+                    status: 'unsupported',
+                    error: 'No browser status checker registered.'
+                });
+                return Promise.resolve(config);
+            }
+
+            var self = this;
+            this.browserProviderStatusPromises[id] = registry.check($.extend({ id: id }, config))
+                .then(function(status) {
+                    return self._applyBrowserProviderStatus(id, status);
+                })
+                .catch(function(error) {
+                    return self._applyBrowserProviderStatus(id, {
+                        reachable: false,
+                        status: 'unreachable',
+                        error: error && error.message ? error.message : ''
+                    });
+                })
+                .then(function(updated) {
+                    delete self.browserProviderStatusPromises[id];
+                    return updated;
+                });
+
+            return this.browserProviderStatusPromises[id];
+        },
+
+        ensureBrowserProviderStatuses: function() {
+            if (!this.isConnectorsMode()) {
+                return Promise.resolve();
+            }
+
+            var ids = Object.keys(aiAssistantProviders.available || {});
+            var checks = [];
+            for (var i = 0; i < ids.length; i++) {
+                if (this._providerNeedsBrowserStatus(ids[i])) {
+                    checks.push(this.ensureBrowserProviderStatus(ids[i]));
+                }
+            }
+
+            return Promise.all(checks);
+        },
+
         /**
          * Check if a provider is available for use right now.
          * Cloud providers need an API key, server/local providers are always "available"
@@ -266,9 +391,15 @@
             }
             var config = aiAssistantProviders.available[id];
             if (!config) return false;
+            if (config.type === 'server') {
+                if (config.browserSupported) {
+                    if (!config.browserStatusChecked) return true;
+                    return !!(config.browserReachable && config.models && config.models.length > 0);
+                }
+                return !!(config.models && config.models.length > 0);
+            }
             // Must have at least one model to be usable
             if (!config.models || config.models.length === 0) return false;
-            if (config.type === 'server') return true;
             return !!(config.serverSideAuth || config.apiKey);
         },
 

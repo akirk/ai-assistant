@@ -53,6 +53,8 @@ class Chat_UI {
 
         wp_enqueue_script('wp-codemirror');
 
+        do_action('wp_ai_provider_browser_status_scripts');
+
         wp_enqueue_script(
             'ai-assistant-chat-core',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-core.js',

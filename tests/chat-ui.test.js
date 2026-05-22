@@ -21,9 +21,13 @@ function loadUiMixin(config, globals) {
         aiAssistant,
         aiAssistantConfig: config || {}
     };
+    if (globals.aiAssistantProviders) {
+        windowGlobals.aiAssistantProviders = globals.aiAssistantProviders;
+    }
     const context = {
         window: windowGlobals,
         aiAssistantConfig: config || {},
+        aiAssistantProviders: globals.aiAssistantProviders,
         fetch: globals.fetch || fetch,
         URL,
         jQuery,
@@ -291,6 +295,20 @@ describe('welcome message', function() {
 
         assert.match(message, /shape My WordPress into your personal software home/);
         assert.doesNotMatch(message, /manage your WordPress installation - read and modify files/);
+    });
+
+    it('uses Connector provider names in the model info line', function() {
+        const assistant = loadUiMixin({}, {
+            aiAssistantProviders: {
+                available: {
+                    lmstudio: {
+                        name: 'LM Studio'
+                    }
+                }
+            }
+        });
+
+        assert.strictEqual(assistant.getProviderName('lmstudio'), 'LM Studio');
     });
 });
 
