@@ -161,7 +161,7 @@ Plugins with browser UI can also register JavaScript callbacks for completed too
 
 ### Tool Extension Hooks
 
-High-risk development tools are registered through hooks so they can later move into a companion plugin. The internal `includes/class-dev-tools.php` module currently adds file mutation, plugin installation, and raw PHP execution with:
+High-risk development tools are registered through hooks so they can later move into a companion plugin. The optional `dev-tools.php` module currently adds file mutation, plugin installation, and raw PHP execution with:
 
 - `ai_assistant_tool_definitions`
 - `ai_assistant_tool_meta`
@@ -170,7 +170,7 @@ High-risk development tools are registered through hooks so they can later move 
 - `ai_assistant_execute_tool`
 - `ai_assistant_system_prompt`
 
-AI Assistant fires `ai_assistant_loaded` after its core services are initialized. Tool extension modules can hook into that action, then register their schemas, metadata, endpoint routing, and execution handlers through the filters above. The bundled dev tools module is loaded by an optional `require_once` in `ai-assistant.php`; comment out that include to disable it, or move the module into a companion plugin that includes the file before `ai_assistant_loaded` fires.
+The bundled dev tools module is loaded by an optional `require_once` in `ai-assistant.php`; comment out that include to disable it, or move the module into a companion plugin that includes the file. Tool modules register their schemas, metadata, endpoint routing, and execution handlers directly through the filters above.
 
 Core keeps the read-only/context tools and permission UI; extensions provide their own schemas, metadata, endpoint routing, and execution handlers.
 

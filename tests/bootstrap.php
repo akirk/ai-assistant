@@ -380,7 +380,7 @@ require_once $plugin_dir . '/includes/class-emergency-plugin-guard.php';
 require_once $plugin_dir . '/includes/class-file-tool-executor.php';
 require_once $plugin_dir . '/includes/class-plugin-recovery-admin.php';
 require_once $plugin_dir . '/includes/class-executor.php';
-require_once $plugin_dir . '/includes/class-dev-tools.php';
+require_once $plugin_dir . '/dev-tools.php';
 require_once $plugin_dir . '/includes/class-api-handler.php';
 require_once $plugin_dir . '/includes/class-git-tracker.php';
 require_once $plugin_dir . '/includes/class-git-tracker-manager.php';
@@ -389,7 +389,3 @@ require_once $plugin_dir . '/includes/class-conversations.php';
 require_once $plugin_dir . '/includes/class-conversations-app.php';
 require_once $plugin_dir . '/includes/class-settings.php';
 require_once $plugin_dir . '/includes/class-wp-app-abilities.php';
-
-if (class_exists('\AI_Assistant\Dev_Tools', false)) {
-    \AI_Assistant\Dev_Tools::register();
-}

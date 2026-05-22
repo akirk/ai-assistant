@@ -12,7 +12,7 @@ class ToolsTest extends TestCase {
     private Tools $tools;
 
     protected function setUp(): void {
-        \AI_Assistant\Dev_Tools::register();
+        \AI_Assistant_Dev_Tools::init();
         $this->tools = new Tools();
     }
 
