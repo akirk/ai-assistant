@@ -143,6 +143,7 @@
             this.consecutiveFailedToolRounds = 0;
             this.usesCodingToolWorkflow = false;
             this.autoSaveConversation();
+            this.shouldFollowStreamingScroll = true;
             this.callLLM();
             return true;
         },
@@ -261,6 +262,7 @@
             if (this.autoSaveConversation) {
                 this.autoSaveConversation();
             }
+            this.shouldFollowStreamingScroll = true;
             this.callLLM();
         },
 
