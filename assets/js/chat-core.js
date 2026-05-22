@@ -63,6 +63,11 @@
         isUploadingFiles: false,
         toolCallSubscriptions: existingAiAssistant.toolCallSubscriptions || [],
         nextToolCallSubscriptionId: existingAiAssistant.nextToolCallSubscriptionId || 1,
+        shouldFollowStreamingScroll: true,
+        streamingScrollThreshold: 24,
+        streamingScrollResumeThreshold: 4,
+        defaultScrollThreshold: 100,
+        messagesTouchStartY: null,
         initialized: existingAiAssistant.initialized || false,
 
         getMessageTimestamp: function() {
@@ -300,11 +305,28 @@
             });
 
             $(document).on('click', '#ai-assistant-scroll-bottom', function() {
+                self.shouldFollowStreamingScroll = true;
                 self.scrollToBottom(true);
             });
 
             $(document).on('scroll', '#ai-assistant-messages', function() {
-                $('#ai-assistant-scroll-bottom').toggle(!self.isNearBottom(100));
+                self.handleMessagesScroll();
+            });
+
+            $(document).on('wheel', '#ai-assistant-messages', function(e) {
+                self.handleMessagesWheel(e);
+            });
+
+            $(document).on('touchstart', '#ai-assistant-messages', function(e) {
+                self.handleMessagesTouchStart(e);
+            });
+
+            $(document).on('touchmove', '#ai-assistant-messages', function(e) {
+                self.handleMessagesTouchMove(e);
+            });
+
+            $(document).on('keydown', '#ai-assistant-messages', function(e) {
+                self.handleMessagesScrollKeydown(e);
             });
 
             $(document).on('pointerdown', '#ai-assistant-expand', function(e) {
@@ -617,10 +639,14 @@
                 $stop.show();
                 this.updateSendButton();
                 this.updateLoadingStatus();
-                this.scrollToBottom(true);
-                setTimeout(function() {
-                    self.scrollToBottom(true);
-                }, 0);
+                if (this.shouldFollowStreamingScroll) {
+                    this.scrollToBottom(true);
+                    setTimeout(function() {
+                        self.scrollToBottom(true);
+                    }, 0);
+                } else {
+                    this.updateScrollBottomButton();
+                }
             } else {
                 this.abortController = null;
                 $stop.hide();
@@ -739,15 +765,98 @@
             return (scrollHeight - scrollTop - clientHeight) < threshold;
         },
 
+        getScrollBottomThreshold: function() {
+            return this.isLoading ? this.streamingScrollThreshold : this.defaultScrollThreshold;
+        },
+
+        pauseStreamingScrollFollow: function() {
+            if (!this.isLoading) {
+                return;
+            }
+
+            this.shouldFollowStreamingScroll = false;
+            this.updateScrollBottomButton();
+        },
+
+        updateScrollBottomButton: function() {
+            var shouldShow = !this.isNearBottom(this.getScrollBottomThreshold());
+            $('#ai-assistant-scroll-bottom').toggle(shouldShow);
+        },
+
+        handleMessagesScroll: function() {
+            var nearBottom = this.isNearBottom(this.getScrollBottomThreshold());
+
+            if (this.isLoading) {
+                if (this.isNearBottom(this.streamingScrollResumeThreshold)) {
+                    this.shouldFollowStreamingScroll = true;
+                } else if (!nearBottom) {
+                    this.shouldFollowStreamingScroll = false;
+                }
+            }
+
+            $('#ai-assistant-scroll-bottom').toggle(!nearBottom);
+        },
+
+        handleMessagesWheel: function(e) {
+            var event = e.originalEvent || e;
+
+            if (event.deltaY < 0) {
+                this.pauseStreamingScrollFollow();
+            }
+        },
+
+        getTouchClientY: function(e) {
+            var event = e.originalEvent || e;
+            var touches = event.touches || event.changedTouches;
+
+            return touches && touches.length ? touches[0].clientY : null;
+        },
+
+        handleMessagesTouchStart: function(e) {
+            this.messagesTouchStartY = this.getTouchClientY(e);
+        },
+
+        handleMessagesTouchMove: function(e) {
+            var clientY = this.getTouchClientY(e);
+
+            if (clientY === null || this.messagesTouchStartY === null) {
+                return;
+            }
+
+            if (clientY > this.messagesTouchStartY) {
+                this.pauseStreamingScrollFollow();
+            }
+
+            this.messagesTouchStartY = clientY;
+        },
+
+        handleMessagesScrollKeydown: function(e) {
+            if (
+                e.key === 'ArrowUp' ||
+                e.key === 'PageUp' ||
+                e.key === 'Home'
+            ) {
+                this.pauseStreamingScrollFollow();
+            }
+        },
+
         scrollToBottom: function(force) {
             var $messages = $('#ai-assistant-messages');
             if ($messages.length === 0) return;
 
-            // Use larger threshold during streaming so autoscroll re-engages more easily
-            var threshold = this.isLoading ? 300 : 100;
-            if (force || this.isNearBottom(threshold)) {
+            if (force) {
+                this.shouldFollowStreamingScroll = true;
+            }
+
+            var shouldScroll = force || (this.isLoading
+                ? this.shouldFollowStreamingScroll
+                : this.isNearBottom(this.defaultScrollThreshold));
+
+            if (shouldScroll) {
                 $messages.scrollTop($messages[0].scrollHeight);
                 $('#ai-assistant-scroll-bottom').hide();
+            } else {
+                this.updateScrollBottomButton();
             }
         },
 
