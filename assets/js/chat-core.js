@@ -24,6 +24,8 @@
         draftStorageKey: 'aiAssistant_draftMessage',
         draftHistoryKey: 'aiAssistant_draftHistory',
         urlComponentStorageKey: 'aiAssistant_lastUrlComponent',
+        urlContextTimestampStorageKey: 'aiAssistant_lastUrlContextAt',
+        newChatSuggestionMaxAgeMs: 60 * 60 * 1000,
         yoloStorageKey: 'aiAssistant_yoloMode',
         conversationPreloaded: false,
         yoloMode: false,
@@ -38,6 +40,7 @@
         pendingNewChatModel: '',
         pendingChatOriginalHtml: null,
         previousUrlComponent: '',
+        previousUrlContextAt: 0,
         conversationInteracted: false,
         saveInProgress: false,
         savePending: false,
@@ -61,6 +64,24 @@
         toolCallSubscriptions: existingAiAssistant.toolCallSubscriptions || [],
         nextToolCallSubscriptionId: existingAiAssistant.nextToolCallSubscriptionId || 1,
         initialized: existingAiAssistant.initialized || false,
+
+        getMessageTimestamp: function() {
+            return Date.now ? Date.now() : new Date().getTime();
+        },
+
+        createStoredMessage: function(role, content, extra) {
+            var message = $.extend({
+                role: role,
+                content: content,
+                _ts: this.getMessageTimestamp()
+            }, extra || {});
+
+            if (!message._ts) {
+                message._ts = this.getMessageTimestamp();
+            }
+
+            return message;
+        },
 
         init: function() {
             if (this.initialized) {

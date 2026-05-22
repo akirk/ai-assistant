@@ -314,7 +314,7 @@ describe('Local LLM requests', function() {
 });
 
 describe('provider request message sanitization', function() {
-    it('strips private token usage metadata before sending messages to providers', function() {
+    it('strips private underscore metadata before sending messages to providers', function() {
         const assistant = loadProvidersMixin();
 
         const sanitized = assistant.sanitizeMessages([
@@ -322,16 +322,30 @@ describe('provider request message sanitization', function() {
             {
                 role: 'assistant',
                 content: 'Hi',
+                _ts: 1790000000000,
                 _usage: {
                     source: 'provider',
                     input_tokens: 12,
                     output_tokens: 3
-                }
+                },
+                _private: 'kept out of provider payloads'
             }
         ]);
 
         assert.strictEqual(sanitized.length, 2);
         assert.strictEqual(Object.prototype.hasOwnProperty.call(sanitized[1], '_usage'), false);
+        assert.strictEqual(Object.prototype.hasOwnProperty.call(sanitized[1], '_ts'), false);
+        assert.strictEqual(Object.prototype.hasOwnProperty.call(sanitized[1], '_private'), false);
+    });
+
+    it('adds millisecond epoch timestamps to stored messages', function() {
+        const assistant = loadProvidersMixin();
+        const message = assistant.createStoredMessage('user', 'Hello');
+
+        assert.strictEqual(message.role, 'user');
+        assert.strictEqual(message.content, 'Hello');
+        assert.strictEqual(typeof message._ts, 'number');
+        assert.ok(message._ts > 0);
     });
 });
 
@@ -433,6 +447,7 @@ describe('queued user messages', function() {
         assert.equal(assistant.providerCalled, false);
         assert.equal(assistant.queuedMessages.length, 1);
         assert.equal(assistant.queuedMessages[0].content, 'Please do this next.');
+        assert.equal(typeof assistant.queuedMessages[0].queuedAt, 'number');
         assert.equal(input.state.value, '');
         assert.equal(assistant.lastDraftHistoryMessage, 'Please do this next.');
         assert.equal(assistant.draftCleared, true);
@@ -469,6 +484,7 @@ describe('queued user messages', function() {
         assert.equal(flushed, true);
         assert.equal(assistant.queuedMessages.length, 0);
         assert.equal(assistant.messages.length, 1);
+        assert.equal(typeof assistant.messages[0]._ts, 'number');
         assert.equal(JSON.stringify(assistant.messages[0].content.slice(1)), JSON.stringify([
             { type: 'text', text: 'Also update the heading.' },
             { type: 'text', text: 'Then summarize the change.' }
@@ -505,9 +521,8 @@ describe('queued user messages', function() {
         assert.equal(saved, true);
         assert.equal(called, true);
         assert.equal(assistant.toolCallRounds, 0);
-        assert.equal(JSON.stringify(assistant.messages[1]), JSON.stringify({
-            role: 'user',
-            content: 'Next request.'
-        }));
+        assert.equal(assistant.messages[1].role, 'user');
+        assert.equal(assistant.messages[1].content, 'Next request.');
+        assert.equal(typeof assistant.messages[1]._ts, 'number');
     });
 });

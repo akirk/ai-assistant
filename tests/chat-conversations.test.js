@@ -407,11 +407,13 @@ describe('conversation area suggestions', function() {
         assert.strictEqual(assistant.getCurrentUrlComponent(), 'other-app');
         assert.strictEqual(assistant.previousUrlComponent, 'my-apps');
         assert.strictEqual(storage.getItem('aiAssistant_lastUrlComponent'), 'my-apps');
+        assert.ok(parseInt(storage.getItem('aiAssistant_lastUrlContextAt'), 10) > 0);
     });
 
     it('keeps suggesting across reload until interaction updates the stored component', function() {
         const { assistant, storage } = loadConversationMixin({
-            aiAssistant_lastUrlComponent: 'my-apps'
+            aiAssistant_lastUrlComponent: 'my-apps',
+            aiAssistant_lastUrlContextAt: String(Date.now())
         }, {
             urlComponent: 'other-app'
         });
@@ -424,9 +426,70 @@ describe('conversation area suggestions', function() {
         assistant.markConversationInteracted();
         assert.strictEqual(assistant.shouldSuggestNewChatForCurrentArea(), false);
         assert.strictEqual(storage.getItem('aiAssistant_lastUrlComponent'), 'other-app');
+        assert.ok(parseInt(storage.getItem('aiAssistant_lastUrlContextAt'), 10) >= assistant.previousUrlContextAt);
 
         assistant.messages = [];
         assistant.conversationInteracted = false;
+        assert.strictEqual(assistant.shouldSuggestNewChatForCurrentArea(), false);
+    });
+
+    it('suggests a new chat when the last conversation context is stale', function() {
+        const { assistant } = loadConversationMixin({
+            aiAssistant_lastUrlComponent: 'my-apps',
+            aiAssistant_lastUrlContextAt: String(Date.now() - (2 * 60 * 60 * 1000))
+        }, {
+            urlComponent: 'my-apps'
+        });
+
+        assistant.newChatSuggestionMaxAgeMs = 60 * 60 * 1000;
+        assistant.restoreUrlComponentContext();
+        assistant.messages = [{ role: 'user', content: 'Current chat' }];
+
+        assert.strictEqual(assistant.shouldSuggestNewChatForCurrentArea(), true);
+    });
+
+    it('does not suggest a new chat for recent context in the same area', function() {
+        const { assistant } = loadConversationMixin({
+            aiAssistant_lastUrlComponent: 'my-apps',
+            aiAssistant_lastUrlContextAt: String(Date.now())
+        }, {
+            urlComponent: 'my-apps'
+        });
+
+        assistant.newChatSuggestionMaxAgeMs = 60 * 60 * 1000;
+        assistant.restoreUrlComponentContext();
+        assistant.messages = [{ role: 'user', content: 'Current chat' }];
+
+        assert.strictEqual(assistant.shouldSuggestNewChatForCurrentArea(), false);
+    });
+
+    it('uses stored message timestamps for stale chat suggestions when available', function() {
+        const { assistant } = loadConversationMixin({
+            aiAssistant_lastUrlComponent: 'my-apps',
+            aiAssistant_lastUrlContextAt: String(Date.now())
+        }, {
+            urlComponent: 'my-apps'
+        });
+
+        assistant.newChatSuggestionMaxAgeMs = 60 * 60 * 1000;
+        assistant.restoreUrlComponentContext();
+        assistant.messages = [{ role: 'user', content: 'Current chat', _ts: Date.now() - (2 * 60 * 60 * 1000) }];
+
+        assert.strictEqual(assistant.shouldSuggestNewChatForCurrentArea(), true);
+    });
+
+    it('prefers a recent message timestamp over an old context timestamp', function() {
+        const { assistant } = loadConversationMixin({
+            aiAssistant_lastUrlComponent: 'my-apps',
+            aiAssistant_lastUrlContextAt: String(Date.now() - (2 * 60 * 60 * 1000))
+        }, {
+            urlComponent: 'my-apps'
+        });
+
+        assistant.newChatSuggestionMaxAgeMs = 60 * 60 * 1000;
+        assistant.restoreUrlComponentContext();
+        assistant.messages = [{ role: 'user', content: 'Current chat', _ts: Date.now() }];
+
         assert.strictEqual(assistant.shouldSuggestNewChatForCurrentArea(), false);
     });
 });
