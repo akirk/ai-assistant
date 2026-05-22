@@ -6,6 +6,22 @@
         anthropic: 'claude-sonnet-4-6',
         openai: 'gpt-5.5'
     };
+    var PREFERRED_MODELS = {
+        anthropic: [
+            'claude-sonnet-4-6',
+            'claude-sonnet-4-5-20250929',
+            'claude-sonnet-4-20250514'
+        ],
+        openai: [
+            'gpt-5.5',
+            'gpt-5.4',
+            'gpt-5.4-mini',
+            'gpt-5.1',
+            'gpt-5',
+            'gpt-4.1',
+            'gpt-4o'
+        ]
+    };
     var MODEL_REPLACEMENTS = {
         anthropic: {
             'claude-sonnet-4-20250514': {
@@ -89,6 +105,32 @@
         }
 
         return true;
+    }
+
+    function hasModel(models, id) {
+        id = normalizeModelId(id);
+        if (!id || !Array.isArray(models)) return false;
+
+        return models.some(function(model) {
+            return normalizeModelId(model && model.id) === id;
+        });
+    }
+
+    function getRecommendedModel(provider, models) {
+        models = Array.isArray(models) ? models : [];
+        var preferred = PREFERRED_MODELS[provider] || [];
+
+        for (var i = 0; i < preferred.length; i++) {
+            if (hasModel(models, preferred[i])) {
+                return preferred[i];
+            }
+        }
+
+        if (DEFAULT_MODELS[provider] && hasModel(models, DEFAULT_MODELS[provider])) {
+            return DEFAULT_MODELS[provider];
+        }
+
+        return models.length > 0 ? normalizeModelId(models[0].id) : (DEFAULT_MODELS[provider] || '');
     }
 
     function parseClaudeModelId(model) {
@@ -297,7 +339,28 @@
             if (this.isConnectorsMode()) {
                 var providerConfig = aiAssistantProviders.available[provider];
                 if (providerConfig && providerConfig.models && providerConfig.models.length > 0) {
-                    return providerConfig.models[0].id;
+                    var connectorModels = providerConfig.models;
+                    var connectorOverride = this.getSetting(getModelSettingKey(provider));
+                    if (hasModel(connectorModels, connectorOverride)) {
+                        return connectorOverride;
+                    }
+
+                    if (provider === 'local') {
+                        var connectorLocalModel = this.getLocalModel();
+                        if (hasModel(connectorModels, connectorLocalModel)) {
+                            return connectorLocalModel;
+                        }
+                    }
+
+                    var connectorLegacyOverride = this.getSetting('model');
+                    if (
+                        isModelCompatibleWithProvider(provider, connectorLegacyOverride) &&
+                        hasModel(connectorModels, connectorLegacyOverride)
+                    ) {
+                        return connectorLegacyOverride;
+                    }
+
+                    return getRecommendedModel(provider, connectorModels);
                 }
             }
 
@@ -562,6 +625,7 @@
         clearAllSettings: function() {
             var keys = [
                 'provider',
+                'providerPriority',
                 'model',
                 'model_anthropic',
                 'model_openai',
@@ -576,6 +640,12 @@
             keys.forEach(function(key) {
                 self.removeSetting(key);
             });
+
+            if (this.isConnectorsMode()) {
+                Object.keys(aiAssistantProviders.available || {}).forEach(function(provider) {
+                    self.removeSetting(getModelSettingKey(provider));
+                });
+            }
         }
     });
 
