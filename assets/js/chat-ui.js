@@ -1555,6 +1555,112 @@
             return message + '\n\nA few tips for this area of your WordPress:\n- ' + tips.join('\n- ');
         },
 
+        getModelInfoOptions: function(provider, model) {
+            var options = this.getModelOptions ? this.getModelOptions(provider, model) : [];
+            if ((!options || options.length === 0) && model) {
+                options = [{ id: model, name: model }];
+            }
+            return options || [];
+        },
+
+        renderModelInfoControl: function($line, provider, model) {
+            model = String(model || '').trim();
+            if (!model) return;
+
+            var options = this.getModelInfoOptions(provider, model);
+            $line.append(' (');
+
+            if (options.length > 1 && this.selectModelForCurrentChat) {
+                var $select = $('<select class="ai-model-select" aria-label="Model"></select>')
+                    .attr('data-provider', provider)
+                    .attr('data-current-model', model)
+                    .attr('title', 'Change model')
+                    .prop('disabled', !!this.isLoading);
+
+                options.forEach(function(option) {
+                    var id = String(option.id || '').trim();
+                    if (!id) return;
+
+                    $('<option>')
+                        .val(id)
+                        .text(id)
+                        .attr('title', option.name && option.name !== id ? option.name : id)
+                        .prop('selected', id === model)
+                        .appendTo($select);
+                });
+
+                var $wrap = $('<span class="ai-model-select-wrap"></span>')
+                    .append($('<span class="ai-model-select-sizer" aria-hidden="true"></span>'))
+                    .append($select);
+                $line.append($wrap);
+                this.syncModelSelectWidth($select);
+            } else {
+                $line.append($('<span class="ai-model-label"></span>').text(model));
+            }
+
+            $line.append(')');
+        },
+
+        syncModelSelectWidth: function($select) {
+            if (!$select || !$select.length) return;
+
+            var selectedText = $select.find('option:selected').text() || $select.val() || '';
+            var $sizer = $select.closest('.ai-model-select-wrap').find('.ai-model-select-sizer');
+            if (!$sizer.length) return;
+
+            $sizer.text(selectedText);
+            $select.css('--ai-model-select-width', Math.ceil($sizer.outerWidth()) + 11 + 'px');
+        },
+
+        addModelInfoMessage: function(provider, model) {
+            var providerName = this.getProviderName(provider);
+            this.addMessage('system', 'You\'re chatting with **' + providerName + '**', 'ai-model-info');
+
+            var $message = $('#ai-assistant-messages .ai-model-info').last();
+            var $line = $message.find('.ai-message-content p').first();
+            if (!$line.length) {
+                $line = $message.find('.ai-message-content');
+            }
+
+            $line.addClass('ai-model-info-line');
+            $line.empty()
+                .append('You\'re chatting with ')
+                .append($('<strong></strong>').text(providerName));
+            this.renderModelInfoControl($line, provider, model);
+        },
+
+        handleModelSelectionChange: function($select) {
+            var provider = String($select.attr('data-provider') || '').trim();
+            var model = String($select.val() || '').trim();
+            var previousModel = String($select.attr('data-current-model') || '').trim();
+
+            if (!provider || !model || !this.selectModelForCurrentChat(provider, model)) {
+                if (previousModel) {
+                    $select.val(previousModel);
+                }
+                return;
+            }
+
+            $select.attr('data-current-model', model);
+            this.syncModelSelectWidth($select);
+            $('#ai-assistant-messages .ai-model-warning, #ai-assistant-messages .ai-model-note').remove();
+            this.showModelUpgradeNotice(provider, model);
+
+            if (this.updateSendButton) {
+                this.updateSendButton();
+            }
+            if (this.updateTokenCount) {
+                this.updateTokenCount();
+            }
+
+            if (this.getMessagesForSave && this.getMessagesForSave().length > 0) {
+                this.conversationDirty = true;
+                if (this.autoSaveConversation) {
+                    this.autoSaveConversation();
+                }
+            }
+        },
+
         loadWelcomeMessage: function() {
             if (this.hasUncheckedBrowserProviderStatuses && this.hasUncheckedBrowserProviderStatuses()) {
                 var self = this;
@@ -1599,10 +1705,8 @@
                 var model = this.pendingNewChat
                     ? (this.pendingNewChatModel || this.getModel())
                     : this.getModel();
-                var providerName = this.getProviderName(provider);
-                var modelInfo = model ? ' (' + model + ')' : '';
                 this.addMessage('assistant', this.buildWelcomeMessage(), 'ai-welcome-message');
-                this.addMessage('system', 'You\'re chatting with **' + providerName + '**' + modelInfo, 'ai-model-info');
+                this.addModelInfoMessage(provider, model);
                 this.showModelUpgradeNotice(provider, model);
                 this.showLegacyKeyMigrationNotice();
             }
@@ -1684,9 +1788,7 @@
             this.addMessage('assistant', this.buildWelcomeMessage(), 'ai-welcome-message');
             // Only show model info if the conversation has it saved
             if (provider) {
-                var providerName = this.getProviderName(provider);
-                var modelInfo = model ? ' (' + model + ')' : '';
-                this.addMessage('system', 'You\'re chatting with **' + providerName + '**' + modelInfo, 'ai-model-info');
+                this.addModelInfoMessage(provider, model);
                 this.showModelUpgradeNotice(provider, model);
             }
         },

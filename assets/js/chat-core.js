@@ -260,6 +260,12 @@
                 self.updateSendButton();
             });
 
+            $(document).on('change', '.ai-model-select', function() {
+                if (self.handleModelSelectionChange) {
+                    self.handleModelSelectionChange($(this));
+                }
+            });
+
             $(document).on('mouseenter', '#ai-assistant-link-wrap', function() {
                 self.preloadMostRecentConversation();
             });
@@ -534,6 +540,7 @@
                 .text(isQueueing ? 'Queue' : $btn.data('default-text'))
                 .attr('title', isQueueing ? 'Queue message' : '')
                 .prop('disabled', !this.isProviderConfigured() || this.isUploadingFiles);
+            $('.ai-model-select').prop('disabled', !!this.isLoading);
         },
 
         getQueuedMessageCount: function() {

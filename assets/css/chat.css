@@ -687,6 +687,80 @@ body.ai-assistant-panel-resizing {
     border: 1px solid #dba617;
 }
 
+.ai-model-info-line {
+    display: block;
+}
+
+#ai-assistant-messages .ai-model-select-wrap {
+    display: inline-flex;
+    align-items: baseline;
+    position: relative;
+    vertical-align: baseline;
+}
+
+#ai-assistant-messages .ai-model-select-wrap::after {
+    content: "";
+    position: absolute;
+    right: 1px;
+    top: 50%;
+    width: 0;
+    height: 0;
+    margin-top: -1px;
+    border-left: 3px solid transparent;
+    border-right: 3px solid transparent;
+    border-top: 4px solid currentColor;
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+#ai-assistant-messages .ai-model-select-sizer {
+    border: 0;
+    font: inherit;
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
+    position: absolute;
+    visibility: hidden;
+    white-space: pre;
+}
+
+#ai-assistant-messages .ai-model-select {
+    appearance: none;
+    -webkit-appearance: none;
+    box-sizing: border-box;
+    max-width: min(100%, calc(100vw - 80px));
+    min-width: 0;
+    margin: 0;
+    padding: 0 11px 0 0;
+    border: 0;
+    border-bottom: 1px solid transparent;
+    border-radius: 0;
+    background: transparent none;
+    box-shadow: none;
+    color: inherit;
+    font: inherit;
+    height: auto;
+    line-height: inherit;
+    min-height: 0;
+    cursor: pointer;
+    vertical-align: baseline;
+    width: var(--ai-model-select-width, auto);
+}
+
+#ai-assistant-messages .ai-model-select:hover {
+    border-bottom-color: currentColor;
+}
+
+#ai-assistant-messages .ai-model-select:disabled {
+    cursor: default;
+    opacity: 0.7;
+}
+
+#ai-assistant-messages .ai-model-select:focus {
+    outline: 1px solid currentColor;
+    outline-offset: 2px;
+}
+
 .ai-model-warning .ai-message-content {
     background: #fcf0f1;
     border-color: #d63638;
