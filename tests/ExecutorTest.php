@@ -25,6 +25,8 @@ class ExecutorTest extends TestCase {
         $GLOBALS['wp_test_options'] = [];
         $GLOBALS['wp_test_abilities'] = [];
 
+        new \AI_Assistant\Dev_Tools();
+
         // Ensure clean test environment
         $this->cleanTestDirectory();
         $this->createTestStructure();

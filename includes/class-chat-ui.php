@@ -178,6 +178,9 @@ class Chat_UI {
                 $settings->get_user_enabled_tools(),
                 get_current_user_id()
             ),
+            'toolDefinitions' => $settings->get_client_tool_definitions(),
+            'destructiveTools' => $settings->get_destructive_tools(),
+            'fileEndpointTools' => $settings->get_file_endpoint_tools(),
             'userPermission' => $settings->get_user_permission_level(),
             'enabledTools' => $settings->get_user_enabled_tools(),
             'autoApprovedAbilities' => ai_assistant_is_playground() ? '*' : $settings->get_auto_approved_abilities(),

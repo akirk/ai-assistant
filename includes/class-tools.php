@@ -14,20 +14,31 @@ class Tools {
      * Get all available tools
      */
     public function get_all_tools(): array {
-        return array_merge(
+        $tools = array_merge(
             $this->get_file_tools(),
             $this->get_database_tools(),
             $this->get_wordpress_tools(),
             $this->get_abilities_tools(),
             $this->get_skill_tools()
         );
+
+        /**
+         * Filters tool definitions exposed by the PHP registry.
+         *
+         * Extension modules can add tools here while keeping their execution and
+         * client-side schemas in separate files.
+         *
+         * @param array<int,array<string,mixed>> $tools Tool definitions.
+         * @param Tools                         $this  Tool registry instance.
+         */
+        return $this->dedupe_tool_definitions(apply_filters('ai_assistant_tool_definitions', $tools, $this));
     }
 
     /**
      * Get read-only tools
      */
     public function get_read_only_tools(): array {
-        return [
+        $tools = [
             $this->tool_read_file(),
             $this->tool_list_directory(),
             $this->tool_search_files(),
@@ -41,6 +52,14 @@ class Tools {
             $this->tool_list_skills(),
             $this->tool_get_skill(),
         ];
+
+        /**
+         * Filters read-only tool definitions.
+         *
+         * @param array<int,array<string,mixed>> $tools Read-only tool definitions.
+         * @param Tools                         $this  Tool registry instance.
+         */
+        return $this->dedupe_tool_definitions(apply_filters('ai_assistant_read_only_tool_definitions', $tools, $this));
     }
 
     /**
@@ -49,9 +68,6 @@ class Tools {
     private function get_file_tools(): array {
         return [
             $this->tool_read_file(),
-            $this->tool_write_file(),
-            $this->tool_edit_file(),
-            $this->tool_delete_file(),
             $this->tool_list_directory(),
             $this->tool_search_files(),
             $this->tool_search_content(),
@@ -74,12 +90,27 @@ class Tools {
         return [
             $this->tool_get_plugins(),
             $this->tool_get_themes(),
-            $this->tool_install_plugin(),
-            $this->tool_run_php(),
             $this->tool_navigate(),
             $this->tool_get_page_html(),
             $this->tool_pick_image(),
         ];
+    }
+
+    private function dedupe_tool_definitions($tools): array {
+        if (!is_array($tools)) {
+            return [];
+        }
+
+        $deduped = [];
+        foreach ($tools as $tool) {
+            if (!is_array($tool) || empty($tool['name']) || !is_string($tool['name'])) {
+                continue;
+            }
+
+            $deduped[$tool['name']] = $tool;
+        }
+
+        return array_values($deduped);
     }
 
     // ===== FILE TOOLS =====
@@ -94,79 +125,6 @@ class Tools {
                     'path' => [
                         'type' => 'string',
                         'description' => 'Relative path from wp-content (e.g., "plugins/my-plugin/file.php")',
-                    ],
-                ],
-                'required' => ['path'],
-            ],
-        ];
-    }
-
-    private function tool_write_file(): array {
-        return [
-            'name' => 'write_file',
-            'description' => 'Write or overwrite a file within wp-content directory. Use this only for creating NEW files. For modifying existing files, use edit_file instead.',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'path' => [
-                        'type' => 'string',
-                        'description' => 'Relative path from wp-content (e.g., "plugins/my-plugin/file.php")',
-                    ],
-                    'content' => [
-                        'type' => 'string',
-                        'description' => 'The content to write to the file',
-                    ],
-                ],
-                'required' => ['path', 'content'],
-            ],
-        ];
-    }
-
-    private function tool_edit_file(): array {
-        return [
-            'name' => 'edit_file',
-            'description' => 'Edit an existing file by applying search and replace operations. More efficient than write_file for making targeted changes. Each edit finds a unique string and replaces it.',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'path' => [
-                        'type' => 'string',
-                        'description' => 'Relative path from wp-content (e.g., "plugins/my-plugin/file.php")',
-                    ],
-                    'edits' => [
-                        'type' => 'array',
-                        'description' => 'Array of edit operations to apply in order',
-                        'items' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'search' => [
-                                    'type' => 'string',
-                                    'description' => 'The exact string to find (must be unique in the file)',
-                                ],
-                                'replace' => [
-                                    'type' => 'string',
-                                    'description' => 'The string to replace it with',
-                                ],
-                            ],
-                            'required' => ['search', 'replace'],
-                        ],
-                    ],
-                ],
-                'required' => ['path', 'edits'],
-            ],
-        ];
-    }
-
-    private function tool_delete_file(): array {
-        return [
-            'name' => 'delete_file',
-            'description' => 'Delete a file within wp-content directory',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'path' => [
-                        'type' => 'string',
-                        'description' => 'Relative path from wp-content',
                     ],
                 ],
                 'required' => ['path'],
@@ -272,44 +230,6 @@ class Tools {
             'parameters' => [
                 'type' => 'object',
                 'properties' => new \stdClass(),
-            ],
-        ];
-    }
-
-    private function tool_install_plugin(): array {
-        return [
-            'name' => 'install_plugin',
-            'description' => 'Install a plugin from the WordPress.org plugin directory. The slug is typically the plugin URL path on wordpress.org (e.g., wordpress.org/plugins/contact-form-7 → slug is "contact-form-7").',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'slug' => [
-                        'type' => 'string',
-                        'description' => 'The plugin slug from wordpress.org (e.g., "akismet", "contact-form-7", "woocommerce")',
-                    ],
-                    'activate' => [
-                        'type' => 'boolean',
-                        'description' => 'Whether to activate the plugin after installation (default: false)',
-                    ],
-                ],
-                'required' => ['slug'],
-            ],
-        ];
-    }
-
-    private function tool_run_php(): array {
-        return [
-            'name' => 'run_php',
-            'description' => 'Execute PHP code in the WordPress environment. Prefer rest_api for post/page drafts. Use this to call WordPress functions like wp_insert_post(), wp_update_post(), get_option(), update_option(), WP_Query, etc. The code runs with full WordPress context available.',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'code' => [
-                        'type' => 'string',
-                        'description' => 'PHP code to execute. Do not include <?php tags. The code should return a value that will be sent back as the result.',
-                    ],
-                ],
-                'required' => ['code'],
             ],
         ];
     }

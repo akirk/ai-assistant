@@ -285,6 +285,16 @@ if (!function_exists('add_filter')) {
         $supported = [
             'ai_assistant_conversation_export_formats',
             'ai_assistant_conversation_export_shrink_tool_calls',
+            'ai_assistant_tool_definitions',
+            'ai_assistant_read_only_tool_definitions',
+            'ai_assistant_read_only_tool_names',
+            'ai_assistant_execute_tool',
+            'ai_assistant_tool_meta',
+            'ai_assistant_tool_group_order',
+            'ai_assistant_tool_order',
+            'ai_assistant_default_enabled_tools',
+            'ai_assistant_client_tool_definitions',
+            'ai_assistant_file_endpoint_tools',
         ];
         if (!in_array($tag, $supported, true)) {
             return true;
@@ -369,6 +379,7 @@ require_once $plugin_dir . '/includes/class-emergency-plugin-guard.php';
 require_once $plugin_dir . '/includes/class-file-tool-executor.php';
 require_once $plugin_dir . '/includes/class-plugin-recovery-admin.php';
 require_once $plugin_dir . '/includes/class-executor.php';
+require_once $plugin_dir . '/includes/class-dev-tools.php';
 require_once $plugin_dir . '/includes/class-api-handler.php';
 require_once $plugin_dir . '/includes/class-git-tracker.php';
 require_once $plugin_dir . '/includes/class-git-tracker-manager.php';
@@ -377,3 +388,5 @@ require_once $plugin_dir . '/includes/class-conversations.php';
 require_once $plugin_dir . '/includes/class-conversations-app.php';
 require_once $plugin_dir . '/includes/class-settings.php';
 require_once $plugin_dir . '/includes/class-wp-app-abilities.php';
+
+$GLOBALS['ai_assistant_test_dev_tools'] = new \AI_Assistant\Dev_Tools();

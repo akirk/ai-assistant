@@ -18,6 +18,10 @@ class Executor {
         $this->file_tools = new File_Tool_Executor(WP_CONTENT_DIR, $git_tracker_manager);
     }
 
+    public function execute_file_tool(string $tool_name, array $arguments, ?int $conversation_id = null): array {
+        return $this->file_tools->execute($tool_name, $arguments, $conversation_id);
+    }
+
     /**
      * Execute a tool
      *
@@ -35,6 +39,15 @@ class Executor {
             'list_abilities', 'get_ability', 'list_skills', 'get_skill',
             'find', 'environment_info',
         ];
+
+        /**
+         * Filters tool names that are permitted for read-only users.
+         *
+         * @param array<int,string> $read_only_tools Read-only tool names.
+         * @param string            $tool_name       Requested tool name.
+         * @param array             $arguments       Requested tool arguments.
+         */
+        $read_only_tools = apply_filters('ai_assistant_read_only_tool_names', $read_only_tools, $tool_name, $arguments);
 
         // Consolidated 'ability' tool: read-only for list/get, full for execute
         if ($tool_name === 'ability') {
@@ -66,18 +79,40 @@ class Executor {
             );
         }
 
+        /**
+         * Lets extension modules execute tools outside the core switch.
+         *
+         * Return null to leave the tool unhandled by the extension layer.
+         *
+         * @param mixed|null $result          Extension result, or null to continue.
+         * @param string     $tool_name       Requested tool name.
+         * @param array      $arguments       Requested tool arguments.
+         * @param string     $permission      Effective AI Assistant permission level.
+         * @param int|null   $conversation_id Conversation ID for tracking.
+         * @param Executor   $this            Executor instance.
+         */
+        $extension_result = apply_filters(
+            'ai_assistant_execute_tool',
+            null,
+            $tool_name,
+            $arguments,
+            $permission,
+            $conversation_id,
+            $this
+        );
+        if ($extension_result !== null) {
+            return $extension_result;
+        }
+
         // Execute the tool
         switch ($tool_name) {
             // File operations
             case 'read_file':
-            case 'write_file':
-            case 'edit_file':
-            case 'delete_file':
             case 'find':
             case 'list_directory':
             case 'search_files':
             case 'search_content':
-                return $this->file_tools->execute($tool_name, $arguments, $conversation_id);
+                return $this->execute_file_tool($tool_name, $arguments, $conversation_id);
 
             // Database operations
             case 'db_query':
@@ -88,12 +123,6 @@ class Executor {
                 return $this->get_plugins();
             case 'get_themes':
                 return $this->get_themes();
-            case 'install_plugin':
-                $slug = $this->get_string_arg($arguments, 'slug', $tool_name);
-                $activate = isset($arguments['activate']) ? (bool) $arguments['activate'] : false;
-                return $this->install_plugin($slug, $activate);
-            case 'run_php':
-                return $this->run_php($this->get_string_arg($arguments, 'code', $tool_name));
             case 'navigate':
                 return $this->navigate(
                     $this->get_string_arg($arguments, 'url', $tool_name),
@@ -446,117 +475,6 @@ class Executor {
             'themes' => $themes,
             'total' => count($themes),
             'active' => $active_theme,
-        ];
-    }
-
-    private function install_plugin(string $slug, bool $activate = false): array {
-        require_once ABSPATH . 'wp-admin/includes/plugin.php';
-        require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
-        require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
-        require_once ABSPATH . 'wp-admin/includes/file.php';
-
-        // Check if plugin is already installed
-        $installed_plugins = get_plugins();
-        foreach ($installed_plugins as $plugin_file => $plugin_data) {
-            if (strpos($plugin_file, $slug . '/') === 0 || $plugin_file === $slug . '.php') {
-                $is_active = is_plugin_active($plugin_file);
-
-                if ($activate && !$is_active) {
-                    $result = activate_plugin($plugin_file);
-                    if (is_wp_error($result)) {
-                        throw new \Exception('Plugin already installed but WordPress sandboxed activation failed: ' . $result->get_error_message());
-                    }
-                    return [
-                        'status' => 'activated',
-                        'message' => "Plugin '{$slug}' was already installed and has been activated.",
-                        'plugin_file' => $plugin_file,
-                    ];
-                }
-
-                return [
-                    'status' => 'already_installed',
-                    'message' => "Plugin '{$slug}' is already installed" . ($is_active ? ' and active' : ' but not active') . ".",
-                    'plugin_file' => $plugin_file,
-                    'active' => $is_active,
-                ];
-            }
-        }
-
-        // Get plugin info from wordpress.org
-        $api = plugins_api('plugin_information', [
-            'slug' => $slug,
-            'fields' => [
-                'sections' => false,
-                'short_description' => true,
-            ],
-        ]);
-
-        if (is_wp_error($api)) {
-            throw new \Exception("Plugin '{$slug}' not found on wordpress.org: " . $api->get_error_message());
-        }
-
-        // Install the plugin
-        $skin = new \WP_Ajax_Upgrader_Skin();
-        $upgrader = new \Plugin_Upgrader($skin);
-        $result = $upgrader->install($api->download_link);
-
-        if (is_wp_error($result)) {
-            throw new \Exception('Installation failed: ' . $result->get_error_message());
-        }
-
-        if ($result === false) {
-            $errors = $skin->get_errors();
-            if (is_wp_error($errors) && $errors->has_errors()) {
-                throw new \Exception('Installation failed: ' . $errors->get_error_message());
-            }
-            throw new \Exception('Installation failed for unknown reason.');
-        }
-
-        // Find the installed plugin file
-        $plugin_file = $upgrader->plugin_info();
-
-        // Activate if requested
-        if ($activate && $plugin_file) {
-            $activate_result = activate_plugin($plugin_file);
-            if (is_wp_error($activate_result)) {
-                throw new \Exception("Plugin '{$slug}' installed successfully but WordPress sandboxed activation failed: " . $activate_result->get_error_message());
-            }
-            return [
-                'status' => 'installed_and_activated',
-                'message' => "Plugin '{$slug}' installed and activated successfully.",
-                'plugin_file' => $plugin_file,
-                'active' => true,
-            ];
-        }
-
-        return [
-            'status' => 'installed',
-            'message' => "Plugin '{$slug}' installed successfully.",
-            'plugin_file' => $plugin_file,
-            'active' => false,
-        ];
-    }
-
-    private function run_php(string $code): array {
-        ob_start();
-        $error = null;
-        $result = null;
-
-        try {
-            $result = eval($code);
-        } catch (\Throwable $e) {
-            $error = $e->getMessage();
-        }
-
-        $output = ob_get_clean();
-
-        if ($error !== null) {
-            throw new \Exception("PHP error: $error");
-        }
-
-        return [
-            'result' => $result,
-            'output' => $output,
         ];
     }
 

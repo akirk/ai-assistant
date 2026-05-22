@@ -22,11 +22,13 @@ class SettingsTest extends TestCase {
         $_POST = [];
         unset($_SERVER['HTTP_HOST'], $_SERVER['SERVER_NAME'], $_SERVER['REQUEST_URI']);
 
+        new \AI_Assistant\Dev_Tools();
         $this->settings = new Settings();
     }
 
     protected function tearDown(): void {
         $_POST = [];
+        $GLOBALS['wp_test_site_url'] = 'http://localhost';
     }
 
     // ===== get_default_enabled_tools =====
@@ -104,6 +106,20 @@ class SettingsTest extends TestCase {
         foreach ($expected as $tool) {
             $this->assertContains($tool, $keys, "Expected tool '$tool' in get_all_tools_with_meta()");
         }
+    }
+
+    public function test_all_tools_orders_extension_groups_with_related_core_groups(): void {
+        $meta = $this->settings->get_all_tools_with_meta();
+        $keys = array_keys($meta);
+        $groups = array_values(array_unique(array_column($meta, 'group')));
+
+        $this->assertLessThan(array_search('Database', $groups, true), array_search('File Writing', $groups, true));
+        $this->assertLessThan(array_search('Database', $groups, true), array_search('Code Execution', $groups, true));
+        $this->assertSame(
+            ['read_file', 'list_directory', 'search_files', 'search_content', 'write_file', 'edit_file', 'delete_file'],
+            array_values(array_intersect($keys, ['read_file', 'list_directory', 'search_files', 'search_content', 'write_file', 'edit_file', 'delete_file']))
+        );
+        $this->assertLessThan(array_search('rest_api', $keys, true), array_search('install_plugin', $keys, true));
     }
 
     // ===== map_tool_cap =====
