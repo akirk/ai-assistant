@@ -10,9 +10,8 @@ if (!defined('ABSPATH')) {
  *
  * Note: The browser owns the LLM loop. Connector-backed cloud calls may go
  * through LLM_Proxy so API keys stay server-side, but tool handling still
- * arrives here from JavaScript. Filesystem tools normally use the direct file
- * endpoint, but remain supported here for backward compatibility and internal
- * callers.
+ * arrives here from JavaScript. Mutating filesystem tools use the signed direct
+ * file endpoint; only read-only filesystem tools are handled here.
  */
 class API_Handler {
 

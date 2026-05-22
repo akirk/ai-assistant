@@ -152,7 +152,7 @@ class ExecutorTest extends TestCase {
     // ===== WRITE FILE TESTS =====
 
     public function test_write_file_creates_new_file(): void {
-        $result = $this->executor->execute_tool('write_file', [
+        $result = $this->executor->execute_file_tool('write_file', [
             'path' => 'plugins/test-plugin/new-file.php',
             'content' => '<?php echo "Hello";',
             'reason' => 'Test creating new file',
@@ -168,7 +168,7 @@ class ExecutorTest extends TestCase {
     }
 
     public function test_write_file_updates_existing_file(): void {
-        $result = $this->executor->execute_tool('write_file', [
+        $result = $this->executor->execute_file_tool('write_file', [
             'path' => 'plugins/test-plugin/test-plugin.php',
             'content' => '<?php /* Updated Plugin */',
             'reason' => 'Test updating file',
@@ -183,7 +183,7 @@ class ExecutorTest extends TestCase {
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage("write_file requires 'content' argument");
 
-        $this->executor->execute_tool('write_file', [
+        $this->executor->execute_file_tool('write_file', [
             'path' => 'plugins/test-plugin/file.php',
         ]);
     }
@@ -192,13 +192,13 @@ class ExecutorTest extends TestCase {
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage("write_file requires 'path' argument");
 
-        $this->executor->execute_tool('write_file', [
+        $this->executor->execute_file_tool('write_file', [
             'content' => '<?php echo "test";',
         ]);
     }
 
     public function test_write_file_creates_directories(): void {
-        $result = $this->executor->execute_tool('write_file', [
+        $result = $this->executor->execute_file_tool('write_file', [
             'path' => 'plugins/test-plugin/deep/nested/dir/file.php',
             'content' => '<?php',
             'reason' => 'Test creating nested directories',
@@ -209,7 +209,7 @@ class ExecutorTest extends TestCase {
     }
 
     public function test_write_file_with_empty_content(): void {
-        $result = $this->executor->execute_tool('write_file', [
+        $result = $this->executor->execute_file_tool('write_file', [
             'path' => 'plugins/test-plugin/empty.php',
             'content' => '',
             'reason' => 'Test empty file',
@@ -220,7 +220,7 @@ class ExecutorTest extends TestCase {
     }
 
     public function test_write_file_with_array_content_converts_to_json(): void {
-        $result = $this->executor->execute_tool('write_file', [
+        $result = $this->executor->execute_file_tool('write_file', [
             'path' => 'plugins/test-plugin/data.json',
             'content' => ['key' => 'value', 'nested' => ['a' => 1]],
             'reason' => 'Test JSON conversion',
@@ -265,7 +265,7 @@ class ExecutorTest extends TestCase {
     // ===== EDIT FILE TESTS =====
 
     public function test_edit_file_applies_single_edit(): void {
-        $result = $this->executor->execute_tool('edit_file', [
+        $result = $this->executor->execute_file_tool('edit_file', [
             'path' => 'plugins/test-plugin/test-plugin.php',
             'edits' => [
                 ['search' => 'Test Plugin', 'replace' => 'Modified Plugin'],
@@ -283,7 +283,7 @@ class ExecutorTest extends TestCase {
     }
 
     public function test_edit_file_fails_when_search_not_found(): void {
-        $result = $this->executor->execute_tool('edit_file', [
+        $result = $this->executor->execute_file_tool('edit_file', [
             'path' => 'plugins/test-plugin/test-plugin.php',
             'edits' => [
                 ['search' => 'nonexistent string', 'replace' => 'replacement'],
@@ -300,7 +300,7 @@ class ExecutorTest extends TestCase {
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage("edit_file requires 'edits' argument");
 
-        $this->executor->execute_tool('edit_file', [
+        $this->executor->execute_file_tool('edit_file', [
             'path' => 'plugins/test-plugin/test-plugin.php',
         ]);
     }
@@ -309,14 +309,14 @@ class ExecutorTest extends TestCase {
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage("edit_file 'edits' must be an array");
 
-        $this->executor->execute_tool('edit_file', [
+        $this->executor->execute_file_tool('edit_file', [
             'path' => 'plugins/test-plugin/test-plugin.php',
             'edits' => 'not an array',
         ]);
     }
 
     public function test_edit_file_accepts_json_encoded_edits_array(): void {
-        $result = $this->executor->execute_tool('edit_file', [
+        $result = $this->executor->execute_file_tool('edit_file', [
             'path' => 'plugins/test-plugin/test-plugin.php',
             'edits' => json_encode([
                 [
@@ -337,7 +337,7 @@ class ExecutorTest extends TestCase {
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage("edit_file 'edits' must be an array");
 
-        $this->executor->execute_tool('edit_file', [
+        $this->executor->execute_file_tool('edit_file', [
             'path' => 'plugins/test-plugin/test-plugin.php',
             'edits' => json_encode([
                 [
@@ -353,7 +353,7 @@ class ExecutorTest extends TestCase {
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage('File not found');
 
-        $this->executor->execute_tool('edit_file', [
+        $this->executor->execute_file_tool('edit_file', [
             'path' => 'plugins/nonexistent/file.php',
             'edits' => [['search' => 'a', 'replace' => 'b']],
             'reason' => 'Test file not found',
@@ -367,7 +367,7 @@ class ExecutorTest extends TestCase {
         $file_path = $this->test_dir . '/plugins/test-plugin/to-delete.php';
         file_put_contents($file_path, '<?php');
 
-        $result = $this->executor->execute_tool('delete_file', [
+        $result = $this->executor->execute_file_tool('delete_file', [
             'path' => 'plugins/test-plugin/to-delete.php',
             'reason' => 'Test deleting file',
         ]);
@@ -380,7 +380,7 @@ class ExecutorTest extends TestCase {
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage('File not found');
 
-        $this->executor->execute_tool('delete_file', [
+        $this->executor->execute_file_tool('delete_file', [
             'path' => 'plugins/nonexistent/file.php',
             'reason' => 'Test file not found',
         ]);
@@ -697,6 +697,17 @@ class ExecutorTest extends TestCase {
         $this->executor->execute_tool('fake_tool', []);
     }
 
+    public function test_mutating_file_tools_do_not_execute_through_ajax_executor(): void {
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Unknown tool: write_file');
+
+        $this->executor->execute_tool('write_file', [
+            'path' => 'plugins/test-plugin/ajax-fallback.php',
+            'content' => '<?php',
+            'reason' => 'Should use direct file endpoint',
+        ]);
+    }
+
     // ===== PER-TOOL CAPABILITY TESTS =====
 
     public function test_tool_blocked_when_capability_denied(): void {
@@ -749,7 +760,8 @@ class ExecutorTest extends TestCase {
         $GLOBALS['wp_test_capabilities']['ai_assistant_tool_read_file'] = false;
         $GLOBALS['wp_test_capabilities']['ai_assistant_tool_write_file'] = true;
 
-        // write_file should succeed (will fail for other reasons but not capability)
+        // write_file should pass the capability check, then fail because mutating
+        // file tools are routed through the direct file endpoint instead of AJAX.
         try {
             $this->executor->execute_tool('write_file', [
                 'path' => 'plugins/test-plugin/cap-test.php',
@@ -772,7 +784,7 @@ class ExecutorTest extends TestCase {
     // ===== PHP LINT VALIDATION TESTS =====
 
     public function test_write_file_with_valid_php_succeeds(): void {
-        $result = $this->executor->execute_tool('write_file', [
+        $result = $this->executor->execute_file_tool('write_file', [
             'path' => 'plugins/test-plugin/valid.php',
             'content' => '<?php function hello() { return "world"; }',
             'reason' => 'Test valid PHP',
@@ -786,7 +798,7 @@ class ExecutorTest extends TestCase {
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage('PHP syntax error');
 
-        $this->executor->execute_tool('write_file', [
+        $this->executor->execute_file_tool('write_file', [
             'path' => 'plugins/test-plugin/invalid.php',
             'content' => '<?php function hello( { return "world"; }',
             'reason' => 'Test invalid PHP',
@@ -797,7 +809,7 @@ class ExecutorTest extends TestCase {
         $file_path = $this->test_dir . '/plugins/test-plugin/invalid-not-created.php';
 
         try {
-            $this->executor->execute_tool('write_file', [
+            $this->executor->execute_file_tool('write_file', [
                 'path' => 'plugins/test-plugin/invalid-not-created.php',
                 'content' => '<?php class Broken {',
                 'reason' => 'Test invalid PHP not created',
@@ -810,7 +822,7 @@ class ExecutorTest extends TestCase {
     }
 
     public function test_write_file_with_non_php_file_skips_lint(): void {
-        $result = $this->executor->execute_tool('write_file', [
+        $result = $this->executor->execute_file_tool('write_file', [
             'path' => 'plugins/test-plugin/data.txt',
             'content' => '<?php this is not valid php but its a txt file',
             'reason' => 'Test non-PHP file',
@@ -827,7 +839,7 @@ class ExecutorTest extends TestCase {
             '<?php function old_name() { return true; }'
         );
 
-        $result = $this->executor->execute_tool('edit_file', [
+        $result = $this->executor->execute_file_tool('edit_file', [
             'path' => 'plugins/test-plugin/to-edit.php',
             'edits' => [
                 ['search' => 'old_name', 'replace' => 'new_name'],
@@ -850,7 +862,7 @@ class ExecutorTest extends TestCase {
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage('PHP syntax error');
 
-        $this->executor->execute_tool('edit_file', [
+        $this->executor->execute_file_tool('edit_file', [
             'path' => 'plugins/test-plugin/to-break.php',
             'edits' => [
                 ['search' => '{ return true; }', 'replace' => '{ return true;'],
@@ -865,7 +877,7 @@ class ExecutorTest extends TestCase {
         file_put_contents($file_path, $original_content);
 
         try {
-            $this->executor->execute_tool('edit_file', [
+            $this->executor->execute_file_tool('edit_file', [
                 'path' => 'plugins/test-plugin/to-preserve.php',
                 'edits' => [
                     ['search' => '{ return true; }', 'replace' => '{ return true;'],
@@ -886,7 +898,7 @@ class ExecutorTest extends TestCase {
             'setting=value'
         );
 
-        $result = $this->executor->execute_tool('edit_file', [
+        $result = $this->executor->execute_file_tool('edit_file', [
             'path' => 'plugins/test-plugin/config.txt',
             'edits' => [
                 ['search' => 'value', 'replace' => '<?php invalid {'],
@@ -986,7 +998,7 @@ class ExecutorTest extends TestCase {
 
     public function test_write_file_lint_error_includes_line_number(): void {
         try {
-            $this->executor->execute_tool('write_file', [
+            $this->executor->execute_file_tool('write_file', [
                 'path' => 'plugins/test-plugin/error-line.php',
                 'content' => "<?php\nfunction valid() {}\nfunction broken( {\n",
                 'reason' => 'Test line number',

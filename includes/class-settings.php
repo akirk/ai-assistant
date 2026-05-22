@@ -266,7 +266,7 @@ class Settings {
             'environment_info'      => ['label' => 'Environment Info',      'group' => 'WordPress',       'dangerous' => false],
             'get_plugins'           => ['label' => 'Get Plugins',           'group' => 'WordPress',       'dangerous' => false],
             'get_themes'            => ['label' => 'Get Themes',            'group' => 'WordPress',       'dangerous' => false],
-            'rest_api'              => ['label' => 'REST API',              'group' => 'WordPress',       'dangerous' => false],
+            'rest_api'              => ['label' => 'REST API',              'group' => 'WordPress',       'dangerous' => true],
             'list_abilities'        => ['label' => 'List Abilities',        'group' => 'Abilities',       'dangerous' => false],
             'get_ability'           => ['label' => 'Get Ability',           'group' => 'Abilities',       'dangerous' => false],
             'execute_ability'       => ['label' => 'Execute Ability',       'group' => 'Abilities',       'dangerous' => true],
@@ -294,7 +294,9 @@ class Settings {
             }
         }
 
-        return $tools;
+        $tools[] = 'ability';
+
+        return array_values(array_unique($tools));
     }
 
     public function get_client_tool_definitions(): array {
