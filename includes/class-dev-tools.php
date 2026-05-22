@@ -416,8 +416,4 @@ PROMPT;
     }
 }
 
-if (function_exists('did_action') && did_action('ai_assistant_loaded')) {
-    Dev_Tools::register(function_exists('\ai_assistant') ? \ai_assistant() : null);
-} else {
-    add_action('ai_assistant_loaded', [Dev_Tools::class, 'register']);
-}
+add_action('ai_assistant_loaded', [Dev_Tools::class, 'register']);
