@@ -41,14 +41,19 @@ class LLM_Proxy {
             $this->send_json_error('WordPress Connectors are not available.', 400);
         }
 
-        $provider = sanitize_key(wp_unslash($_POST['provider'] ?? ''));
+        $proxy_input = $this->get_proxy_input();
+        if (is_wp_error($proxy_input)) {
+            $this->send_json_error($proxy_input->get_error_message(), 400);
+        }
+
+        $provider = sanitize_key(is_string($proxy_input['provider'] ?? null) ? $proxy_input['provider'] : '');
         if (!isset(self::PROVIDER_GENERATION_PATHS[$provider])) {
             $this->send_json_error('Unsupported proxy provider.', 400);
         }
 
-        $raw_body = isset($_POST['body']) ? wp_unslash($_POST['body']) : '';
-        if (!is_string($raw_body) || $raw_body === '') {
-            $this->send_json_error('Missing provider request body.', 400);
+        $raw_body = $this->normalize_provider_body($proxy_input['body'] ?? null);
+        if (is_wp_error($raw_body)) {
+            $this->send_json_error($raw_body->get_error_message(), 400);
         }
 
         if (strlen($raw_body) > self::MAX_BODY_BYTES) {
@@ -57,6 +62,10 @@ class LLM_Proxy {
 
         $payload = json_decode($raw_body);
         if (!is_object($payload) || json_last_error() !== JSON_ERROR_NONE) {
+            $this->log_proxy_event('invalid_provider_json', [
+                'json_error' => json_last_error_msg(),
+                'body_meta'  => $this->describe_body($raw_body),
+            ]);
             $this->send_json_error('Invalid provider request JSON.', 400);
         }
 
@@ -66,6 +75,85 @@ class LLM_Proxy {
         }
 
         $this->proxy_request($request['url'], $request['headers'], $raw_body);
+    }
+
+    /**
+     * Accept the current JSON envelope and the previous form-encoded shape.
+     *
+     * Keeping the provider payload out of URL-encoded form fields avoids PHP
+     * slash handling corrupting JSON string escapes before the upstream call.
+     */
+    private function get_proxy_input() {
+        $content_type = $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '';
+        if (stripos($content_type, 'application/json') !== false) {
+            $raw_input = file_get_contents('php://input');
+            if (!is_string($raw_input) || trim($raw_input) === '') {
+                $this->log_proxy_event('missing_raw_json_input', [
+                    'content_type' => $content_type,
+                ]);
+                return new \WP_Error('missing_proxy_body', 'Missing proxy request body.');
+            }
+
+            $input = json_decode($raw_input, true);
+            if (!is_array($input) || json_last_error() !== JSON_ERROR_NONE) {
+                $this->log_proxy_event('invalid_raw_json_input', [
+                    'content_type' => $content_type,
+                    'json_error'   => json_last_error_msg(),
+                    'body_meta'    => $this->describe_body($raw_input),
+                ]);
+                return new \WP_Error('invalid_proxy_json', 'Invalid proxy request JSON.');
+            }
+
+            return $input;
+        }
+
+        return [
+            'provider' => isset($_POST['provider'])
+                ? wp_unslash($_POST['provider'])
+                : (isset($_GET['provider']) ? wp_unslash($_GET['provider']) : ''),
+            'body'     => isset($_POST['body']) ? $this->normalize_form_json_field($_POST['body']) : '',
+        ];
+    }
+
+    private function normalize_form_json_field($value): string {
+        if (!is_string($value)) {
+            return '';
+        }
+
+        $unslashed = wp_unslash($value);
+        if ($this->is_json_object_string($value)) {
+            return $value;
+        }
+
+        if ($this->is_json_object_string($unslashed)) {
+            return $unslashed;
+        }
+
+        return $unslashed;
+    }
+
+    private function normalize_provider_body($body) {
+        if (is_string($body)) {
+            $raw_body = $body;
+        } elseif (is_array($body) || is_object($body)) {
+            $raw_body = wp_json_encode($body);
+            if (!is_string($raw_body) || $raw_body === '') {
+                return new \WP_Error('invalid_provider_body', 'Invalid provider request body.');
+            }
+        } else {
+            $raw_body = '';
+        }
+
+        if ($raw_body === '') {
+            return new \WP_Error('missing_provider_body', 'Missing provider request body.');
+        }
+
+        return $raw_body;
+    }
+
+    private function is_json_object_string(string $value): bool {
+        $decoded = json_decode($value);
+        return is_object($decoded) && json_last_error() === JSON_ERROR_NONE;
     }
 
     private function user_can_prompt(): bool {
@@ -141,12 +229,26 @@ class LLM_Proxy {
     }
 
     private function proxy_request(string $url, array $headers, string $body): void {
-        if (function_exists('curl_init')) {
+        if ($this->should_use_curl()) {
+            $this->log_proxy_event('forwarding_with_curl', [
+                'body_meta' => $this->describe_body($body),
+            ]);
             $this->proxy_with_curl($url, $headers, $body);
             return;
         }
 
+        $this->log_proxy_event('forwarding_with_wp_http', [
+            'body_meta' => $this->describe_body($body),
+        ]);
         $this->proxy_with_wp_http($url, $headers, $body);
+    }
+
+    private function should_use_curl(): bool {
+        return function_exists('curl_init') && !$this->is_playground();
+    }
+
+    private function is_playground(): bool {
+        return function_exists('\\ai_assistant_is_playground') && \ai_assistant_is_playground();
     }
 
     /**
@@ -230,6 +332,9 @@ class LLM_Proxy {
         ]);
 
         if (is_wp_error($response)) {
+            $this->log_proxy_event('wp_http_error', [
+                'message' => $response->get_error_message(),
+            ]);
             $this->send_json_error($response->get_error_message(), 502);
         }
 
@@ -273,6 +378,30 @@ class LLM_Proxy {
             ],
         ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         exit;
+    }
+
+    private function log_proxy_event(string $event, array $context = []): void {
+        $context = array_merge([
+            'playground'   => $this->is_playground(),
+            'content_type' => $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '',
+            'has_post_body' => isset($_POST['body']),
+            'has_get_provider' => isset($_GET['provider']),
+        ], $context);
+
+        error_log('[AI Assistant LLM Proxy] ' . $event . ' ' . wp_json_encode($context)); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+    }
+
+    private function describe_body(string $body): array {
+        $description = [
+            'length' => strlen($body),
+            'sha256' => hash('sha256', $body),
+        ];
+
+        if ($body === '[object ReadableStream]' || stripos($body, 'ReadableStream') !== false) {
+            $description['preview'] = $body;
+        }
+
+        return $description;
     }
 
     private function clear_output_buffers(): void {
