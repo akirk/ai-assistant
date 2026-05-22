@@ -3,17 +3,8 @@
 
     $.extend(window.aiAssistant, {
         getDestructiveTools: function() {
-            var fallback = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'ability', 'execute_ability', 'rest_api'];
-            if (typeof aiAssistantConfig !== 'undefined' && Array.isArray(aiAssistantConfig.destructiveTools)) {
-                var tools = aiAssistantConfig.destructiveTools.slice();
-                ['ability', 'execute_ability', 'rest_api'].forEach(function(tool) {
-                    if (tools.indexOf(tool) < 0) {
-                        tools.push(tool);
-                    }
-                });
-                return tools;
-            }
-            return fallback;
+            var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+            return Array.isArray(config.destructiveTools) ? config.destructiveTools.slice() : [];
         },
 
         processToolCalls: function(toolCalls, provider, stopReason) {
@@ -905,20 +896,8 @@
         },
 
         canUseFileToolEndpoint: function(toolName) {
-            var fallbackFileTools = [
-                'read_file',
-                'write_file',
-                'edit_file',
-                'delete_file',
-                'find',
-                'list_directory',
-                'search_files',
-                'search_content'
-            ];
             var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
-            var fileTools = Array.isArray(config.fileEndpointTools)
-                ? config.fileEndpointTools
-                : fallbackFileTools;
+            var fileTools = Array.isArray(config.fileEndpointTools) ? config.fileEndpointTools : [];
 
             return !!(
                 config &&

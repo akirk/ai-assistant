@@ -133,10 +133,6 @@ class Dev_Tools {
         }
 
         switch ($tool_name) {
-            case 'write_file':
-            case 'edit_file':
-            case 'delete_file':
-                return $executor->execute_file_tool($tool_name, $arguments, $conversation_id);
             case 'install_plugin':
                 $slug = $this->get_string_arg($arguments, 'slug', $tool_name);
                 $activate = isset($arguments['activate']) ? (bool) $arguments['activate'] : false;

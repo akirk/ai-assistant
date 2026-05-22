@@ -4,8 +4,34 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function loadExecutionMixin(config) {
+function loadExecutionMixin(config, options) {
     const aiAssistant = {};
+    options = options || {};
+    const defaultConfig = {
+        destructiveTools: [
+            'write_file',
+            'edit_file',
+            'delete_file',
+            'run_php',
+            'rest_api',
+            'install_plugin',
+            'execute_ability',
+            'ability'
+        ],
+        fileEndpointTools: [
+            'read_file',
+            'find',
+            'list_directory',
+            'search_files',
+            'search_content',
+            'write_file',
+            'edit_file',
+            'delete_file'
+        ]
+    };
+    const resolvedConfig = options.useDefaultConfig === false
+        ? (config || {})
+        : Object.assign({}, defaultConfig, config || {});
     function jQueryStub() {
         return {
             remove() {},
@@ -21,9 +47,9 @@ function loadExecutionMixin(config) {
     const context = {
         window: {
             aiAssistant,
-            aiAssistantConfig: config || {}
+            aiAssistantConfig: resolvedConfig
         },
-        aiAssistantConfig: config || {},
+        aiAssistantConfig: resolvedConfig,
         URLSearchParams,
         jQuery: jQueryStub,
         console
@@ -94,6 +120,24 @@ function createAssistant(overrides) {
 function flushPromises() {
     return new Promise(resolve => setTimeout(resolve, 0));
 }
+
+describe('configured tool routing', function() {
+    it('does not infer destructive tools without localized config', function() {
+        const assistant = loadExecutionMixin({}, { useDefaultConfig: false });
+
+        assert.strictEqual(assistant.getDestructiveTools().length, 0);
+    });
+
+    it('does not infer file endpoint tools without localized config', function() {
+        const assistant = loadExecutionMixin({
+            fileToolsUrl: '/file-tools.php',
+            fileToolsToken: 'token'
+        }, { useDefaultConfig: false });
+
+        assert.strictEqual(assistant.canUseFileToolEndpoint('read_file'), false);
+        assert.strictEqual(assistant.canUseFileToolEndpoint('edit_file'), false);
+    });
+});
 
 describe('processToolCallImmediate', function() {
     it('requires confirmation before executing abilities', async function() {
