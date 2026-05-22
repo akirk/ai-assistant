@@ -2,6 +2,24 @@
     'use strict';
 
     $.extend(window.aiAssistant, {
+        getMessageTimestamp: function() {
+            return Date.now ? Date.now() : new Date().getTime();
+        },
+
+        createStoredMessage: function(role, content, extra) {
+            var message = $.extend({
+                role: role,
+                content: content,
+                _ts: this.getMessageTimestamp()
+            }, extra || {});
+
+            if (!message._ts) {
+                message._ts = this.getMessageTimestamp();
+            }
+
+            return message;
+        },
+
         shouldQueueUserMessage: function() {
             return !!(
                 this.isLoading ||
@@ -29,7 +47,7 @@
 
             this.queuedMessages.push({
                 content: messageContent,
-                queuedAt: Date.now()
+                queuedAt: this.getMessageTimestamp()
             });
             this.conversationDirty = true;
 
@@ -91,14 +109,19 @@
             ) {
                 var lastMessage = this.messages[this.messages.length - 1];
                 if (lastMessage && lastMessage.role === 'user' && Array.isArray(lastMessage.content)) {
+                    lastMessage._ts = queued[queued.length - 1].queuedAt || this.getMessageTimestamp();
                     contents.forEach(function(content) {
                         lastMessage.content.push({ type: 'text', text: content });
                     });
                 } else {
-                    this.messages.push({ role: 'user', content: contents.join('\n\n') });
+                    this.messages.push(this.createStoredMessage('user', contents.join('\n\n'), {
+                        _ts: queued[queued.length - 1].queuedAt || this.getMessageTimestamp()
+                    }));
                 }
             } else {
-                this.messages.push({ role: 'user', content: contents.join('\n\n') });
+                this.messages.push(this.createStoredMessage('user', contents.join('\n\n'), {
+                    _ts: queued[queued.length - 1].queuedAt || this.getMessageTimestamp()
+                }));
             }
 
             this.conversationDirty = true;
@@ -220,7 +243,7 @@
                 ? this.buildUserMessageContent(message, attachments)
                 : message;
             this.addMessage('user', messageContent);
-            this.messages.push({ role: 'user', content: messageContent });
+            this.messages.push(this.createStoredMessage('user', messageContent));
             this.conversationDirty = true;
             if (this.updateExportButton) {
                 this.updateExportButton();
@@ -348,13 +371,23 @@
         },
 
         stripMessageMetadata: function(message) {
-            if (!message || typeof message !== 'object' || !Object.prototype.hasOwnProperty.call(message, '_usage')) {
+            if (!message || typeof message !== 'object') {
                 return message;
             }
 
-            var clean = $.extend({}, message);
-            delete clean._usage;
-            return clean;
+            var clean = null;
+            Object.keys(message).forEach(function(key) {
+                if (key.charAt(0) !== '_') {
+                    return;
+                }
+
+                if (!clean) {
+                    clean = $.extend({}, message);
+                }
+                delete clean[key];
+            });
+
+            return clean || message;
         },
 
         getProviderErrorMessage: async function(response, fallback) {
@@ -758,7 +791,7 @@
                 var filteredBlocks = contentBlocks.filter(function(block) {
                     return block.type !== 'text' || (block.text && block.text.length > 0);
                 });
-                var message = { role: 'assistant', content: filteredBlocks };
+                var message = this.createStoredMessage('assistant', filteredBlocks);
                 if (this.attachTokenUsageToAssistantMessage) {
                     this.attachTokenUsageToAssistantMessage(message, 'anthropic', model, providerUsage, [
                         { role: 'system', content: this.systemPrompt },
@@ -934,7 +967,7 @@
                     this.finalizeReply($reply);
                 }
 
-                var message = { role: 'assistant', content: textContent || null };
+                var message = this.createStoredMessage('assistant', textContent || null);
                 if (Object.keys(toolCallsMap).length > 0) {
                     message.tool_calls = Object.values(toolCallsMap);
                 }
@@ -1300,7 +1333,7 @@
                     this.finalizeReply($reply);
                 }
 
-                var message = { role: 'assistant', content: strippedContent || null };
+                var message = this.createStoredMessage('assistant', strippedContent || null);
                 if (Object.keys(toolCallsMap).length > 0) {
                     message.tool_calls = Object.values(toolCallsMap);
                 }

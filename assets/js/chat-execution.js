@@ -2,6 +2,24 @@
     'use strict';
 
     $.extend(window.aiAssistant, {
+        getMessageTimestamp: window.aiAssistant.getMessageTimestamp || function() {
+            return Date.now ? Date.now() : new Date().getTime();
+        },
+
+        createStoredMessage: window.aiAssistant.createStoredMessage || function(role, content, extra) {
+            var message = $.extend({
+                role: role,
+                content: content,
+                _ts: this.getMessageTimestamp()
+            }, extra || {});
+
+            if (!message._ts) {
+                message._ts = this.getMessageTimestamp();
+            }
+
+            return message;
+        },
+
         getDestructiveTools: function() {
             var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
             return Array.isArray(config.destructiveTools) ? config.destructiveTools.slice() : [];
@@ -1605,10 +1623,7 @@
                 this.toolCallRounds = 0;
                 this.consecutiveFailedToolRounds = 0;
                 this.usesCodingToolWorkflow = false;
-                this.messages.push({
-                    role: 'user',
-                    content: this.buildToolRoundLimitMessage('failed_rounds', failedLimit)
-                });
+                this.messages.push(this.createStoredMessage('user', this.buildToolRoundLimitMessage('failed_rounds', failedLimit)));
                 return true;
             }
 
@@ -1617,10 +1632,7 @@
                 this.toolCallRounds = 0;
                 this.consecutiveFailedToolRounds = 0;
                 this.usesCodingToolWorkflow = false;
-                this.messages.push({
-                    role: 'user',
-                    content: this.buildToolRoundLimitMessage('rounds', roundLimit)
-                });
+                this.messages.push(this.createStoredMessage('user', this.buildToolRoundLimitMessage('rounds', roundLimit)));
                 return true;
             }
 
@@ -1677,14 +1689,12 @@
                         content: JSON.stringify(r.result)
                     };
                 });
-                this.messages.push({ role: 'user', content: toolResults });
+                this.messages.push(this.createStoredMessage('user', toolResults));
             } else {
                 allResults.forEach(function(r) {
-                    self.messages.push({
-                        role: 'tool',
-                        tool_call_id: r.id,
-                        content: JSON.stringify(r.result)
-                    });
+                    self.messages.push(self.createStoredMessage('tool', JSON.stringify(r.result), {
+                        tool_call_id: r.id
+                    }));
                 });
             }
 
@@ -1698,7 +1708,7 @@
 
             if (navigateResult && !sentQueuedMessages) {
                 var suggestionContent = this.getNavigationSuggestionContent(navigateResult.result);
-                this.messages.push({ role: 'assistant', content: suggestionContent });
+                this.messages.push(this.createStoredMessage('assistant', suggestionContent));
                 this.addMessage('assistant', suggestionContent);
                 this.updateTokenCount();
                 this.setLoading(false);

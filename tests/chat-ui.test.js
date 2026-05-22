@@ -43,6 +43,58 @@ function loadUiMixin(config, globals) {
     return aiAssistant;
 }
 
+function createTokenCounterDom() {
+    const counter = {
+        htmlContent: '',
+        attrs: {},
+        classes: new Set()
+    };
+
+    function wrapper(element) {
+        return {
+            length: element ? 1 : 0,
+            html(value) {
+                if (!element) return value === undefined ? undefined : this;
+                if (value === undefined) return element.htmlContent;
+                element.htmlContent = String(value);
+                return this;
+            },
+            removeAttr(name) {
+                if (element) delete element.attrs[name];
+                return this;
+            },
+            attr(name, value) {
+                if (!element) return value === undefined ? undefined : this;
+                if (value === undefined) return element.attrs[name];
+                element.attrs[name] = String(value);
+                return this;
+            },
+            removeClass(classNames) {
+                if (element) {
+                    String(classNames || '').split(/\s+/).filter(Boolean).forEach(className => {
+                        element.classes.delete(className);
+                    });
+                }
+                return this;
+            },
+            addClass(className) {
+                if (element) element.classes.add(className);
+                return this;
+            }
+        };
+    }
+
+    function $(selector) {
+        return wrapper(selector === '#ai-token-count' ? counter : null);
+    }
+
+    $.extend = function(target, ...sources) {
+        return Object.assign(target, ...sources);
+    };
+
+    return { $, counter };
+}
+
 function createToolCardsDom() {
     class Element {
         constructor(tagName, attrs, text) {
@@ -384,6 +436,30 @@ describe('token usage accounting', function() {
             { role: 'system', content: '1234' },
             { role: 'user', content: '12345678' }
         ], false));
+    });
+
+    it('labels token usage as sent to and received from the AI', function() {
+        const dom = createTokenCounterDom();
+        const assistant = loadUiMixin({}, { jQuery: dom.$ });
+        assistant.messages = [
+            {
+                role: 'assistant',
+                content: 'Done',
+                _usage: {
+                    version: 1,
+                    source: 'provider',
+                    input_tokens: 12,
+                    output_tokens: 4,
+                    total_tokens: 16
+                }
+            }
+        ];
+
+        assistant.updateTokenCount();
+
+        assert.match(dom.counter.htmlContent, /Sent to AI \(input\)/);
+        assert.match(dom.counter.htmlContent, /Received from AI \(output\)/);
+        assert.match(dom.counter.attrs['aria-label'], /Sent to AI 12, received from AI 4/);
     });
 });
 

@@ -134,18 +134,47 @@
                 : '';
         },
 
+        getNewChatSuggestionTimestamp: function() {
+            return Date.now ? Date.now() : new Date().getTime();
+        },
+
+        getStoredMessageTimestamp: function(message) {
+            var timestamp = message && typeof message === 'object'
+                ? parseInt(message._ts, 10)
+                : 0;
+
+            return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0;
+        },
+
+        getLatestStoredMessageTimestamp: function() {
+            var latest = 0;
+
+            (this.messages || []).forEach(function(message) {
+                latest = Math.max(latest, this.getStoredMessageTimestamp(message));
+            }, this);
+
+            return latest;
+        },
+
         restoreUrlComponentContext: function() {
             var current = this.getCurrentUrlComponent();
             var key = this.urlComponentStorageKey || 'aiAssistant_lastUrlComponent';
+            var timeKey = this.urlContextTimestampStorageKey || 'aiAssistant_lastUrlContextAt';
 
             this.previousUrlComponent = '';
+            this.previousUrlContextAt = 0;
             this.conversationInteracted = false;
 
             try {
                 this.previousUrlComponent = localStorage.getItem(key) || '';
+                this.previousUrlContextAt = parseInt(localStorage.getItem(timeKey), 10) || 0;
                 if (!this.previousUrlComponent && current) {
                     this.previousUrlComponent = current;
                     localStorage.setItem(key, current);
+                }
+                if (!this.previousUrlContextAt) {
+                    this.previousUrlContextAt = this.getNewChatSuggestionTimestamp();
+                    localStorage.setItem(timeKey, String(this.previousUrlContextAt));
                 }
             } catch (e) {
                 console.warn('[AI Assistant] Could not restore URL component context:', e);
@@ -160,13 +189,14 @@
 
         storeCurrentUrlComponent: function() {
             var current = this.getCurrentUrlComponent();
-            if (!current) {
-                return;
-            }
 
             try {
-                localStorage.setItem(this.urlComponentStorageKey || 'aiAssistant_lastUrlComponent', current);
-                this.previousUrlComponent = current;
+                if (current) {
+                    localStorage.setItem(this.urlComponentStorageKey || 'aiAssistant_lastUrlComponent', current);
+                    this.previousUrlComponent = current;
+                }
+                this.previousUrlContextAt = this.getNewChatSuggestionTimestamp();
+                localStorage.setItem(this.urlContextTimestampStorageKey || 'aiAssistant_lastUrlContextAt', String(this.previousUrlContextAt));
             } catch (e) {
                 console.warn('[AI Assistant] Could not store URL component context:', e);
             }
@@ -174,6 +204,9 @@
 
         shouldSuggestNewChatForCurrentArea: function(current) {
             var origin = this.previousUrlComponent || '';
+            var maxAge = parseInt(this.newChatSuggestionMaxAgeMs, 10) || 60 * 60 * 1000;
+            var contextAt = this.getLatestStoredMessageTimestamp() || parseInt(this.previousUrlContextAt, 10) || 0;
+            var isStale = contextAt > 0 && this.getNewChatSuggestionTimestamp() - contextAt > maxAge;
             current = current || this.getCurrentUrlComponent();
 
             return !!(
@@ -181,9 +214,10 @@
                 this.messages.length > 0 &&
                 !this.pendingNewChat &&
                 !this.conversationInteracted &&
-                origin &&
-                current &&
-                origin !== current
+                (
+                    (origin && current && origin !== current) ||
+                    isStale
+                )
             );
         },
 
@@ -463,9 +497,13 @@
 
             queuedMessages.forEach(function(item) {
                 if (item && item.content) {
-                    messages.push({ role: 'user', content: item.content });
+                    messages.push({
+                        role: 'user',
+                        content: item.content,
+                        _ts: item.queuedAt || this.getNewChatSuggestionTimestamp()
+                    });
                 }
-            });
+            }, this);
 
             return messages;
         },
