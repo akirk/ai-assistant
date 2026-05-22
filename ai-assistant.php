@@ -58,6 +58,10 @@ spl_autoload_register(function ($class) {
     }
 });
 
+// Optional high-risk development tools. Comment this line to disable file
+// mutation, plugin installation, and raw PHP execution tools.
+require_once AI_ASSISTANT_PLUGIN_DIR . 'dev-tools.php';
+
 /**
  * Main plugin class
  */
@@ -79,7 +83,6 @@ final class AI_Assistant {
     private $llm_proxy;
     private $wp_app_abilities;
     private $conversations_app;
-    private $dev_tools;
 
     public static function instance() {
         if (is_null(self::$instance)) {
@@ -104,9 +107,6 @@ final class AI_Assistant {
         if (AI_Assistant\Connectors_Bridge::is_available()) {
             $this->connectors_bridge = new AI_Assistant\Connectors_Bridge();
         }
-
-        // Register extractable extension hooks for high-risk development tools.
-        $this->dev_tools = new AI_Assistant\Dev_Tools();
 
         // Initialize components
         $this->settings = new AI_Assistant\Settings();

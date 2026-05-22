@@ -1,5 +1,4 @@
 <?php
-namespace AI_Assistant;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -12,27 +11,28 @@ if (!defined('ABSPATH')) {
  * exposes hooks, and this file contributes tool definitions, UI metadata,
  * client schemas, file endpoint access, and execution handlers.
  */
-class Dev_Tools {
+class AI_Assistant_Dev_Tools {
 
-    public function __construct() {
-        add_filter('ai_assistant_tool_definitions', [$this, 'register_tool_definitions'], 10, 2);
-        add_filter('ai_assistant_tool_meta', [$this, 'register_tool_meta']);
-        add_filter('ai_assistant_client_tool_definitions', [$this, 'register_client_tool_definitions']);
-        add_filter('ai_assistant_file_endpoint_tools', [$this, 'register_file_endpoint_tools']);
-        add_filter('ai_assistant_execute_tool', [$this, 'execute_tool'], 10, 6);
+    public static function init(): void {
+        add_filter('ai_assistant_tool_definitions', [self::class, 'register_tool_definitions'], 10, 2);
+        add_filter('ai_assistant_tool_meta', [self::class, 'register_tool_meta']);
+        add_filter('ai_assistant_client_tool_definitions', [self::class, 'register_client_tool_definitions']);
+        add_filter('ai_assistant_file_endpoint_tools', [self::class, 'register_file_endpoint_tools']);
+        add_filter('ai_assistant_execute_tool', [self::class, 'execute_tool'], 10, 6);
+        add_filter('ai_assistant_system_prompt', [self::class, 'register_system_prompt'], 10, 4);
     }
 
-    public function register_tool_definitions(array $tools): array {
+    public static function register_tool_definitions(array $tools): array {
         return array_merge($tools, [
-            $this->tool_write_file(),
-            $this->tool_edit_file(),
-            $this->tool_delete_file(),
-            $this->tool_install_plugin(),
-            $this->tool_run_php(),
+            self::tool_write_file(),
+            self::tool_edit_file(),
+            self::tool_delete_file(),
+            self::tool_install_plugin(),
+            self::tool_run_php(),
         ]);
     }
 
-    public function register_tool_meta(array $tools): array {
+    public static function register_tool_meta(array $tools): array {
         return array_merge($tools, [
             'write_file'     => ['label' => 'Write File',      'group' => 'File Writing',   'dangerous' => true],
             'edit_file'      => ['label' => 'Edit File',       'group' => 'File Writing',   'dangerous' => true],
@@ -42,7 +42,7 @@ class Dev_Tools {
         ]);
     }
 
-    public function register_client_tool_definitions(array $tools): array {
+    public static function register_client_tool_definitions(array $tools): array {
         return array_merge($tools, [
             [
                 'name' => 'write_file',
@@ -119,7 +119,7 @@ class Dev_Tools {
         ]);
     }
 
-    public function register_file_endpoint_tools(array $tools): array {
+    public static function register_file_endpoint_tools(array $tools): array {
         return array_values(array_unique(array_merge($tools, [
             'write_file',
             'edit_file',
@@ -127,24 +127,57 @@ class Dev_Tools {
         ])));
     }
 
-    public function execute_tool($result, string $tool_name, array $arguments, string $permission, ?int $conversation_id, Executor $executor) {
+    public static function register_system_prompt(string $prompt, array $enabled_tools, array $wp_info = [], ?\AI_Assistant\Settings $settings = null): string {
+        $has_run_php = in_array('run_php', $enabled_tools, true);
+        $has_file_mutation = count(array_intersect(['write_file', 'edit_file', 'delete_file'], $enabled_tools)) > 0;
+
+        if ($has_run_php) {
+            $prompt .= "\nFor plugin-specific data or actions, check abilities first (ability action:list) before reaching for run_php.\n";
+            $prompt .= "For native WordPress data or actions with no matching ability or REST route, use run_php with standard WordPress functions.\n";
+            $prompt .= "POST/PAGE DRAFT FALLBACK: use run_php/wp_insert_post only if REST cannot create the requested draft.\n";
+        }
+
+        if ($has_file_mutation) {
+            $prompt .= <<<'PROMPT'
+
+
+FILE EDITING RULES:
+- Use write_file ONLY for creating NEW files
+- Use edit_file for modifying EXISTING files - it uses search/replace operations which is more efficient and easier to review
+- The edit_file tool takes a real JSON array of {search, replace} objects, not a string containing JSON, markdown, XML, or tool-call tags
+- Each edit_file search string must be exact and unique in the current file
+- If an edit_file operation fails (string not found or not unique), use read_file to see the current content and retry
+
+EMERGENCY PLUGIN DISABLING:
+- AI Assistant may emergency-disable a plugin after plugin edits or activation break WordPress. This inserts a reversible guard at the top of the plugin main file: AI_ASSISTANT_EMERGENCY_DISABLED.
+- When a user asks why a plugin was disabled or to get it working again, inspect the plugin main file and relevant changed files with read_file/find before editing.
+- Fix the plugin code before removing an emergency guard. Removing the guard first can immediately fatal WordPress again.
+- After a fix, verify the plugin is active and WordPress still loads. If environment_info without inactive plugins does not list the plugin, call environment_info with include_inactive true or get_plugins before claiming it is working.
+- If WordPress-backed tools fail after plugin file edits, continue with direct file tools and explain that the plugin may have been emergency-disabled for recovery.
+PROMPT;
+        }
+
+        return $prompt;
+    }
+
+    public static function execute_tool($result, string $tool_name, array $arguments, string $permission, ?int $conversation_id, \AI_Assistant\Executor $executor) {
         if ($result !== null) {
             return $result;
         }
 
         switch ($tool_name) {
             case 'install_plugin':
-                $slug = $this->get_string_arg($arguments, 'slug', $tool_name);
+                $slug = self::get_string_arg($arguments, 'slug', $tool_name);
                 $activate = isset($arguments['activate']) ? (bool) $arguments['activate'] : false;
-                return $this->install_plugin($slug, $activate);
+                return self::install_plugin($slug, $activate);
             case 'run_php':
-                return $this->run_php($this->get_string_arg($arguments, 'code', $tool_name));
+                return self::run_php(self::get_string_arg($arguments, 'code', $tool_name));
         }
 
         return null;
     }
 
-    private function tool_write_file(): array {
+    private static function tool_write_file(): array {
         return [
             'name' => 'write_file',
             'description' => 'Write or overwrite a file within wp-content directory. Use this only for creating NEW files. For modifying existing files, use edit_file instead.',
@@ -165,7 +198,7 @@ class Dev_Tools {
         ];
     }
 
-    private function tool_edit_file(): array {
+    private static function tool_edit_file(): array {
         return [
             'name' => 'edit_file',
             'description' => 'Edit an existing file by applying search and replace operations. More efficient than write_file for making targeted changes. Each edit finds a unique string and replaces it.',
@@ -200,7 +233,7 @@ class Dev_Tools {
         ];
     }
 
-    private function tool_delete_file(): array {
+    private static function tool_delete_file(): array {
         return [
             'name' => 'delete_file',
             'description' => 'Delete a file within wp-content directory',
@@ -217,7 +250,7 @@ class Dev_Tools {
         ];
     }
 
-    private function tool_install_plugin(): array {
+    private static function tool_install_plugin(): array {
         return [
             'name' => 'install_plugin',
             'description' => 'Install a plugin from the WordPress.org plugin directory. The slug is typically the plugin URL path on wordpress.org (e.g., wordpress.org/plugins/contact-form-7 -> slug is "contact-form-7").',
@@ -238,7 +271,7 @@ class Dev_Tools {
         ];
     }
 
-    private function tool_run_php(): array {
+    private static function tool_run_php(): array {
         return [
             'name' => 'run_php',
             'description' => 'Execute PHP code in the WordPress environment. Prefer rest_api for post/page drafts. Use this to call WordPress functions like wp_insert_post(), wp_update_post(), get_option(), update_option(), WP_Query, etc. The code runs with full WordPress context available.',
@@ -255,7 +288,7 @@ class Dev_Tools {
         ];
     }
 
-    private function get_string_arg(array $args, string $name, string $tool, ?string $default = null): string {
+    private static function get_string_arg(array $args, string $name, string $tool, ?string $default = null): string {
         if (!isset($args[$name])) {
             if ($default !== null) {
                 return $default;
@@ -271,7 +304,7 @@ class Dev_Tools {
         return (string) $value;
     }
 
-    private function install_plugin(string $slug, bool $activate = false): array {
+    private static function install_plugin(string $slug, bool $activate = false): array {
         require_once ABSPATH . 'wp-admin/includes/plugin.php';
         require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
         require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
@@ -354,7 +387,7 @@ class Dev_Tools {
         ];
     }
 
-    private function run_php(string $code): array {
+    private static function run_php(string $code): array {
         ob_start();
         $error = null;
         $result = null;
@@ -377,3 +410,5 @@ class Dev_Tools {
         ];
     }
 }
+
+AI_Assistant_Dev_Tools::init();
