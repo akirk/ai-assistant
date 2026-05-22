@@ -369,9 +369,11 @@
 
             if (this.messages.length > 0 && !this.pendingNewChat) {
                 this.pendingNewChat = true;
+                this.pendingNewChatProvider = this.getProvider();
+                this.pendingNewChatModel = this.getModel();
                 // Save current messages HTML for undo
                 this.pendingChatOriginalHtml = $('#ai-assistant-messages').html();
-                // Clear and show new welcome with current model
+                // Clear and show new welcome with the model reserved for the next send.
                 $('#ai-assistant-messages').empty();
                 this.loadWelcomeMessage();
                 $('#ai-token-count').hide();
@@ -405,6 +407,8 @@
             this.titleGenerationToken++;
             this.conversationTitleIsPlaceholder = false;
             this.pendingNewChat = false;
+            this.pendingNewChatProvider = '';
+            this.pendingNewChatModel = '';
             this.conversationDirty = false;
             this.pendingAttachments = [];
             if (this.renderPendingAttachments) {
@@ -430,6 +434,8 @@
 
         undoNewChat: function() {
             this.pendingNewChat = false;
+            this.pendingNewChatProvider = '';
+            this.pendingNewChatModel = '';
             // Restore original messages
             if (this.pendingChatOriginalHtml) {
                 $('#ai-assistant-messages').html(this.pendingChatOriginalHtml);
