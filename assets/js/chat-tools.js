@@ -5,7 +5,8 @@ var aiAssistantToolsMixin = (function() {
     return {
 
         getAbilityToolDescription: function() {
-            var domains = (typeof aiAssistantConfig !== 'undefined' && aiAssistantConfig.abilityDomains) || {};
+            var config = this.getRuntimeConfig();
+            var domains = config.abilityDomains || {};
             var keys = Object.keys(domains);
             var base = 'Plugin abilities: list, get, or execute. Ability domain slugs are categories, not executable ability IDs; list by category and get the exact ability ID before execute.';
             if (keys.length === 0) {
@@ -15,8 +16,49 @@ var aiAssistantToolsMixin = (function() {
             return base + ' ALWAYS use this for: ' + domainParts.join('; ') + '. Do not use db_query or find for these topics.';
         },
 
+        getRuntimeConfig: function() {
+            if (typeof aiAssistantConfig !== 'undefined') {
+                return aiAssistantConfig;
+            }
+            if (typeof window !== 'undefined' && window.aiAssistantConfig) {
+                return window.aiAssistantConfig;
+            }
+            if (typeof global !== 'undefined' && global.aiAssistantConfig) {
+                return global.aiAssistantConfig;
+            }
+            return {};
+        },
+
+        getConfiguredToolDefinitions: function() {
+            var config = this.getRuntimeConfig();
+            var definitions = config.toolDefinitions || config.clientToolDefinitions || [];
+            return Array.isArray(definitions) ? definitions : [];
+        },
+
+        mergeToolDefinitions: function(coreDefinitions, extensionDefinitions) {
+            var byName = {};
+            var ordered = [];
+
+            function add(definition) {
+                if (!definition || !definition.name) {
+                    return;
+                }
+                if (!Object.prototype.hasOwnProperty.call(byName, definition.name)) {
+                    ordered.push(definition.name);
+                }
+                byName[definition.name] = definition;
+            }
+
+            (coreDefinitions || []).forEach(add);
+            (extensionDefinitions || []).forEach(add);
+
+            return ordered.map(function(name) {
+                return byName[name];
+            });
+        },
+
         getAllToolDefinitions: function() {
-            return [
+            var coreDefinitions = [
                 {
                     name: 'ability',
                     description: this.getAbilityToolDescription(),
@@ -43,43 +85,6 @@ var aiAssistantToolsMixin = (function() {
                     }
                 },
                 {
-                    name: 'write_file',
-                    description: 'Create a new file in wp-content. Use edit_file for existing files.',
-                    input_schema: {
-                        type: 'object',
-                        properties: {
-                            path: { type: 'string', description: 'Relative path from wp-content' },
-                            content: { type: 'string' },
-                            reason: { type: 'string' }
-                        },
-                        required: ['path', 'content', 'reason']
-                    }
-                },
-                {
-                    name: 'edit_file',
-                    description: 'Edit a file via search/replace operations. The edits parameter must be an array of objects, not a JSON string or tagged text. Each search string must be exact and unique in the current file.',
-                    input_schema: {
-                        type: 'object',
-                        properties: {
-                            path: { type: 'string', description: 'Relative path from wp-content' },
-                            edits: {
-                                type: 'array',
-                                description: 'Real JSON array of edit objects. Do not pass a string, markdown, XML, or </invoke> tags.',
-                                items: {
-                                    type: 'object',
-                                    properties: {
-                                        search: { type: 'string', description: 'Exact unique current-file text to replace' },
-                                        replace: { type: 'string', description: 'Replacement text' }
-                                    },
-                                    required: ['search', 'replace']
-                                }
-                            },
-                            reason: { type: 'string' }
-                        },
-                        required: ['path', 'edits', 'reason']
-                    }
-                },
-                {
                     name: 'find',
                     description: 'Find files or content in wp-content. Omit all params to list root. Use path to list a directory, glob to match filenames, text to search file contents.',
                     input_schema: {
@@ -93,17 +98,6 @@ var aiAssistantToolsMixin = (function() {
                     }
                 },
                 {
-                    name: 'run_php',
-                    description: 'Execute PHP in WordPress. Prefer rest_api for post/page drafts. No <?php tag. Return a value.',
-                    input_schema: {
-                        type: 'object',
-                        properties: {
-                            code: { type: 'string' }
-                        },
-                        required: ['code']
-                    }
-                },
-                {
                     name: 'environment_info',
                     description: 'Get active plugins with titles/descriptions, theme, WP/PHP versions.',
                     input_schema: {
@@ -111,18 +105,6 @@ var aiAssistantToolsMixin = (function() {
                         properties: {
                             include_inactive: { type: 'boolean' }
                         }
-                    }
-                },
-                {
-                    name: 'delete_file',
-                    description: 'Delete a file in wp-content',
-                    input_schema: {
-                        type: 'object',
-                        properties: {
-                            path: { type: 'string', description: 'Relative path from wp-content' },
-                            reason: { type: 'string' }
-                        },
-                        required: ['path', 'reason']
                     }
                 },
                 {
@@ -148,18 +130,6 @@ var aiAssistantToolsMixin = (function() {
                             body: { type: 'object', description: 'Request body for write methods' }
                         },
                         required: ['method', 'path']
-                    }
-                },
-                {
-                    name: 'install_plugin',
-                    description: 'Install a plugin from wordpress.org by slug.',
-                    input_schema: {
-                        type: 'object',
-                        properties: {
-                            slug: { type: 'string' },
-                            activate: { type: 'boolean' }
-                        },
-                        required: ['slug']
                     }
                 },
                 {
@@ -222,6 +192,8 @@ var aiAssistantToolsMixin = (function() {
                     }
                 }
             ];
+
+            return this.mergeToolDefinitions(coreDefinitions, this.getConfiguredToolDefinitions());
         },
 
         getEnabledToolNames: function() {

@@ -236,30 +236,35 @@ class Settings {
     }
 
     public static function default_enabled_tools(): array {
-        return [
+        $tools = [
             'read_file', 'list_directory', 'search_files', 'search_content', 'db_query',
             'rest_api', 'environment_info', 'get_plugins', 'get_themes',
             'list_abilities', 'get_ability', 'execute_ability', 'navigate', 'get_page_html',
             'pick_image', 'summarize_conversation', 'list_skills', 'get_skill',
         ];
+
+        /**
+         * Filters the default enabled tools for new installations.
+         *
+         * High-risk extension tools should usually register metadata without
+         * enabling themselves by default.
+         *
+         * @param array<int,string> $tools Default enabled tool names.
+         */
+        return array_values(array_unique(array_filter((array) apply_filters('ai_assistant_default_enabled_tools', $tools))));
     }
 
     public function get_all_tools_with_meta() {
-        return [
+        $tools = [
             'read_file'             => ['label' => 'Read File',             'group' => 'File Reading',    'dangerous' => false],
             'list_directory'        => ['label' => 'List Directory',        'group' => 'File Reading',    'dangerous' => false],
             'search_files'          => ['label' => 'Search Files',          'group' => 'File Reading',    'dangerous' => false],
             'search_content'        => ['label' => 'Search Content',        'group' => 'File Reading',    'dangerous' => false],
-            'write_file'            => ['label' => 'Write File',            'group' => 'File Writing',    'dangerous' => true],
-            'edit_file'             => ['label' => 'Edit File',             'group' => 'File Writing',    'dangerous' => true],
-            'delete_file'           => ['label' => 'Delete File',           'group' => 'File Writing',    'dangerous' => true],
             'db_query'              => ['label' => 'DB Query',              'group' => 'Database',        'dangerous' => false],
             'environment_info'      => ['label' => 'Environment Info',      'group' => 'WordPress',       'dangerous' => false],
             'get_plugins'           => ['label' => 'Get Plugins',           'group' => 'WordPress',       'dangerous' => false],
             'get_themes'            => ['label' => 'Get Themes',            'group' => 'WordPress',       'dangerous' => false],
-            'install_plugin'        => ['label' => 'Install Plugin',        'group' => 'WordPress',       'dangerous' => true],
             'rest_api'              => ['label' => 'REST API',              'group' => 'WordPress',       'dangerous' => false],
-            'run_php'               => ['label' => 'Run PHP',               'group' => 'Code Execution',  'dangerous' => true],
             'list_abilities'        => ['label' => 'List Abilities',        'group' => 'Abilities',       'dangerous' => false],
             'get_ability'           => ['label' => 'Get Ability',           'group' => 'Abilities',       'dangerous' => false],
             'execute_ability'       => ['label' => 'Execute Ability',       'group' => 'Abilities',       'dangerous' => true],
@@ -270,6 +275,171 @@ class Settings {
             'list_skills'           => ['label' => 'List Skills',           'group' => 'Conversation',    'dangerous' => false],
             'get_skill'             => ['label' => 'Get Skill',             'group' => 'Conversation',    'dangerous' => false],
         ];
+
+        /**
+         * Filters tool metadata used by permissions UI and capability mapping.
+         *
+         * @param array<string,array{label:string,group:string,dangerous:bool}> $tools Tool metadata keyed by tool name.
+         */
+        return $this->sort_tool_meta($this->normalize_tool_meta(apply_filters('ai_assistant_tool_meta', $tools)));
+    }
+
+    public function get_destructive_tools(): array {
+        $tools = [];
+        foreach ($this->get_all_tools_with_meta() as $name => $meta) {
+            if (!empty($meta['dangerous'])) {
+                $tools[] = $name;
+            }
+        }
+
+        return $tools;
+    }
+
+    public function get_client_tool_definitions(): array {
+        $definitions = apply_filters('ai_assistant_client_tool_definitions', []);
+        return is_array($definitions) ? array_values($definitions) : [];
+    }
+
+    public function get_file_endpoint_tools(): array {
+        $tools = [
+            'read_file',
+            'find',
+            'list_directory',
+            'search_files',
+            'search_content',
+        ];
+
+        return array_values(array_unique(array_filter((array) apply_filters('ai_assistant_file_endpoint_tools', $tools))));
+    }
+
+    private function normalize_tool_meta($tools): array {
+        if (!is_array($tools)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($tools as $name => $meta) {
+            if (!is_string($name) || $name === '' || !is_array($meta)) {
+                continue;
+            }
+
+            $normalized[$name] = [
+                'label'     => (string) ($meta['label'] ?? $name),
+                'group'     => (string) ($meta['group'] ?? 'Other'),
+                'dangerous' => !empty($meta['dangerous']),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private function sort_tool_meta(array $tools): array {
+        if (empty($tools)) {
+            return $tools;
+        }
+
+        $group_order = [
+            'File Reading'    => 10,
+            'File Writing'    => 20,
+            'Code Execution'  => 30,
+            'Database'        => 40,
+            'WordPress'       => 50,
+            'Abilities'       => 60,
+            'Navigation & UI' => 70,
+            'Media'           => 80,
+            'Conversation'    => 90,
+        ];
+
+        /**
+         * Filters the display order for tool permission tabs.
+         *
+         * Lower numbers appear first. Unknown groups keep their relative
+         * registration order after known groups.
+         *
+         * @param array<string,int> $group_order Group label => priority.
+         */
+        $group_order = apply_filters('ai_assistant_tool_group_order', $group_order);
+        $group_order = is_array($group_order) ? $group_order : [];
+
+        $tool_order = [
+            'read_file'              => 10,
+            'list_directory'         => 20,
+            'search_files'           => 30,
+            'search_content'         => 40,
+            'write_file'             => 10,
+            'edit_file'              => 20,
+            'delete_file'            => 30,
+            'run_php'                => 10,
+            'db_query'               => 10,
+            'environment_info'       => 10,
+            'get_plugins'            => 20,
+            'get_themes'             => 30,
+            'install_plugin'         => 40,
+            'rest_api'               => 50,
+            'list_abilities'         => 10,
+            'get_ability'            => 20,
+            'execute_ability'        => 30,
+            'navigate'               => 10,
+            'get_page_html'          => 20,
+            'pick_image'             => 10,
+            'summarize_conversation' => 10,
+            'list_skills'            => 20,
+            'get_skill'              => 30,
+        ];
+
+        /**
+         * Filters the display order for tools within permission tabs.
+         *
+         * Lower numbers appear first within a group. Unknown tools keep their
+         * relative registration order after known tools in that group.
+         *
+         * @param array<string,int> $tool_order Tool name => priority.
+         */
+        $tool_order = apply_filters('ai_assistant_tool_order', $tool_order);
+        $tool_order = is_array($tool_order) ? $tool_order : [];
+
+        $indexed = [];
+        $index = 0;
+        foreach ($tools as $name => $meta) {
+            $indexed[$name] = [
+                'name'  => $name,
+                'meta'  => $meta,
+                'index' => $index++,
+            ];
+        }
+
+        uasort($indexed, function($left, $right) use ($group_order, $tool_order) {
+            $left_group = (string) ($left['meta']['group'] ?? '');
+            $right_group = (string) ($right['meta']['group'] ?? '');
+            $left_group_priority = isset($group_order[$left_group]) ? (int) $group_order[$left_group] : PHP_INT_MAX;
+            $right_group_priority = isset($group_order[$right_group]) ? (int) $group_order[$right_group] : PHP_INT_MAX;
+
+            if ($left_group_priority !== $right_group_priority) {
+                return $left_group_priority <=> $right_group_priority;
+            }
+
+            if ($left_group !== $right_group) {
+                return $left['index'] <=> $right['index'];
+            }
+
+            $left_name = (string) ($left['name'] ?? '');
+            $right_name = (string) ($right['name'] ?? '');
+            $left_tool_priority = isset($tool_order[$left_name]) ? (int) $tool_order[$left_name] : PHP_INT_MAX;
+            $right_tool_priority = isset($tool_order[$right_name]) ? (int) $tool_order[$right_name] : PHP_INT_MAX;
+
+            if ($left_tool_priority !== $right_tool_priority) {
+                return $left_tool_priority <=> $right_tool_priority;
+            }
+
+            return $left['index'] <=> $right['index'];
+        });
+
+        $sorted = [];
+        foreach ($indexed as $name => $entry) {
+            $sorted[$name] = $entry['meta'];
+        }
+
+        return $sorted;
     }
 
     public function get_user_enabled_tools() {

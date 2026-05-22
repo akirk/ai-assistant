@@ -159,6 +159,18 @@ Plugins can add contextual first-message tips with `ai_assistant_welcome_tips`. 
 
 Plugins with browser UI can also register JavaScript callbacks for completed tool calls. For example, a page script can listen for its own `ability` execution and refresh visible UI after the server-side ability succeeds.
 
+### Tool Extension Hooks
+
+High-risk development tools are registered through hooks so they can later move into a companion plugin. The internal `includes/class-dev-tools.php` module currently adds file mutation, plugin installation, and raw PHP execution with:
+
+- `ai_assistant_tool_definitions`
+- `ai_assistant_tool_meta`
+- `ai_assistant_client_tool_definitions`
+- `ai_assistant_file_endpoint_tools`
+- `ai_assistant_execute_tool`
+
+Core keeps the read-only/context tools and permission UI; extensions provide their own schemas, metadata, endpoint routing, and execution handlers.
+
 ## Development
 
 To run the plugin locally using WordPress Playground:

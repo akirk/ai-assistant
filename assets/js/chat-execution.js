@@ -2,9 +2,23 @@
     'use strict';
 
     $.extend(window.aiAssistant, {
+        getDestructiveTools: function() {
+            var fallback = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'ability', 'execute_ability', 'rest_api'];
+            if (typeof aiAssistantConfig !== 'undefined' && Array.isArray(aiAssistantConfig.destructiveTools)) {
+                var tools = aiAssistantConfig.destructiveTools.slice();
+                ['ability', 'execute_ability', 'rest_api'].forEach(function(tool) {
+                    if (tools.indexOf(tool) < 0) {
+                        tools.push(tool);
+                    }
+                });
+                return tools;
+            }
+            return fallback;
+        },
+
         processToolCalls: function(toolCalls, provider, stopReason) {
             var self = this;
-            var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'ability', 'execute_ability', 'rest_api'];
+            var destructiveTools = this.getDestructiveTools();
 
             var needsConfirmation = [];
             var executeImmediately = [];
@@ -891,7 +905,7 @@
         },
 
         canUseFileToolEndpoint: function(toolName) {
-            var fileTools = [
+            var fallbackFileTools = [
                 'read_file',
                 'write_file',
                 'edit_file',
@@ -901,11 +915,15 @@
                 'search_files',
                 'search_content'
             ];
+            var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+            var fileTools = Array.isArray(config.fileEndpointTools)
+                ? config.fileEndpointTools
+                : fallbackFileTools;
 
             return !!(
-                aiAssistantConfig &&
-                aiAssistantConfig.fileToolsUrl &&
-                aiAssistantConfig.fileToolsToken &&
+                config &&
+                config.fileToolsUrl &&
+                config.fileToolsToken &&
                 fileTools.indexOf(toolName) >= 0
             );
         },
@@ -1379,7 +1397,7 @@
         // Process a single tool immediately when it finishes streaming
         processToolCallImmediate: function(toolId, toolName, toolArgs, provider) {
             var self = this;
-            var destructiveTools = ['write_file', 'edit_file', 'delete_file', 'run_php', 'install_plugin', 'ability', 'execute_ability', 'rest_api'];
+            var destructiveTools = this.getDestructiveTools();
 
             toolArgs = this.normalizeToolArguments(toolName, toolArgs || {});
 

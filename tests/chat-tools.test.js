@@ -22,6 +22,34 @@ function createInstance(overrides) {
     return instance;
 }
 
+const DEV_TOOL_DEFINITIONS = [
+    {
+        name: 'run_php',
+        description: 'Execute PHP in WordPress. Prefer rest_api for post/page drafts. No <?php tag. Return a value.',
+        input_schema: {
+            type: 'object',
+            properties: {
+                code: { type: 'string' },
+            },
+            required: ['code'],
+        },
+    },
+];
+
+function withToolDefinitions(definitions, callback) {
+    const previous = global.aiAssistantConfig;
+    global.aiAssistantConfig = Object.assign({}, previous || {}, { toolDefinitions: definitions });
+    try {
+        return callback();
+    } finally {
+        if (previous === undefined) {
+            delete global.aiAssistantConfig;
+        } else {
+            global.aiAssistantConfig = previous;
+        }
+    }
+}
+
 // ===== Tool definitions =====
 
 describe('getAllToolDefinitions', function() {
@@ -58,14 +86,25 @@ describe('getAllToolDefinitions', function() {
     });
 
     it('guides native post drafts toward rest_api', function() {
-        const defs = toolsMixin.getAllToolDefinitions();
-        const restApi = defs.find(d => d.name === 'rest_api');
-        const runPhp = defs.find(d => d.name === 'run_php');
+        withToolDefinitions(DEV_TOOL_DEFINITIONS, function() {
+            const defs = toolsMixin.getAllToolDefinitions();
+            const restApi = defs.find(d => d.name === 'rest_api');
+            const runPhp = defs.find(d => d.name === 'run_php');
 
-        assert.ok(restApi.description.includes('Preferred for post/page drafts'));
-        assert.ok(restApi.description.includes('POST /wp/v2/posts'));
-        assert.ok(restApi.description.includes('status "draft"'));
-        assert.ok(runPhp.description.includes('Prefer rest_api'));
+            assert.ok(restApi.description.includes('Preferred for post/page drafts'));
+            assert.ok(restApi.description.includes('POST /wp/v2/posts'));
+            assert.ok(restApi.description.includes('status "draft"'));
+            assert.ok(runPhp.description.includes('Prefer rest_api'));
+        });
+    });
+
+    it('merges configured extension tool definitions', function() {
+        withToolDefinitions(DEV_TOOL_DEFINITIONS, function() {
+            const names = toolsMixin.getAllToolDefinitions().map(d => d.name);
+
+            assert.ok(names.includes('read_file'));
+            assert.ok(names.includes('run_php'));
+        });
     });
 
     it('explains ability domains are not executable IDs', function() {
