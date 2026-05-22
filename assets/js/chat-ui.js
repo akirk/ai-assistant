@@ -1558,11 +1558,20 @@
         loadWelcomeMessage: function() {
             if (this.hasUncheckedBrowserProviderStatuses && this.hasUncheckedBrowserProviderStatuses()) {
                 var self = this;
+                var wasPendingNewChat = this.pendingNewChat;
                 this.addMessage('system', 'Checking local AI providers from this browser...', 'ai-welcome-message');
                 this.ensureBrowserProviderStatuses().then(function() {
+                    if (wasPendingNewChat && !self.pendingNewChat) {
+                        return;
+                    }
                     $('#ai-assistant-messages .ai-welcome-message, #ai-assistant-messages .ai-model-info, #ai-assistant-messages .ai-model-warning, #ai-assistant-messages .ai-model-note').remove();
-                    self.conversationProvider = self.getProvider();
-                    self.conversationModel = self.getModel();
+                    if (self.pendingNewChat) {
+                        self.pendingNewChatProvider = self.getProvider();
+                        self.pendingNewChatModel = self.getModel();
+                    } else {
+                        self.conversationProvider = self.getProvider();
+                        self.conversationModel = self.getModel();
+                    }
                     self.updateSendButton();
                     self.loadWelcomeMessage();
                 });
@@ -1584,8 +1593,12 @@
                 }
                 this.addMessage('system', message, 'ai-welcome-message');
             } else {
-                var provider = this.getProvider();
-                var model = this.getModel();
+                var provider = this.pendingNewChat
+                    ? (this.pendingNewChatProvider || this.getProvider())
+                    : this.getProvider();
+                var model = this.pendingNewChat
+                    ? (this.pendingNewChatModel || this.getModel())
+                    : this.getModel();
                 var providerName = this.getProviderName(provider);
                 var modelInfo = model ? ' (' + model + ')' : '';
                 this.addMessage('assistant', this.buildWelcomeMessage(), 'ai-welcome-message');

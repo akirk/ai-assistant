@@ -34,6 +34,8 @@
         draftHistoryDraft: '',
         draftHistoryMax: 10,
         pendingNewChat: false,
+        pendingNewChatProvider: '',
+        pendingNewChatModel: '',
         pendingChatOriginalHtml: null,
         previousUrlComponent: '',
         conversationInteracted: false,

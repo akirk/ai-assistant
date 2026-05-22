@@ -165,6 +165,9 @@
                 if (!this.conversationId && this.messages.length === 0) {
                     this.conversationProvider = this.getProvider();
                     this.conversationModel = this.getModel();
+                } else if (this.pendingNewChat) {
+                    this.pendingNewChatProvider = this.getProvider();
+                    this.pendingNewChatModel = this.getModel();
                 }
             }
 
@@ -181,13 +184,15 @@
                 }
                 this.conversationId = 0;
                 this.conversationTitle = '';
-                this.conversationProvider = this.getProvider();
-                this.conversationModel = this.getModel();
+                this.conversationProvider = this.pendingNewChatProvider || this.getProvider();
+                this.conversationModel = this.pendingNewChatModel || this.getModel();
                 this.titleGenerationInProgress = false;
                 this.titleGenerationAttempted = false;
                 this.titleGenerationToken++;
                 this.conversationTitleIsPlaceholder = false;
                 this.pendingNewChat = false;
+                this.pendingNewChatProvider = '';
+                this.pendingNewChatModel = '';
                 this.pendingChatOriginalHtml = null;
                 $('#ai-assistant-messages').empty();
                 $('#ai-token-count').show();
