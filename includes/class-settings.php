@@ -3315,7 +3315,7 @@ PROMPT;
          *
          * Returns an associative array mapping a plugin slug to a comma-separated list
          * of topic keywords. The AI is instructed to always use the `ability` tool for
-         * these topics instead of generic tools like `run_php`, `find`, or `db_query`.
+         * these topics instead of generic tools like `find` or `db_query`.
          *
          * Example:
          * ```php
@@ -3344,38 +3344,20 @@ IMAGE PICKING: Call pick_image for one image at a time only. Do not issue multip
 PROMPT;
 
         if (!empty($ability_domains)) {
-            $prompt .= "The following topics are handled by plugin abilities. For these, ALWAYS use the ability tool — never db_query, find, or run_php:\n";
+            $prompt .= "The following topics are handled by plugin abilities. For these, ALWAYS use the ability tool — never db_query or find:\n";
             foreach ($ability_domains as $slug => $keywords) {
                 $prompt .= "- $slug: $keywords\n";
             }
             $prompt .= "These slugs are ability categories/domains, not executable ability IDs. First call ability with action \"list\" and the matching category, then action \"get\" for the exact ability ID before executing.\n\n";
         }
 
-        $prompt .= "For any other plugin-specific data or actions, check abilities first (ability action:list) before reaching for db_query or run_php.\n";
-
-        if (in_array('run_php', $enabled_tools, true)) {
-            $prompt .= "For native WordPress data or actions with no matching ability or REST route, use run_php with standard WordPress functions.\n";
-        }
+        $prompt .= "For any other plugin-specific data or actions, check abilities first (ability action:list) before reaching for db_query.\n";
 
         $prompt .= "Only use db_query for custom reporting or cross-table queries that no ability covers.\n";
 
         $prompt .= <<<'PROMPT'
 
-POST/PAGE DRAFTS: create actual drafts via REST (/wp/v2/posts or /wp/v2/pages, status "draft") when tools allow; use run_php/wp_insert_post only if REST cannot. Never publish/overwrite or use db_query unless asked; use block-editor HTML and report title, ID, edit URL.
-
-FILE EDITING RULES:
-- Use write_file ONLY for creating NEW files
-- Use edit_file for modifying EXISTING files - it uses search/replace operations which is more efficient and easier to review
-- The edit_file tool takes a real JSON array of {search, replace} objects, not a string containing JSON, markdown, XML, or tool-call tags
-- Each edit_file search string must be exact and unique in the current file
-- If an edit_file operation fails (string not found or not unique), use read_file to see the current content and retry
-
-EMERGENCY PLUGIN DISABLING:
-- AI Assistant may emergency-disable a plugin after plugin edits or activation break WordPress. This inserts a reversible guard at the top of the plugin main file: AI_ASSISTANT_EMERGENCY_DISABLED.
-- When a user asks why a plugin was disabled or to get it working again, inspect the plugin main file and relevant changed files with read_file/find before editing.
-- Fix the plugin code before removing an emergency guard. Removing the guard first can immediately fatal WordPress again.
-- After a fix, verify the plugin is active and WordPress still loads. If environment_info without inactive plugins does not list the plugin, call environment_info with include_inactive true or get_plugins before claiming it is working.
-- If WordPress-backed tools fail after plugin file edits, continue with direct file tools and explain that the plugin may have been emergency-disabled for recovery.
+POST/PAGE DRAFTS: create actual drafts via REST (/wp/v2/posts or /wp/v2/pages, status "draft") when tools allow. Never publish/overwrite or use db_query unless asked; use block-editor HTML and report title, ID, edit URL.
 
 PLUGIN CREATION:
 - For app-like plugins with their own UI, route, dashboard, workflow, logged-in experience, or standalone interface, load skill "wp-app" before acting.
@@ -3386,6 +3368,19 @@ IMPORTANT: For any destructive operations (file deletion, database modification,
 
 Always explain what you're about to do before using tools.
 PROMPT;
+
+        /**
+         * Filters the complete system prompt before the skills summary is appended.
+         *
+         * Tool extensions can append instructions for their own tools without
+         * coupling those instructions to AI Assistant core.
+         *
+         * @param string   $prompt        System prompt text.
+         * @param string[] $enabled_tools Tool names enabled for the current user.
+         * @param array    $wp_info       Current WordPress/site context.
+         * @param Settings $settings      Settings instance.
+         */
+        $prompt = apply_filters('ai_assistant_system_prompt', $prompt, $enabled_tools, $wp_info, $this);
 
         $prompt .= $this->get_skills_prompt_summary($enabled_tools);
 

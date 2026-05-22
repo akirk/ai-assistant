@@ -295,6 +295,7 @@ if (!function_exists('add_filter')) {
             'ai_assistant_default_enabled_tools',
             'ai_assistant_client_tool_definitions',
             'ai_assistant_file_endpoint_tools',
+            'ai_assistant_system_prompt',
         ];
         if (!in_array($tag, $supported, true)) {
             return true;
@@ -389,4 +390,6 @@ require_once $plugin_dir . '/includes/class-conversations-app.php';
 require_once $plugin_dir . '/includes/class-settings.php';
 require_once $plugin_dir . '/includes/class-wp-app-abilities.php';
 
-$GLOBALS['ai_assistant_test_dev_tools'] = new \AI_Assistant\Dev_Tools();
+if (class_exists('\AI_Assistant\Dev_Tools', false)) {
+    \AI_Assistant\Dev_Tools::register();
+}

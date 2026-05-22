@@ -58,6 +58,10 @@ spl_autoload_register(function ($class) {
     }
 });
 
+// Optional high-risk development tools. Comment this line to disable file
+// mutation, plugin installation, and raw PHP execution tools.
+require_once AI_ASSISTANT_PLUGIN_DIR . 'includes/class-dev-tools.php';
+
 /**
  * Main plugin class
  */
@@ -79,7 +83,6 @@ final class AI_Assistant {
     private $llm_proxy;
     private $wp_app_abilities;
     private $conversations_app;
-    private $dev_tools;
 
     public static function instance() {
         if (is_null(self::$instance)) {
@@ -105,9 +108,6 @@ final class AI_Assistant {
             $this->connectors_bridge = new AI_Assistant\Connectors_Bridge();
         }
 
-        // Register extractable extension hooks for high-risk development tools.
-        $this->dev_tools = new AI_Assistant\Dev_Tools();
-
         // Initialize components
         $this->settings = new AI_Assistant\Settings();
         $this->tools = new AI_Assistant\Tools();
@@ -122,6 +122,17 @@ final class AI_Assistant {
         $this->plugin_recovery_admin = new AI_Assistant\Plugin_Recovery_Admin();
         $this->conversations_app = new AI_Assistant\Conversations_App();
         $this->wp_app_abilities = new AI_Assistant\Wp_App_Abilities($this->git_tracker_manager);
+
+        /**
+         * Fires after AI Assistant has initialized its core services.
+         *
+         * Tool extensions can hook here and then register their tool
+         * definitions, metadata, client schemas, endpoint access, and execution
+         * handlers through the ai_assistant_* filters.
+         *
+         * @param AI_Assistant $assistant Main plugin instance.
+         */
+        do_action('ai_assistant_loaded', $this);
     }
 
     /**

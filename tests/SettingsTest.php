@@ -22,7 +22,7 @@ class SettingsTest extends TestCase {
         $_POST = [];
         unset($_SERVER['HTTP_HOST'], $_SERVER['SERVER_NAME'], $_SERVER['REQUEST_URI']);
 
-        new \AI_Assistant\Dev_Tools();
+        \AI_Assistant\Dev_Tools::register();
         $this->settings = new Settings();
     }
 

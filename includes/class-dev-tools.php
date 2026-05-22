@@ -14,12 +14,17 @@ if (!defined('ABSPATH')) {
  */
 class Dev_Tools {
 
+    public static function register($assistant = null): void {
+        new self();
+    }
+
     public function __construct() {
         add_filter('ai_assistant_tool_definitions', [$this, 'register_tool_definitions'], 10, 2);
         add_filter('ai_assistant_tool_meta', [$this, 'register_tool_meta']);
         add_filter('ai_assistant_client_tool_definitions', [$this, 'register_client_tool_definitions']);
         add_filter('ai_assistant_file_endpoint_tools', [$this, 'register_file_endpoint_tools']);
         add_filter('ai_assistant_execute_tool', [$this, 'execute_tool'], 10, 6);
+        add_filter('ai_assistant_system_prompt', [$this, 'register_system_prompt'], 10, 4);
     }
 
     public function register_tool_definitions(array $tools): array {
@@ -125,6 +130,39 @@ class Dev_Tools {
             'edit_file',
             'delete_file',
         ])));
+    }
+
+    public function register_system_prompt(string $prompt, array $enabled_tools, array $wp_info = [], ?Settings $settings = null): string {
+        $has_run_php = in_array('run_php', $enabled_tools, true);
+        $has_file_mutation = count(array_intersect(['write_file', 'edit_file', 'delete_file'], $enabled_tools)) > 0;
+
+        if ($has_run_php) {
+            $prompt .= "\nFor plugin-specific data or actions, check abilities first (ability action:list) before reaching for run_php.\n";
+            $prompt .= "For native WordPress data or actions with no matching ability or REST route, use run_php with standard WordPress functions.\n";
+            $prompt .= "POST/PAGE DRAFT FALLBACK: use run_php/wp_insert_post only if REST cannot create the requested draft.\n";
+        }
+
+        if ($has_file_mutation) {
+            $prompt .= <<<'PROMPT'
+
+
+FILE EDITING RULES:
+- Use write_file ONLY for creating NEW files
+- Use edit_file for modifying EXISTING files - it uses search/replace operations which is more efficient and easier to review
+- The edit_file tool takes a real JSON array of {search, replace} objects, not a string containing JSON, markdown, XML, or tool-call tags
+- Each edit_file search string must be exact and unique in the current file
+- If an edit_file operation fails (string not found or not unique), use read_file to see the current content and retry
+
+EMERGENCY PLUGIN DISABLING:
+- AI Assistant may emergency-disable a plugin after plugin edits or activation break WordPress. This inserts a reversible guard at the top of the plugin main file: AI_ASSISTANT_EMERGENCY_DISABLED.
+- When a user asks why a plugin was disabled or to get it working again, inspect the plugin main file and relevant changed files with read_file/find before editing.
+- Fix the plugin code before removing an emergency guard. Removing the guard first can immediately fatal WordPress again.
+- After a fix, verify the plugin is active and WordPress still loads. If environment_info without inactive plugins does not list the plugin, call environment_info with include_inactive true or get_plugins before claiming it is working.
+- If WordPress-backed tools fail after plugin file edits, continue with direct file tools and explain that the plugin may have been emergency-disabled for recovery.
+PROMPT;
+        }
+
+        return $prompt;
     }
 
     public function execute_tool($result, string $tool_name, array $arguments, string $permission, ?int $conversation_id, Executor $executor) {
@@ -376,4 +414,10 @@ class Dev_Tools {
             'output' => $output,
         ];
     }
+}
+
+if (function_exists('did_action') && did_action('ai_assistant_loaded')) {
+    Dev_Tools::register(function_exists('\ai_assistant') ? \ai_assistant() : null);
+} else {
+    add_action('ai_assistant_loaded', [Dev_Tools::class, 'register']);
 }
