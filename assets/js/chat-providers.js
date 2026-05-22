@@ -124,7 +124,7 @@
             return true;
         },
 
-        sendMessage: function() {
+        sendMessage: async function() {
             if (!this.isProviderConfigured()) return;
 
             var $input = $('#ai-assistant-input');
@@ -150,6 +150,22 @@
             if ((this.pendingToolChecks || 0) > 0) {
                 this.setLoading(false);
                 return;
+            }
+
+            if (this.ensureBrowserProviderStatuses) {
+                this.setLoading(true);
+                await this.ensureBrowserProviderStatuses();
+                this.setLoading(false);
+
+                if (!this.isProviderConfigured()) {
+                    this.addMessage('error', 'No AI provider is reachable from this browser. If you are using a local provider, make sure it is running on this device and allows browser requests from WordPress.');
+                    return;
+                }
+
+                if (!this.conversationId && this.messages.length === 0) {
+                    this.conversationProvider = this.getProvider();
+                    this.conversationModel = this.getModel();
+                }
             }
 
             if (this.markConversationInteracted) {
@@ -220,8 +236,17 @@
             this.callLLM();
         },
 
-        callLLM: function() {
+        callLLM: async function() {
             var provider = this.conversationProvider || this.getProvider();
+
+            if (this.ensureBrowserProviderStatus && this._providerNeedsBrowserStatus && this._providerNeedsBrowserStatus(provider)) {
+                await this.ensureBrowserProviderStatus(provider);
+                if (!this._isProviderAvailable(provider)) {
+                    this.addMessage('error', 'Provider "' + provider + '" is not reachable from this browser or has no usable loaded models.');
+                    this.setLoading(false);
+                    return;
+                }
+            }
 
             if (this.pendingActions && this.pendingActions.length > 0) {
                 this.setLoading(false);

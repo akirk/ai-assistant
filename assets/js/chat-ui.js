@@ -1556,12 +1556,29 @@
         },
 
         loadWelcomeMessage: function() {
+            if (this.hasUncheckedBrowserProviderStatuses && this.hasUncheckedBrowserProviderStatuses()) {
+                var self = this;
+                this.addMessage('system', 'Checking local AI providers from this browser...', 'ai-welcome-message');
+                this.ensureBrowserProviderStatuses().then(function() {
+                    $('#ai-assistant-messages .ai-welcome-message, #ai-assistant-messages .ai-model-info, #ai-assistant-messages .ai-model-warning, #ai-assistant-messages .ai-model-note').remove();
+                    self.conversationProvider = self.getProvider();
+                    self.conversationModel = self.getModel();
+                    self.updateSendButton();
+                    self.loadWelcomeMessage();
+                });
+                return;
+            }
+
             if (!this.isProviderConfigured()) {
                 var hasConnectors = typeof aiAssistantProviders !== 'undefined' && aiAssistantProviders.source === 'connectors';
                 var message;
                 if (hasConnectors) {
                     var connectorsUrl = aiAssistantProviders.connectorsUrl || aiAssistantConfig.settingsUrl;
-                    message = 'Welcome! No AI providers with API keys found. Please configure a provider in [Connectors](' + connectorsUrl + ') to start chatting.';
+                    if (aiAssistantProviders.hasLocal) {
+                        message = 'Welcome! No AI provider is reachable from this browser. Start and load a local model on this device, or configure a cloud provider in [Connectors](' + connectorsUrl + ') to start chatting.';
+                    } else {
+                        message = 'Welcome! No AI providers with API keys found. Please configure a provider in [Connectors](' + connectorsUrl + ') to start chatting.';
+                    }
                 } else {
                     message = 'Welcome! Please configure your API key in [Settings](' + aiAssistantConfig.settingsUrl + ') to start chatting.';
                 }
@@ -1662,6 +1679,15 @@
         },
 
         getProviderName: function(provider) {
+            if (
+                typeof aiAssistantProviders !== 'undefined' &&
+                aiAssistantProviders.available &&
+                aiAssistantProviders.available[provider] &&
+                aiAssistantProviders.available[provider].name
+            ) {
+                return aiAssistantProviders.available[provider].name;
+            }
+
             return provider === 'anthropic' ? 'Anthropic' :
                    provider === 'openai' ? 'OpenAI' :
                    provider === 'local' ? 'Local LLM' : provider;

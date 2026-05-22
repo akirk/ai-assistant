@@ -24,8 +24,12 @@ function loadSettingsMixin(options) {
 
     const aiAssistant = {};
     const providers = options.providers || { source: 'legacy' };
+    const windowObject = { aiAssistant };
+    if (options.browserStatusRegistry) {
+        windowObject.wpAiProviderBrowserStatus = options.browserStatusRegistry;
+    }
     const context = {
-        window: { aiAssistant },
+        window: windowObject,
         aiAssistantProviders: providers,
         localStorage: createStorage(options.storage),
         jQuery: {
@@ -275,5 +279,94 @@ describe('chat settings model lifecycle', function() {
         });
 
         assert.strictEqual(assistant.getModelUpgradeInfo('anthropic', 'claude-sonnet-4-6'), null);
+    });
+
+    it('falls through from an unreachable browser-local Connector provider', async function() {
+        const assistant = loadSettingsMixin({
+            providers: {
+                source: 'connectors',
+                available: {
+                    lmstudio: {
+                        name: 'LM Studio',
+                        type: 'server',
+                        browserSupported: true,
+                        models: []
+                    },
+                    anthropic: {
+                        name: 'Anthropic',
+                        type: 'cloud',
+                        serverSideAuth: true,
+                        models: [
+                            { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' }
+                        ]
+                    }
+                }
+            },
+            storage: {
+                aiAssistant_providerPriority: JSON.stringify(['lmstudio', 'anthropic'])
+            },
+            browserStatusRegistry: {
+                check(provider) {
+                    assert.strictEqual(provider.id, 'lmstudio');
+                    return Promise.resolve({
+                        providerId: 'lmstudio',
+                        reachable: false,
+                        status: 'unreachable',
+                        models: []
+                    });
+                }
+            }
+        });
+
+        assert.strictEqual(assistant.getProvider(), 'lmstudio');
+
+        await assistant.ensureBrowserProviderStatuses();
+
+        assert.strictEqual(assistant.getProvider(), 'anthropic');
+        assert.strictEqual(assistant.getModel(), 'claude-sonnet-4-6');
+    });
+
+    it('uses browser-discovered models for a reachable local Connector provider', async function() {
+        const assistant = loadSettingsMixin({
+            providers: {
+                source: 'connectors',
+                available: {
+                    lmstudio: {
+                        name: 'LM Studio',
+                        type: 'server',
+                        browserSupported: true,
+                        models: []
+                    },
+                    anthropic: {
+                        name: 'Anthropic',
+                        type: 'cloud',
+                        serverSideAuth: true,
+                        models: [
+                            { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' }
+                        ]
+                    }
+                }
+            },
+            storage: {
+                aiAssistant_providerPriority: JSON.stringify(['lmstudio', 'anthropic'])
+            },
+            browserStatusRegistry: {
+                check() {
+                    return Promise.resolve({
+                        providerId: 'lmstudio',
+                        reachable: true,
+                        status: 'ready',
+                        models: [
+                            { id: 'google/gemma-4-26b-a4b', name: 'Gemma 4 26B A4B' }
+                        ]
+                    });
+                }
+            }
+        });
+
+        await assistant.ensureBrowserProviderStatuses();
+
+        assert.strictEqual(assistant.getProvider(), 'lmstudio');
+        assert.strictEqual(assistant.getModel(), 'google/gemma-4-26b-a4b');
     });
 });
