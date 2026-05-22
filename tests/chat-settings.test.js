@@ -190,6 +190,45 @@ describe('chat settings model lifecycle', function() {
         assert.strictEqual(assistant.getModel(), 'claude-sonnet-4-6');
     });
 
+    it('provides fallback model options for the inline model selector', function() {
+        const assistant = loadSettingsMixin();
+
+        const options = assistant.getModelOptions('anthropic', 'claude-sonnet-4-6');
+
+        assert.strictEqual(
+            JSON.stringify(options.map(option => option.id)),
+            JSON.stringify([
+                'claude-sonnet-4-6',
+                'claude-sonnet-4-5-20250929',
+                'claude-sonnet-4-20250514'
+            ])
+        );
+    });
+
+    it('keeps a selected custom model visible in the model selector', function() {
+        const assistant = loadSettingsMixin();
+
+        const options = assistant.getModelOptions('anthropic', 'claude-experimental-test');
+
+        assert.strictEqual(options[0].id, 'claude-experimental-test');
+    });
+
+    it('applies inline model selections to the pending chat and provider setting', function() {
+        const assistant = loadSettingsMixin({
+            storage: {
+                aiAssistant_anthropicApiKey: 'test-key'
+            }
+        });
+        assistant.pendingNewChat = true;
+
+        const changed = assistant.selectModelForCurrentChat('anthropic', 'claude-sonnet-4-5-20250929');
+
+        assert.strictEqual(changed, true);
+        assert.strictEqual(assistant.pendingNewChatProvider, 'anthropic');
+        assert.strictEqual(assistant.pendingNewChatModel, 'claude-sonnet-4-5-20250929');
+        assert.strictEqual(assistant.getModel(), 'claude-sonnet-4-5-20250929');
+    });
+
     it('warns about deprecated Anthropic models with a recommended replacement', function() {
         const assistant = loadSettingsMixin();
 

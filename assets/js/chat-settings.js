@@ -131,6 +131,36 @@
         });
     }
 
+    function normalizeModelOptions(models) {
+        if (!Array.isArray(models)) return [];
+
+        var seen = {};
+        var options = [];
+        models.forEach(function(model) {
+            var id = normalizeModelId(model && model.id ? model.id : model);
+            if (!id || seen[id]) return;
+
+            seen[id] = true;
+            options.push({
+                id: id,
+                name: (model && model.name) || id
+            });
+        });
+
+        return options;
+    }
+
+    function addModelOption(options, model) {
+        var id = normalizeModelId(model);
+        if (!id || hasModel(options, id)) return options;
+
+        options.unshift({
+            id: id,
+            name: id
+        });
+        return options;
+    }
+
     function getRecommendedModel(provider, models) {
         models = Array.isArray(models) ? models : [];
         var preferred = PREFERRED_MODELS[provider] || [];
@@ -520,6 +550,26 @@
             return this.setSetting('model', model);
         },
 
+        selectModelForCurrentChat: function(provider, model) {
+            provider = provider || this.getProvider();
+            model = normalizeModelId(model);
+
+            if (!model || !isModelCompatibleWithProvider(provider, model)) {
+                return false;
+            }
+
+            this.setModel(model, provider);
+            if (this.pendingNewChat) {
+                this.pendingNewChatProvider = provider;
+                this.pendingNewChatModel = model;
+            } else {
+                this.conversationProvider = provider;
+                this.conversationModel = model;
+            }
+
+            return true;
+        },
+
         getSummarizationModel: function() {
             return this.getSetting('summarizationModel') || '';
         },
@@ -604,6 +654,24 @@
                 }
             }
             return [];
+        },
+
+        getModelOptions: function(provider, selectedModel) {
+            provider = provider || this.getProvider();
+            var options = normalizeModelOptions(this.getAvailableModels(provider));
+
+            if (options.length === 0) {
+                options = normalizeModelOptions(PREFERRED_MODELS[provider] || []);
+                if (DEFAULT_MODELS[provider]) {
+                    addModelOption(options, DEFAULT_MODELS[provider]);
+                }
+            }
+
+            if (selectedModel) {
+                addModelOption(options, selectedModel);
+            }
+
+            return options;
         },
 
         getModelDisplayName: function(provider, model) {
