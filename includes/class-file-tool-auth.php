@@ -15,7 +15,7 @@ if (!defined('ABSPATH') && !defined('AI_ASSISTANT_FILE_TOOLS_ENDPOINT')) {
  */
 class File_Tool_Auth {
 
-    private const TOKEN_TTL = 43200; // 12 hours.
+    private const TOKEN_TTL = 900; // 15 minutes.
     private const TOKEN_VERSION = 1;
 
     public static function create_token(string $permission, array $enabled_tools, ?int $user_id = null): string {
@@ -105,6 +105,18 @@ class File_Tool_Auth {
         return self::is_tool_enabled($tool_name, $arguments, (array) ($token_payload['enabled_tools'] ?? []));
     }
 
+    public static function is_secret_path(string $path): bool {
+        $secret_path = self::secret_path();
+        $real_secret_path = realpath($secret_path);
+        $real_path = realpath($path);
+
+        if ($real_secret_path !== false && $real_path !== false) {
+            return self::normalize_path($real_path) === self::normalize_path($real_secret_path);
+        }
+
+        return self::normalize_path($path) === self::normalize_path($secret_path);
+    }
+
     private static function is_tool_enabled(string $tool_name, array $arguments, array $enabled_tools): bool {
         if ($tool_name === 'emergency_deactivate_plugin') {
             return in_array('edit_file', $enabled_tools, true);
@@ -180,6 +192,10 @@ class File_Tool_Auth {
         }
 
         return dirname(__DIR__, 3);
+    }
+
+    private static function normalize_path(string $path): string {
+        return rtrim(str_replace('\\', '/', $path), '/');
     }
 
     private static function sign(string $payload_encoded, string $secret): string {

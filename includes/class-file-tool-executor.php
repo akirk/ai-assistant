@@ -231,6 +231,10 @@ class File_Tool_Executor {
     private function read_file(string $path): array {
         $full_path = $this->resolve_path($path);
 
+        if (File_Tool_Auth::is_secret_path($full_path)) {
+            throw new \Exception('Access denied: File tool signing secret cannot be read');
+        }
+
         if (!file_exists($full_path)) {
             throw new \Exception("File not found: $path");
         }
@@ -611,6 +615,10 @@ class File_Tool_Executor {
                 }
 
                 if (!is_file($file)) {
+                    continue;
+                }
+
+                if (File_Tool_Auth::is_secret_path($file)) {
                     continue;
                 }
 
