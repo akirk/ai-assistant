@@ -203,6 +203,7 @@ describe('chat settings model lifecycle', function() {
                 'claude-sonnet-4-20250514'
             ])
         );
+        assert.strictEqual(options[0].name, 'Claude Sonnet 4.6');
     });
 
     it('keeps a selected custom model visible in the model selector', function() {
@@ -229,6 +230,26 @@ describe('chat settings model lifecycle', function() {
         assert.strictEqual(assistant.getModel(), 'claude-sonnet-4-5-20250929');
     });
 
+    it('does not change the model after a conversation has started', function() {
+        const assistant = loadSettingsMixin({
+            storage: {
+                aiAssistant_anthropicApiKey: 'test-key',
+                aiAssistant_model_anthropic: 'claude-sonnet-4-6'
+            }
+        });
+        assistant.conversationProvider = 'anthropic';
+        assistant.conversationModel = 'claude-sonnet-4-6';
+        assistant.isModelSelectionLocked = function() {
+            return true;
+        };
+
+        const changed = assistant.selectModelForCurrentChat('anthropic', 'claude-sonnet-4-5-20250929');
+
+        assert.strictEqual(changed, false);
+        assert.strictEqual(assistant.conversationModel, 'claude-sonnet-4-6');
+        assert.strictEqual(assistant.getModel(), 'claude-sonnet-4-6');
+    });
+
     it('warns about deprecated Anthropic models with a recommended replacement', function() {
         const assistant = loadSettingsMixin();
 
@@ -239,7 +260,7 @@ describe('chat settings model lifecycle', function() {
         assert.strictEqual(upgrade.severity, 'warning');
         assert.strictEqual(upgrade.status, 'deprecated');
         assert.strictEqual(upgrade.replacement, 'claude-sonnet-4-6');
-        assert.strictEqual(upgrade.replacementName, 'claude-sonnet-4-6');
+        assert.strictEqual(upgrade.replacementName, 'Claude Sonnet 4.6');
         assert.strictEqual(upgrade.retirement, 'June 15, 2026');
     });
 

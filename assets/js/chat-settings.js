@@ -22,6 +22,25 @@
             'gpt-4o'
         ]
     };
+    var MODEL_DISPLAY_NAMES = {
+        anthropic: {
+            'claude-sonnet-4-6': 'Claude Sonnet 4.6',
+            'claude-sonnet-4-5-20250929': 'Claude Sonnet 4.5',
+            'claude-sonnet-4-20250514': 'Claude Sonnet 4',
+            'claude-opus-4-7': 'Claude Opus 4.7',
+            'claude-opus-4-20250514': 'Claude Opus 4',
+            'claude-haiku-4-5-20251001': 'Claude Haiku 4.5'
+        },
+        openai: {
+            'gpt-5.5': 'GPT-5.5',
+            'gpt-5.4': 'GPT-5.4',
+            'gpt-5.4-mini': 'GPT-5.4 Mini',
+            'gpt-5.1': 'GPT-5.1',
+            'gpt-5': 'GPT-5',
+            'gpt-4.1': 'GPT-4.1',
+            'gpt-4o': 'GPT-4o'
+        }
+    };
     var MODEL_REPLACEMENTS = {
         anthropic: {
             'claude-sonnet-4-20250514': {
@@ -131,7 +150,13 @@
         });
     }
 
-    function normalizeModelOptions(models) {
+    function getKnownModelDisplayName(provider, model) {
+        var id = normalizeModelId(model);
+        var names = MODEL_DISPLAY_NAMES[provider] || {};
+        return names[id] || id;
+    }
+
+    function normalizeModelOptions(models, provider) {
         if (!Array.isArray(models)) return [];
 
         var seen = {};
@@ -143,20 +168,20 @@
             seen[id] = true;
             options.push({
                 id: id,
-                name: (model && model.name) || id
+                name: (model && model.name) || getKnownModelDisplayName(provider, id)
             });
         });
 
         return options;
     }
 
-    function addModelOption(options, model) {
+    function addModelOption(options, model, provider) {
         var id = normalizeModelId(model);
         if (!id || hasModel(options, id)) return options;
 
         options.unshift({
             id: id,
-            name: id
+            name: getKnownModelDisplayName(provider, id)
         });
         return options;
     }
@@ -554,6 +579,10 @@
             provider = provider || this.getProvider();
             model = normalizeModelId(model);
 
+            if (this.isModelSelectionLocked && this.isModelSelectionLocked()) {
+                return false;
+            }
+
             if (!model || !isModelCompatibleWithProvider(provider, model)) {
                 return false;
             }
@@ -658,17 +687,17 @@
 
         getModelOptions: function(provider, selectedModel) {
             provider = provider || this.getProvider();
-            var options = normalizeModelOptions(this.getAvailableModels(provider));
+            var options = normalizeModelOptions(this.getAvailableModels(provider), provider);
 
             if (options.length === 0) {
-                options = normalizeModelOptions(PREFERRED_MODELS[provider] || []);
+                options = normalizeModelOptions(PREFERRED_MODELS[provider] || [], provider);
                 if (DEFAULT_MODELS[provider]) {
-                    addModelOption(options, DEFAULT_MODELS[provider]);
+                    addModelOption(options, DEFAULT_MODELS[provider], provider);
                 }
             }
 
             if (selectedModel) {
-                addModelOption(options, selectedModel);
+                addModelOption(options, selectedModel, provider);
             }
 
             return options;
@@ -682,7 +711,7 @@
                     return models[i].name || models[i].id;
                 }
             }
-            return id;
+            return getKnownModelDisplayName(provider, id);
         },
 
         getNewerAvailableModels: function(provider, model) {

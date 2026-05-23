@@ -583,7 +583,30 @@
                 .text(isQueueing ? 'Queue' : $btn.data('default-text'))
                 .attr('title', isQueueing ? 'Queue message' : '')
                 .prop('disabled', !this.isProviderConfigured() || this.isUploadingFiles);
-            $('.ai-model-select').prop('disabled', !!this.isLoading);
+            this.updateModelSelectLockState();
+        },
+
+        hasConversationStarted: function() {
+            if (this.pendingNewChat) {
+                return false;
+            }
+
+            var messages = this.getMessagesForSave
+                ? this.getMessagesForSave()
+                : (Array.isArray(this.messages) ? this.messages : []);
+
+            return Array.isArray(messages) && messages.length > 0;
+        },
+
+        isModelSelectionLocked: function() {
+            return this.hasConversationStarted();
+        },
+
+        updateModelSelectLockState: function() {
+            var locked = this.isModelSelectionLocked && this.isModelSelectionLocked();
+            $('.ai-model-select')
+                .prop('disabled', !!this.isLoading || !!locked)
+                .attr('title', locked ? 'Model is locked after the conversation starts' : 'Change model');
         },
 
         getQueuedMessageCount: function() {

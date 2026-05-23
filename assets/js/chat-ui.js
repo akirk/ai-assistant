@@ -1565,14 +1565,29 @@
             return options || [];
         },
 
+        getModelInfoDisplayName: function(provider, model, options) {
+            model = String(model || '').trim();
+            options = options || [];
+
+            for (var i = 0; i < options.length; i++) {
+                var id = String(options[i].id || '').trim();
+                if (id === model && options[i].name) {
+                    return String(options[i].name);
+                }
+            }
+
+            return this.getModelDisplayName ? this.getModelDisplayName(provider, model) : model;
+        },
+
         renderModelInfoControl: function($line, provider, model) {
             model = String(model || '').trim();
             if (!model) return;
 
             var options = this.getModelInfoOptions(provider, model);
+            var selectionLocked = this.isModelSelectionLocked && this.isModelSelectionLocked();
             $line.append(' (');
 
-            if (options.length > 1 && this.selectModelForCurrentChat) {
+            if (options.length > 1 && this.selectModelForCurrentChat && !selectionLocked) {
                 var $select = $('<select class="ai-model-select" aria-label="Model"></select>')
                     .attr('data-provider', provider)
                     .attr('data-current-model', model)
@@ -1582,11 +1597,12 @@
                 options.forEach(function(option) {
                     var id = String(option.id || '').trim();
                     if (!id) return;
+                    var name = String(option.name || id);
 
                     $('<option>')
                         .val(id)
-                        .text(id)
-                        .attr('title', option.name && option.name !== id ? option.name : id)
+                        .text(name)
+                        .attr('title', id)
                         .prop('selected', id === model)
                         .appendTo($select);
                 });
@@ -1597,7 +1613,11 @@
                 $line.append($wrap);
                 this.syncModelSelectWidth($select);
             } else {
-                $line.append($('<span class="ai-model-label"></span>').text(model));
+                $line.append(
+                    $('<span class="ai-model-label"></span>')
+                        .text(this.getModelInfoDisplayName(provider, model, options))
+                        .attr('title', model)
+                );
             }
 
             $line.append(')');
@@ -1611,7 +1631,15 @@
             if (!$sizer.length) return;
 
             $sizer.text(selectedText);
-            $select.css('--ai-model-select-width', Math.ceil($sizer.outerWidth()) + 11 + 'px');
+            var measuredWidth = Math.ceil($sizer.outerWidth());
+            $select.css('--ai-model-select-width', measuredWidth > 0 ? measuredWidth + 11 + 'px' : 'auto');
+        },
+
+        syncModelSelectWidths: function() {
+            var self = this;
+            $('.ai-model-select').each(function() {
+                self.syncModelSelectWidth($(this));
+            });
         },
 
         addModelInfoMessage: function(provider, model) {

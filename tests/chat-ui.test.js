@@ -362,6 +362,17 @@ describe('welcome message', function() {
 
         assert.strictEqual(assistant.getProviderName('lmstudio'), 'LM Studio');
     });
+
+    it('uses model display names in the model info line', function() {
+        const assistant = loadUiMixin();
+
+        assert.strictEqual(
+            assistant.getModelInfoDisplayName('anthropic', 'claude-sonnet-4-6', [
+                { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' }
+            ]),
+            'Claude Sonnet 4.6'
+        );
+    });
 });
 
 describe('token usage accounting', function() {
