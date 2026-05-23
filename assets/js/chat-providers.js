@@ -98,7 +98,7 @@
 
             queued.forEach(function(item) {
                 if (item.content) {
-                    this.addMessage('user', item.content);
+                    this.addMessage('user', item.content, null, { timestamp: item.queuedAt });
                 }
             }, this);
 
@@ -243,8 +243,9 @@
             var messageContent = this.buildUserMessageContent
                 ? this.buildUserMessageContent(message, attachments)
                 : message;
-            this.addMessage('user', messageContent);
-            this.messages.push(this.createStoredMessage('user', messageContent));
+            var userMessage = this.createStoredMessage('user', messageContent);
+            this.addMessage('user', messageContent, null, { timestamp: userMessage._ts });
+            this.messages.push(userMessage);
             this.conversationDirty = true;
             if (this.updateExportButton) {
                 this.updateExportButton();
@@ -788,16 +789,15 @@
                     }
                 });
 
-                if (!textContent) {
-                    $reply.remove();
-                } else {
-                    this.finalizeReply($reply);
-                }
-
                 var filteredBlocks = contentBlocks.filter(function(block) {
                     return block.type !== 'text' || (block.text && block.text.length > 0);
                 });
                 var message = this.createStoredMessage('assistant', filteredBlocks);
+                if (!textContent) {
+                    $reply.remove();
+                } else {
+                    this.finalizeReply($reply, message._ts);
+                }
                 if (this.attachTokenUsageToAssistantMessage) {
                     this.attachTokenUsageToAssistantMessage(message, 'anthropic', model, providerUsage, [
                         { role: 'system', content: this.systemPrompt },
@@ -967,13 +967,12 @@
                     self.updateToolCardDescription(tc.id, tc.function.name, parsedArgs);
                 });
 
+                var message = this.createStoredMessage('assistant', textContent || null);
                 if (!textContent) {
                     $reply.remove();
                 } else {
-                    this.finalizeReply($reply);
+                    this.finalizeReply($reply, message._ts);
                 }
-
-                var message = this.createStoredMessage('assistant', textContent || null);
                 if (Object.keys(toolCallsMap).length > 0) {
                     message.tool_calls = Object.values(toolCallsMap);
                 }
@@ -1329,6 +1328,7 @@
                 // Strip reasoning tokens from the final response
                 var strippedContent = this.stripReasoningTokens(textContent);
 
+                var message = this.createStoredMessage('assistant', strippedContent || null);
                 if (!strippedContent) {
                     $reply.remove();
                 } else {
@@ -1336,10 +1336,9 @@
                     if (strippedContent !== textContent) {
                         this.updateReply($reply, strippedContent);
                     }
-                    this.finalizeReply($reply);
+                    this.finalizeReply($reply, message._ts);
                 }
 
-                var message = this.createStoredMessage('assistant', strippedContent || null);
                 if (Object.keys(toolCallsMap).length > 0) {
                     message.tool_calls = Object.values(toolCallsMap);
                 }
