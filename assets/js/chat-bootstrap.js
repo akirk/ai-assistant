@@ -118,6 +118,9 @@
             if (window.aiAssistant && typeof window.aiAssistant.scrollToBottom === 'function') {
                 window.aiAssistant.scrollToBottom(true);
             }
+            if (window.aiAssistant && typeof window.aiAssistant.syncModelSelectWidths === 'function') {
+                window.aiAssistant.syncModelSelectWidths();
+            }
         }, 50);
     }
 
