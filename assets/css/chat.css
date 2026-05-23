@@ -4,6 +4,7 @@
 body,
 :where(#ai-assistant-wrap, .ai-assistant-standalone-wrap, .ai-assistant-page, .ai-assistant-chat-container) {
     --ai-assistant-accent: var(--wp-app-admin-color-primary, var(--wp-admin-theme-color));
+    --ai-assistant-on-accent: var(--wp-app-color-on-primary, HighlightText);
     --ai-assistant-accent-hover: var(--wp-app-admin-color-primary-hover, var(--wp-app-admin-color-primary, var(--wp-admin-theme-color-darker-10, var(--ai-assistant-accent))));
     --ai-assistant-accent-active: var(--wp-app-admin-color-primary-active, var(--wp-app-admin-color-primary, var(--wp-admin-theme-color-darker-20, var(--ai-assistant-accent-hover))));
     --ai-assistant-accent-soft: color-mix(in srgb, var(--ai-assistant-accent) 8%, transparent);
@@ -665,8 +666,16 @@ body.ai-assistant-panel-resizing {
 
 .ai-message-user .ai-message-content {
     background: var(--ai-assistant-accent);
-    color: #fff;
+    color: var(--ai-assistant-on-accent);
     border-bottom-right-radius: 4px;
+}
+
+body.wp-app-body .ai-message-user .ai-message-content::selection,
+body.wp-app-body .ai-message-user .ai-message-content *::selection,
+.ai-message-user .ai-message-content::selection,
+.ai-message-user .ai-message-content *::selection {
+    background: var(--ai-assistant-on-accent);
+    color: var(--ai-assistant-accent);
 }
 
 .ai-message-assistant .ai-message-content {
@@ -3128,7 +3137,7 @@ body.wp-admin .ai-assistant-standalone-wrap {
 }
 
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-user .ai-message-content {
-    color: #fff !important;
+    color: var(--ai-assistant-on-accent) !important;
     background: var(--ai-assistant-accent) !important;
     border-bottom-right-radius: 4px !important;
 }

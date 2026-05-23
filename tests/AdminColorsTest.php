@@ -9,6 +9,7 @@ final class AdminColorsTest extends TestCase {
         $css = Admin_Colors::get_current_scheme_css('.ai-test');
 
         $this->assertStringContainsString('--ai-assistant-accent: var(--wp-app-admin-color-primary, var(--wp-admin-theme-color));', $css);
+        $this->assertStringContainsString('--ai-assistant-on-accent: var(--wp-app-color-on-primary, HighlightText);', $css);
         $this->assertStringContainsString('--ai-assistant-accent-hover: var(--wp-app-admin-color-primary-hover, var(--wp-app-admin-color-primary, var(--wp-admin-theme-color-darker-10, var(--ai-assistant-accent))));', $css);
         $this->assertStringContainsString('--ai-assistant-accent-active: var(--wp-app-admin-color-primary-active, var(--wp-app-admin-color-primary, var(--wp-admin-theme-color-darker-20, var(--ai-assistant-accent-hover))));', $css);
         $this->assertStringNotContainsString('#', $css);
