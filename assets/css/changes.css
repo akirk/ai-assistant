@@ -1,5 +1,6 @@
 .ai-changes-wrap {
     --ai-assistant-accent: var(--wp-app-admin-color-primary, var(--wp-admin-theme-color));
+    --ai-assistant-on-accent: var(--wp-app-color-on-primary, HighlightText);
     --ai-assistant-accent-hover: var(--wp-app-admin-color-primary-hover, var(--wp-app-admin-color-primary, var(--wp-admin-theme-color-darker-10, var(--ai-assistant-accent))));
     --ai-assistant-accent-active: var(--wp-app-admin-color-primary-active, var(--wp-app-admin-color-primary, var(--wp-admin-theme-color-darker-20, var(--ai-assistant-accent-hover))));
     --ai-assistant-accent-soft: color-mix(in srgb, var(--ai-assistant-accent) 8%, transparent);
