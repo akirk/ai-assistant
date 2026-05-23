@@ -2,12 +2,24 @@
     'use strict';
 
     $.extend(window.aiAssistant, {
-        addMessage: function(role, content, extraClass) {
+        addMessage: function(role, content, extraClass, options) {
             var $messages = $('#ai-assistant-messages');
+            if (extraClass && typeof extraClass === 'object') {
+                options = extraClass;
+                extraClass = '';
+            }
+            options = options || {};
 
             var messageClass = 'ai-message ai-message-' + role;
             if (extraClass) {
                 messageClass += ' ' + extraClass;
+            }
+            var hasTimestampOption = Object.prototype.hasOwnProperty.call(options, 'timestamp') ||
+                Object.prototype.hasOwnProperty.call(options, '_ts');
+            var hasMessageActions = (role === 'assistant' && !extraClass) || role === 'user';
+            var timestamp = this.normalizeMessageTimestamp(options.timestamp || options._ts);
+            if (!timestamp && !hasTimestampOption && hasMessageActions && this.getMessageTimestamp) {
+                timestamp = this.getMessageTimestamp();
             }
             var displayContent = content;
             var copyContent = content;
@@ -28,25 +40,172 @@
             var $message = $('<div class="' + messageClass + '">' +
                 '<div class="ai-message-content">' + formattedContent + '</div>' +
                 '</div>');
+            if (timestamp) {
+                $message.attr('data-message-timestamp', timestamp);
+            }
 
             if (role === 'assistant' && !extraClass) {
                 $message.attr('data-raw-content', content);
-                $message.append(this.getMessageActions());
+                $message.append(this.getMessageActions(timestamp));
                 this.updateSummarizeVisibility();
             } else if (role === 'user') {
                 $message.attr('data-raw-content', content);
                 if (copyContent !== content) {
                     $message.attr('data-copy-content', copyContent);
                 }
-                $message.append(this.getUserMessageActions());
+                $message.append(this.getUserMessageActions(timestamp));
             }
 
             $messages.append($message);
             this.scrollToBottom();
         },
 
-        getMessageActions: function() {
+        normalizeMessageTimestamp: function(timestamp) {
+            timestamp = parseInt(timestamp, 10);
+            return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0;
+        },
+
+        getDateTimeFormatSettings: function() {
+            var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+            var dateTime = config.dateTime || {};
+            var dateFormat = dateTime.dateFormat || 'F j, Y';
+            var timeFormat = dateTime.timeFormat || 'g:i a';
+
+            return {
+                dateFormat: dateFormat,
+                timeFormat: timeFormat,
+                dateTimeFormat: dateTime.dateTimeFormat || (dateFormat + ' ' + timeFormat).trim()
+            };
+        },
+
+        formatWordPressDate: function(format, date) {
+            if (window.wp && window.wp.date && typeof window.wp.date.dateI18n === 'function') {
+                try {
+                    return window.wp.date.dateI18n(format, date);
+                } catch (e) {}
+            }
+
+            return this.formatPhpDateFallback(format, date);
+        },
+
+        formatPhpDateFallback: function(format, date) {
+            var months = [
+                'January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December'
+            ];
+            var monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            var weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            var weekdaysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            var pad = function(value, length) {
+                value = String(value);
+                while (value.length < length) {
+                    value = '0' + value;
+                }
+                return value;
+            };
+            var day = date.getDate();
+            var month = date.getMonth();
+            var year = date.getFullYear();
+            var hours = date.getHours();
+            var offset = -date.getTimezoneOffset();
+            var offsetSign = offset >= 0 ? '+' : '-';
+            var offsetAbs = Math.abs(offset);
+            var offsetHours = pad(Math.floor(offsetAbs / 60), 2);
+            var offsetMinutes = pad(offsetAbs % 60, 2);
+            var tokens = {
+                d: pad(day, 2),
+                D: weekdaysShort[date.getDay()],
+                j: day,
+                l: weekdays[date.getDay()],
+                m: pad(month + 1, 2),
+                M: monthsShort[month],
+                n: month + 1,
+                F: months[month],
+                Y: year,
+                y: String(year).slice(-2),
+                a: hours < 12 ? 'am' : 'pm',
+                A: hours < 12 ? 'AM' : 'PM',
+                g: (hours % 12) || 12,
+                G: hours,
+                h: pad((hours % 12) || 12, 2),
+                H: pad(hours, 2),
+                i: pad(date.getMinutes(), 2),
+                s: pad(date.getSeconds(), 2),
+                O: offsetSign + offsetHours + offsetMinutes,
+                P: offsetSign + offsetHours + ':' + offsetMinutes,
+                U: Math.floor(date.getTime() / 1000)
+            };
+            var output = '';
+
+            format = String(format || '');
+            for (var i = 0; i < format.length; i++) {
+                var char = format.charAt(i);
+                if (char === '\\' && i + 1 < format.length) {
+                    output += format.charAt(i + 1);
+                    i++;
+                } else if (Object.prototype.hasOwnProperty.call(tokens, char)) {
+                    output += tokens[char];
+                } else {
+                    output += char;
+                }
+            }
+
+            return output;
+        },
+
+        getMessageDateKey: function(date) {
+            return this.formatWordPressDate('Y-m-d', date);
+        },
+
+        formatMessageTimestamp: function(timestamp) {
+            timestamp = this.normalizeMessageTimestamp(timestamp);
+            if (!timestamp) {
+                return '';
+            }
+
+            var date = new Date(timestamp);
+            if (Number.isNaN(date.getTime())) {
+                return '';
+            }
+
+            var settings = this.getDateTimeFormatSettings();
+            var time = this.formatWordPressDate(settings.timeFormat, date);
+            var now = new Date();
+            if (this.getMessageDateKey(date) === this.getMessageDateKey(now)) {
+                return time;
+            }
+
+            return this.formatWordPressDate(settings.dateTimeFormat, date);
+        },
+
+        formatMessageTimestampTitle: function(timestamp) {
+            timestamp = this.normalizeMessageTimestamp(timestamp);
+            if (!timestamp) {
+                return '';
+            }
+
+            var date = new Date(timestamp);
+            if (Number.isNaN(date.getTime())) {
+                return '';
+            }
+
+            return this.formatWordPressDate(this.getDateTimeFormatSettings().dateTimeFormat, date);
+        },
+
+        getMessageTimestampHtml: function(timestamp) {
+            var label = this.formatMessageTimestamp(timestamp);
+            if (!label) {
+                return '';
+            }
+
+            return '<span class="ai-message-timestamp" title="' +
+                this.escapeAttribute(this.formatMessageTimestampTitle(timestamp)) +
+                '">' + this.escapeHtml(label) + '</span>';
+        },
+
+        getMessageActions: function(timestamp) {
             return '<div class="ai-message-actions">' +
+                this.getMessageTimestampHtml(timestamp) +
                 '<button type="button" class="ai-action-btn ai-action-copy" title="Copy">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 9h9a2 2 0 012 2v9a2 2 0 01-2 2h-9a2 2 0 01-2-2v-9a2 2 0 012-2z"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
                 '</button>' +
@@ -56,8 +215,9 @@
                 '</div>';
         },
 
-        getUserMessageActions: function() {
+        getUserMessageActions: function(timestamp) {
             return '<div class="ai-message-actions">' +
+                this.getMessageTimestampHtml(timestamp) +
                 '<button type="button" class="ai-action-btn ai-action-copy" title="Copy">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 9h9a2 2 0 012 2v9a2 2 0 01-2 2h-9a2 2 0 01-2-2v-9a2 2 0 012-2z"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
                 '</button>' +
@@ -128,14 +288,21 @@
             this.scrollToBottom();
         },
 
-        finalizeReply: function($message) {
+        finalizeReply: function($message, timestamp) {
             if (!$message.find('.ai-message-content').text().trim()) {
                 $message.remove();
                 return;
             }
+            timestamp = this.normalizeMessageTimestamp(timestamp || $message.attr('data-message-timestamp'));
+            if (!timestamp && this.getMessageTimestamp) {
+                timestamp = this.getMessageTimestamp();
+            }
+            if (timestamp) {
+                $message.attr('data-message-timestamp', timestamp);
+            }
             $message.removeClass('ai-message-streaming');
             if (!$message.find('.ai-message-actions').length) {
-                $message.append(this.getMessageActions());
+                $message.append(this.getMessageActions(timestamp));
             }
             this.updateSummarizeVisibility();
         },
@@ -158,11 +325,12 @@
             }
 
             $streaming.attr('data-interrupted-captured', '1');
-            this.updateReply($streaming, content);
-            this.finalizeReply($streaming);
-            this.messages.push(this.createStoredMessage
+            var interruptedMessage = this.createStoredMessage
                 ? this.createStoredMessage('assistant', content)
-                : { role: 'assistant', content: content, _ts: Date.now ? Date.now() : new Date().getTime() });
+                : { role: 'assistant', content: content, _ts: Date.now ? Date.now() : new Date().getTime() };
+            this.updateReply($streaming, content);
+            this.finalizeReply($streaming, interruptedMessage._ts);
+            this.messages.push(interruptedMessage);
             this.conversationDirty = true;
             this.updateTokenCount();
             if (this.updateExportButton) {
@@ -1885,11 +2053,11 @@
                         flushToolUseGroup();
                     }
                     if (typeof msg.content === 'string' && msg.content.trim()) {
-                        self.addMessage('user', msg.content);
+                        self.addMessage('user', msg.content, null, { timestamp: msg._ts });
                     } else if (Array.isArray(msg.content)) {
                         msg.content.forEach(function(block) {
                             if (block.type === 'text' && block.text && block.text.trim()) {
-                                self.addMessage('user', block.text);
+                                self.addMessage('user', block.text, null, { timestamp: msg._ts });
                             }
                             // tool_result blocks are skipped - shown with tool_use
                         });
@@ -1897,14 +2065,14 @@
                 } else if (msg.role === 'assistant') {
                     if (typeof msg.content === 'string' && msg.content.trim()) {
                         flushToolUseGroup();
-                        self.addMessage('assistant', msg.content);
+                        self.addMessage('assistant', msg.content, null, { timestamp: msg._ts });
                     }
                     if (Array.isArray(msg.content)) {
                         var hasAssistantText = msg.content.some(function(b) { return b.type === 'text' && b.text && b.text.trim(); });
                         if (hasAssistantText) flushToolUseGroup();
                         msg.content.forEach(function(block) {
                             if (block.type === 'text' && block.text && block.text.trim()) {
-                                self.addMessage('assistant', block.text);
+                                self.addMessage('assistant', block.text, null, { timestamp: msg._ts });
                             } else if (block.type === 'tool_use') {
                                 if (resolvedToolIds[block.id]) {
                                     accumulatedToolUses.push({ name: block.name, input: block.input || block.arguments || {}, result: toolResults[block.id] });

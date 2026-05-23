@@ -793,6 +793,7 @@ body.wp-app-body .ai-message-user .ai-message-content *::selection,
 
 .ai-message-actions {
     display: flex;
+    align-items: center;
     flex: 0 0 auto;
     gap: 2px;
     opacity: 0;
@@ -820,6 +821,17 @@ body.wp-app-body .ai-message-user .ai-message-content *::selection,
 
 .ai-message-streaming:has(.ai-message-content:empty) {
     display: none;
+}
+
+.ai-message-timestamp {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 4px;
+    color: #8c8f94;
+    font-size: 11px;
+    line-height: 1;
+    white-space: nowrap;
 }
 
 .ai-action-btn {

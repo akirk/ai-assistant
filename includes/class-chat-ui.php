@@ -106,7 +106,7 @@ class Chat_UI {
         wp_enqueue_script(
             'ai-assistant-chat-ui',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-ui.js',
-            ['ai-assistant-chat-core', 'ai-assistant-chat-settings', 'ai-assistant-chat-files'],
+            ['ai-assistant-chat-core', 'ai-assistant-chat-settings', 'ai-assistant-chat-files', 'wp-date'],
             AI_ASSISTANT_VERSION,
             true
         );
@@ -196,6 +196,11 @@ class Chat_UI {
             'restApiUrl' => rest_url(),
             'restApiNonce' => wp_create_nonce('wp_rest'),
             'userDisplayName' => $current_user->display_name,
+            'dateTime' => [
+                'dateFormat' => get_option('date_format'),
+                'timeFormat' => get_option('time_format'),
+                'dateTimeFormat' => trim(get_option('date_format') . ' ' . get_option('time_format')),
+            ],
             'welcomeTips' => $this->get_welcome_tips($welcome_tip_context),
             'urlComponent' => $welcome_tip_context['url_component'],
             'maxClientFileBytes' => (int) apply_filters('ai_assistant_client_file_context_bytes', 128 * 1024),
