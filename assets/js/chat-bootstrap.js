@@ -124,6 +124,11 @@
         }, 50);
     }
 
+    function getAdminbarOffset() {
+        var $masterbar = $('#wpadminbar');
+        return $masterbar.length && $masterbar.is(':visible') ? $masterbar.outerHeight() : 0;
+    }
+
     function preloadConversationIfNeeded() {
         if (!window.aiAssistant) {
             return;
@@ -222,19 +227,63 @@
         });
     }
 
-    function bindStandalone($wrap) {
+    function bindStandalone($wrap, options) {
+        options = options || {};
+
         var $panel = $wrap.find('#ai-assistant-standalone-panel');
         var $trigger = $wrap.find('#ai-assistant-standalone-trigger');
         var $button = $trigger.find('button');
-        var updateStandaloneOffset = function() {
-            var $masterbar = $('#wpadminbar');
-            var offset = $masterbar.length && $masterbar.is(':visible') ? $masterbar.outerHeight() : 0;
-            $wrap.css('--ai-assistant-adminbar-offset', offset + 'px');
+        var updateStandalonePosition = function() {
+            $wrap.css('--ai-assistant-adminbar-offset', getAdminbarOffset() + 'px');
+
+            if (options.alignToScreenMeta) {
+                var $screenMetaLinks = $('#screen-meta-links');
+                var screenMetaLinksWidth = $screenMetaLinks.length ? $screenMetaLinks.outerWidth() : 0;
+                $wrap.css('--ai-assistant-screen-meta-links-width', screenMetaLinksWidth + 'px');
+            }
+        };
+        var closePanel = function() {
+            if ($button.attr('aria-expanded') !== 'true') {
+                return;
+            }
+
+            $panel.slideUp('fast');
+            $button.attr('aria-expanded', 'false');
+        };
+        var closeScreenMetaPanels = function() {
+            var $screenMeta = $('#screen-meta');
+            if (!$screenMeta.length) {
+                return;
+            }
+
+            $('#screen-meta-links').find('.screen-meta-toggle').css('visibility', '');
+            $('#screen-meta-links').find('.screen-meta-toggle button')
+                .removeClass('screen-meta-active')
+                .attr('aria-expanded', 'false');
+
+            var $visiblePanels = $screenMeta.find('> div:visible');
+            if (!$visiblePanels.length) {
+                $screenMeta.hide();
+                return;
+            }
+
+            var remainingPanels = $visiblePanels.length;
+            $visiblePanels.stop(true, true).slideUp('fast', function() {
+                $(this).addClass('hidden');
+                remainingPanels--;
+                if (remainingPanels === 0) {
+                    $screenMeta.hide();
+                }
+            });
         };
 
+        if (options.alignToScreenMeta) {
+            $wrap.addClass('ai-assistant-admin-screen-meta');
+        }
+
         $wrap.appendTo(document.body);
-        updateStandaloneOffset();
-        $(window).off('resize.aiAssistantStandalone').on('resize.aiAssistantStandalone', updateStandaloneOffset);
+        updateStandalonePosition();
+        $(window).off('resize.aiAssistantStandalone').on('resize.aiAssistantStandalone', updateStandalonePosition);
 
         $wrap.show();
         $('#ai-assistant-wrap').removeClass('hidden');
@@ -243,18 +292,27 @@
             var isExpanded = $button.attr('aria-expanded') === 'true';
 
             if (isExpanded) {
-                $panel.slideUp('fast');
-                $button.attr('aria-expanded', 'false');
+                closePanel();
             } else {
+                updateStandalonePosition();
+                if (options.alignToScreenMeta) {
+                    closeScreenMetaPanels();
+                }
                 $panel.slideDown('fast', focusInputAndScroll);
                 $button.attr('aria-expanded', 'true');
                 preloadConversationIfNeeded();
             }
         });
 
+        if (options.alignToScreenMeta) {
+            $('#screen-meta-links .screen-meta-toggle button')
+                .off('click.aiAssistantStandaloneScreenMeta')
+                .on('click.aiAssistantStandaloneScreenMeta', closePanel);
+        }
+
         $(document).off('keydown.aiAssistantStandalone').on('keydown.aiAssistantStandalone', function(e) {
             if (e.key === 'Escape' && $button.attr('aria-expanded') === 'true') {
-                $button.trigger('click');
+                closePanel();
             }
         });
     }
@@ -280,15 +338,7 @@
         var $standaloneWrap = $(buildStandaloneHtml());
 
         if (hasScreenMeta) {
-            $screenMetaLinks.prepend(
-                '<div id="ai-assistant-link-wrap" class="hide-if-no-js screen-meta-toggle">' +
-                    '<button type="button" id="ai-assistant-link" class="button show-settings" aria-controls="ai-assistant-wrap" aria-expanded="false">' +
-                        escapeHtml(text('buttonText', 'AI Assistant')) +
-                    '</button>' +
-                '</div>'
-            );
-            $screenMeta.prepend($standaloneWrap.find('#ai-assistant-standalone-panel').html());
-            bindScreenMeta($screenMeta, $('#ai-assistant-link'));
+            bindStandalone($standaloneWrap, { alignToScreenMeta: true });
         } else {
             bindStandalone($standaloneWrap);
         }

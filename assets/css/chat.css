@@ -3915,6 +3915,10 @@ body.wp-admin .ai-assistant-standalone-wrap {
     box-sizing: border-box;
 }
 
+body.wp-admin .ai-assistant-standalone-wrap.ai-assistant-admin-screen-meta .ai-assistant-standalone-links {
+    margin-right: calc(20px + var(--ai-assistant-screen-meta-links-width, 0px) + 6px) !important;
+}
+
 /* Button wrap - matches .screen-meta-toggle */
 .ai-assistant-standalone-trigger {
     float: left;
@@ -4020,6 +4024,10 @@ body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
 
     .ai-assistant-standalone-links {
         margin: 0 10px 0 0 !important;
+    }
+
+    body.wp-admin .ai-assistant-standalone-wrap.ai-assistant-admin-screen-meta .ai-assistant-standalone-links {
+        margin-right: calc(10px + var(--ai-assistant-screen-meta-links-width, 0px) + 6px) !important;
     }
 }
 
