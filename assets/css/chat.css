@@ -100,6 +100,12 @@ body,
     padding: 18px 20px;
 }
 
+body.wp-admin #screen-meta.ai-assistant-screen-meta-sticky {
+    position: sticky;
+    top: var(--ai-assistant-adminbar-offset, var(--wp-admin--admin-bar--height, 32px));
+    z-index: 9990;
+}
+
 /* Chat container inside the panel */
 .ai-assistant-chat-container {
     --ai-assistant-chat-default-height: 380px;

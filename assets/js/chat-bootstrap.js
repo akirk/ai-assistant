@@ -124,6 +124,11 @@
         }, 50);
     }
 
+    function getAdminbarOffset() {
+        var $masterbar = $('#wpadminbar');
+        return $masterbar.length && $masterbar.is(':visible') ? $masterbar.outerHeight() : 0;
+    }
+
     function preloadConversationIfNeeded() {
         if (!window.aiAssistant) {
             return;
@@ -186,6 +191,19 @@
         return $parent.length ? $parent : $('#screen-meta');
     }
 
+    function setScreenMetaAssistantSticky($screenMeta, enabled) {
+        if (!$screenMeta || !$screenMeta.length) {
+            return;
+        }
+
+        $screenMeta.toggleClass('ai-assistant-screen-meta-sticky', !!enabled);
+        if (enabled) {
+            $screenMeta.css('--ai-assistant-adminbar-offset', getAdminbarOffset() + 'px');
+        } else {
+            $screenMeta[0].style.removeProperty('--ai-assistant-adminbar-offset');
+        }
+    }
+
     function bindScreenMeta($screenMeta, $button) {
         $('#contextual-help-link, #show-settings-link')
             .off('click.aiAssistantBootstrap')
@@ -193,9 +211,16 @@
                 var $wrap = getScreenMetaPanel($('#ai-assistant-link'));
                 var $aiButton = $('#ai-assistant-link');
                 if ($aiButton.attr('aria-expanded') === 'true' || $aiButton.hasClass('screen-meta-active')) {
+                    setScreenMetaAssistantSticky($screenMeta, false);
                     hideSiblingScreenMetaPanel($wrap, $aiButton);
                 }
             });
+
+        $(window).off('resize.aiAssistantScreenMeta').on('resize.aiAssistantScreenMeta', function() {
+            if ($button.attr('aria-expanded') === 'true') {
+                setScreenMetaAssistantSticky($screenMeta, true);
+            }
+        });
 
         $button.off('click.aiAssistantBootstrap').on('click.aiAssistantBootstrap', function(e) {
             e.preventDefault();
@@ -212,8 +237,10 @@
             });
 
             if (isExpanded) {
+                setScreenMetaAssistantSticky($screenMeta, false);
                 closeScreenMetaPanel($wrap, $clicked);
             } else {
+                setScreenMetaAssistantSticky($screenMeta, true);
                 openScreenMetaPanel($wrap, $clicked, function() {
                     focusInputAndScroll();
                     preloadConversationIfNeeded();
