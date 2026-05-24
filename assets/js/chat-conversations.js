@@ -423,6 +423,9 @@
 
         startNewChat: function(options) {
             options = options || {};
+            if (this.stopConversationPlayback) {
+                this.stopConversationPlayback({ restore: false });
+            }
             this.messages = [];
             this.pendingActions = [];
             this.pendingToolChecks = 0;
@@ -460,6 +463,7 @@
             this.loadWelcomeMessage();
             this.updateSummarizeButton();
             this.updateExportButton();
+            this.updatePlaybackButton();
             if (options.updateHistory !== false) {
                 this.updateConversationRoute(0);
             }
@@ -711,6 +715,9 @@
         loadConversation: function(conversationId, options) {
             var self = this;
             options = options || {};
+            if (this.stopConversationPlayback) {
+                this.stopConversationPlayback({ restore: false });
+            }
 
             // Hide immediately to avoid showing stale content during load
             $('#ai-assistant-messages').css('visibility', 'hidden');
@@ -776,6 +783,7 @@
                         $('#ai-assistant-input').focus();
                         self.updateSummarizeButton();
                         self.updateExportButton();
+                        self.updatePlaybackButton();
                         self.updateAreaChangeSuggestion();
                         if (options.updateHistory !== false) {
                             self.updateConversationRoute(self.conversationId, {
@@ -922,6 +930,10 @@
             if (!hasMessages || !hasFormats) {
                 this.hideConversationExportMenu();
             }
+
+            if (this.updatePlaybackButton) {
+                this.updatePlaybackButton();
+            }
         },
 
         exportConversation: function(format) {
@@ -991,6 +1003,357 @@
             }
 
             this.startConversationExportDownload(this.buildConversationExportUrl(format, includeToolCalls, conversationId));
+        },
+
+        updatePlaybackButton: function() {
+            var $button = $('#ai-assistant-playback');
+            if (!$button.length) {
+                return;
+            }
+
+            var hasMessages = this.messages && this.messages.length > 0;
+            var isActive = !!this.playbackActive;
+            $button
+                .prop('disabled', (!hasMessages && !isActive) || !!this.isLoading)
+                .toggleClass('ai-playback-active', isActive)
+                .attr('title', isActive ? 'Stop playback' : 'Play back conversation');
+            $button.find('.dashicons')
+                .toggleClass('dashicons-controls-play', !isActive)
+                .toggleClass('dashicons-controls-pause', isActive);
+        },
+
+        toggleConversationPlayback: function() {
+            if (this.playbackActive) {
+                this.stopConversationPlayback({ restore: true });
+                return;
+            }
+
+            this.startConversationPlayback();
+        },
+
+        startConversationPlayback: function() {
+            if (!this.messages || this.messages.length === 0 || this.isLoading) {
+                return;
+            }
+
+            this.stopConversationPlayback({ restore: false });
+            this.playbackSourceMessages = this.clonePlaybackMessages(this.messages);
+            this.playbackToolResults = this.collectPlaybackToolResults(this.playbackSourceMessages);
+            this.playbackIndex = 0;
+            this.playbackActive = true;
+            this.playbackWaitingForUser = false;
+            this.playbackRunToken++;
+            this.pendingAttachments = [];
+            if (this.renderPendingAttachments) {
+                this.renderPendingAttachments();
+            }
+            if (this.clearToolCards) {
+                this.clearToolCards();
+            }
+
+            $('#ai-assistant-input').val('');
+            $('#ai-assistant-messages').empty();
+            this.loadConversationWelcome(this.conversationProvider, this.conversationModel);
+            this.updateSendButton();
+            this.updatePlaybackButton();
+            this.runConversationPlayback(this.playbackRunToken);
+        },
+
+        stopConversationPlayback: function(options) {
+            options = options || {};
+            if (this.playbackTimer) {
+                clearTimeout(this.playbackTimer);
+                this.playbackTimer = null;
+            }
+
+            var wasActive = !!this.playbackActive;
+            this.playbackRunToken++;
+            this.playbackActive = false;
+            this.playbackWaitingForUser = false;
+            this.playbackSourceMessages = [];
+            this.playbackToolResults = {};
+            this.playbackIndex = 0;
+            this.pendingAttachments = [];
+            if (this.renderPendingAttachments) {
+                this.renderPendingAttachments();
+            }
+            $('#ai-assistant-input').val('');
+            if (this.clearDraft) {
+                this.clearDraft();
+            }
+
+            if (wasActive && options.restore) {
+                $('#ai-assistant-messages').empty();
+                this.loadConversationWelcome(this.conversationProvider, this.conversationModel);
+                this.rebuildMessagesUI();
+            }
+
+            this.updateSendButton();
+            this.updatePlaybackButton();
+        },
+
+        clonePlaybackMessages: function(messages) {
+            try {
+                return JSON.parse(JSON.stringify(messages || []));
+            } catch (e) {
+                return (messages || []).slice();
+            }
+        },
+
+        collectPlaybackToolResults: function(messages) {
+            var results = {};
+
+            (messages || []).forEach(function(message) {
+                if (message.role === 'user' && Array.isArray(message.content)) {
+                    message.content.forEach(function(block) {
+                        if (!block || block.type !== 'tool_result' || !block.tool_use_id) {
+                            return;
+                        }
+                        var raw = Array.isArray(block.content)
+                            ? ((block.content[0] && block.content[0].text) || '')
+                            : (block.content || '');
+                        try {
+                            results[block.tool_use_id] = JSON.parse(raw);
+                        } catch (e) {
+                            results[block.tool_use_id] = raw;
+                        }
+                    });
+                }
+
+                if (message.role === 'tool' && message.tool_call_id) {
+                    try {
+                        results[message.tool_call_id] = JSON.parse(message.content);
+                    } catch (e) {
+                        results[message.tool_call_id] = message.content;
+                    }
+                }
+            });
+
+            return results;
+        },
+
+        getPlaybackUserText: function(message) {
+            var parts = [];
+
+            if (!message || message.role !== 'user') {
+                return '';
+            }
+
+            if (typeof message.content === 'string') {
+                return message.content.trim();
+            }
+
+            if (Array.isArray(message.content)) {
+                message.content.forEach(function(block) {
+                    if (block && block.type === 'text' && block.text && block.text.trim()) {
+                        parts.push(block.text);
+                    }
+                });
+            }
+
+            return parts.join('\n\n').trim();
+        },
+
+        getPlaybackTextChunks: function(text) {
+            return String(text || '').match(/\S+\s*|\s+/g) || [];
+        },
+
+        waitForPlaybackFrame: function(ms, runToken) {
+            var self = this;
+
+            return new Promise(function(resolve) {
+                if (!self.playbackActive || runToken !== self.playbackRunToken) {
+                    resolve(false);
+                    return;
+                }
+
+                self.playbackTimer = setTimeout(function() {
+                    self.playbackTimer = null;
+                    resolve(self.playbackActive && runToken === self.playbackRunToken);
+                }, ms);
+            });
+        },
+
+        streamPlaybackText: async function(consumer, text, runToken) {
+            var chunks = this.getPlaybackTextChunks(text);
+
+            for (var i = 0; i < chunks.length; i++) {
+                if (!this.playbackActive || runToken !== this.playbackRunToken) {
+                    return false;
+                }
+                consumer.handle({ type: 'assistant_text_delta', text: chunks[i] });
+                if (!await this.waitForPlaybackFrame(this.playbackFrameDelayMs, runToken)) {
+                    return false;
+                }
+            }
+
+            return true;
+        },
+
+        getPlaybackAssistantToolUses: function(message) {
+            var self = this;
+            var toolUses = [];
+
+            if (Array.isArray(message.content)) {
+                message.content.forEach(function(block) {
+                    if (!block || block.type !== 'tool_use') {
+                        return;
+                    }
+                    toolUses.push({
+                        name: block.name,
+                        input: block.input || block.arguments || {},
+                        result: self.playbackToolResults ? self.playbackToolResults[block.id] : undefined
+                    });
+                });
+            }
+
+            if (message.tool_calls && Array.isArray(message.tool_calls)) {
+                message.tool_calls.forEach(function(toolCall) {
+                    var args = toolCall.function ? toolCall.function.arguments : toolCall.arguments;
+                    var name = toolCall.function ? toolCall.function.name : toolCall.name;
+                    try {
+                        if (typeof args === 'string') {
+                            args = JSON.parse(args || '{}');
+                        }
+                    } catch (e) {
+                        args = {};
+                    }
+                    toolUses.push({
+                        name: name,
+                        input: args || {},
+                        result: self.playbackToolResults ? self.playbackToolResults[toolCall.id] : undefined
+                    });
+                });
+            }
+
+            return toolUses;
+        },
+
+        renderPlaybackAssistantMessage: async function(message, runToken) {
+            var consumer = this.createAssistantStreamConsumer({ provider: 'playback' });
+
+            if (typeof message.content === 'string' && message.content.trim()) {
+                if (!await this.streamPlaybackText(consumer, message.content, runToken)) {
+                    return false;
+                }
+            } else if (Array.isArray(message.content)) {
+                for (var i = 0; i < message.content.length; i++) {
+                    var block = message.content[i];
+                    if (block && block.type === 'text' && block.text && block.text.trim()) {
+                        if (!await this.streamPlaybackText(consumer, block.text, runToken)) {
+                            return false;
+                        }
+                    }
+                }
+            }
+
+            consumer.finishAssistant();
+
+            var toolUses = this.getPlaybackAssistantToolUses(message);
+            if (toolUses.length > 0) {
+                consumer.handle({ type: 'tool_use_group', toolUses: toolUses });
+            }
+
+            return this.waitForPlaybackFrame(this.playbackMessageDelayMs, runToken);
+        },
+
+        stagePlaybackUserMessage: async function(message, runToken) {
+            var text = this.getPlaybackUserText(message);
+            if (!text) {
+                return false;
+            }
+
+            this.playbackWaitingForUser = false;
+            this.pendingAttachments = [];
+            if (this.getEditableMessageContent) {
+                text = this.getEditableMessageContent(text);
+            }
+            var $input = $('#ai-assistant-input');
+            var chunks = this.getPlaybackTextChunks(text);
+            var typed = '';
+            $input.val('').trigger('input').focus();
+            this.updateSendButton();
+            this.updatePlaybackButton();
+
+            for (var i = 0; i < chunks.length; i++) {
+                if (!this.playbackActive || runToken !== this.playbackRunToken) {
+                    return false;
+                }
+                typed += chunks[i];
+                $input.val(typed).trigger('input');
+                if (!await this.waitForPlaybackFrame(this.playbackFrameDelayMs, runToken)) {
+                    return false;
+                }
+            }
+
+            this.playbackWaitingForUser = true;
+            $input.focus();
+            this.updateSendButton();
+            this.updatePlaybackButton();
+            return true;
+        },
+
+        continueConversationPlaybackFromInput: function() {
+            if (!this.playbackActive || !this.playbackWaitingForUser) {
+                return false;
+            }
+
+            var $input = $('#ai-assistant-input');
+            var text = $input.val().trim();
+            var attachments = (this.pendingAttachments || []).slice();
+            var content = this.buildUserMessageContent
+                ? this.buildUserMessageContent(text, attachments)
+                : text;
+
+            if (!content && attachments.length === 0) {
+                return false;
+            }
+
+            this.addMessage('user', content);
+            this.pendingAttachments = [];
+            if (this.renderPendingAttachments) {
+                this.renderPendingAttachments();
+            }
+            $input.val('');
+            this.clearDraft();
+            this.playbackWaitingForUser = false;
+            this.playbackIndex++;
+            this.updateSendButton();
+            this.runConversationPlayback(this.playbackRunToken);
+            return true;
+        },
+
+        runConversationPlayback: async function(runToken) {
+            while (this.playbackActive && runToken === this.playbackRunToken && this.playbackIndex < this.playbackSourceMessages.length) {
+                var message = this.playbackSourceMessages[this.playbackIndex];
+
+                if (!message) {
+                    this.playbackIndex++;
+                    continue;
+                }
+
+                if (message.role === 'user') {
+                    if (await this.stagePlaybackUserMessage(message, runToken)) {
+                        return;
+                    }
+                    this.playbackIndex++;
+                    continue;
+                }
+
+                if (message.role === 'assistant') {
+                    if (!await this.renderPlaybackAssistantMessage(message, runToken)) {
+                        return;
+                    }
+                    this.playbackIndex++;
+                    continue;
+                }
+
+                this.playbackIndex++;
+            }
+
+            if (this.playbackActive && runToken === this.playbackRunToken) {
+                this.stopConversationPlayback({ restore: false });
+            }
         },
 
         // Sidebar management

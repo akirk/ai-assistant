@@ -149,6 +149,11 @@
         },
 
         sendMessage: async function() {
+            if (this.playbackActive && this.playbackWaitingForUser && this.continueConversationPlaybackFromInput) {
+                this.continueConversationPlaybackFromInput();
+                return;
+            }
+
             if (!this.isProviderConfigured()) return;
 
             var $input = $('#ai-assistant-input');
@@ -671,6 +676,283 @@
             return messages[messages.length - 1].role === 'user';
         },
 
+        createAssistantStreamConsumer: function(options) {
+            options = options || {};
+
+            var self = this;
+            var state = {
+                textContent: '',
+                toolCallsMap: {},
+                toolCallOrder: [],
+                providerUsage: null,
+                stopReason: null,
+                $reply: null,
+                $thinking: null,
+                thinkingContent: '',
+                thinkingStartTime: null
+            };
+
+            var now = function() {
+                return Date.now ? Date.now() : new Date().getTime();
+            };
+
+            var ensureReply = function() {
+                if (!state.$reply) {
+                    state.$reply = self.startReply();
+                }
+                return state.$reply;
+            };
+
+            var finishThinking = function() {
+                if (!state.$thinking) {
+                    return;
+                }
+                if (self.finalizeThinking) {
+                    self.finalizeThinking(state.$thinking, now() - (state.thinkingStartTime || now()));
+                }
+                state.$thinking = null;
+                state.thinkingStartTime = null;
+            };
+
+            var startThinking = function() {
+                if (state.$thinking || !self.startThinking || !self.updateThinking) {
+                    return;
+                }
+                if (state.$reply && state.$reply.remove) {
+                    state.$reply.remove();
+                    state.$reply = null;
+                }
+                state.$thinking = self.startThinking();
+                state.thinkingStartTime = now();
+            };
+
+            var showToolProgress = function(tool) {
+                if (!self.showToolProgress || !tool || !tool.function || !tool.function.name) {
+                    return;
+                }
+                var id = tool.id || tool._fallbackId || '';
+                if (!id) {
+                    return;
+                }
+                var args = tool.function.arguments || '';
+                self.showToolProgress(tool.function.name, String(args).length, id, args);
+            };
+
+            var getToolKey = function(event) {
+                if (event.index !== undefined && event.index !== null) {
+                    return 'index:' + event.index;
+                }
+                if (event.id) {
+                    return 'id:' + event.id;
+                }
+                return 'index:' + state.toolCallOrder.length;
+            };
+
+            var ensureTool = function(event) {
+                var key = getToolKey(event);
+                if (!state.toolCallsMap[key]) {
+                    state.toolCallsMap[key] = {
+                        id: '',
+                        type: 'function',
+                        function: {
+                            name: '',
+                            arguments: ''
+                        }
+                    };
+                    state.toolCallOrder.push(key);
+                }
+
+                var tool = state.toolCallsMap[key];
+                if (event.id) {
+                    tool.id = event.id;
+                }
+                if (event.fallbackId) {
+                    tool._fallbackId = event.fallbackId;
+                }
+                if (event.name) {
+                    tool.function.name = event.name;
+                }
+                if (event.argumentsText !== undefined && event.argumentsText !== null) {
+                    tool.function.arguments = String(event.argumentsText);
+                }
+                if (event.argumentsDelta) {
+                    tool.function.arguments += event.argumentsDelta;
+                }
+                if (event.argumentsObject !== undefined) {
+                    tool.function.arguments = JSON.stringify(event.argumentsObject || {});
+                }
+
+                return tool;
+            };
+
+            return {
+                state: state,
+
+                handle: function(event) {
+                    event = event || {};
+
+                    switch (event.type) {
+                        case 'usage':
+                            state.providerUsage = self.mergeTokenUsage
+                                ? self.mergeTokenUsage(state.providerUsage, event.usage || {})
+                                : $.extend(state.providerUsage || {}, event.usage || {});
+                            break;
+
+                        case 'stop_reason':
+                            state.stopReason = event.reason || null;
+                            break;
+
+                        case 'assistant_text_delta':
+                            finishThinking();
+                            state.textContent += event.text || '';
+                            if (state.textContent || state.$reply) {
+                                self.updateReply(ensureReply(), state.textContent);
+                            }
+                            break;
+
+                        case 'assistant_text_snapshot':
+                            finishThinking();
+                            state.textContent = event.text || '';
+                            if (state.textContent || state.$reply) {
+                                self.updateReply(ensureReply(), state.textContent);
+                            }
+                            break;
+
+                        case 'thinking_delta':
+                            startThinking();
+                            if (!state.$thinking) {
+                                return;
+                            }
+                            state.thinkingContent += event.text || '';
+                            self.updateThinking(state.$thinking, state.thinkingContent);
+                            break;
+
+                        case 'thinking_done':
+                            finishThinking();
+                            break;
+
+                        case 'tool_call_delta':
+                            showToolProgress(ensureTool(event));
+                            break;
+
+                        case 'tool_call_done':
+                            var tool = ensureTool(event);
+                            showToolProgress(tool);
+                            if (self.updateToolCardDescription && tool.id && tool.function.name) {
+                                self.updateToolCardDescription(
+                                    tool.id,
+                                    tool.function.name,
+                                    this.parseToolArguments(tool.function.arguments)
+                                );
+                            }
+                            break;
+
+                        case 'tool_use_group':
+                            if (event.toolUses && event.toolUses.length && self.addToolUseGroup) {
+                                self.addToolUseGroup(event.toolUses);
+                            }
+                            break;
+                    }
+                },
+
+                parseToolArguments: function(args) {
+                    if (!args) {
+                        return {};
+                    }
+                    if (typeof args === 'string') {
+                        return JSON.parse(args || '{}');
+                    }
+                    return args;
+                },
+
+                finishAssistant: function(options) {
+                    options = options || {};
+                    finishThinking();
+
+                    if (options.textContent !== undefined) {
+                        state.textContent = options.textContent || '';
+                    }
+
+                    if (state.textContent && options.stripReasoningTokens && self.stripReasoningTokens) {
+                        var stripped = self.stripReasoningTokens(state.textContent);
+                        if (stripped !== state.textContent) {
+                            state.textContent = stripped;
+                            if (state.$reply) {
+                                self.updateReply(state.$reply, state.textContent);
+                            }
+                        }
+                    }
+
+                    if (!state.textContent) {
+                        if (state.$reply && state.$reply.remove) {
+                            state.$reply.remove();
+                        }
+                    } else if (state.$reply) {
+                        self.finalizeReply(state.$reply);
+                    }
+
+                    return state;
+                },
+
+                getToolCalls: function(options) {
+                    options = options || {};
+                    var calls = [];
+
+                    state.toolCallOrder.forEach(function(key) {
+                        var tool = state.toolCallsMap[key];
+                        if (!tool || !tool.function || !tool.function.name) {
+                            return;
+                        }
+                        var id = tool.id || tool._fallbackId || ('tool_' + calls.length);
+                        var args = this.parseToolArguments(tool.function.arguments);
+                        calls.push({
+                            id: id,
+                            name: tool.function.name,
+                            arguments: args
+                        });
+                        if (self.updateToolCardDescription) {
+                            self.updateToolCardDescription(id, tool.function.name, args);
+                        }
+                    }, this);
+
+                    if (!options.deduplicate) {
+                        return calls;
+                    }
+
+                    var seen = {};
+                    return calls.filter(function(call) {
+                        var sig = call.name + ':' + JSON.stringify(call.arguments);
+                        if (seen[sig]) {
+                            return false;
+                        }
+                        seen[sig] = true;
+                        return true;
+                    });
+                },
+
+                getOpenAIToolCallsForMessage: function(validIds) {
+                    return state.toolCallOrder.map(function(key, index) {
+                        var tool = state.toolCallsMap[key];
+                        if (!tool || !tool.function || !tool.function.name) {
+                            return null;
+                        }
+                        var id = tool.id || tool._fallbackId || ('tool_' + index);
+                        if (validIds && !validIds[id]) {
+                            return null;
+                        }
+                        return {
+                            id: id,
+                            type: tool.type || 'function',
+                            function: {
+                                name: tool.function.name,
+                                arguments: tool.function.arguments || '{}'
+                            }
+                        };
+                    }).filter(Boolean);
+                }
+            };
+        },
+
         callAnthropic: async function() {
             var self = this;
             var model = this.conversationModel || this.getModel();
@@ -708,24 +990,18 @@
                     throw new Error(await this.getProviderErrorMessage(response, 'API request failed'));
                 }
 
-                var $reply = this.startReply();
-                var textContent = '';
+                var stream = this.createAssistantStreamConsumer({ provider: 'anthropic' });
                 var contentBlocks = [];
                 var currentBlock = null;
                 var toolCalls = [];
                 var stopReason = null;
-                var providerUsage = null;
 
                 for await (var event of this.readSSEStream(response)) {
                     if (event.message && event.message.usage) {
-                        providerUsage = this.mergeTokenUsage
-                            ? this.mergeTokenUsage(providerUsage, event.message.usage)
-                            : $.extend(providerUsage || {}, event.message.usage);
+                        stream.handle({ type: 'usage', usage: event.message.usage });
                     }
                     if (event.usage) {
-                        providerUsage = this.mergeTokenUsage
-                            ? this.mergeTokenUsage(providerUsage, event.usage)
-                            : $.extend(providerUsage || {}, event.usage);
+                        stream.handle({ type: 'usage', usage: event.usage });
                     }
 
                     switch (event.type) {
@@ -733,7 +1009,12 @@
                             currentBlock = { ...event.content_block };
                             if (currentBlock.type === 'tool_use') {
                                 currentBlock.input = '';
-                                self.showToolProgress(currentBlock.name, 0, currentBlock.id);
+                                stream.handle({
+                                    type: 'tool_call_delta',
+                                    id: currentBlock.id,
+                                    name: currentBlock.name,
+                                    argumentsText: ''
+                                });
                             } else if (currentBlock.type === 'text') {
                                 currentBlock.text = '';
                             }
@@ -741,15 +1022,19 @@
 
                         case 'content_block_delta':
                             if (event.delta.type === 'text_delta') {
-                                textContent += event.delta.text;
                                 if (currentBlock && currentBlock.type === 'text') {
                                     currentBlock.text += event.delta.text;
                                 }
-                                this.updateReply($reply, textContent);
+                                stream.handle({ type: 'assistant_text_delta', text: event.delta.text });
                             } else if (event.delta.type === 'input_json_delta') {
                                 if (currentBlock) {
                                     currentBlock.input += event.delta.partial_json;
-                                    self.showToolProgress(currentBlock.name, currentBlock.input.length, currentBlock.id, currentBlock.input);
+                                    stream.handle({
+                                        type: 'tool_call_delta',
+                                        id: currentBlock.id,
+                                        name: currentBlock.name,
+                                        argumentsText: currentBlock.input
+                                    });
                                 }
                             }
                             break;
@@ -773,6 +1058,7 @@
                         case 'message_delta':
                             if (event.delta && event.delta.stop_reason) {
                                 stopReason = event.delta.stop_reason;
+                                stream.handle({ type: 'stop_reason', reason: stopReason });
                             }
                             break;
                     }
@@ -788,18 +1074,14 @@
                     }
                 });
 
-                if (!textContent) {
-                    $reply.remove();
-                } else {
-                    this.finalizeReply($reply);
-                }
+                var streamState = stream.finishAssistant();
 
                 var filteredBlocks = contentBlocks.filter(function(block) {
                     return block.type !== 'text' || (block.text && block.text.length > 0);
                 });
                 var message = this.createStoredMessage('assistant', filteredBlocks);
                 if (this.attachTokenUsageToAssistantMessage) {
-                    this.attachTokenUsageToAssistantMessage(message, 'anthropic', model, providerUsage, [
+                    this.attachTokenUsageToAssistantMessage(message, 'anthropic', model, streamState.providerUsage, [
                         { role: 'system', content: this.systemPrompt },
                         ...requestMessages
                     ]);
@@ -859,7 +1141,6 @@
         },
 
         callOpenAI: async function() {
-            var self = this;
             var model = this.conversationModel || this.getModel();
             var apiKey = this.getApiKey('openai');
 
@@ -891,18 +1172,10 @@
                     throw new Error(await this.getProviderErrorMessage(response, 'API request failed'));
                 }
 
-                var $reply = this.startReply();
-                var $thinking = null;
-                var thinkingContent = '';
-                var thinkingStartTime = null;
-                var textContent = '';
-                var toolCallsMap = {};
-                var providerUsage = null;
+                var stream = this.createAssistantStreamConsumer({ provider: 'openai' });
                 for await (var chunk of this.readSSEStream(response)) {
                     if (chunk.usage) {
-                        providerUsage = this.mergeTokenUsage
-                            ? this.mergeTokenUsage(providerUsage, chunk.usage)
-                            : $.extend(providerUsage || {}, chunk.usage);
+                        stream.handle({ type: 'usage', usage: chunk.usage });
                     }
 
                     var delta = chunk.choices && chunk.choices[0] && chunk.choices[0].delta;
@@ -910,75 +1183,35 @@
 
                     // Handle reasoning/thinking content (o1, o3 models)
                     if (delta.reasoning_content) {
-                        if (!$thinking) {
-                            $thinking = this.startThinking();
-                            thinkingStartTime = Date.now();
-                            $reply.remove();
-                        }
-                        thinkingContent += delta.reasoning_content;
-                        this.updateThinking($thinking, thinkingContent);
+                        stream.handle({ type: 'thinking_delta', text: delta.reasoning_content });
                     }
 
                     if (delta.content) {
-                        // Transition from thinking to response
-                        if ($thinking && thinkingStartTime) {
-                            this.finalizeThinking($thinking, Date.now() - thinkingStartTime);
-                            $reply = this.startReply();
-                            $thinking = null;
-                        }
-                        textContent += delta.content;
-                        this.updateReply($reply, textContent);
+                        stream.handle({ type: 'assistant_text_delta', text: delta.content });
                     }
 
                     if (delta.tool_calls) {
                         delta.tool_calls.forEach(function(tc) {
-                            var idx = tc.index;
-                            if (!toolCallsMap[idx]) {
-                                toolCallsMap[idx] = { id: '', type: 'function', function: { name: '', arguments: '' } };
-                            }
-                            if (tc.id) toolCallsMap[idx].id = tc.id;
-                            if (tc.function) {
-                                if (tc.function.name) toolCallsMap[idx].function.name = tc.function.name;
-                                if (tc.function.arguments) toolCallsMap[idx].function.arguments += tc.function.arguments;
-                            }
-                            var toolInfo = toolCallsMap[idx];
-                            if (toolInfo.function.name && toolInfo.id) {
-                                self.showToolProgress(toolInfo.function.name, toolInfo.function.arguments.length, toolInfo.id, toolInfo.function.arguments);
-                            }
+                            stream.handle({
+                                type: 'tool_call_delta',
+                                index: tc.index,
+                                id: tc.id || '',
+                                name: tc.function && tc.function.name ? tc.function.name : '',
+                                argumentsDelta: tc.function && tc.function.arguments ? tc.function.arguments : ''
+                            });
                         });
                     }
                 }
 
-                // Finalize thinking if stream ended during thinking phase
-                if ($thinking && thinkingStartTime) {
-                    this.finalizeThinking($thinking, Date.now() - thinkingStartTime);
-                    $reply = this.startReply();
-                }
-
-                var toolCalls = [];
-                Object.keys(toolCallsMap).forEach(function(idx) {
-                    var tc = toolCallsMap[idx];
-                    var parsedArgs = JSON.parse(tc.function.arguments || '{}');
-                    toolCalls.push({
-                        id: tc.id,
-                        name: tc.function.name,
-                        arguments: parsedArgs
-                    });
-                    self.updateToolCardDescription(tc.id, tc.function.name, parsedArgs);
-                });
-
-                if (!textContent) {
-                    $reply.remove();
-                } else {
-                    this.finalizeReply($reply);
-                }
-
-                var message = this.createStoredMessage('assistant', textContent || null);
-                if (Object.keys(toolCallsMap).length > 0) {
-                    message.tool_calls = Object.values(toolCallsMap);
+                var streamState = stream.finishAssistant();
+                var toolCalls = stream.getToolCalls();
+                var message = this.createStoredMessage('assistant', streamState.textContent || null);
+                var messageToolCalls = stream.getOpenAIToolCallsForMessage();
+                if (messageToolCalls.length > 0) {
+                    message.tool_calls = messageToolCalls;
                 }
                 if (this.attachTokenUsageToAssistantMessage) {
-                    this.attachTokenUsageToAssistantMessage(message, 'openai', model, providerUsage, requestMessages);
+                    this.attachTokenUsageToAssistantMessage(message, 'openai', model, streamState.providerUsage, requestMessages);
                 }
                 this.messages.push(message);
                 this.updateTokenCount();
@@ -1167,15 +1400,9 @@
                     }
                 }
 
-                var $reply = this.startReply();
-                var $thinking = null;
-                var thinkingContent = '';
-                var thinkingStartTime = null;
-                var textContent = '';
-                var toolCallsMap = {};
+                var stream = this.createAssistantStreamConsumer({ provider: useOllamaApi ? 'ollama' : 'local' });
                 var streamTruncated = false;
                 var enableToolsIdx = null;
-                var providerUsage = null;
 
                 if (useOllamaApi) {
                     for await (var chunk of this.readOllamaStream(response)) {
@@ -1183,22 +1410,20 @@
                             throw new Error(chunk.error.message || chunk.error || 'Unknown error from Ollama');
                         }
                         if (chunk.prompt_eval_count || chunk.eval_count || chunk.usage) {
-                            providerUsage = this.mergeTokenUsage
-                                ? this.mergeTokenUsage(providerUsage, chunk.usage || chunk)
-                                : $.extend(providerUsage || {}, chunk.usage || chunk);
+                            stream.handle({ type: 'usage', usage: chunk.usage || chunk });
                         }
                         if (chunk.message && chunk.message.content) {
-                            textContent += chunk.message.content;
-                            this.updateReply($reply, textContent);
+                            stream.handle({ type: 'assistant_text_delta', text: chunk.message.content });
                         }
                         if (chunk.message && chunk.message.tool_calls) {
                             chunk.message.tool_calls.forEach(function(tc, idx) {
-                                toolCallsMap[idx] = tc;
-                                if (tc.function && tc.function.name) {
-                                    var toolId = tc.id || 'ollama_tool_' + idx;
-                                    var argsStr = tc.function.arguments ? JSON.stringify(tc.function.arguments) : '';
-                                    self.showToolProgress(tc.function.name, argsStr.length, toolId, argsStr);
-                                }
+                                stream.handle({
+                                    type: 'tool_call_delta',
+                                    index: idx,
+                                    id: tc.id || 'ollama_tool_' + idx,
+                                    name: tc.function && tc.function.name ? tc.function.name : '',
+                                    argumentsObject: tc.function ? (tc.function.arguments || {}) : {}
+                                });
                             });
                         }
                     }
@@ -1208,9 +1433,7 @@
                             throw new Error(chunk.error.message || chunk.message || 'Unknown error from local LLM');
                         }
                         if (chunk.usage) {
-                            providerUsage = this.mergeTokenUsage
-                                ? this.mergeTokenUsage(providerUsage, chunk.usage)
-                                : $.extend(providerUsage || {}, chunk.usage);
+                            stream.handle({ type: 'usage', usage: chunk.usage });
                         }
 
                         var delta = chunk.choices && chunk.choices[0] && chunk.choices[0].delta;
@@ -1218,48 +1441,29 @@
 
                         // Handle reasoning/thinking content (DeepSeek, etc.)
                         if (delta.reasoning_content) {
-                            if (!$thinking) {
-                                $thinking = this.startThinking();
-                                thinkingStartTime = Date.now();
-                                $reply.remove();
-                            }
-                            thinkingContent += delta.reasoning_content;
-                            this.updateThinking($thinking, thinkingContent);
+                            stream.handle({ type: 'thinking_delta', text: delta.reasoning_content });
                         }
 
                         if (delta.content) {
-                            // Transition from thinking to response
-                            if ($thinking && thinkingStartTime) {
-                                this.finalizeThinking($thinking, Date.now() - thinkingStartTime);
-                                $reply = this.startReply();
-                                $thinking = null;
-                            }
-                            textContent += delta.content;
-                            this.updateReply($reply, textContent);
+                            stream.handle({ type: 'assistant_text_delta', text: delta.content });
                         }
 
                         if (delta.tool_calls) {
                             delta.tool_calls.forEach(function(tc) {
-                                var idx = tc.index;
-                                if (!toolCallsMap[idx]) {
-                                    toolCallsMap[idx] = { id: '', type: 'function', function: { name: '', arguments: '' } };
+                                if (tc.function && tc.function.name === 'enable_tools') {
+                                    enableToolsIdx = tc.index;
                                 }
-                                if (tc.id) toolCallsMap[idx].id = tc.id;
-                                if (tc.function) {
-                                    if (tc.function.name) {
-                                        toolCallsMap[idx].function.name = tc.function.name;
-                                        if (tc.function.name === 'enable_tools') enableToolsIdx = idx;
-                                    }
-                                    if (tc.function.arguments) toolCallsMap[idx].function.arguments += tc.function.arguments;
-                                }
-                                var toolInfo = toolCallsMap[idx];
-                                if (toolInfo.function.name) {
-                                    var toolId = toolInfo.id || 'local_tool_' + idx;
-                                    self.showToolProgress(toolInfo.function.name, toolInfo.function.arguments.length, toolId, toolInfo.function.arguments);
-                                }
+                                stream.handle({
+                                    type: 'tool_call_delta',
+                                    index: tc.index,
+                                    id: tc.id || '',
+                                    fallbackId: 'local_tool_' + tc.index,
+                                    name: tc.function && tc.function.name ? tc.function.name : '',
+                                    argumentsDelta: tc.function && tc.function.arguments ? tc.function.arguments : ''
+                                });
                             });
 
-                            if (Object.keys(toolCallsMap).length > 10) {
+                            if (Object.keys(stream.state.toolCallsMap).length > 10) {
                                 streamTruncated = true;
                                 break;
                             }
@@ -1267,7 +1471,8 @@
                             // Break as soon as enable_tools has complete arguments —
                             // anything else in the stream lacks schemas and must be dropped.
                             if (enableToolsIdx !== null) {
-                                var enableArgs = toolCallsMap[enableToolsIdx].function.arguments;
+                                var enableTool = stream.state.toolCallsMap['index:' + enableToolsIdx];
+                                var enableArgs = enableTool && enableTool.function ? enableTool.function.arguments : '';
                                 if (enableArgs && enableArgs.trim()) {
                                     try {
                                         JSON.parse(enableArgs);
@@ -1279,72 +1484,29 @@
                         }
                     }
 
-                    // Finalize thinking if stream ended during thinking phase
-                    if ($thinking && thinkingStartTime) {
-                        this.finalizeThinking($thinking, Date.now() - thinkingStartTime);
-                        $reply = this.startReply();
-                    }
-
                     if (streamTruncated && this.abortController) {
                         this.abortController.abort();
                     }
                 }
 
-                var toolCalls = [];
-                Object.keys(toolCallsMap).forEach(function(idx) {
-                    var tc = toolCallsMap[idx];
-                    if (tc.function) {
-                        var toolId = tc.id || 'tool_' + idx;
-                        var parsedArgs = JSON.parse(tc.function.arguments || '{}');
-                        toolCalls.push({
-                            id: toolId,
-                            name: tc.function.name,
-                            arguments: parsedArgs
-                        });
-                        self.updateToolCardDescription(toolId, tc.function.name, parsedArgs);
-                    }
-                });
-
                 // Deduplicate tool calls by name+arguments before storing in message history.
                 // The assistant message and the tool results sent back must stay in sync —
                 // if the model requests 25 calls but we only execute 3, it will loop waiting
                 // for the other 22 results.
-                var seenToolSigs = {};
                 var uniqueToolIds = {};
-                toolCalls = toolCalls.filter(function(tc) {
-                    var sig = tc.name + ':' + JSON.stringify(tc.arguments);
-                    if (seenToolSigs[sig]) return false;
-                    seenToolSigs[sig] = true;
+                var toolCalls = stream.getToolCalls({ deduplicate: true }).filter(function(tc) {
                     uniqueToolIds[tc.id] = true;
                     return true;
                 });
-                Object.keys(toolCallsMap).forEach(function(idx) {
-                    var tc = toolCallsMap[idx];
-                    var toolId = tc.id || 'tool_' + idx;
-                    if (!uniqueToolIds[toolId]) {
-                        delete toolCallsMap[idx];
-                    }
-                });
 
-                // Strip reasoning tokens from the final response
-                var strippedContent = this.stripReasoningTokens(textContent);
-
-                if (!strippedContent) {
-                    $reply.remove();
-                } else {
-                    // Update display with stripped content if different
-                    if (strippedContent !== textContent) {
-                        this.updateReply($reply, strippedContent);
-                    }
-                    this.finalizeReply($reply);
-                }
-
-                var message = this.createStoredMessage('assistant', strippedContent || null);
-                if (Object.keys(toolCallsMap).length > 0) {
-                    message.tool_calls = Object.values(toolCallsMap);
+                var streamState = stream.finishAssistant({ stripReasoningTokens: true });
+                var message = this.createStoredMessage('assistant', streamState.textContent || null);
+                var messageToolCalls = stream.getOpenAIToolCallsForMessage(uniqueToolIds);
+                if (messageToolCalls.length > 0) {
+                    message.tool_calls = messageToolCalls;
                 }
                 if (this.attachTokenUsageToAssistantMessage) {
-                    this.attachTokenUsageToAssistantMessage(message, useOllamaApi ? 'ollama' : 'local', model, providerUsage, requestMessages);
+                    this.attachTokenUsageToAssistantMessage(message, useOllamaApi ? 'ollama' : 'local', model, streamState.providerUsage, requestMessages);
                 }
                 this.messages.push(message);
                 this.updateTokenCount();
@@ -1374,7 +1536,7 @@
                 var expectedAbort = this.isExpectedGenerationAbort
                     ? this.isExpectedGenerationAbort(error)
                     : error.name === 'AbortError';
-                if ($reply) $reply.remove();
+                if (stream && stream.state && stream.state.$reply) stream.state.$reply.remove();
                 this.hideToolProgress();
                 this.pendingToolResults = [];
                 this.pendingActions = [];

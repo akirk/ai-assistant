@@ -103,6 +103,9 @@ class Conversations_App {
                             <button type="button" id="ai-assistant-summarize" class="ai-header-btn" title="<?php esc_attr_e('Generate conversation summary', 'ai-assistant'); ?>" style="display: none;">
                                 <span class="dashicons dashicons-media-text"></span>
                             </button>
+                            <button type="button" id="ai-assistant-playback" class="ai-header-btn" title="<?php esc_attr_e('Play back conversation', 'ai-assistant'); ?>" disabled>
+                                <span class="dashicons dashicons-controls-play"></span>
+                            </button>
                             <span class="ai-header-right-actions">
                                 <label class="ai-yolo-label" title="<?php esc_attr_e('Skip confirmation prompts for destructive actions', 'ai-assistant'); ?>"><input type="checkbox" id="ai-assistant-yolo"> YOLO Mode</label>
                                 <span class="ai-export-menu-wrap">

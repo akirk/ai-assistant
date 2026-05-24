@@ -408,6 +408,11 @@ body.ai-assistant-panel-resizing {
     animation: ai-spin 1s linear infinite;
 }
 
+.ai-header-btn.ai-playback-active {
+    background: #fff;
+    border-color: var(--ai-assistant-accent);
+}
+
 @keyframes ai-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }

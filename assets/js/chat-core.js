@@ -68,6 +68,14 @@
         streamingScrollResumeThreshold: 4,
         defaultScrollThreshold: 100,
         messagesTouchStartY: null,
+        playbackActive: false,
+        playbackWaitingForUser: false,
+        playbackSourceMessages: [],
+        playbackIndex: 0,
+        playbackRunToken: 0,
+        playbackTimer: null,
+        playbackFrameDelayMs: 18,
+        playbackMessageDelayMs: 180,
         initialized: existingAiAssistant.initialized || false,
 
         getMessageTimestamp: function() {
@@ -356,6 +364,13 @@
                 self.manualSummarizeConversation();
             });
 
+            $(document).on('click', '#ai-assistant-playback', function(e) {
+                e.preventDefault();
+                if (self.toggleConversationPlayback) {
+                    self.toggleConversationPlayback();
+                }
+            });
+
             $(document).on('click', '#ai-assistant-export', function(e) {
                 e.preventDefault();
                 self.toggleConversationExportMenu();
@@ -579,10 +594,16 @@
             }
 
             var isQueueing = this.shouldQueueUserMessage && this.shouldQueueUserMessage();
+            var isPlaybackWaiting = !!(this.playbackActive && this.playbackWaitingForUser);
+            var isPlaybackStreaming = !!(this.playbackActive && !this.playbackWaitingForUser);
+            var isDisabled = isPlaybackStreaming ||
+                this.isUploadingFiles ||
+                (!isPlaybackWaiting && !this.isProviderConfigured());
+
             $btn
                 .text(isQueueing ? 'Queue' : $btn.data('default-text'))
-                .attr('title', isQueueing ? 'Queue message' : '')
-                .prop('disabled', !this.isProviderConfigured() || this.isUploadingFiles);
+                .attr('title', isPlaybackWaiting ? 'Send playback message' : (isQueueing ? 'Queue message' : ''))
+                .prop('disabled', isDisabled);
             this.updateModelSelectLockState();
         },
 
@@ -599,7 +620,7 @@
         },
 
         isModelSelectionLocked: function() {
-            return this.hasConversationStarted();
+            return this.playbackActive || this.hasConversationStarted();
         },
 
         updateModelSelectLockState: function() {
