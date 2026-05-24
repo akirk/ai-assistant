@@ -4624,6 +4624,562 @@ body.ai-assistant-app-body {
     }
 }
 
+/* Dark mode for isolated frontend shells, scoped away from wp-admin. */
+@media (prefers-color-scheme: dark) {
+    body:not(.wp-admin) .ai-assistant-standalone-wrap,
+    body.wp-app-body.ai-assistant-app-body {
+        --ai-shell-bg: #0f1419;
+        --ai-shell-surface: #151b22;
+        --ai-shell-surface-alt: #1d242d;
+        --ai-shell-surface-hover: #252d38;
+        --ai-shell-border: #3a434f;
+        --ai-shell-border-strong: #58616d;
+        --ai-shell-text: #f0f0f1;
+        --ai-shell-muted: #a7aaad;
+        --ai-shell-subtle: #7d8590;
+        --ai-shell-shadow: rgba(0, 0, 0, 0.45);
+        --ai-shell-message-bg: #0b1117;
+        --ai-shell-message-surface: #161d26;
+        --ai-shell-message-surface-alt: #1f2935;
+        --ai-shell-code-bg: #0a0f14;
+        --ai-shell-code-text: #e6edf3;
+        --ai-shell-warning-bg: #302711;
+        --ai-shell-warning-border: #8a6d1f;
+        --ai-shell-warning-text: #f1e2a7;
+        --ai-shell-danger-bg: #3a171b;
+        --ai-shell-danger-border: #d63638;
+        --ai-shell-danger-text: #ffd7d9;
+        --ai-shell-success-bg: #12301e;
+        --ai-shell-success-border: #2f8f46;
+        --ai-shell-success-text: #b6f0c2;
+        --ai-shell-info-bg: #10283d;
+        --ai-shell-info-border: #3978aa;
+        --ai-shell-info-text: #d8ecff;
+    }
+
+    body.wp-app-body.ai-assistant-app-body {
+        background: var(--ai-shell-bg) !important;
+        color: var(--ai-shell-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-assistant-app-page {
+        color: var(--ai-shell-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body #ai-assistant-messages,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-messages {
+        background: var(--ai-shell-message-bg) !important;
+        color: var(--ai-shell-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body #ai-assistant-messages::-webkit-scrollbar-thumb,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-messages::-webkit-scrollbar-thumb {
+        background: var(--ai-shell-border-strong) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body #ai-assistant-messages::-webkit-scrollbar-thumb:hover,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-messages::-webkit-scrollbar-thumb:hover {
+        background: var(--ai-shell-muted) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body :is(.ai-message-assistant .ai-message-content, .ai-conversation-summary, .ai-tool-card, .ai-tool-card-ready, .ai-pending-action, .ai-thinking-block),
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel :is(.ai-message-assistant .ai-message-content, .ai-conversation-summary, .ai-tool-card, .ai-tool-card-ready, .ai-pending-action, .ai-thinking-block) {
+        background: var(--ai-shell-message-surface) !important;
+        border-color: var(--ai-shell-border) !important;
+        color: var(--ai-shell-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body :is(.ai-message-system .ai-message-content, .ai-tool-card-pending, #ai-assistant-pending-actions, #ai-assistant-pending-actions-header),
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel :is(.ai-message-system .ai-message-content, .ai-tool-card-pending, #ai-assistant-pending-actions, #ai-assistant-pending-actions-header) {
+        background: var(--ai-shell-warning-bg) !important;
+        border-color: var(--ai-shell-warning-border) !important;
+        color: var(--ai-shell-warning-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body :is(.ai-model-warning .ai-message-content, .ai-message-error .ai-message-content, .ai-tool-card-error),
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel :is(.ai-model-warning .ai-message-content, .ai-message-error .ai-message-content, .ai-tool-card-error) {
+        background: var(--ai-shell-danger-bg) !important;
+        border-color: var(--ai-shell-danger-border) !important;
+        color: var(--ai-shell-danger-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body :is(.ai-model-note .ai-message-content),
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel :is(.ai-model-note .ai-message-content) {
+        background: var(--ai-shell-info-bg) !important;
+        border-color: var(--ai-shell-info-border) !important;
+        color: var(--ai-shell-info-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-tool-card-completed,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-completed {
+        background: var(--ai-shell-success-bg) !important;
+        border-color: var(--ai-shell-success-border) !important;
+        color: var(--ai-shell-success-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body :is(.ai-tool-card-generating, .ai-tool-card-executing),
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel :is(.ai-tool-card-generating, .ai-tool-card-executing) {
+        background: color-mix(in srgb, var(--ai-assistant-accent) 14%, var(--ai-shell-message-surface)) !important;
+        border-color: var(--ai-assistant-accent-border) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-tool-card-skipped,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-tool-card-skipped {
+        background: var(--ai-shell-message-surface-alt) !important;
+        border-color: var(--ai-shell-border) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body :is(.ai-summary-title, .ai-summary-content, .ai-tool-card-name, .ai-pending-header h4, .ai-action-preview pre, .ai-action-preview-content pre.ai-code-preview, .ai-tool-params pre, .ai-tool-approval-params pre, .ai-ability-param-value),
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel :is(.ai-summary-title, .ai-summary-content, .ai-tool-card-name, .ai-pending-header h4, .ai-action-preview pre, .ai-action-preview-content pre.ai-code-preview, .ai-tool-params pre, .ai-tool-approval-params pre, .ai-ability-param-value) {
+        color: var(--ai-shell-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body :is(.ai-summary-toggle, #ai-assistant-tool-cards > .ai-tool-cards-summary, .ai-tool-cards-group > .ai-tool-cards-summary, .ai-tool-card-status, .ai-tool-card-desc, .ai-tool-card-size, .ai-tool-params summary, .ai-action-desc, .ai-message-timestamp, .ai-thinking-toggle, .ai-thinking-content, .ai-thinking-complete .ai-thinking-label, .ai-assistant-area-suggestion),
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel :is(.ai-summary-toggle, #ai-assistant-tool-cards > .ai-tool-cards-summary, .ai-tool-cards-group > .ai-tool-cards-summary, .ai-tool-card-status, .ai-tool-card-desc, .ai-tool-card-size, .ai-tool-params summary, .ai-action-desc, .ai-message-timestamp, .ai-thinking-toggle, .ai-thinking-content, .ai-thinking-complete .ai-thinking-label, .ai-assistant-area-suggestion) {
+        color: var(--ai-shell-muted) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body :is(.ai-summary-header:hover, #ai-assistant-tool-cards > .ai-tool-cards-summary:hover, .ai-tool-cards-group > .ai-tool-cards-summary:hover, .ai-thinking-toggle:hover),
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel :is(.ai-summary-header:hover, #ai-assistant-tool-cards > .ai-tool-cards-summary:hover, .ai-tool-cards-group > .ai-tool-cards-summary:hover, .ai-thinking-toggle:hover) {
+        background: var(--ai-shell-surface-hover) !important;
+        color: var(--ai-shell-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body :is(.ai-summary-content, .ai-thinking-content),
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel :is(.ai-summary-content, .ai-thinking-content) {
+        border-color: var(--ai-shell-border) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-message:not(.ai-message-user) .ai-message-content code,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message:not(.ai-message-user) .ai-message-content code {
+        background: rgba(240, 246, 252, 0.12) !important;
+        color: inherit !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-message:not(.ai-message-user) .ai-message-content pre,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message:not(.ai-message-user) .ai-message-content pre {
+        background: var(--ai-shell-code-bg) !important;
+        color: var(--ai-shell-code-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-message:not(.ai-message-user) .ai-message-content pre code,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message:not(.ai-message-user) .ai-message-content pre code {
+        background: none !important;
+        color: inherit !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body :is(.ai-tool-card-size, .ai-tool-params pre, .ai-action-preview-content, .ai-action-preview-content pre.ai-code-preview, .ai-tool-approval-params pre, .ai-ability-param-value),
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel :is(.ai-tool-card-size, .ai-tool-params pre, .ai-action-preview-content, .ai-action-preview-content pre.ai-code-preview, .ai-tool-approval-params pre, .ai-ability-param-value) {
+        background: var(--ai-shell-code-bg) !important;
+        border-color: var(--ai-shell-border) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-code-preview .ai-line-number,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-code-preview .ai-line-number {
+        color: var(--ai-shell-subtle) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body :is(.ai-action-btn, #ai-assistant-scroll-bottom),
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel :is(.ai-action-btn, #ai-assistant-scroll-bottom) {
+        background: transparent !important;
+        border-color: var(--ai-shell-border) !important;
+        color: var(--ai-shell-muted) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body :is(.ai-action-btn:hover, #ai-assistant-scroll-bottom:hover),
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel :is(.ai-action-btn:hover, #ai-assistant-scroll-bottom:hover) {
+        background: var(--ai-shell-surface-hover) !important;
+        color: var(--ai-shell-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body #ai-assistant-scroll-bottom,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-scroll-bottom {
+        background: var(--ai-shell-message-surface) !important;
+        box-shadow: 0 2px 8px var(--ai-shell-shadow) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-skip-btn,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-skip-btn {
+        background: var(--ai-shell-message-surface-alt) !important;
+        border-color: var(--ai-shell-border) !important;
+        color: var(--ai-shell-muted) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-skip-btn:hover,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-skip-btn:hover {
+        background: var(--ai-shell-surface-hover) !important;
+        border-color: var(--ai-shell-border-strong) !important;
+        color: var(--ai-shell-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-diff-add,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-diff-add {
+        background: rgba(46, 160, 67, 0.24) !important;
+        color: #b6f0c2 !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-diff-remove,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-diff-remove {
+        background: rgba(248, 81, 73, 0.22) !important;
+        color: #ffd7d9 !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-diff-context,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-diff-context {
+        background: var(--ai-shell-code-bg) !important;
+        color: var(--ai-shell-muted) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-code-preview.ai-language-json .cm-string,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-code-preview.ai-language-json .cm-string {
+        color: #8ddb8c !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body :is(.ai-code-preview.ai-language-json .cm-string.ai-json-key, .ai-code-preview.ai-language-json .cm-property, .ai-code-preview.ai-language-json .cm-attribute),
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel :is(.ai-code-preview.ai-language-json .cm-string.ai-json-key, .ai-code-preview.ai-language-json .cm-property, .ai-code-preview.ai-language-json .cm-attribute) {
+        color: #79c0ff !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-code-preview.ai-language-json .cm-number,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-code-preview.ai-language-json .cm-number {
+        color: #f2cc60 !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-code-preview.ai-language-json .cm-atom,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-code-preview.ai-language-json .cm-atom {
+        color: #d2a8ff !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-assistant-drop-zone-inner,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-drop-zone-inner {
+        background: var(--ai-shell-message-surface) !important;
+        border-color: var(--ai-assistant-accent-border) !important;
+        color: var(--ai-shell-text) !important;
+        box-shadow: 0 2px 10px var(--ai-shell-shadow) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-chat-layout {
+        background: var(--ai-shell-surface);
+        border-color: var(--ai-shell-border);
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-chat-sidebar,
+    body.wp-app-body.ai-assistant-app-body .ai-chat-main-header,
+    body.wp-app-body.ai-assistant-app-body .ai-sidebar-footer,
+    body.wp-app-body.ai-assistant-app-body .ai-sidebar-header {
+        border-color: var(--ai-shell-border);
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-chat-sidebar,
+    body.wp-app-body.ai-assistant-app-body .ai-chat-main-header {
+        background: var(--ai-shell-surface-alt);
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-chat-main .ai-assistant-chat-container,
+    body.wp-app-body.ai-assistant-app-body .ai-chat-main .ai-assistant-input-area,
+    body.wp-app-body.ai-assistant-app-body .ai-chat-main .ai-assistant-attachments {
+        background: var(--ai-shell-surface);
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-chat-main .ai-assistant-input-area,
+    body.wp-app-body.ai-assistant-app-body .ai-chat-main .ai-assistant-attachments {
+        border-color: var(--ai-shell-border);
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-sidebar-loading,
+    body.wp-app-body.ai-assistant-app-body .ai-sidebar-empty,
+    body.wp-app-body.ai-assistant-app-body .ai-conv-item-date,
+    body.wp-app-body.ai-assistant-app-body .ai-conv-item-delete,
+    body.wp-app-body.ai-assistant-app-body .ai-conv-context-label,
+    body.wp-app-body.ai-assistant-app-body .ai-conv-context-export-ext,
+    body.wp-app-body.ai-assistant-app-body .ai-token-count,
+    body.wp-app-body.ai-assistant-app-body .ai-token-hover-row,
+    body.wp-app-body.ai-assistant-app-body .ai-token-help,
+    body.wp-app-body.ai-assistant-app-body .ai-token-hover-legend,
+    body.wp-app-body.ai-assistant-app-body .ai-export-format-extension,
+    body.wp-app-body.ai-assistant-app-body .ai-loading-status,
+    body.wp-app-body.ai-assistant-app-body .ai-attachment-size {
+        color: var(--ai-shell-muted) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-sidebar-link,
+    body.wp-app-body.ai-assistant-app-body .ai-sidebar-link:visited {
+        color: var(--ai-shell-muted) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-conv-item {
+        color: var(--ai-shell-text);
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-conv-item:hover {
+        background: var(--ai-shell-surface-hover);
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-conv-rename-input,
+    body.wp-app-body.ai-assistant-app-body #ai-assistant-input {
+        background: #0f1419 !important;
+        color: var(--ai-shell-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-conv-rename-input::placeholder,
+    body.wp-app-body.ai-assistant-app-body #ai-assistant-input::placeholder {
+        color: var(--ai-shell-subtle);
+    }
+
+    body.wp-app-body.ai-assistant-app-body #ai-assistant-attach,
+    body.wp-app-body.ai-assistant-app-body .ai-sidebar-toggle,
+    body.wp-app-body.ai-assistant-app-body .ai-header-btn {
+        background: var(--ai-shell-surface-alt) !important;
+        border-color: var(--ai-shell-border) !important;
+        color: var(--ai-shell-muted) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body #ai-assistant-attach:hover:not(:disabled),
+    body.wp-app-body.ai-assistant-app-body .ai-sidebar-toggle:hover,
+    body.wp-app-body.ai-assistant-app-body .ai-header-btn:hover,
+    body.wp-app-body.ai-assistant-app-body .ai-header-btn:focus {
+        background: var(--ai-shell-surface-hover) !important;
+        border-color: var(--ai-shell-border-strong) !important;
+        color: var(--ai-shell-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-header-btn.ai-export-toggle {
+        background: transparent !important;
+        border-color: transparent !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-header-btn.ai-export-toggle:hover,
+    body.wp-app-body.ai-assistant-app-body .ai-header-btn.ai-export-toggle:focus {
+        background: var(--ai-shell-surface-hover) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-header-btn .dashicons {
+        color: currentColor;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-export-menu,
+    body.wp-app-body.ai-assistant-app-body .ai-token-hover,
+    body.wp-app-body.ai-assistant-app-body .ai-conv-context-menu {
+        background: var(--ai-shell-surface);
+        border-color: var(--ai-shell-border);
+        box-shadow: 0 10px 24px var(--ai-shell-shadow);
+        color: var(--ai-shell-text);
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-export-option,
+    body.wp-app-body.ai-assistant-app-body .ai-export-format,
+    body.wp-app-body.ai-assistant-app-body .ai-token-hover-title,
+    body.wp-app-body.ai-assistant-app-body .ai-token-hover-row strong,
+    body.wp-app-body.ai-assistant-app-body .ai-conv-context-action,
+    body.wp-app-body.ai-assistant-app-body .ai-conv-context-option,
+    body.wp-app-body.ai-assistant-app-body .ai-yolo-label {
+        color: var(--ai-shell-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-export-format:hover,
+    body.wp-app-body.ai-assistant-app-body .ai-export-format:focus,
+    body.wp-app-body.ai-assistant-app-body .ai-conv-context-action:hover,
+    body.wp-app-body.ai-assistant-app-body .ai-conv-context-action:focus {
+        background: var(--ai-shell-surface-hover);
+        color: var(--ai-shell-text) !important;
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-token-info {
+        border-color: var(--ai-shell-border);
+        color: var(--ai-shell-muted);
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-token-info:hover,
+    body.wp-app-body.ai-assistant-app-body .ai-token-info:focus {
+        background: var(--ai-shell-surface-hover);
+        color: var(--ai-shell-text);
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-token-hover-legend {
+        border-color: var(--ai-shell-border);
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-conv-context-separator {
+        background: var(--ai-shell-border);
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-attachment-chip {
+        background: var(--ai-shell-surface-alt);
+        border-color: var(--ai-shell-border);
+        color: var(--ai-shell-text);
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-attachment-name {
+        color: var(--ai-shell-text);
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-attachment-remove {
+        color: var(--ai-shell-muted);
+    }
+
+    body.wp-app-body.ai-assistant-app-body .ai-attachment-remove:hover {
+        background: var(--ai-shell-surface-hover);
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap {
+        color: var(--ai-shell-text) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel {
+        background-color: var(--ai-shell-surface) !important;
+        border-color: var(--ai-shell-border) !important;
+        color: var(--ai-shell-text) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-wrap {
+        background: var(--ai-shell-surface) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-chat-container {
+        background: var(--ai-shell-surface) !important;
+        border-color: var(--ai-shell-border) !important;
+        color: var(--ai-shell-text) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-header,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-input-area,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-attachments {
+        background: var(--ai-shell-surface-alt) !important;
+        border-color: var(--ai-shell-border) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-header h2,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-yolo-label {
+        color: var(--ai-shell-text) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-token-count,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-token-hover-row,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-token-help,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-token-hover-legend,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-export-format-extension,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-loading-status,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-attachment-size {
+        color: var(--ai-shell-muted) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-expand.ai-assistant-resize-handle {
+        background: var(--ai-shell-surface-alt) !important;
+        border-color: var(--ai-shell-border) !important;
+        color: var(--ai-shell-muted) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-expand.ai-assistant-resize-handle:hover,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-expand.ai-assistant-resize-handle:focus {
+        background: var(--ai-shell-surface-hover) !important;
+        color: var(--ai-assistant-accent) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-input {
+        background: #0f1419 !important;
+        color: var(--ai-shell-text) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-input::placeholder {
+        color: var(--ai-shell-subtle);
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-attach,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-btn {
+        background: var(--ai-shell-surface-alt) !important;
+        border-color: var(--ai-shell-border) !important;
+        color: var(--ai-shell-muted) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-attach:hover:not(:disabled),
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-btn:hover,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-btn:focus {
+        background: var(--ai-shell-surface-hover) !important;
+        border-color: var(--ai-shell-border-strong) !important;
+        color: var(--ai-shell-text) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-btn.ai-export-toggle {
+        background: transparent !important;
+        border-color: transparent !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-btn.ai-export-toggle:hover,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-btn.ai-export-toggle:focus {
+        background: var(--ai-shell-surface-hover) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-btn .dashicons {
+        color: currentColor !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-export-menu,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-token-hover {
+        background: var(--ai-shell-surface) !important;
+        border-color: var(--ai-shell-border) !important;
+        box-shadow: 0 10px 24px var(--ai-shell-shadow) !important;
+        color: var(--ai-shell-text) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-export-option,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-export-format,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-token-hover-title,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-token-hover-row strong {
+        color: var(--ai-shell-text) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-export-format:hover,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-export-format:focus {
+        background: var(--ai-shell-surface-hover) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-token-info {
+        border-color: var(--ai-shell-border) !important;
+        color: var(--ai-shell-muted) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-token-info:hover,
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-token-info:focus {
+        background: var(--ai-shell-surface-hover) !important;
+        color: var(--ai-shell-text) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-token-hover-legend {
+        border-color: var(--ai-shell-border) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-attachment-chip {
+        background: var(--ai-shell-surface) !important;
+        border-color: var(--ai-shell-border) !important;
+        color: var(--ai-shell-text) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-attachment-name {
+        color: var(--ai-shell-text) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-attachment-remove {
+        color: var(--ai-shell-muted) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-attachment-remove:hover {
+        background: var(--ai-shell-surface-hover) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-trigger button {
+        background: var(--ai-shell-surface) !important;
+        border-color: var(--ai-shell-border) !important;
+        color: var(--ai-shell-muted) !important;
+    }
+
+    body:not(.wp-admin) .ai-assistant-standalone-trigger button:hover,
+    body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
+        background: var(--ai-shell-surface) !important;
+        border-color: var(--ai-assistant-accent) !important;
+        color: var(--ai-shell-text) !important;
+    }
+}
+
 /* Thinking/Reasoning block (OpenAI o1, o3 models) */
 .ai-thinking-block {
     margin: 8px 14px;
