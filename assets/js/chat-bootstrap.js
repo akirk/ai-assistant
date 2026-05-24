@@ -204,7 +204,21 @@
         }
     }
 
+    function setScreenMetaLinksSticky($screenMetaLinks) {
+        if (!$screenMetaLinks || !$screenMetaLinks.length) {
+            return;
+        }
+
+        $screenMetaLinks
+            .addClass('ai-assistant-screen-meta-links-sticky')
+            .css('--ai-assistant-adminbar-offset', getAdminbarOffset() + 'px');
+    }
+
     function bindScreenMeta($screenMeta, $button) {
+        var $screenMetaLinks = $('#screen-meta-links');
+
+        setScreenMetaLinksSticky($screenMetaLinks);
+
         $('#contextual-help-link, #show-settings-link')
             .off('click.aiAssistantBootstrap')
             .on('click.aiAssistantBootstrap', function() {
@@ -217,6 +231,8 @@
             });
 
         $(window).off('resize.aiAssistantScreenMeta').on('resize.aiAssistantScreenMeta', function() {
+            setScreenMetaLinksSticky($screenMetaLinks);
+
             if ($button.attr('aria-expanded') === 'true') {
                 setScreenMetaAssistantSticky($screenMeta, true);
             }
