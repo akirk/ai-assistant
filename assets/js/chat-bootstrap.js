@@ -222,7 +222,7 @@
         return Math.max(0, viewportWidth - rect.right);
     }
 
-    function setScreenMetaAssistantLatchSticky($screenMeta, $button, enabled) {
+    function setScreenMetaAssistantLatchSticky($screenMeta, $button, enabled, attachToPanel) {
         var $linkWrap = $button.closest('#ai-assistant-link-wrap');
         var adminbarOffset;
         var panelHeight;
@@ -240,7 +240,7 @@
         }
 
         adminbarOffset = getAdminbarOffset();
-        panelHeight = $screenMeta && $screenMeta.length && $screenMeta.is(':visible') ? $screenMeta.outerHeight() : 0;
+        panelHeight = attachToPanel && $screenMeta && $screenMeta.length && $screenMeta.is(':visible') ? $screenMeta.outerHeight() : 0;
 
         $linkWrap
             .css({
@@ -252,13 +252,15 @@
     }
 
     function bindScreenMeta($screenMeta, $button) {
+        setScreenMetaAssistantLatchSticky($screenMeta, $button, true, false);
+
         $('#contextual-help-link, #show-settings-link')
             .off('click.aiAssistantBootstrap')
             .on('click.aiAssistantBootstrap', function() {
                 var $wrap = getScreenMetaPanel($('#ai-assistant-link'));
                 var $aiButton = $('#ai-assistant-link');
                 if ($aiButton.attr('aria-expanded') === 'true' || $aiButton.hasClass('screen-meta-active')) {
-                    setScreenMetaAssistantLatchSticky($screenMeta, $button, false);
+                    setScreenMetaAssistantLatchSticky($screenMeta, $button, true, false);
                     setScreenMetaAssistantSticky($screenMeta, false);
                     hideSiblingScreenMetaPanel($wrap, $aiButton);
                 }
@@ -267,7 +269,15 @@
         $(window).off('resize.aiAssistantScreenMeta').on('resize.aiAssistantScreenMeta', function() {
             if ($button.attr('aria-expanded') === 'true') {
                 setScreenMetaAssistantSticky($screenMeta, true);
-                setScreenMetaAssistantLatchSticky($screenMeta, $button, true);
+                setScreenMetaAssistantLatchSticky($screenMeta, $button, true, true);
+            } else {
+                setScreenMetaAssistantLatchSticky($screenMeta, $button, true, false);
+            }
+        });
+
+        $(document).off('aiAssistantPanelHeightChange.aiAssistantScreenMeta').on('aiAssistantPanelHeightChange.aiAssistantScreenMeta', function() {
+            if ($button.attr('aria-expanded') === 'true') {
+                setScreenMetaAssistantLatchSticky($screenMeta, $button, true, true);
             }
         });
 
@@ -286,13 +296,13 @@
             });
 
             if (isExpanded) {
-                setScreenMetaAssistantLatchSticky($screenMeta, $clicked, false);
+                setScreenMetaAssistantLatchSticky($screenMeta, $clicked, true, false);
                 setScreenMetaAssistantSticky($screenMeta, false);
                 closeScreenMetaPanel($wrap, $clicked);
             } else {
                 setScreenMetaAssistantSticky($screenMeta, true);
                 openScreenMetaPanel($wrap, $clicked, function() {
-                    setScreenMetaAssistantLatchSticky($screenMeta, $clicked, true);
+                    setScreenMetaAssistantLatchSticky($screenMeta, $clicked, true, true);
                     focusInputAndScroll();
                     preloadConversationIfNeeded();
                 });

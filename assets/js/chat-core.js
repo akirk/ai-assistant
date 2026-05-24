@@ -963,6 +963,7 @@
             $container[0].style.setProperty('--ai-assistant-chat-height', nextHeight + 'px');
             $container.toggleClass('expanded', nextHeight >= limits.max - 2);
             this.updateAssistantPanelResizeHandle($container, nextHeight, limits);
+            $(document).trigger('aiAssistantPanelHeightChange', [$container, nextHeight]);
 
             return nextHeight;
         },
