@@ -4012,6 +4012,44 @@ body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
 
     .ai-message {
         max-width: 95%;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+    }
+
+    .ai-message-user {
+        flex-direction: column;
+        align-items: flex-end;
+    }
+
+    .ai-message-content {
+        max-width: 100%;
+    }
+
+    .ai-message-actions {
+        align-self: flex-start;
+        flex-wrap: wrap;
+        max-width: 100%;
+        margin: 0 0 0 2px;
+        opacity: 1;
+        visibility: visible;
+        transition: none;
+    }
+
+    .ai-message-user .ai-message-actions {
+        align-self: flex-end;
+        justify-content: flex-end;
+        margin-right: 2px;
+        margin-left: 0;
+    }
+
+    .ai-message-timestamp {
+        min-height: 24px;
+    }
+
+    .ai-action-btn {
+        width: 24px;
+        height: 24px;
     }
 
     .ai-assistant-standalone-panel {
@@ -4020,6 +4058,48 @@ body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
 
     .ai-assistant-standalone-links {
         margin: 0 10px 0 0 !important;
+    }
+
+    .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 2px !important;
+        max-width: 95% !important;
+    }
+
+    .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-user {
+        flex-direction: column !important;
+        align-items: flex-end !important;
+    }
+
+    .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content {
+        max-width: 100% !important;
+    }
+
+    .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-actions {
+        align-self: flex-start !important;
+        flex-wrap: wrap !important;
+        max-width: 100% !important;
+        margin: 0 0 0 2px !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        transition: none !important;
+    }
+
+    .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-user .ai-message-actions {
+        align-self: flex-end !important;
+        justify-content: flex-end !important;
+        margin-right: 2px !important;
+        margin-left: 0 !important;
+    }
+
+    .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-timestamp {
+        min-height: 24px !important;
+    }
+
+    .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-btn {
+        width: 24px !important;
+        height: 24px !important;
     }
 }
 
@@ -4502,6 +4582,11 @@ body.ai-assistant-app-body {
         overflow-y: auto;
         min-height: 0;
         padding-bottom: 20px;
+    }
+
+    .ai-chat-main .ai-message-user,
+    .ai-chat-main .ai-message-assistant {
+        max-width: 95%;
     }
 
     .ai-chat-main .ai-assistant-input-area {
