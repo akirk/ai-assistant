@@ -106,9 +106,10 @@ body.wp-admin #screen-meta.ai-assistant-screen-meta-sticky {
     z-index: 9990;
 }
 
-body.wp-admin #screen-meta-links.ai-assistant-screen-meta-links-sticky {
-    position: sticky;
-    top: var(--ai-assistant-adminbar-offset, var(--wp-admin--admin-bar--height, 32px));
+body.wp-admin #ai-assistant-link-wrap.ai-assistant-link-sticky {
+    position: fixed;
+    top: var(--ai-assistant-link-top, var(--ai-assistant-adminbar-offset, var(--wp-admin--admin-bar--height, 32px)));
+    right: var(--ai-assistant-link-right, 20px);
     z-index: 9991;
 }
 

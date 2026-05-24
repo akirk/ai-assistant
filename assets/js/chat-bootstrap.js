@@ -170,7 +170,7 @@
         if (window.screenMeta && typeof window.screenMeta.open === 'function') {
             window.screenMeta.open($panel, $button);
             if (typeof onOpen === 'function') {
-                onOpen();
+                $panel.promise('fx').done(onOpen);
             }
             return;
         }
@@ -204,37 +204,70 @@
         }
     }
 
-    function setScreenMetaLinksSticky($screenMetaLinks) {
-        if (!$screenMetaLinks || !$screenMetaLinks.length) {
+    function getScreenMetaAssistantLatchRight($linkWrap) {
+        var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        var wasSticky = $linkWrap.hasClass('ai-assistant-link-sticky');
+        var rect;
+
+        if (wasSticky) {
+            $linkWrap.removeClass('ai-assistant-link-sticky');
+        }
+
+        rect = $linkWrap[0].getBoundingClientRect();
+
+        if (wasSticky) {
+            $linkWrap.addClass('ai-assistant-link-sticky');
+        }
+
+        return Math.max(0, viewportWidth - rect.right);
+    }
+
+    function setScreenMetaAssistantLatchSticky($screenMeta, $button, enabled) {
+        var $linkWrap = $button.closest('#ai-assistant-link-wrap');
+        var adminbarOffset;
+        var panelHeight;
+
+        if (!$linkWrap.length) {
             return;
         }
 
-        $screenMetaLinks
-            .addClass('ai-assistant-screen-meta-links-sticky')
-            .css('--ai-assistant-adminbar-offset', getAdminbarOffset() + 'px');
+        if (!enabled) {
+            $linkWrap.removeClass('ai-assistant-link-sticky');
+            $linkWrap[0].style.removeProperty('--ai-assistant-adminbar-offset');
+            $linkWrap[0].style.removeProperty('--ai-assistant-link-top');
+            $linkWrap[0].style.removeProperty('--ai-assistant-link-right');
+            return;
+        }
+
+        adminbarOffset = getAdminbarOffset();
+        panelHeight = $screenMeta && $screenMeta.length && $screenMeta.is(':visible') ? $screenMeta.outerHeight() : 0;
+
+        $linkWrap
+            .css({
+                '--ai-assistant-adminbar-offset': adminbarOffset + 'px',
+                '--ai-assistant-link-top': Math.max(adminbarOffset, adminbarOffset + panelHeight - 1) + 'px',
+                '--ai-assistant-link-right': getScreenMetaAssistantLatchRight($linkWrap) + 'px'
+            })
+            .addClass('ai-assistant-link-sticky');
     }
 
     function bindScreenMeta($screenMeta, $button) {
-        var $screenMetaLinks = $('#screen-meta-links');
-
-        setScreenMetaLinksSticky($screenMetaLinks);
-
         $('#contextual-help-link, #show-settings-link')
             .off('click.aiAssistantBootstrap')
             .on('click.aiAssistantBootstrap', function() {
                 var $wrap = getScreenMetaPanel($('#ai-assistant-link'));
                 var $aiButton = $('#ai-assistant-link');
                 if ($aiButton.attr('aria-expanded') === 'true' || $aiButton.hasClass('screen-meta-active')) {
+                    setScreenMetaAssistantLatchSticky($screenMeta, $button, false);
                     setScreenMetaAssistantSticky($screenMeta, false);
                     hideSiblingScreenMetaPanel($wrap, $aiButton);
                 }
             });
 
         $(window).off('resize.aiAssistantScreenMeta').on('resize.aiAssistantScreenMeta', function() {
-            setScreenMetaLinksSticky($screenMetaLinks);
-
             if ($button.attr('aria-expanded') === 'true') {
                 setScreenMetaAssistantSticky($screenMeta, true);
+                setScreenMetaAssistantLatchSticky($screenMeta, $button, true);
             }
         });
 
@@ -253,11 +286,13 @@
             });
 
             if (isExpanded) {
+                setScreenMetaAssistantLatchSticky($screenMeta, $clicked, false);
                 setScreenMetaAssistantSticky($screenMeta, false);
                 closeScreenMetaPanel($wrap, $clicked);
             } else {
                 setScreenMetaAssistantSticky($screenMeta, true);
                 openScreenMetaPanel($wrap, $clicked, function() {
+                    setScreenMetaAssistantLatchSticky($screenMeta, $clicked, true);
                     focusInputAndScroll();
                     preloadConversationIfNeeded();
                 });
