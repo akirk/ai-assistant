@@ -4043,6 +4043,10 @@ body:not(.wp-admin) .ai-assistant-standalone-trigger button:focus {
         margin-left: 0;
     }
 
+    .ai-message-user .ai-message-timestamp {
+        order: 1;
+    }
+
     .ai-message-timestamp {
         min-height: 24px;
     }
