@@ -696,7 +696,7 @@ describe('conversation playback', function() {
         assert.strictEqual($icon._state.classes.has('dashicons-controls-pause'), true);
     });
 
-    it('continues playback with the edited input text when the user sends it', function() {
+    it('continues playback with the original staged text when the user edits before sending', function() {
         const { assistant, input } = loadConversationMixin();
         let addedMessage = null;
         let clearedDraft = false;
@@ -707,11 +707,17 @@ describe('conversation playback', function() {
         assistant.playbackWaitingForUser = true;
         assistant.playbackIndex = 2;
         assistant.playbackRunToken = 7;
+        assistant.playbackStagedUserText = 'Original playback text';
+        assistant.playbackSourceMessages = [
+            { role: 'user', content: 'Earlier' },
+            { role: 'assistant', content: 'Earlier reply' },
+            { role: 'user', content: 'Original playback text', _ts: 1700000000000 }
+        ];
         assistant.pendingAttachments = [];
         input.value = 'Edited playback text';
 
-        assistant.addMessage = function(role, content) {
-            addedMessage = { role: role, content: content };
+        assistant.addMessage = function(role, content, extraClass, options) {
+            addedMessage = { role: role, content: content, options: options };
         };
         assistant.clearDraft = function() {
             clearedDraft = true;
@@ -724,14 +730,14 @@ describe('conversation playback', function() {
         };
 
         assert.strictEqual(assistant.continueConversationPlaybackFromInput(), true);
-        assert.deepStrictEqual(addedMessage, {
-            role: 'user',
-            content: 'Edited playback text'
-        });
+        assert.strictEqual(addedMessage.role, 'user');
+        assert.strictEqual(addedMessage.content, 'Original playback text');
+        assert.strictEqual(addedMessage.options.timestamp, 1700000000000);
         assert.strictEqual(input.value, '');
         assert.strictEqual(clearedDraft, true);
         assert.strictEqual(sendButtonUpdated, true);
         assert.strictEqual(assistant.playbackWaitingForUser, false);
+        assert.strictEqual(assistant.playbackStagedUserText, '');
         assert.strictEqual(assistant.playbackIndex, 3);
         assert.strictEqual(continuedRunToken, 7);
     });

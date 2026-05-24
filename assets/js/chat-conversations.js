@@ -1040,6 +1040,7 @@
             this.playbackSourceMessages = this.clonePlaybackMessages(this.messages);
             this.playbackToolResults = this.collectPlaybackToolResults(this.playbackSourceMessages);
             this.playbackIndex = 0;
+            this.playbackStagedUserText = '';
             this.playbackActive = true;
             this.playbackWaitingForUser = false;
             this.playbackRunToken++;
@@ -1073,6 +1074,7 @@
             this.playbackSourceMessages = [];
             this.playbackToolResults = {};
             this.playbackIndex = 0;
+            this.playbackStagedUserText = '';
             this.pendingAttachments = [];
             if (this.renderPendingAttachments) {
                 this.renderPendingAttachments();
@@ -1268,6 +1270,7 @@
             if (this.getEditableMessageContent) {
                 text = this.getEditableMessageContent(text);
             }
+            this.playbackStagedUserText = text;
             var $input = $('#ai-assistant-input');
             var chunks = this.getPlaybackTextChunks(text);
             var typed = '';
@@ -1299,17 +1302,21 @@
             }
 
             var $input = $('#ai-assistant-input');
-            var text = $input.val().trim();
-            var attachments = (this.pendingAttachments || []).slice();
-            var content = this.buildUserMessageContent
-                ? this.buildUserMessageContent(text, attachments)
-                : text;
+            var sourceMessage = (this.playbackSourceMessages || [])[this.playbackIndex] || {};
+            var content = typeof this.playbackStagedUserText === 'string' ? this.playbackStagedUserText.trim() : '';
 
-            if (!content && attachments.length === 0) {
+            if (!content) {
+                content = this.getPlaybackUserText(sourceMessage);
+                if (content && this.getEditableMessageContent) {
+                    content = this.getEditableMessageContent(content);
+                }
+            }
+
+            if (!content) {
                 return false;
             }
 
-            this.addMessage('user', content);
+            this.addMessage('user', content, null, sourceMessage._ts ? { timestamp: sourceMessage._ts } : {});
             this.pendingAttachments = [];
             if (this.renderPendingAttachments) {
                 this.renderPendingAttachments();
@@ -1317,6 +1324,7 @@
             $input.val('');
             this.clearDraft();
             this.playbackWaitingForUser = false;
+            this.playbackStagedUserText = '';
             this.playbackIndex++;
             this.updateSendButton();
             this.runConversationPlayback(this.playbackRunToken);

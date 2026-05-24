@@ -72,6 +72,7 @@
         playbackWaitingForUser: false,
         playbackSourceMessages: [],
         playbackIndex: 0,
+        playbackStagedUserText: '',
         playbackRunToken: 0,
         playbackTimer: null,
         playbackFrameDelayMs: 18,
