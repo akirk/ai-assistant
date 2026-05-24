@@ -205,13 +205,13 @@
 
         getMessageActions: function(timestamp) {
             return '<div class="ai-message-actions">' +
-                this.getMessageTimestampHtml(timestamp) +
                 '<button type="button" class="ai-action-btn ai-action-copy" title="Copy">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 9h9a2 2 0 012 2v9a2 2 0 01-2 2h-9a2 2 0 01-2-2v-9a2 2 0 012-2z"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
                 '</button>' +
                 '<button type="button" class="ai-action-btn ai-action-summarize" title="Summarize conversation">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>' +
                 '</button>' +
+                this.getMessageTimestampHtml(timestamp) +
                 '</div>';
         },
 
