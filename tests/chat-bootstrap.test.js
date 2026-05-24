@@ -19,7 +19,8 @@ class FakeElement {
     }
 }
 
-function createHarness(useCoreScreenMeta) {
+function createHarness(useCoreScreenMeta, options) {
+    options = options || {};
     const elements = {};
     let openCount = 0;
     let closeCount = 0;
@@ -77,7 +78,7 @@ function createHarness(useCoreScreenMeta) {
         append(wrap, button);
     }
 
-    function createAssistantPanel(parent) {
+    function createAssistantPanel(parent, html) {
         const wrap = register(new FakeElement('ai-assistant-wrap'));
         wrap.classes.add('hidden');
         wrap.visible = false;
@@ -85,6 +86,10 @@ function createHarness(useCoreScreenMeta) {
 
         append(wrap, register(new FakeElement('ai-assistant-messages')));
         append(wrap, register(new FakeElement('ai-assistant-input', 'textarea')));
+
+        if (typeof html === 'string' && html.indexOf('ai-assistant-playback') !== -1) {
+            append(wrap, register(new FakeElement('ai-assistant-playback', 'button')));
+        }
     }
 
     function matchesSelector(element, selector) {
@@ -250,7 +255,7 @@ function createHarness(useCoreScreenMeta) {
                         createAssistantLink(element);
                     }
                     if (typeof html === 'string' && html.indexOf('ai-assistant-wrap') !== -1) {
-                        createAssistantPanel(element);
+                        createAssistantPanel(element, html);
                     }
                 });
                 return this;
@@ -276,10 +281,10 @@ function createHarness(useCoreScreenMeta) {
         return api;
     }
 
-    function makeStandaloneFragment() {
+    function makeStandaloneFragment(html) {
         const wrap = new FakeElement('ai-assistant-standalone-wrap');
         const panel = new FakeElement('ai-assistant-standalone-panel');
-        panel.htmlContent = '<div id="ai-assistant-wrap" class="hidden"><textarea id="ai-assistant-input"></textarea></div>';
+        panel.htmlContent = html || '<div id="ai-assistant-wrap" class="hidden"><textarea id="ai-assistant-input"></textarea></div>';
         append(wrap, panel);
         return collection([wrap]);
     }
@@ -298,7 +303,7 @@ function createHarness(useCoreScreenMeta) {
         }
 
         if (typeof selector === 'string' && selector.trim()[0] === '<') {
-            return makeStandaloneFragment();
+            return makeStandaloneFragment(selector);
         }
 
         if (typeof selector === 'string' && selector.indexOf(',') !== -1) {
@@ -340,6 +345,7 @@ function createHarness(useCoreScreenMeta) {
             aiAssistantBootstrap: {
                 deferInit: true,
                 renderLatch: true,
+                showPlaybackButton: !!options.showPlaybackButton,
                 strings: {},
                 urls: {}
             },
@@ -452,5 +458,13 @@ describe('chat bootstrap screen-meta latch', function() {
         assert.strictEqual(harness.elements['screen-meta'].visible, true);
         assert.strictEqual(harness.elements['ai-assistant-wrap'].visible, false);
         assert.strictEqual(harness.elements['ai-assistant-link'].attrs['aria-expanded'], 'false');
+    });
+
+    it('renders the inline playback button only when enabled in bootstrap config', function() {
+        const disabled = createHarness(false, { showPlaybackButton: false });
+        assert.strictEqual(disabled.elements['ai-assistant-playback'], undefined);
+
+        const enabled = createHarness(false, { showPlaybackButton: true });
+        assert.ok(enabled.elements['ai-assistant-playback']);
     });
 });

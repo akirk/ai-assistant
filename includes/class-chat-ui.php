@@ -198,6 +198,7 @@ class Chat_UI {
             'userDisplayName' => $current_user->display_name,
             'welcomeTips' => $this->get_welcome_tips($welcome_tip_context),
             'urlComponent' => $welcome_tip_context['url_component'],
+            'showPlaybackButton' => $settings->is_playback_button_enabled(),
             'maxClientFileBytes' => (int) apply_filters('ai_assistant_client_file_context_bytes', 128 * 1024),
             'compactClientFileBytes' => (int) apply_filters('ai_assistant_client_file_compact_bytes', 32 * 1024),
             'maxMediaUploadBytes' => (int) wp_max_upload_size(),
@@ -481,6 +482,7 @@ class Chat_UI {
         return [
             'deferInit' => true,
             'renderLatch' => (bool) $render_latch,
+            'showPlaybackButton' => ai_assistant()->settings()->is_playback_button_enabled(),
             'urls' => [
                 'history' => $history_url,
                 'settings' => admin_url('options-general.php?page=ai-assistant-settings'),
@@ -495,6 +497,7 @@ class Chat_UI {
                 'placeholder' => __('Ask me anything about your WordPress site...', 'ai-assistant'),
                 'ariaLabel' => __('AI Assistant Tab', 'ai-assistant'),
                 'tokenCountTitle' => __('Token usage', 'ai-assistant'),
+                'playbackTitle' => __('Play back conversation', 'ai-assistant'),
                 'dropFiles' => __('Drop files to attach', 'ai-assistant'),
                 'scrollBottom' => __('Scroll to bottom', 'ai-assistant'),
                 'attachFiles' => __('Attach files', 'ai-assistant'),

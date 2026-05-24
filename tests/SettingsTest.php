@@ -57,6 +57,14 @@ class SettingsTest extends TestCase {
         }
     }
 
+    public function test_playback_button_is_opt_in(): void {
+        $this->assertFalse($this->settings->is_playback_button_enabled());
+
+        $GLOBALS['wp_test_options']['ai_assistant_show_playback_button'] = '1';
+
+        $this->assertTrue($this->settings->is_playback_button_enabled());
+    }
+
     // ===== get_all_tools_with_meta =====
 
     public function test_all_tools_with_meta_returns_array(): void {

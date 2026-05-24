@@ -73,6 +73,7 @@ class Conversations_App {
         $container_class = isset($args['container_class'])
             ? (string) $args['container_class']
             : 'ai-assistant-page';
+        $show_playback_button = get_option('ai_assistant_show_playback_button', '') === '1';
         ?>
         <div class="<?php echo esc_attr($container_class); ?>">
             <div class="ai-chat-layout">
@@ -103,9 +104,11 @@ class Conversations_App {
                             <button type="button" id="ai-assistant-summarize" class="ai-header-btn" title="<?php esc_attr_e('Generate conversation summary', 'ai-assistant'); ?>" style="display: none;">
                                 <span class="dashicons dashicons-media-text"></span>
                             </button>
-                            <button type="button" id="ai-assistant-playback" class="ai-header-btn" title="<?php esc_attr_e('Play back conversation', 'ai-assistant'); ?>" disabled>
-                                <span class="dashicons dashicons-controls-play"></span>
-                            </button>
+                            <?php if ($show_playback_button) : ?>
+                                <button type="button" id="ai-assistant-playback" class="ai-header-btn" title="<?php esc_attr_e('Play back conversation', 'ai-assistant'); ?>" disabled>
+                                    <span class="dashicons dashicons-controls-play"></span>
+                                </button>
+                            <?php endif; ?>
                             <span class="ai-header-right-actions">
                                 <label class="ai-yolo-label" title="<?php esc_attr_e('Skip confirmation prompts for destructive actions', 'ai-assistant'); ?>"><input type="checkbox" id="ai-assistant-yolo"> YOLO Mode</label>
                                 <span class="ai-export-menu-wrap">

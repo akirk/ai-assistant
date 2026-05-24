@@ -31,12 +31,15 @@ function createJQuery(input, options) {
             props: {},
             checked: false,
             css: {},
-            html: ''
+            html: '',
+            visible: true,
+            classes: new Set()
         };
 
         return {
             0: selector === '#ai-assistant-input' ? input : {},
             length: 1,
+            _state: state,
             val(value) {
                 if (selector !== '#ai-assistant-input') {
                     return arguments.length === 0 ? undefined : this;
@@ -90,7 +93,22 @@ function createJQuery(input, options) {
                 state.css[name] = value;
                 return this;
             },
-            toggle() {
+            toggle(show) {
+                state.visible = arguments.length === 0 ? !state.visible : !!show;
+                return this;
+            },
+            toggleClass(className, enabled) {
+                if (enabled) {
+                    state.classes.add(className);
+                } else {
+                    state.classes.delete(className);
+                }
+                return this;
+            },
+            find(childSelector) {
+                return $('#' + selector.replace(/^#/, '') + ' ' + childSelector);
+            },
+            focus() {
                 return this;
             }
         };
@@ -159,7 +177,14 @@ function loadConversationMixin(initialStorage, config, options) {
     );
     vm.runInContext(source, context);
 
-    return { assistant: aiAssistant, input, storage };
+    return {
+        assistant: aiAssistant,
+        input,
+        storage,
+        element(selector) {
+            return context.jQuery(selector);
+        }
+    };
 }
 
 describe('draft history', function() {
@@ -640,6 +665,75 @@ describe('conversation page history', function() {
 
         assert.strictEqual(recentLoaded, false);
         assert.strictEqual(newChatOptions.updateHistory, false);
+    });
+});
+
+describe('conversation playback', function() {
+    it('keeps the playback button visible while playback is active', function() {
+        const { assistant, element } = loadConversationMixin();
+        const $button = element('#ai-assistant-playback');
+        const $icon = element('#ai-assistant-playback .dashicons');
+
+        assistant.messages = [{ role: 'user', content: 'Hello' }];
+        assistant.isLoading = false;
+        assistant.playbackActive = false;
+
+        assistant.updatePlaybackButton();
+
+        assert.strictEqual($button._state.visible, true);
+        assert.strictEqual($button._state.props.disabled, false);
+        assert.strictEqual($button._state.attrs.title, 'Play back conversation');
+        assert.strictEqual($icon._state.classes.has('dashicons-controls-play'), true);
+        assert.strictEqual($icon._state.classes.has('dashicons-controls-pause'), false);
+
+        assistant.playbackActive = true;
+        assistant.updatePlaybackButton();
+
+        assert.strictEqual($button._state.visible, true);
+        assert.strictEqual($button._state.props.disabled, false);
+        assert.strictEqual($button._state.attrs.title, 'Stop playback');
+        assert.strictEqual($icon._state.classes.has('dashicons-controls-play'), false);
+        assert.strictEqual($icon._state.classes.has('dashicons-controls-pause'), true);
+    });
+
+    it('continues playback with the edited input text when the user sends it', function() {
+        const { assistant, input } = loadConversationMixin();
+        let addedMessage = null;
+        let clearedDraft = false;
+        let sendButtonUpdated = false;
+        let continuedRunToken = null;
+
+        assistant.playbackActive = true;
+        assistant.playbackWaitingForUser = true;
+        assistant.playbackIndex = 2;
+        assistant.playbackRunToken = 7;
+        assistant.pendingAttachments = [];
+        input.value = 'Edited playback text';
+
+        assistant.addMessage = function(role, content) {
+            addedMessage = { role: role, content: content };
+        };
+        assistant.clearDraft = function() {
+            clearedDraft = true;
+        };
+        assistant.updateSendButton = function() {
+            sendButtonUpdated = true;
+        };
+        assistant.runConversationPlayback = function(runToken) {
+            continuedRunToken = runToken;
+        };
+
+        assert.strictEqual(assistant.continueConversationPlaybackFromInput(), true);
+        assert.deepStrictEqual(addedMessage, {
+            role: 'user',
+            content: 'Edited playback text'
+        });
+        assert.strictEqual(input.value, '');
+        assert.strictEqual(clearedDraft, true);
+        assert.strictEqual(sendButtonUpdated, true);
+        assert.strictEqual(assistant.playbackWaitingForUser, false);
+        assert.strictEqual(assistant.playbackIndex, 3);
+        assert.strictEqual(continuedRunToken, 7);
     });
 });
 

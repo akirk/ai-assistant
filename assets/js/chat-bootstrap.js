@@ -25,6 +25,15 @@
         return urls[key] || '#';
     }
 
+    function showPlaybackButton() {
+        var config = getConfig();
+        if (config.showPlaybackButton !== undefined) {
+            return !!config.showPlaybackButton;
+        }
+
+        return !!(window.aiAssistantConfig && window.aiAssistantConfig.showPlaybackButton);
+    }
+
     function escapeHtml(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, function(char) {
             return {
@@ -61,6 +70,9 @@
                         '<h2>' + escapeHtml(text('title', 'AI Assistant')) + '</h2>' +
                         '<div class="ai-assistant-header-actions">' +
                             '<div id="ai-token-count" class="ai-token-count" tabindex="0" aria-label="' + escapeAttr(text('tokenCountTitle', 'Token usage')) + '">0 tokens</div>' +
+                            (showPlaybackButton() ? '<button type="button" id="ai-assistant-playback" class="ai-header-btn" title="' + escapeAttr(text('playbackTitle', 'Play back conversation')) + '" disabled>' +
+                                '<span class="dashicons dashicons-controls-play"></span>' +
+                            '</button>' : '') +
                             '<span class="ai-header-sep">|</span>' +
                             '<label class="ai-yolo-label" title="' + escapeAttr(text('yoloTitle', 'Skip confirmation prompts for destructive actions')) + '">' +
                                 '<input type="checkbox" id="ai-assistant-yolo"> ' + escapeHtml(text('yoloMode', 'YOLO Mode')) +

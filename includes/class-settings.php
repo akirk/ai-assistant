@@ -455,13 +455,21 @@ class Settings {
      * Register settings
      */
     public function register_settings() {
-        // Display settings (only server-side setting now)
+        // Display settings
         register_setting('ai_assistant_settings', 'ai_assistant_show_on_frontend', [
             'type' => 'string',
             'sanitize_callback' => function($value) {
                 return $value ? '1' : '';
             },
             'default' => '1',
+        ]);
+
+        register_setting('ai_assistant_settings', 'ai_assistant_show_playback_button', [
+            'type' => 'string',
+            'sanitize_callback' => function($value) {
+                return $value ? '1' : '';
+            },
+            'default' => '',
         ]);
 
         // Provider section (localStorage-based, rendered via callback)
@@ -2356,7 +2364,14 @@ class Settings {
      * Display section description
      */
     public function display_section_callback() {
-        echo '<p>' . esc_html__('Configure where the AI Assistant appears.', 'ai-assistant') . '</p>';
+        echo '<p>' . esc_html__('Configure where the AI Assistant appears and which optional controls are visible.', 'ai-assistant') . '</p>';
+    }
+
+    /**
+     * Whether the conversation playback button should be visible.
+     */
+    public function is_playback_button_enabled(): bool {
+        return get_option('ai_assistant_show_playback_button', '') === '1';
     }
 
     /**
@@ -2374,6 +2389,24 @@ class Settings {
         </label>
         <p class="description">
             <?php esc_html_e('When enabled, logged-in users with access will see the AI Assistant button on the frontend of your site.', 'ai-assistant'); ?>
+        </p>
+        <?php
+    }
+
+    /**
+     * Playback button checkbox field
+     */
+    public function playback_button_field_callback() {
+        ?>
+        <label>
+            <input type="checkbox"
+                   name="ai_assistant_show_playback_button"
+                   value="1"
+                   <?php checked($this->is_playback_button_enabled(), true); ?>>
+            <?php esc_html_e('Show conversation playback button', 'ai-assistant'); ?>
+        </label>
+        <p class="description">
+            <?php esc_html_e('When enabled, the playback button appears in the assistant header for saved conversations.', 'ai-assistant'); ?>
         </p>
         <?php
     }
@@ -2857,6 +2890,10 @@ class Settings {
                             <tr>
                                 <th scope="row"><?php esc_html_e('Frontend Access', 'ai-assistant'); ?></th>
                                 <td><?php $this->frontend_field_callback(); ?></td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><?php esc_html_e('Conversation Playback', 'ai-assistant'); ?></th>
+                                <td><?php $this->playback_button_field_callback(); ?></td>
                             </tr>
                         </table>
                     </div>
