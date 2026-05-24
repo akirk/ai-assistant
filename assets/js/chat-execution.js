@@ -1708,8 +1708,9 @@
 
             if (navigateResult && !sentQueuedMessages) {
                 var suggestionContent = this.getNavigationSuggestionContent(navigateResult.result);
-                this.messages.push(this.createStoredMessage('assistant', suggestionContent));
-                this.addMessage('assistant', suggestionContent);
+                var suggestionMessage = this.createStoredMessage('assistant', suggestionContent);
+                this.messages.push(suggestionMessage);
+                this.addMessage('assistant', suggestionContent, null, { timestamp: suggestionMessage._ts });
                 this.updateTokenCount();
                 this.setLoading(false);
                 this.autoSaveConversation();

@@ -20,7 +20,7 @@ class Admin_Colors {
         return sprintf(
             "%s {\n" .
             "    --ai-assistant-accent: var(--wp-app-admin-color-primary, var(--wp-admin-theme-color));\n" .
-            "    --ai-assistant-on-accent: var(--wp-app-color-on-primary, HighlightText);\n" .
+            "    --ai-assistant-on-accent: var(--wp-app-color-on-primary, #fff);\n" .
             "    --ai-assistant-accent-hover: var(--wp-app-admin-color-primary-hover, var(--wp-app-admin-color-primary, var(--wp-admin-theme-color-darker-10, var(--ai-assistant-accent))));\n" .
             "    --ai-assistant-accent-active: var(--wp-app-admin-color-primary-active, var(--wp-app-admin-color-primary, var(--wp-admin-theme-color-darker-20, var(--ai-assistant-accent-hover))));\n" .
             "}\n",

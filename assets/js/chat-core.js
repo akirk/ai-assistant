@@ -401,8 +401,9 @@
             $(document).on('click', '.ai-action-retry', function(e) {
                 e.preventDefault();
                 if (self.isLoading) return;
-                var content = $(this).closest('.ai-message').attr('data-raw-content');
-                self.truncateFromUserMessage(content);
+                var $message = $(this).closest('.ai-message');
+                var content = $message.attr('data-raw-content');
+                self.truncateFromUserMessage(content, $message.attr('data-message-timestamp'));
                 $('#ai-assistant-input').val(content);
                 self.sendMessage();
             });
@@ -410,8 +411,9 @@
             $(document).on('click', '.ai-action-edit', function(e) {
                 e.preventDefault();
                 if (self.isLoading) return;
-                var content = $(this).closest('.ai-message').attr('data-raw-content');
-                self.truncateFromUserMessage(content);
+                var $message = $(this).closest('.ai-message');
+                var content = $message.attr('data-raw-content');
+                self.truncateFromUserMessage(content, $message.attr('data-message-timestamp'));
                 if (self.getEditableMessageContent) {
                     content = self.getEditableMessageContent(content);
                 }
@@ -982,6 +984,7 @@
             $container[0].style.setProperty('--ai-assistant-chat-height', nextHeight + 'px');
             $container.toggleClass('expanded', nextHeight >= limits.max - 2);
             this.updateAssistantPanelResizeHandle($container, nextHeight, limits);
+            $(document).trigger('aiAssistantPanelHeightChange', [$container, nextHeight]);
 
             return nextHeight;
         },
@@ -1124,15 +1127,30 @@
             });
         },
 
-        truncateFromUserMessage: function(content) {
-            // Find the last user message with this content and truncate everything from there
+        truncateFromUserMessage: function(content, timestamp) {
+            // Find the selected user message and truncate everything from there.
             var msgIndex = -1;
-            for (var i = this.messages.length - 1; i >= 0; i--) {
-                var msg = this.messages[i];
-                if (msg.role === 'user' && (msg.content === content ||
-                    (Array.isArray(msg.content) && msg.content.some(function(b) { return b.type === 'text' && b.text === content; })))) {
-                    msgIndex = i;
-                    break;
+            timestamp = parseInt(timestamp, 10);
+            if (Number.isFinite(timestamp) && timestamp > 0) {
+                for (var i = this.messages.length - 1; i >= 0; i--) {
+                    var timestampedMsg = this.messages[i];
+                    if (timestampedMsg.role === 'user' && parseInt(timestampedMsg._ts, 10) === timestamp &&
+                        (timestampedMsg.content === content ||
+                        (Array.isArray(timestampedMsg.content) && timestampedMsg.content.some(function(b) { return b.type === 'text' && b.text === content; })))) {
+                        msgIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            if (msgIndex < 0) {
+                for (var j = this.messages.length - 1; j >= 0; j--) {
+                    var msg = this.messages[j];
+                    if (msg.role === 'user' && (msg.content === content ||
+                        (Array.isArray(msg.content) && msg.content.some(function(b) { return b.type === 'text' && b.text === content; })))) {
+                        msgIndex = j;
+                        break;
+                    }
                 }
             }
             if (msgIndex < 0) return;

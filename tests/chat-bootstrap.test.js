@@ -15,7 +15,16 @@ class FakeElement {
         this.handlers = {};
         this.visible = true;
         this.styles = {};
+        this.style = {
+            removeProperty: (name) => {
+                delete this.styles[name];
+            }
+        };
         this.htmlContent = '';
+    }
+
+    getBoundingClientRect() {
+        return { right: 100 };
     }
 }
 
@@ -127,6 +136,7 @@ function createHarness(useCoreScreenMeta, options) {
             on(eventName, handler) {
                 const eventType = eventName.split('.')[0];
                 elems.forEach((element) => {
+                    element.handlers = element.handlers || {};
                     element.handlers[eventType] = element.handlers[eventType] || [];
                     element.handlers[eventType].push(handler);
                 });
@@ -135,6 +145,7 @@ function createHarness(useCoreScreenMeta, options) {
             off(eventName) {
                 const eventType = eventName.split('.')[0];
                 elems.forEach((element) => {
+                    element.handlers = element.handlers || {};
                     element.handlers[eventType] = [];
                 });
                 return this;
@@ -181,7 +192,23 @@ function createHarness(useCoreScreenMeta, options) {
             hasClass(className) {
                 return elems[0] ? elems[0].classes.has(className) : false;
             },
+            toggleClass(className, enabled) {
+                elems.forEach((element) => {
+                    if (enabled) {
+                        element.classes.add(className);
+                    } else {
+                        element.classes.delete(className);
+                    }
+                });
+                return this;
+            },
             css(name, value) {
+                if (name && typeof name === 'object') {
+                    elems.forEach((element) => {
+                        Object.assign(element.styles, name);
+                    });
+                    return this;
+                }
                 elems.forEach((element) => {
                     element.styles[name] = value;
                 });
@@ -220,8 +247,32 @@ function createHarness(useCoreScreenMeta, options) {
             stop() {
                 return this;
             },
+            promise() {
+                return {
+                    done(callback) {
+                        if (callback) {
+                            callback();
+                        }
+                        return this;
+                    }
+                };
+            },
             parent() {
                 return collection(elems.map((element) => element.parentNode));
+            },
+            closest(selector) {
+                const found = [];
+                elems.forEach((element) => {
+                    let current = element;
+                    while (current) {
+                        if (matchesSelector(current, selector)) {
+                            found.push(current);
+                            return;
+                        }
+                        current = current.parentNode;
+                    }
+                });
+                return collection(found);
             },
             find(selector) {
                 let found = [];
@@ -268,6 +319,9 @@ function createHarness(useCoreScreenMeta, options) {
             },
             children() {
                 return collection(elems.flatMap((element) => element.children));
+            },
+            outerHeight() {
+                return elems[0] ? 40 : 0;
             },
             is(selector) {
                 return elems[0] ? matchesSelector(elems[0], selector) : false;
@@ -342,6 +396,7 @@ function createHarness(useCoreScreenMeta, options) {
 
     const context = {
         window: {
+            innerWidth: 1200,
             aiAssistantBootstrap: {
                 deferInit: true,
                 renderLatch: true,
@@ -362,6 +417,9 @@ function createHarness(useCoreScreenMeta, options) {
         },
         document: {
             nodeType: 9,
+            documentElement: {
+                clientWidth: 1200
+            },
             getElementById(id) {
                 return elements[id] || null;
             }

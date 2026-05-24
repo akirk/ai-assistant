@@ -136,6 +136,11 @@
         }, 50);
     }
 
+    function getAdminbarOffset() {
+        var $masterbar = $('#wpadminbar');
+        return $masterbar.length && $masterbar.is(':visible') ? $masterbar.outerHeight() : 0;
+    }
+
     function preloadConversationIfNeeded() {
         if (!window.aiAssistant) {
             return;
@@ -177,7 +182,7 @@
         if (window.screenMeta && typeof window.screenMeta.open === 'function') {
             window.screenMeta.open($panel, $button);
             if (typeof onOpen === 'function') {
-                onOpen();
+                $panel.promise('fx').done(onOpen);
             }
             return;
         }
@@ -198,16 +203,95 @@
         return $parent.length ? $parent : $('#screen-meta');
     }
 
+    function setScreenMetaAssistantSticky($screenMeta, enabled) {
+        if (!$screenMeta || !$screenMeta.length) {
+            return;
+        }
+
+        $screenMeta.toggleClass('ai-assistant-screen-meta-sticky', !!enabled);
+        if (enabled) {
+            $screenMeta.css('--ai-assistant-adminbar-offset', getAdminbarOffset() + 'px');
+        } else {
+            $screenMeta[0].style.removeProperty('--ai-assistant-adminbar-offset');
+        }
+    }
+
+    function getScreenMetaAssistantLatchRight($linkWrap) {
+        var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        var wasSticky = $linkWrap.hasClass('ai-assistant-link-sticky');
+        var rect;
+
+        if (wasSticky) {
+            $linkWrap.removeClass('ai-assistant-link-sticky');
+        }
+
+        rect = $linkWrap[0].getBoundingClientRect();
+
+        if (wasSticky) {
+            $linkWrap.addClass('ai-assistant-link-sticky');
+        }
+
+        return Math.max(0, viewportWidth - rect.right);
+    }
+
+    function setScreenMetaAssistantLatchSticky($screenMeta, $button, enabled, attachToPanel) {
+        var $linkWrap = $button.closest('#ai-assistant-link-wrap');
+        var adminbarOffset;
+        var panelHeight;
+
+        if (!$linkWrap.length) {
+            return;
+        }
+
+        if (!enabled) {
+            $linkWrap.removeClass('ai-assistant-link-sticky');
+            $linkWrap[0].style.removeProperty('--ai-assistant-adminbar-offset');
+            $linkWrap[0].style.removeProperty('--ai-assistant-link-top');
+            $linkWrap[0].style.removeProperty('--ai-assistant-link-right');
+            return;
+        }
+
+        adminbarOffset = getAdminbarOffset();
+        panelHeight = attachToPanel && $screenMeta && $screenMeta.length && $screenMeta.is(':visible') ? $screenMeta.outerHeight() : 0;
+
+        $linkWrap
+            .css({
+                '--ai-assistant-adminbar-offset': adminbarOffset + 'px',
+                '--ai-assistant-link-top': Math.max(adminbarOffset, adminbarOffset + panelHeight - 1) + 'px',
+                '--ai-assistant-link-right': getScreenMetaAssistantLatchRight($linkWrap) + 'px'
+            })
+            .addClass('ai-assistant-link-sticky');
+    }
+
     function bindScreenMeta($screenMeta, $button) {
+        setScreenMetaAssistantLatchSticky($screenMeta, $button, true, false);
+
         $('#contextual-help-link, #show-settings-link')
             .off('click.aiAssistantBootstrap')
             .on('click.aiAssistantBootstrap', function() {
                 var $wrap = getScreenMetaPanel($('#ai-assistant-link'));
                 var $aiButton = $('#ai-assistant-link');
                 if ($aiButton.attr('aria-expanded') === 'true' || $aiButton.hasClass('screen-meta-active')) {
+                    setScreenMetaAssistantLatchSticky($screenMeta, $button, true, false);
+                    setScreenMetaAssistantSticky($screenMeta, false);
                     hideSiblingScreenMetaPanel($wrap, $aiButton);
                 }
             });
+
+        $(window).off('resize.aiAssistantScreenMeta').on('resize.aiAssistantScreenMeta', function() {
+            if ($button.attr('aria-expanded') === 'true') {
+                setScreenMetaAssistantSticky($screenMeta, true);
+                setScreenMetaAssistantLatchSticky($screenMeta, $button, true, true);
+            } else {
+                setScreenMetaAssistantLatchSticky($screenMeta, $button, true, false);
+            }
+        });
+
+        $(document).off('aiAssistantPanelHeightChange.aiAssistantScreenMeta').on('aiAssistantPanelHeightChange.aiAssistantScreenMeta', function() {
+            if ($button.attr('aria-expanded') === 'true') {
+                setScreenMetaAssistantLatchSticky($screenMeta, $button, true, true);
+            }
+        });
 
         $button.off('click.aiAssistantBootstrap').on('click.aiAssistantBootstrap', function(e) {
             e.preventDefault();
@@ -224,9 +308,13 @@
             });
 
             if (isExpanded) {
+                setScreenMetaAssistantLatchSticky($screenMeta, $clicked, true, false);
+                setScreenMetaAssistantSticky($screenMeta, false);
                 closeScreenMetaPanel($wrap, $clicked);
             } else {
+                setScreenMetaAssistantSticky($screenMeta, true);
                 openScreenMetaPanel($wrap, $clicked, function() {
+                    setScreenMetaAssistantLatchSticky($screenMeta, $clicked, true, true);
                     focusInputAndScroll();
                     preloadConversationIfNeeded();
                 });

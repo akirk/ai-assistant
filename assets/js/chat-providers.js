@@ -98,7 +98,7 @@
 
             queued.forEach(function(item) {
                 if (item.content) {
-                    this.addMessage('user', item.content);
+                    this.addMessage('user', item.content, null, { timestamp: item.queuedAt });
                 }
             }, this);
 
@@ -248,8 +248,9 @@
             var messageContent = this.buildUserMessageContent
                 ? this.buildUserMessageContent(message, attachments)
                 : message;
-            this.addMessage('user', messageContent);
-            this.messages.push(this.createStoredMessage('user', messageContent));
+            var userMessage = this.createStoredMessage('user', messageContent);
+            this.addMessage('user', messageContent, null, { timestamp: userMessage._ts });
+            this.messages.push(userMessage);
             this.conversationDirty = true;
             if (this.updateExportButton) {
                 this.updateExportButton();
@@ -888,7 +889,7 @@
                             state.$reply.remove();
                         }
                     } else if (state.$reply) {
-                        self.finalizeReply(state.$reply);
+                        self.finalizeReply(state.$reply, options.timestamp || options._ts);
                     }
 
                     return state;
@@ -1074,12 +1075,12 @@
                     }
                 });
 
-                var streamState = stream.finishAssistant();
-
+                var assistantMessageTimestamp = this.getMessageTimestamp();
+                var streamState = stream.finishAssistant({ timestamp: assistantMessageTimestamp });
                 var filteredBlocks = contentBlocks.filter(function(block) {
                     return block.type !== 'text' || (block.text && block.text.length > 0);
                 });
-                var message = this.createStoredMessage('assistant', filteredBlocks);
+                var message = this.createStoredMessage('assistant', filteredBlocks, { _ts: assistantMessageTimestamp });
                 if (this.attachTokenUsageToAssistantMessage) {
                     this.attachTokenUsageToAssistantMessage(message, 'anthropic', model, streamState.providerUsage, [
                         { role: 'system', content: this.systemPrompt },
@@ -1203,9 +1204,10 @@
                     }
                 }
 
-                var streamState = stream.finishAssistant();
+                var assistantMessageTimestamp = this.getMessageTimestamp();
+                var streamState = stream.finishAssistant({ timestamp: assistantMessageTimestamp });
                 var toolCalls = stream.getToolCalls();
-                var message = this.createStoredMessage('assistant', streamState.textContent || null);
+                var message = this.createStoredMessage('assistant', streamState.textContent || null, { _ts: assistantMessageTimestamp });
                 var messageToolCalls = stream.getOpenAIToolCallsForMessage();
                 if (messageToolCalls.length > 0) {
                     message.tool_calls = messageToolCalls;
@@ -1499,8 +1501,12 @@
                     return true;
                 });
 
-                var streamState = stream.finishAssistant({ stripReasoningTokens: true });
-                var message = this.createStoredMessage('assistant', streamState.textContent || null);
+                var assistantMessageTimestamp = this.getMessageTimestamp();
+                var streamState = stream.finishAssistant({
+                    stripReasoningTokens: true,
+                    timestamp: assistantMessageTimestamp
+                });
+                var message = this.createStoredMessage('assistant', streamState.textContent || null, { _ts: assistantMessageTimestamp });
                 var messageToolCalls = stream.getOpenAIToolCallsForMessage(uniqueToolIds);
                 if (messageToolCalls.length > 0) {
                     message.tool_calls = messageToolCalls;
