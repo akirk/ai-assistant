@@ -249,10 +249,13 @@
             return $message;
         },
 
-        startThinking: function() {
+        startThinking: function(options) {
+            options = options || {};
             var $messages = $('#ai-assistant-messages');
-            var $thinking = $('<div class="ai-thinking-block">' +
-                '<button type="button" class="ai-thinking-toggle">' +
+            var expandedClass = options.expanded ? ' expanded' : '';
+            var expandedAttr = options.expanded ? 'true' : 'false';
+            var $thinking = $('<div class="ai-thinking-block' + expandedClass + '">' +
+                '<button type="button" class="ai-thinking-toggle" aria-expanded="' + expandedAttr + '">' +
                 '<span class="ai-thinking-spinner"></span>' +
                 '<span class="ai-thinking-label">Thinking...</span>' +
                 '<span class="ai-thinking-toggle-icon" aria-hidden="true">&gt;</span>' +
@@ -279,6 +282,18 @@
             var durationSec = (durationMs / 1000).toFixed(1);
             $thinking.find('.ai-thinking-label').text('Thought for ' + durationSec + 's');
             $thinking.addClass('ai-thinking-complete');
+        },
+
+        addThinkingMessage: function(text, durationMs) {
+            text = String(text || '').trim();
+            if (!text) {
+                return null;
+            }
+
+            var $thinking = this.startThinking({ expanded: false });
+            this.updateThinking($thinking, text);
+            this.finalizeThinking($thinking, durationMs || 0);
+            return $thinking;
         },
 
         updateReply: function($message, text) {
@@ -2063,6 +2078,10 @@
                         });
                     }
                 } else if (msg.role === 'assistant') {
+                    if (msg._thinking && String(msg._thinking).trim()) {
+                        flushToolUseGroup();
+                        self.addThinkingMessage(msg._thinking, msg._thinkingDurationMs || 0);
+                    }
                     if (typeof msg.content === 'string' && msg.content.trim()) {
                         flushToolUseGroup();
                         self.addMessage('assistant', msg.content, null, { timestamp: msg._ts });
@@ -2557,13 +2576,11 @@
         getToolCardsContainer: function() {
             var $container = $('#ai-assistant-tool-cards');
             if ($container.length === 0) {
-                $container = $('<details id="ai-assistant-tool-cards" open><summary class="ai-tool-cards-summary">Tools</summary></details>');
+                $container = $('<div id="ai-assistant-tool-cards" class="ai-tool-cards-live" aria-live="polite"></div>');
                 $('#ai-assistant-messages').append($container);
             } else {
                 // Move container to end of messages if it already exists
                 // This handles cases where LLM responds multiple times with tool calls.
-                // Preserve the current open/closed state so progress updates do not
-                // fight the user's choice while tools are running.
                 $('#ai-assistant-messages').append($container);
             }
             return $container;
@@ -2584,10 +2601,15 @@
             ids.forEach(function(id) { var n = state[id].name; if (n && !seen[n]) { seen[n] = true; names.push(n); } });
             var base = (total === 1 ? '1 tool' : total + ' tools') + (names.length ? ': ' + names.join(', ') : '');
             $container.toggleClass('ai-tool-cards-complete', done === total && total > 0);
+            var $summary = $container.find('> .ai-tool-cards-summary');
+            if (!$summary.length) {
+                $container.attr('aria-label', done === total && total > 0 ? base + ' - complete' : base + ' - ' + done + '/' + total + ' done');
+                return;
+            }
             if (done === total && total > 0) {
-                $container.find('.ai-tool-cards-summary').text(base + ' - complete');
+                $summary.text(base + ' - complete');
             } else {
-                $container.find('.ai-tool-cards-summary').text(base + ' - ' + done + '/' + total + ' done');
+                $summary.text(base + ' - ' + done + '/' + total + ' done');
             }
         },
 

@@ -311,6 +311,120 @@ describe('Local LLM requests', function() {
         assert.equal(messages[0].role, 'error');
         assert.match(messages[0].content, /No local model selected/);
     });
+
+    it('extracts tagged local model thinking from streamed content', async function() {
+        let requestPayload = null;
+        const replies = [];
+        const thinkingBlocks = [];
+        const assistant = Object.assign(loadProvidersMixin({
+            fetch(url, options) {
+                requestPayload = JSON.parse(options.body);
+                return Promise.resolve({ ok: true });
+            }
+        }), {
+            messages: [{ role: 'user', content: 'Hello' }],
+            systemPrompt: 'System',
+            conversationModel: 'qwen-test',
+            abortController: null,
+            getModel() {
+                return 'fallback-model';
+            },
+            getLocalEndpoint() {
+                return 'http://localhost:11434';
+            },
+            getToolsOpenAI() {
+                return [];
+            },
+            async *readSSEStream() {
+                yield { choices: [{ delta: { content: '<think>Inspect data' } }] };
+                yield { choices: [{ delta: { content: ' first</think>Here is the answer.' } }] };
+            },
+            startReply() {
+                const reply = {
+                    removed: false,
+                    content: '',
+                    remove() {
+                        this.removed = true;
+                    }
+                };
+                replies.push(reply);
+                return reply;
+            },
+            updateReply(reply, text) {
+                reply.content = text;
+            },
+            finalizeReply(reply) {
+                reply.finalized = true;
+            },
+            startThinking(options) {
+                const block = {
+                    options,
+                    content: '',
+                    remove() {
+                        this.removed = true;
+                    }
+                };
+                thinkingBlocks.push(block);
+                return block;
+            },
+            updateThinking(block, text) {
+                block.content = text;
+            },
+            finalizeThinking(block, durationMs) {
+                block.finalized = true;
+                block.durationMs = durationMs;
+            },
+            updateTokenCount() {},
+            autoSaveConversation() {},
+            sendQueuedMessagesIfAvailable() {
+                return false;
+            },
+            setLoading(value) {
+                this.loadingState = value;
+            }
+        });
+
+        await assistant.callLocalLLM();
+
+        assert.equal(requestPayload.model, 'qwen-test');
+        assert.equal(thinkingBlocks.length, 1);
+        assert.equal(thinkingBlocks[0].options.expanded, true);
+        assert.equal(thinkingBlocks[0].content, 'Inspect data first');
+        assert.equal(thinkingBlocks[0].finalized, true);
+        assert.equal(assistant.messages[1].role, 'assistant');
+        assert.equal(assistant.messages[1].content, 'Here is the answer.');
+        assert.equal(assistant.messages[1]._thinking, 'Inspect data first');
+        assert.equal(replies[replies.length - 1].content, 'Here is the answer.');
+    });
+
+    it('parses complete and partial reasoning tags without leaking tag fragments', function() {
+        const assistant = loadProvidersMixin();
+
+        assert.equal(
+            JSON.stringify(assistant.extractReasoningFromContent('<think>Plan</think>Answer')),
+            JSON.stringify({ content: 'Answer', thinking: 'Plan', thinkingOpen: false })
+        );
+        assert.equal(
+            JSON.stringify(assistant.extractReasoningFromContent('[THINK]Plan')),
+            JSON.stringify({ content: '', thinking: 'Plan', thinkingOpen: true })
+        );
+        assert.equal(
+            JSON.stringify(assistant.extractReasoningFromContent('<|channel>thought\nInspect data\n<channel|>Answer')),
+            JSON.stringify({ content: 'Answer', thinking: 'Inspect data', thinkingOpen: false })
+        );
+        assert.equal(
+            JSON.stringify(assistant.extractReasoningFromContent('<|channel>thought\n<channel|>Answer')),
+            JSON.stringify({ content: 'Answer', thinking: '', thinkingOpen: false })
+        );
+        assert.equal(
+            JSON.stringify(assistant.extractReasoningFromContent('<|chan')),
+            JSON.stringify({ content: '', thinking: '', thinkingOpen: false })
+        );
+        assert.equal(
+            JSON.stringify(assistant.extractReasoningFromContent('<thi')),
+            JSON.stringify({ content: '', thinking: '', thinkingOpen: false })
+        );
+    });
 });
 
 describe('provider proxy requests', function() {
@@ -372,6 +486,7 @@ describe('provider request message sanitization', function() {
                 role: 'assistant',
                 content: 'Hi',
                 _ts: 1790000000000,
+                _thinking: 'private reasoning text',
                 _usage: {
                     source: 'provider',
                     input_tokens: 12,
@@ -384,6 +499,7 @@ describe('provider request message sanitization', function() {
         assert.strictEqual(sanitized.length, 2);
         assert.strictEqual(Object.prototype.hasOwnProperty.call(sanitized[1], '_usage'), false);
         assert.strictEqual(Object.prototype.hasOwnProperty.call(sanitized[1], '_ts'), false);
+        assert.strictEqual(Object.prototype.hasOwnProperty.call(sanitized[1], '_thinking'), false);
         assert.strictEqual(Object.prototype.hasOwnProperty.call(sanitized[1], '_private'), false);
     });
 

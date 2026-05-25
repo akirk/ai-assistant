@@ -517,7 +517,8 @@
 
             $(document).on('click', '.ai-thinking-toggle', function(e) {
                 e.preventDefault();
-                $(this).closest('.ai-thinking-block').toggleClass('expanded');
+                var $block = $(this).closest('.ai-thinking-block').toggleClass('expanded');
+                $(this).attr('aria-expanded', $block.hasClass('expanded') ? 'true' : 'false');
             });
 
             $(document).on('dblclick', '.ai-conv-item-title', function(e) {
