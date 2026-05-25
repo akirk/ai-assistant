@@ -221,29 +221,40 @@ function createToolCardsDom() {
         };
     }
 
-    function createDetailsFromHtml(html) {
+    function createElementFromHtml(html) {
+        const tagMatch = html.match(/^<([a-z0-9-]+)/i);
+        const tagName = tagMatch ? tagMatch[1].toLowerCase() : 'div';
         const open = /\sopen(?:[>\s])/.test(html);
         const idMatch = html.match(/id="([^"]+)"/);
+        const classMatch = html.match(/class="([^"]+)"/);
+        const ariaLiveMatch = html.match(/aria-live="([^"]+)"/);
+        const attrs = {
+            id: idMatch ? idMatch[1] : undefined,
+            class: classMatch ? classMatch[1] : undefined
+        };
+        if (ariaLiveMatch) {
+            attrs['aria-live'] = ariaLiveMatch[1];
+        }
+        const element = new Element(tagName, attrs);
         const summaryClassMatch = html.match(/<summary[^>]*class="([^"]+)"/);
         const summaryTextMatch = html.match(/<summary[^>]*>(.*?)<\/summary>/);
-        const details = new Element('details', {
-            id: idMatch ? idMatch[1] : undefined
-        });
         if (open) {
-            details.attrs.open = '';
+            element.attrs.open = '';
         }
-        const summary = new Element('summary', {
-            class: summaryClassMatch ? summaryClassMatch[1] : ''
-        }, summaryTextMatch ? summaryTextMatch[1] : '');
-        summary.parent = details;
-        details.children.push(summary);
-        register(details);
-        return details;
+        if (summaryTextMatch || summaryClassMatch) {
+            const summary = new Element('summary', {
+                class: summaryClassMatch ? summaryClassMatch[1] : ''
+            }, summaryTextMatch ? summaryTextMatch[1] : '');
+            summary.parent = element;
+            element.children.push(summary);
+        }
+        register(element);
+        return element;
     }
 
     function jQueryStub(selector) {
         if (typeof selector === 'string' && selector[0] === '<') {
-            return wrapper([createDetailsFromHtml(selector)]);
+            return wrapper([createElementFromHtml(selector)]);
         }
         if (selector === '#ai-assistant-messages') {
             return wrapper([messages]);
@@ -265,7 +276,8 @@ function createToolCardsDom() {
             return byId['ai-assistant-tool-cards'];
         },
         get summary() {
-            return byId['ai-assistant-tool-cards'].children[0];
+            const container = byId['ai-assistant-tool-cards'];
+            return container && container.children[0];
         }
     };
 }
@@ -286,8 +298,8 @@ function imageResponse(body, type) {
     };
 }
 
-describe('tool card details behavior', function() {
-    it('does not collapse the live tool cards when all tools finish', function() {
+describe('live tool card behavior', function() {
+    it('keeps live tool cards as an ungrouped stack when all tools finish', function() {
         const dom = createToolCardsDom();
         const assistant = loadUiMixin({}, { jQuery: dom.$ });
 
@@ -301,20 +313,21 @@ describe('tool card details behavior', function() {
 
         assistant.updateToolCardsSummary();
 
-        assert.strictEqual(Object.prototype.hasOwnProperty.call(dom.container.attrs, 'open'), true);
-        assert.strictEqual(dom.summary.textContent, '1 tool: read_file - complete');
+        assert.strictEqual(dom.container.tagName, 'div');
+        assert.strictEqual(dom.summary, undefined);
+        assert.strictEqual(dom.container.attrs['aria-label'], '1 tool: read_file - complete');
         assert.strictEqual(dom.container.classes.has('ai-tool-cards-complete'), true);
     });
 
-    it('does not reopen live tool cards after the user closes them', function() {
+    it('reuses the current live tool card stack without creating a summary', function() {
         const dom = createToolCardsDom();
         const assistant = loadUiMixin({}, { jQuery: dom.$ });
 
-        assistant.getToolCardsContainer();
-        dom.$('#ai-assistant-tool-cards').removeAttr('open');
+        const first = assistant.getToolCardsContainer().elements[0];
         assistant.getToolCardsContainer();
 
-        assert.strictEqual(Object.prototype.hasOwnProperty.call(dom.container.attrs, 'open'), false);
+        assert.strictEqual(assistant.getToolCardsContainer().elements[0], first);
+        assert.strictEqual(dom.summary, undefined);
     });
 });
 

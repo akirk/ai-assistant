@@ -20,6 +20,245 @@
             return message;
         },
 
+        getTrailingReasoningTagPrefix: function(text, tags) {
+            text = String(text || '');
+            tags = tags || [];
+
+            var maxLength = tags.reduce(function(max, tag) {
+                return Math.max(max, tag.length - 1);
+            }, 0);
+
+            for (var length = Math.min(maxLength, text.length); length > 0; length--) {
+                var suffix = text.slice(-length).toLowerCase();
+                for (var i = 0; i < tags.length; i++) {
+                    if (tags[i].toLowerCase().indexOf(suffix) === 0) {
+                        return text.slice(-length);
+                    }
+                }
+            }
+
+            return '';
+        },
+
+        getReasoningDelimiters: function() {
+            return [
+                {
+                    name: 'think-tag',
+                    open: /<think>/ig,
+                    close: /<\/think>/ig,
+                    openPrefixes: ['<think>'],
+                    closePrefixes: ['</think>']
+                },
+                {
+                    name: 'think-bracket',
+                    open: /\[THINK\]/ig,
+                    close: /\[\/THINK\]/ig,
+                    openPrefixes: ['[THINK]'],
+                    closePrefixes: ['[/THINK]']
+                },
+                {
+                    name: 'thought-channel',
+                    open: /<\|channel\|?>thought(?=\s|<|$)[^\S\n]*(?:\r?\n)?/ig,
+                    close: /<channel\|>|<\|channel\|>/ig,
+                    openPrefixes: ['<|channel>thought', '<|channel|>thought'],
+                    closePrefixes: ['<channel|>', '<|channel|>']
+                }
+            ];
+        },
+
+        cloneReasoningPattern: function(pattern) {
+            var flags = pattern.flags || '';
+            if (flags.indexOf('g') === -1) {
+                flags += 'g';
+            }
+
+            return new RegExp(pattern.source, flags);
+        },
+
+        getReasoningOpenPrefixes: function() {
+            var prefixes = [];
+            this.getReasoningDelimiters().forEach(function(delimiter) {
+                Array.prototype.push.apply(prefixes, delimiter.openPrefixes || []);
+            });
+            return prefixes;
+        },
+
+        findNextReasoningDelimiter: function(source, startIndex) {
+            var self = this;
+            var next = null;
+
+            this.getReasoningDelimiters().forEach(function(delimiter) {
+                var openPattern = self.cloneReasoningPattern(delimiter.open);
+                openPattern.lastIndex = startIndex;
+                var match = openPattern.exec(source);
+
+                if (!match) {
+                    return;
+                }
+
+                if (!next || match.index < next.match.index) {
+                    next = {
+                        delimiter: delimiter,
+                        match: match,
+                        end: openPattern.lastIndex
+                    };
+                }
+            });
+
+            return next;
+        },
+
+        findReasoningClose: function(source, delimiter, startIndex) {
+            var closePattern = this.cloneReasoningPattern(delimiter.close);
+            closePattern.lastIndex = startIndex;
+            var match = closePattern.exec(source);
+
+            if (!match) {
+                return null;
+            }
+
+            return {
+                match: match,
+                end: closePattern.lastIndex
+            };
+        },
+
+        extractReasoningFromContent: function(text) {
+            var source = String(text || '');
+            var output = '';
+            var thinkingParts = [];
+            var index = 0;
+            var thinkingOpen = false;
+
+            while (index < source.length) {
+                var open = this.findNextReasoningDelimiter(source, index);
+                if (!open) {
+                    break;
+                }
+
+                output += source.slice(index, open.match.index);
+
+                var close = this.findReasoningClose(source, open.delimiter, open.end);
+                if (!close) {
+                    thinkingOpen = true;
+                    var openThinking = source.slice(open.end);
+                    var pendingClose = this.getTrailingReasoningTagPrefix(openThinking, open.delimiter.closePrefixes || []);
+                    if (pendingClose) {
+                        openThinking = openThinking.slice(0, -pendingClose.length);
+                    }
+                    thinkingParts.push(openThinking);
+                    index = source.length;
+                    break;
+                }
+
+                thinkingParts.push(source.slice(open.end, close.match.index));
+                index = close.end;
+            }
+
+            if (index < source.length) {
+                output += source.slice(index);
+            }
+
+            var pendingOpen = this.getTrailingReasoningTagPrefix(output, this.getReasoningOpenPrefixes());
+            if (pendingOpen) {
+                output = output.slice(0, -pendingOpen.length);
+            }
+
+            return {
+                content: output.trim(),
+                thinking: thinkingParts.join('\n\n').trim(),
+                thinkingOpen: thinkingOpen
+            };
+        },
+
+        createStreamingResponseState: function($reply) {
+            return {
+                $reply: $reply,
+                replyRemoved: false,
+                $thinking: null,
+                thinkingContent: '',
+                thinkingStartTime: null,
+                thinkingDurationMs: 0,
+                thinkingFinalized: false,
+                rawContent: '',
+                textContent: ''
+            };
+        },
+
+        removeEmptyStreamingReply: function(state) {
+            if (!state || state.textContent || state.replyRemoved || !state.$reply) {
+                return;
+            }
+
+            state.$reply.remove();
+            state.replyRemoved = true;
+        },
+
+        ensureStreamingReply: function(state) {
+            if (!state.$reply || state.replyRemoved) {
+                state.$reply = this.startReply();
+                state.replyRemoved = false;
+            }
+
+            return state.$reply;
+        },
+
+        appendThinkingContent: function(state, text) {
+            if (!state || !text) {
+                return;
+            }
+
+            if (!state.$thinking) {
+                state.$thinking = this.startThinking({ expanded: true });
+                state.thinkingStartTime = Date.now();
+                this.removeEmptyStreamingReply(state);
+            }
+
+            state.thinkingContent += text;
+            this.updateThinking(state.$thinking, state.thinkingContent);
+        },
+
+        appendAssistantContent: function(state, text) {
+            if (!state || !text) {
+                return;
+            }
+
+            state.rawContent += text;
+
+            var parsed = this.extractReasoningFromContent(state.rawContent);
+            if (parsed.thinking && parsed.thinking !== state.thinkingContent) {
+                if (!state.$thinking) {
+                    state.$thinking = this.startThinking({ expanded: true });
+                    state.thinkingStartTime = Date.now();
+                    this.removeEmptyStreamingReply(state);
+                }
+                state.thinkingContent = parsed.thinking;
+                this.updateThinking(state.$thinking, state.thinkingContent);
+            }
+
+            if (state.$thinking && !parsed.thinkingOpen) {
+                this.finalizeThinkingState(state);
+            }
+
+            if (parsed.content !== state.textContent) {
+                state.textContent = parsed.content;
+                if (state.textContent) {
+                    this.updateReply(this.ensureStreamingReply(state), state.textContent);
+                }
+            }
+        },
+
+        finalizeThinkingState: function(state) {
+            if (!state || !state.$thinking || state.thinkingFinalized) {
+                return;
+            }
+
+            var started = state.thinkingStartTime || Date.now();
+            state.thinkingDurationMs = Date.now() - started;
+            this.finalizeThinking(state.$thinking, state.thinkingDurationMs);
+            state.thinkingFinalized = true;
+        },
+
         shouldQueueUserMessage: function() {
             return !!(
                 this.isLoading ||
@@ -891,11 +1130,7 @@
                     throw new Error(await this.getProviderErrorMessage(response, 'API request failed'));
                 }
 
-                var $reply = this.startReply();
-                var $thinking = null;
-                var thinkingContent = '';
-                var thinkingStartTime = null;
-                var textContent = '';
+                var streamState = this.createStreamingResponseState(this.startReply());
                 var toolCallsMap = {};
                 var providerUsage = null;
                 for await (var chunk of this.readSSEStream(response)) {
@@ -910,24 +1145,11 @@
 
                     // Handle reasoning/thinking content (o1, o3 models)
                     if (delta.reasoning_content) {
-                        if (!$thinking) {
-                            $thinking = this.startThinking();
-                            thinkingStartTime = Date.now();
-                            $reply.remove();
-                        }
-                        thinkingContent += delta.reasoning_content;
-                        this.updateThinking($thinking, thinkingContent);
+                        this.appendThinkingContent(streamState, delta.reasoning_content);
                     }
 
                     if (delta.content) {
-                        // Transition from thinking to response
-                        if ($thinking && thinkingStartTime) {
-                            this.finalizeThinking($thinking, Date.now() - thinkingStartTime);
-                            $reply = this.startReply();
-                            $thinking = null;
-                        }
-                        textContent += delta.content;
-                        this.updateReply($reply, textContent);
+                        this.appendAssistantContent(streamState, delta.content);
                     }
 
                     if (delta.tool_calls) {
@@ -950,10 +1172,7 @@
                 }
 
                 // Finalize thinking if stream ended during thinking phase
-                if ($thinking && thinkingStartTime) {
-                    this.finalizeThinking($thinking, Date.now() - thinkingStartTime);
-                    $reply = this.startReply();
-                }
+                this.finalizeThinkingState(streamState);
 
                 var toolCalls = [];
                 Object.keys(toolCallsMap).forEach(function(idx) {
@@ -967,11 +1186,16 @@
                     self.updateToolCardDescription(tc.id, tc.function.name, parsedArgs);
                 });
 
-                var message = this.createStoredMessage('assistant', textContent || null);
-                if (!textContent) {
-                    $reply.remove();
+                var messageExtra = {};
+                if (streamState.thinkingContent && streamState.thinkingContent.trim()) {
+                    messageExtra._thinking = streamState.thinkingContent.trim();
+                    messageExtra._thinkingDurationMs = streamState.thinkingDurationMs || 0;
+                }
+                var message = this.createStoredMessage('assistant', streamState.textContent || null, messageExtra);
+                if (!streamState.textContent) {
+                    streamState.$reply.remove();
                 } else {
-                    this.finalizeReply($reply, message._ts);
+                    this.finalizeReply(streamState.$reply, message._ts);
                 }
                 if (Object.keys(toolCallsMap).length > 0) {
                     message.tool_calls = Object.values(toolCallsMap);
@@ -1166,11 +1390,7 @@
                     }
                 }
 
-                var $reply = this.startReply();
-                var $thinking = null;
-                var thinkingContent = '';
-                var thinkingStartTime = null;
-                var textContent = '';
+                var streamState = this.createStreamingResponseState(this.startReply());
                 var toolCallsMap = {};
                 var streamTruncated = false;
                 var enableToolsIdx = null;
@@ -1187,8 +1407,7 @@
                                 : $.extend(providerUsage || {}, chunk.usage || chunk);
                         }
                         if (chunk.message && chunk.message.content) {
-                            textContent += chunk.message.content;
-                            this.updateReply($reply, textContent);
+                            this.appendAssistantContent(streamState, chunk.message.content);
                         }
                         if (chunk.message && chunk.message.tool_calls) {
                             chunk.message.tool_calls.forEach(function(tc, idx) {
@@ -1217,24 +1436,11 @@
 
                         // Handle reasoning/thinking content (DeepSeek, etc.)
                         if (delta.reasoning_content) {
-                            if (!$thinking) {
-                                $thinking = this.startThinking();
-                                thinkingStartTime = Date.now();
-                                $reply.remove();
-                            }
-                            thinkingContent += delta.reasoning_content;
-                            this.updateThinking($thinking, thinkingContent);
+                            this.appendThinkingContent(streamState, delta.reasoning_content);
                         }
 
                         if (delta.content) {
-                            // Transition from thinking to response
-                            if ($thinking && thinkingStartTime) {
-                                this.finalizeThinking($thinking, Date.now() - thinkingStartTime);
-                                $reply = this.startReply();
-                                $thinking = null;
-                            }
-                            textContent += delta.content;
-                            this.updateReply($reply, textContent);
+                            this.appendAssistantContent(streamState, delta.content);
                         }
 
                         if (delta.tool_calls) {
@@ -1279,10 +1485,7 @@
                     }
 
                     // Finalize thinking if stream ended during thinking phase
-                    if ($thinking && thinkingStartTime) {
-                        this.finalizeThinking($thinking, Date.now() - thinkingStartTime);
-                        $reply = this.startReply();
-                    }
+                    this.finalizeThinkingState(streamState);
 
                     if (streamTruncated && this.abortController) {
                         this.abortController.abort();
@@ -1325,18 +1528,20 @@
                     }
                 });
 
-                // Strip reasoning tokens from the final response
-                var strippedContent = this.stripReasoningTokens(textContent);
+                this.finalizeThinkingState(streamState);
 
-                var message = this.createStoredMessage('assistant', strippedContent || null);
+                var strippedContent = streamState.textContent;
+                var messageExtra = {};
+                if (streamState.thinkingContent && streamState.thinkingContent.trim()) {
+                    messageExtra._thinking = streamState.thinkingContent.trim();
+                    messageExtra._thinkingDurationMs = streamState.thinkingDurationMs || 0;
+                }
+
+                var message = this.createStoredMessage('assistant', strippedContent || null, messageExtra);
                 if (!strippedContent) {
-                    $reply.remove();
+                    streamState.$reply.remove();
                 } else {
-                    // Update display with stripped content if different
-                    if (strippedContent !== textContent) {
-                        this.updateReply($reply, strippedContent);
-                    }
-                    this.finalizeReply($reply, message._ts);
+                    this.finalizeReply(streamState.$reply, message._ts);
                 }
 
                 if (Object.keys(toolCallsMap).length > 0) {
