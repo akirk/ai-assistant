@@ -65,6 +65,11 @@
                 self.toggleFilePreview($(this));
             });
 
+            $(document).on('click', '.ai-changes-file-path', function(e) {
+                e.preventDefault();
+                self.toggleFilePreview($(this).closest('.ai-changes-file').find('.ai-file-preview-toggle'));
+            });
+
             // Import patch - trigger file input
             $('#ai-import-patch').on('click', function() {
                 $('#ai-patch-file').click();

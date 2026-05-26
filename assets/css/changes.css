@@ -366,6 +366,12 @@
     cursor: pointer;
 }
 
+.ai-changes-file-path:hover,
+.ai-changes-file-path:focus {
+    color: var(--ai-assistant-accent);
+    text-decoration: underline;
+}
+
 .ai-changes-type {
     font-size: 11px;
     padding: 2px 8px;
