@@ -96,8 +96,9 @@ class PluginCheckoutBadgeTest extends TestCase {
         $html = ob_get_clean();
 
         $this->assertStringContainsString('ai-assistant-checkout-badge is-current-version', $html);
-        $this->assertStringContainsString('AI Changes:', $html);
-        $this->assertStringContainsString('Current', $html);
+        $this->assertStringContainsString('Current version', $html);
+        $this->assertStringNotContainsString('AI Changes:', $html);
+        $this->assertStringNotContainsString('ai-assistant-checkout-badge-message">Current</span>', $html);
         $this->assertStringContainsString('No newer version', $html);
         $this->assertStringContainsString('Original state before AI modifications', $html);
         $this->assertStringContainsString('ai-assistant-checkout-badge-close', $html);

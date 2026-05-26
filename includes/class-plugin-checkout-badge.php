@@ -98,6 +98,8 @@ class Plugin_Checkout_Badge {
         $commit_message = trim((string) ($status['commit_message'] ?? ''));
         $message_excerpt = $this->get_message_excerpt($commit_message);
         $time_ago = $this->format_relative_time(isset($status['commit_timestamp']) ? (int) $status['commit_timestamp'] : null);
+        $summary_message = $is_old_version ? $message_excerpt : '';
+        $summary_time = $is_old_version ? $time_ago : '';
         $links = isset($status['links']) && is_array($status['links']) ? $status['links'] : [];
         $version_log = isset($status['version_log']) && is_array($status['version_log']) ? $status['version_log'] : [];
         $overview_link = $this->get_overview_link_from_links($links);
@@ -105,18 +107,18 @@ class Plugin_Checkout_Badge {
             ? sprintf(
                 $is_old_version
                     ? __('Viewing checked-out change for %s: %s', 'ai-assistant')
-                    : __('Viewing AI Changes for %s: %s', 'ai-assistant'),
+                    : __('Viewing the current version for %s: %s', 'ai-assistant'),
                 $plugin_name,
                 $commit_message
             )
             : sprintf(
                 $is_old_version
                     ? __('Viewing a checked-out change for %s.', 'ai-assistant')
-                    : __('Viewing AI Changes for %s.', 'ai-assistant'),
+                    : __('Viewing the current version for %s.', 'ai-assistant'),
                 $plugin_name
             );
-        $summary_prefix = $is_old_version ? __('Old Version:', 'ai-assistant') : __('AI Changes:', 'ai-assistant');
-        $panel_kicker = $is_old_version ? __('Old Version', 'ai-assistant') : __('AI Changes', 'ai-assistant');
+        $summary_prefix = $is_old_version ? __('Old Version:', 'ai-assistant') : __('Current version', 'ai-assistant');
+        $panel_kicker = $is_old_version ? __('Old Version', 'ai-assistant') : __('Current version', 'ai-assistant');
 
         $this->render_style();
         ?>
@@ -124,9 +126,11 @@ class Plugin_Checkout_Badge {
             <summary class="ai-assistant-checkout-badge-summary" aria-label="<?php echo esc_attr($label); ?>">
                 <span class="ai-assistant-checkout-badge-dot" aria-hidden="true"></span>
                 <span class="ai-assistant-checkout-badge-prefix"><?php echo esc_html($summary_prefix); ?></span>
-                <span class="ai-assistant-checkout-badge-message"><?php echo esc_html($message_excerpt); ?></span>
-                <?php if ($time_ago !== ''): ?>
-                <span class="ai-assistant-checkout-badge-time"><?php echo esc_html($time_ago); ?></span>
+                <?php if ($summary_message !== ''): ?>
+                <span class="ai-assistant-checkout-badge-message"><?php echo esc_html($summary_message); ?></span>
+                <?php endif; ?>
+                <?php if ($summary_time !== ''): ?>
+                <span class="ai-assistant-checkout-badge-time"><?php echo esc_html($summary_time); ?></span>
                 <?php endif; ?>
             </summary>
             <button
