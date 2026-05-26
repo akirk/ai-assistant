@@ -25,7 +25,7 @@ class External_Git_Tracker {
     private array $pack_data_cache = [];
     private array $pack_offset_cache = [];
     private const CHECKOUTS_OPTION = 'ai_assistant_external_git_checkouts';
-    private const DEBUG_VERSION = 'external-git-debug-2026-05-26-refs';
+    private const DEBUG_VERSION = 'external-git-debug-2026-05-26-shallow';
 
     public function __construct(string $work_tree) {
         $this->work_tree = rtrim($work_tree, '/');
@@ -54,7 +54,8 @@ class External_Git_Tracker {
         if ($head_sha !== null) {
             $tracked_file_count = count($this->get_commit_tree_files($head_sha));
         }
-        $status_message = $this->last_error;
+        $debug = $this->get_debug_info($commits, $head_sha, $tracked_file_count);
+        $status_message = $this->last_error ?: ($debug['diagnosis']['message'] ?? null);
 
         return [
             'path' => basename($this->work_tree),
@@ -69,7 +70,7 @@ class External_Git_Tracker {
             'is_external_git' => true,
             'supports_file_actions' => false,
             'status_message' => $status_message,
-            'debug' => $this->get_debug_info($commits, $head_sha, $tracked_file_count),
+            'debug' => $debug,
         ];
     }
 
@@ -443,13 +444,30 @@ class External_Git_Tracker {
     }
 
     private function get_commit_refs(): array {
-        $refs_by_sha = [];
         $head_sha = $this->get_head_sha();
+        $refs = array_merge(
+            $this->read_loose_refs('refs/heads'),
+            $this->read_loose_refs('refs/remotes'),
+            $this->read_packed_refs()
+        );
+        $refs_by_sha = $this->build_commit_refs_by_sha($refs, $head_sha);
+
+        if (count($refs_by_sha) <= 1) {
+            $refs = array_merge($refs, $this->read_fetch_head_refs(), $this->read_reflog_refs());
+            $refs_by_sha = $this->build_commit_refs_by_sha($refs, $head_sha);
+        }
+
+        return $refs_by_sha;
+    }
+
+    private function build_commit_refs_by_sha(array $refs, ?string $head_sha): array {
+        $refs_by_sha = [];
+
         if ($head_sha !== null && $this->is_valid_commit($head_sha)) {
             $refs_by_sha[$head_sha][] = 'HEAD';
         }
 
-        foreach (array_merge($this->read_loose_refs('refs/heads'), $this->read_loose_refs('refs/remotes'), $this->read_packed_refs()) as $ref => $sha) {
+        foreach ($refs as $ref => $sha) {
             if (!$this->is_valid_commit($sha)) {
                 continue;
             }
@@ -538,6 +556,84 @@ class External_Git_Tracker {
         return $refs;
     }
 
+    private function read_fetch_head_refs(): array {
+        $path = $this->git_dir . '/FETCH_HEAD';
+        if (!file_exists($path)) {
+            return [];
+        }
+
+        $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines === false) {
+            return [];
+        }
+
+        $refs = [];
+        foreach ($lines as $index => $line) {
+            if (!preg_match('/^([a-f0-9]{40})\b/', $line, $sha_match)) {
+                continue;
+            }
+
+            $label = 'FETCH_HEAD/' . ($index + 1);
+            if (preg_match("/\\bbranch '([^']+)' of /", $line, $branch_match)) {
+                $label = 'FETCH_HEAD/' . $branch_match[1];
+            } elseif (preg_match("/\\btag '([^']+)' of /", $line, $tag_match)) {
+                $label = 'FETCH_HEAD/tags/' . $tag_match[1];
+            }
+
+            $refs[$label] = $sha_match[1];
+        }
+
+        return $refs;
+    }
+
+    private function read_reflog_refs(): array {
+        $logs_dir = $this->git_dir . '/logs';
+        if (!is_dir($logs_dir)) {
+            return [];
+        }
+
+        $refs = [];
+        $this->collect_reflog_refs($logs_dir, 'logs', $refs);
+        return $refs;
+    }
+
+    private function collect_reflog_refs(string $dir, string $relative_dir, array &$refs): void {
+        $entries = scandir($dir);
+        if ($entries === false) {
+            return;
+        }
+
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            $path = $dir . '/' . $entry;
+            $relative = $relative_dir . '/' . $entry;
+            if (is_dir($path)) {
+                $this->collect_reflog_refs($path, $relative, $refs);
+                continue;
+            }
+
+            $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if ($lines === false) {
+                continue;
+            }
+
+            foreach ($lines as $line) {
+                if (!preg_match('/^[a-f0-9]{40}\s+([a-f0-9]{40})\b/', $line, $matches)) {
+                    continue;
+                }
+
+                if ($matches[1] === str_repeat('0', 40)) {
+                    continue;
+                }
+
+                $refs['REFLOG/' . substr($relative, strlen('logs/')) . '/' . substr($matches[1], 0, 7)] = $matches[1];
+            }
+        }
+    }
+
     private function format_ref_label(string $ref): string {
         if (strpos($ref, 'refs/heads/') === 0) {
             return substr($ref, strlen('refs/heads/'));
@@ -545,6 +641,14 @@ class External_Git_Tracker {
 
         if (strpos($ref, 'refs/remotes/') === 0) {
             return substr($ref, strlen('refs/remotes/'));
+        }
+
+        if (strpos($ref, 'FETCH_HEAD/') === 0) {
+            return 'fetch/' . substr($ref, strlen('FETCH_HEAD/'));
+        }
+
+        if (strpos($ref, 'REFLOG/') === 0) {
+            return 'reflog/' . substr($ref, strlen('REFLOG/'));
         }
 
         return $ref;
@@ -560,19 +664,29 @@ class External_Git_Tracker {
         $loose_heads = $this->read_loose_refs('refs/heads');
         $loose_remotes = $this->read_loose_refs('refs/remotes');
         $packed_refs = $this->read_packed_refs();
+        $fetch_head_refs = $this->read_fetch_head_refs();
+        $reflog_refs = $this->read_reflog_refs();
+        $shallow_commits = $this->read_shallow_commits();
         $commit_refs = $this->get_commit_refs();
 
-        return [
+        $debug = [
             'debug_version' => self::DEBUG_VERSION,
             'git_dir_exists' => is_dir($this->git_dir),
             'head' => [
                 'raw' => $raw_head,
                 'sha' => $head_sha,
             ],
+            'shallow' => [
+                'exists' => file_exists($this->git_dir . '/shallow'),
+                'commit_count' => count($shallow_commits),
+                'commits' => array_map(fn($sha) => substr($sha, 0, 12), array_slice($shallow_commits, 0, 20)),
+            ],
             'counts' => [
                 'loose_heads' => count($loose_heads),
                 'loose_remotes' => count($loose_remotes),
                 'packed_refs' => count($packed_refs),
+                'fetch_head_refs' => count($fetch_head_refs),
+                'reflog_refs' => count($reflog_refs),
                 'valid_commit_ref_tips' => count($commit_refs),
                 'displayed_commits' => count($commits),
                 'tracked_files_at_head' => $tracked_file_count,
@@ -582,10 +696,66 @@ class External_Git_Tracker {
                 'loose_heads' => $this->summarize_refs($loose_heads),
                 'loose_remotes' => $this->summarize_refs($loose_remotes),
                 'packed_refs' => $this->summarize_refs($packed_refs),
+                'fetch_head_refs' => $this->summarize_refs($fetch_head_refs),
+                'reflog_refs' => $this->summarize_refs($reflog_refs),
                 'valid_commit_refs_by_sha' => $this->summarize_refs_by_sha($commit_refs),
             ],
             'displayed_commits' => $this->summarize_commits($commits),
             'last_error' => $this->last_error,
+        ];
+
+        $debug['diagnosis'] = $this->diagnose_history($debug);
+        return $debug;
+    }
+
+    private function read_shallow_commits(): array {
+        $path = $this->git_dir . '/shallow';
+        if (!file_exists($path)) {
+            return [];
+        }
+
+        $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines === false) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', $lines), fn($line) => $this->is_valid_sha($line)));
+    }
+
+    private function diagnose_history(array $debug): array {
+        $counts = $debug['counts'] ?? [];
+        $displayed_commits = (int) ($counts['displayed_commits'] ?? 0);
+        $valid_ref_tips = (int) ($counts['valid_commit_ref_tips'] ?? 0);
+        $is_shallow = !empty($debug['shallow']['exists']);
+
+        if ($displayed_commits <= 1 && $valid_ref_tips <= 1) {
+            if ($is_shallow) {
+                return [
+                    'limited' => true,
+                    'reason' => 'shallow_single_ref',
+                    'message' => 'Only one commit is available from this shallow Git checkout. The main branch history is not present in this .git directory.',
+                ];
+            }
+
+            return [
+                'limited' => true,
+                'reason' => 'single_ref',
+                'message' => 'Only one commit is reachable from refs in this .git directory. Additional branch history is not present locally.',
+            ];
+        }
+
+        if ($is_shallow) {
+            return [
+                'limited' => true,
+                'reason' => 'shallow',
+                'message' => 'This is a shallow Git checkout, so some history may be unavailable.',
+            ];
+        }
+
+        return [
+            'limited' => false,
+            'reason' => null,
+            'message' => null,
         ];
     }
 
