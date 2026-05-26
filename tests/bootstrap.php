@@ -159,6 +159,12 @@ if (!function_exists('check_ajax_referer')) {
     }
 }
 
+if (!function_exists('wp_create_nonce')) {
+    function wp_create_nonce($action = -1) {
+        return 'test';
+    }
+}
+
 if (!function_exists('wp_send_json_error')) {
     function wp_send_json_error($data = null, $status_code = null) {
         $GLOBALS['wp_test_json_response'] = [
@@ -335,6 +341,7 @@ if (!function_exists('esc_html_e'))          { function esc_html_e($text, $domai
 if (!function_exists('esc_attr'))            { function esc_attr($text) { return htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); } }
 if (!function_exists('esc_attr_e'))          { function esc_attr_e($text, $domain = '') { echo esc_attr($text); } }
 if (!function_exists('esc_url'))             { function esc_url($url) { return (string) $url; } }
+if (!function_exists('checked'))             { function checked($checked, $current = true, $display = true) { $result = ((string) $checked === (string) $current) ? ' checked="checked"' : ''; if ($display) { echo $result; } return $result; } }
 if (!function_exists('admin_url'))           { function admin_url($path = '') { return 'http://example.test/wp-admin/' . ltrim($path, '/'); } }
 if (!function_exists('wp_nonce_url'))        { function wp_nonce_url($url, $action = -1) { return $url . (strpos($url, '?') === false ? '?' : '&') . '_wpnonce=test'; } }
 if (!function_exists('is_wp_error'))         { function is_wp_error($thing) { return $thing instanceof WP_Error; } }
