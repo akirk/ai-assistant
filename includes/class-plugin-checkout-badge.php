@@ -55,22 +55,23 @@ class Plugin_Checkout_Badge {
         }
 
         $status = $this->current_checkout_status;
-        $short_sha = $status['short_sha'] ?? '';
         $plugin_name = $status['name'] ?? __('Plugin', 'ai-assistant');
-        $title = sprintf(
-            __('%s is checked out to commit %s and is not showing the latest tracked state.', 'ai-assistant'),
-            $plugin_name,
-            $short_sha
-        );
+        $commit_message = trim((string) ($status['commit_message'] ?? ''));
+        $title = $commit_message !== ''
+            ? sprintf(
+                __('%s is not current. Checked out change: %s', 'ai-assistant'),
+                $plugin_name,
+                $commit_message
+            )
+            : sprintf(
+                __('%s is checked out and is not showing the latest tracked state.', 'ai-assistant'),
+                $plugin_name
+            );
 
         $this->render_style();
         ?>
-        <div class="ai-assistant-checkout-badge" role="status" title="<?php echo esc_attr($title); ?>" data-ai-plugin="<?php echo esc_attr($status['relative_root'] ?? ''); ?>">
+        <div class="ai-assistant-checkout-badge" role="status" aria-label="<?php echo esc_attr($title); ?>" title="<?php echo esc_attr($title); ?>" data-ai-plugin="<?php echo esc_attr($status['relative_root'] ?? ''); ?>">
             <span class="ai-assistant-checkout-badge-label"><?php esc_html_e('Not current', 'ai-assistant'); ?></span>
-            <span class="ai-assistant-checkout-badge-name"><?php echo esc_html($plugin_name); ?></span>
-            <?php if ($short_sha !== ''): ?>
-            <span class="ai-assistant-checkout-badge-sha"><?php echo esc_html($short_sha); ?></span>
-            <?php endif; ?>
         </div>
         <?php
         $this->badge_rendered = true;
@@ -85,50 +86,33 @@ class Plugin_Checkout_Badge {
         <style id="ai-assistant-checkout-badge-style">
             .ai-assistant-checkout-badge {
                 position: fixed;
-                top: 12px;
+                bottom: 16px;
                 right: 16px;
                 z-index: 1000000;
-                display: flex;
-                align-items: center;
-                gap: 7px;
-                max-width: min(420px, calc(100vw - 32px));
                 box-sizing: border-box;
-                padding: 6px 9px;
+                padding: 4px 8px;
                 border: 1px solid #dba617;
-                border-left-width: 4px;
                 border-radius: 4px;
-                background: #1d2327;
-                color: #fff;
-                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
-                font: 12px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                background: #fff8e5;
+                color: #5f4100;
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.10);
+                opacity: 0.82;
+                font: 11px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
                 letter-spacing: 0;
             }
-            body.admin-bar .ai-assistant-checkout-badge {
-                top: 44px;
+            .ai-assistant-checkout-badge:hover,
+            .ai-assistant-checkout-badge:focus-within {
+                opacity: 1;
             }
             .ai-assistant-checkout-badge-label {
-                flex: 0 0 auto;
                 font-weight: 700;
-                color: #ffd24d;
+                color: inherit;
                 text-transform: uppercase;
             }
-            .ai-assistant-checkout-badge-name {
-                min-width: 0;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-            }
-            .ai-assistant-checkout-badge-sha {
-                flex: 0 0 auto;
-                padding: 1px 5px;
-                border-radius: 3px;
-                background: rgba(255, 255, 255, 0.12);
-                color: #f6f7f7;
-                font-family: Consolas, Monaco, monospace;
-            }
             @media screen and (max-width: 782px) {
-                body.admin-bar .ai-assistant-checkout-badge {
-                    top: 58px;
+                .ai-assistant-checkout-badge {
+                    bottom: 12px;
+                    right: 12px;
                 }
             }
         </style>
@@ -257,12 +241,14 @@ class Plugin_Checkout_Badge {
             return null;
         }
 
+        $commit = $tracker->get_commit_summary($checked_out_sha);
+
         return [
             'name' => $tracker->get_name(),
             'root' => $root,
             'relative_root' => $this->get_relative_root($root),
             'checked_out_sha' => $checked_out_sha,
-            'short_sha' => substr($checked_out_sha, 0, 7),
+            'commit_message' => $commit['message'] ?? '',
             'latest_sha' => $latest_sha,
         ];
     }

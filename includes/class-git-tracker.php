@@ -1019,6 +1019,55 @@ class Git_Tracker {
     }
 
     /**
+     * Get display metadata for a specific commit.
+     */
+    public function get_commit_summary(string $sha): ?array {
+        if (!$this->is_active() || !preg_match('/^[a-f0-9]{40}$/', $sha)) {
+            return null;
+        }
+
+        $commit_data = $this->read_object($sha);
+        if ($commit_data === null || $commit_data['type'] !== 'commit') {
+            return null;
+        }
+
+        $tree = null;
+        $parent = null;
+        $timestamp = null;
+        $message = '';
+        $in_message = false;
+
+        foreach (explode("\n", $commit_data['content']) as $line) {
+            if ($in_message) {
+                $message .= ($message ? "\n" : '') . $line;
+            } elseif ($line === '') {
+                $in_message = true;
+            } elseif (strpos($line, 'tree ') === 0) {
+                $tree = substr($line, 5);
+            } elseif (strpos($line, 'parent ') === 0) {
+                $parent = substr($line, 7);
+            } elseif (strpos($line, 'author ') === 0) {
+                if (preg_match('/(\d+)\s+[+-]\d{4}$/', $line, $m)) {
+                    $timestamp = (int) $m[1];
+                }
+            }
+        }
+
+        $metadata = $this->parse_commit_metadata(trim($message));
+
+        return [
+            'sha' => $sha,
+            'short_sha' => substr($sha, 0, 7),
+            'tree' => $tree,
+            'parent' => $parent,
+            'message' => $metadata['reason'],
+            'conversation_id' => $metadata['conversation_id'],
+            'timestamp' => $timestamp,
+            'date' => $timestamp ? date('Y-m-d H:i:s', $timestamp) : null,
+        ];
+    }
+
+    /**
      * Get paginated commit log from ai-changes branch.
      */
     public function get_commit_log(int $limit = 20, int $offset = 0): array {
