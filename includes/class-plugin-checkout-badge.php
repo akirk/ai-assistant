@@ -118,7 +118,7 @@ class Plugin_Checkout_Badge {
                 $plugin_name
             );
         $summary_prefix = $is_old_version ? __('Old Version:', 'ai-assistant') : __('Current version', 'ai-assistant');
-        $panel_kicker = $is_old_version ? __('Old Version', 'ai-assistant') : __('Current version', 'ai-assistant');
+        $panel_kicker = $is_old_version ? __('Old Version', 'ai-assistant') : '';
 
         $this->render_style();
         ?>
@@ -140,7 +140,9 @@ class Plugin_Checkout_Badge {
                 data-ajax-url="<?php echo esc_url($this->get_ajax_url()); ?>"
                 data-nonce="<?php echo esc_attr($this->get_disable_nonce()); ?>">x</button>
             <div class="ai-assistant-checkout-badge-panel" role="status">
+                <?php if ($panel_kicker !== ''): ?>
                 <div class="ai-assistant-checkout-badge-kicker"><?php echo esc_html($panel_kicker); ?></div>
+                <?php endif; ?>
                 <div class="ai-assistant-checkout-badge-plugin"><?php echo esc_html($plugin_name); ?></div>
                 <?php if ($commit_message !== ''): ?>
                 <div class="ai-assistant-checkout-badge-full-message"><?php echo esc_html($commit_message); ?></div>
