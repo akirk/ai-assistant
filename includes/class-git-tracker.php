@@ -181,11 +181,16 @@ class Git_Tracker {
 
         $entries = $this->read_index();
         $created = $this->get_created_files();
+        $created_lookup = array_flip($created);
+        $created_change_counts = $this->get_created_file_change_counts($created);
         $directories = [];
 
         // Process modified/deleted files from index
         foreach ($entries as $path => $info) {
             if (empty($path) || strlen($path) < 1 || strpos($path, "\0") !== false) {
+                continue;
+            }
+            if (isset($created_lookup[$path])) {
                 continue;
             }
             $full_path = $this->work_tree . '/' . $path;
@@ -210,6 +215,7 @@ class Git_Tracker {
                 'path' => $path,
                 'relative_path' => basename($path),
                 'change_type' => $change_type,
+                'change_types' => [$change_type],
                 'sha' => $info['sha'] ?? null,
                 'is_reverted' => $this->is_reverted($path),
             ];
@@ -240,6 +246,7 @@ class Git_Tracker {
                 'path' => $path,
                 'relative_path' => basename($path),
                 'change_type' => 'created',
+                'change_types' => $this->get_created_file_change_types($path, $entries, $created_change_counts),
                 'sha' => null,
                 'is_reverted' => $this->is_reverted($path),
             ];
@@ -260,11 +267,16 @@ class Git_Tracker {
 
         $entries = $this->read_index();
         $created = $this->get_created_files();
+        $created_lookup = array_flip($created);
+        $created_change_counts = $this->get_created_file_change_counts($created);
         $files = [];
 
         // Process modified/deleted files from index
         foreach ($entries as $path => $info) {
             if (empty($path) || strlen($path) < 1 || strpos($path, "\0") !== false) {
+                continue;
+            }
+            if (isset($created_lookup[$path])) {
                 continue;
             }
             $full_path = $this->work_tree . '/' . $path;
@@ -276,6 +288,7 @@ class Git_Tracker {
                 'path' => $path,
                 'relative_path' => $path,
                 'change_type' => $change_type,
+                'change_types' => [$change_type],
                 'sha' => $info['sha'] ?? null,
                 'is_reverted' => $this->is_reverted($path),
             ];
@@ -291,6 +304,7 @@ class Git_Tracker {
                 'path' => $path,
                 'relative_path' => $path,
                 'change_type' => 'created',
+                'change_types' => $this->get_created_file_change_types($path, $entries, $created_change_counts),
                 'sha' => null,
                 'is_reverted' => $this->is_reverted($path),
             ];
@@ -455,6 +469,53 @@ class Git_Tracker {
         return array_unique($affected);
     }
 
+    private function get_created_file_change_types(string $path, array $entries, array $created_change_counts): array {
+        $change_types = ['created'];
+
+        if (isset($entries[$path]) || ($created_change_counts[$path] ?? 0) > 1) {
+            $change_types[] = 'modified';
+        }
+
+        return $change_types;
+    }
+
+    private function get_created_file_change_counts(array $created): array {
+        $counts = array_fill_keys($created, 0);
+        if (empty($created)) {
+            return $counts;
+        }
+
+        $ref_path = $this->git_dir . '/refs/heads/ai-changes';
+        if (!file_exists($ref_path)) {
+            return $counts;
+        }
+
+        $created_lookup = array_flip($created);
+        $sha = trim(file_get_contents($ref_path));
+
+        while ($sha) {
+            $commit_data = $this->read_object($sha);
+            if ($commit_data === null || $commit_data['type'] !== 'commit') {
+                break;
+            }
+
+            $parent = null;
+            if (preg_match('/^parent ([a-f0-9]{40})/m', $commit_data['content'], $m)) {
+                $parent = $m[1];
+            }
+
+            foreach ($this->get_commit_affected_files($sha, $parent) as $path) {
+                if (isset($created_lookup[$path])) {
+                    $counts[$path]++;
+                }
+            }
+
+            $sha = $parent;
+        }
+
+        return $counts;
+    }
+
     /**
      * Generate unified diff for specified files.
      */
@@ -471,11 +532,12 @@ class Git_Tracker {
         if (empty($file_paths)) {
             $file_paths = array_merge(array_keys($entries), $created);
         }
+        $file_paths = array_values(array_unique($file_paths));
 
         foreach ($file_paths as $path) {
             $full_path = $this->work_tree . '/' . $path;
 
-            if (in_array($path, $created)) {
+            if (in_array($path, $created, true)) {
                 // New file
                 if (file_exists($full_path)) {
                     $current = file_get_contents($full_path);
@@ -1770,7 +1832,7 @@ class Git_Tracker {
             return [];
         }
         $content = file_get_contents($path);
-        return $content ? array_filter(explode("\n", $content)) : [];
+        return $content ? array_values(array_unique(array_filter(explode("\n", $content)))) : [];
     }
 
     private function write_created_files(array $files): void {

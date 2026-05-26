@@ -180,7 +180,7 @@ class Changes_Admin {
                 </h1>
 
                 <p class="description">
-                    <?php echo esc_html(sprintf(__('Review tracked files, commits, and diffs for %s.', 'ai-assistant'), $selected_plugin_path . '/')); ?>
+                    <?php esc_html_e('Review tracked files, commits, and diffs. ZIP downloads include the .git directory, so you can inspect the history with Git tools, add local commits, or push the repository to GitHub while retaining the commit history.', 'ai-assistant'); ?>
                 </p>
 
                 <?php $this->render_plugin_detail($selected_plugin_path, $selected_plugin); ?>
@@ -383,20 +383,32 @@ class Changes_Admin {
         ?>
         <div class="ai-plugin-files">
             <div class="ai-plugin-section-header"><?php esc_html_e('Changed Files', 'ai-assistant'); ?></div>
-            <?php foreach ($plugin['files'] as $file): ?>
+            <?php foreach ($plugin['files'] as $file):
+                $change_types = isset($file['change_types']) && is_array($file['change_types'])
+                    ? array_values(array_unique(array_filter($file['change_types'], 'is_string')))
+                    : [(string) ($file['change_type'] ?? '')];
+            ?>
             <div class="ai-changes-file">
                 <div class="ai-changes-file-row">
                     <button type="button" class="ai-file-preview-toggle" data-path="<?php echo esc_attr($file['path']); ?>" title="<?php esc_attr_e('Preview diff', 'ai-assistant'); ?>">▶</button>
                     <span class="ai-changes-file-path"><?php echo esc_html($file['relative_path'] ?: basename($file['path'])); ?></span>
                     <span class="ai-lint-status" data-path="<?php echo esc_attr($file['path']); ?>"></span>
-                    <span class="ai-changes-type ai-changes-type-<?php echo esc_attr($file['change_type']); ?>">
-                        <?php echo esc_html(ucfirst($file['change_type'])); ?>
+                    <span class="ai-changes-file-badges">
+                        <?php foreach ($change_types as $change_type):
+                            if ($change_type === '') {
+                                continue;
+                            }
+                        ?>
+                        <span class="ai-changes-type ai-changes-type-<?php echo esc_attr($change_type); ?>">
+                            <?php echo esc_html($this->get_change_type_label($change_type)); ?>
+                        </span>
+                        <?php endforeach; ?>
+                        <?php if (!empty($file['is_reverted'])): ?>
+                        <span class="ai-changes-type ai-changes-type-reverted">
+                            <?php echo esc_html($this->get_change_type_label('reverted')); ?>
+                        </span>
+                        <?php endif; ?>
                     </span>
-                    <?php if (!empty($file['is_reverted'])): ?>
-                    <span class="ai-changes-type ai-changes-type-reverted">
-                        <?php esc_html_e('Reverted', 'ai-assistant'); ?>
-                    </span>
-                    <?php endif; ?>
                 </div>
                 <div class="ai-file-inline-preview" data-path="<?php echo esc_attr($file['path']); ?>" style="display: none;">
                     <pre><code></code></pre>
@@ -405,6 +417,21 @@ class Changes_Admin {
             <?php endforeach; ?>
         </div>
         <?php
+    }
+
+    private function get_change_type_label(string $change_type): string {
+        switch ($change_type) {
+            case 'created':
+                return __('Created', 'ai-assistant');
+            case 'modified':
+                return __('Changed', 'ai-assistant');
+            case 'deleted':
+                return __('Deleted', 'ai-assistant');
+            case 'reverted':
+                return __('Reverted', 'ai-assistant');
+            default:
+                return ucfirst($change_type);
+        }
     }
 
     private function render_import_section(): void {

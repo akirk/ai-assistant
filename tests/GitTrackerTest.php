@@ -278,6 +278,46 @@ class GitTrackerTest extends TestCase {
         $this->assertEquals(1, $changes['includes']['count']);
     }
 
+    public function test_created_files_are_not_duplicated_when_also_indexed(): void {
+        $path = 'created-then-modified.txt';
+        file_put_contents($this->plugin_dir . '/' . $path, 'final content');
+
+        $this->tracker->track_change($path, 'modified', 'original content', 'Modified file');
+        file_put_contents($this->git_dir . '/ai-created', $path . "\n");
+
+        $info = $this->tracker->get_changes_info();
+
+        $this->assertSame(1, $info['file_count']);
+        $this->assertCount(1, $info['files']);
+        $this->assertSame($path, $info['files'][0]['path']);
+        $this->assertSame('created', $info['files'][0]['change_type']);
+        $this->assertSame(['created', 'modified'], $info['files'][0]['change_types']);
+
+        $directories = $this->tracker->get_changes_by_directory();
+        $this->assertArrayHasKey('', $directories);
+        $this->assertSame(1, $directories['']['count']);
+        $this->assertSame('created', $directories['']['files'][0]['change_type']);
+        $this->assertSame(['created', 'modified'], $directories['']['files'][0]['change_types']);
+
+        $diff = $this->tracker->generate_diff();
+        $this->assertSame(1, substr_count($diff, 'diff --git a/' . $path . ' b/' . $path));
+    }
+
+    public function test_created_files_show_changed_type_after_later_commit(): void {
+        $path = 'created-then-changed.txt';
+        file_put_contents($this->plugin_dir . '/' . $path, 'initial content');
+        $this->tracker->track_change($path, 'created', null, 'Created file');
+
+        file_put_contents($this->plugin_dir . '/' . $path, 'changed content');
+        $this->tracker->track_change($path, 'modified', 'initial content', 'Changed file');
+
+        $info = $this->tracker->get_changes_info();
+
+        $this->assertSame(1, $info['file_count']);
+        $this->assertSame('created', $info['files'][0]['change_type']);
+        $this->assertSame(['created', 'modified'], $info['files'][0]['change_types']);
+    }
+
     // -------------------------------------------------------------------------
     // build_standalone_git tests
     // -------------------------------------------------------------------------
