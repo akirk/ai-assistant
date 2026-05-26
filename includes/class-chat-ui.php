@@ -189,6 +189,7 @@ class Chat_UI {
             'readonlyAbilities' => Ability_Annotations::get_readonly_ability_ids(),
             'autoApprovedRestApis' => $settings->get_auto_approved_rest_apis(),
             'settingsUrl' => admin_url('options-general.php?page=ai-assistant-settings'),
+            'aiChangesUrl' => admin_url('tools.php?page=ai-changes'),
             'conversationExportUrl' => admin_url('admin-post.php?action=ai_assistant_export_conversation'),
             'conversationExportFormats' => ai_assistant()->conversations()->get_export_formats_for_config(),
             'adminUrl' => admin_url(),

@@ -104,6 +104,7 @@ function createToolCardsDom() {
             this.children = [];
             this.parent = null;
             this.textContent = text || '';
+            this.styles = {};
 
             if (this.attrs.class) {
                 this.attrs.class.split(/\s+/).filter(Boolean).forEach(className => {
@@ -114,7 +115,10 @@ function createToolCardsDom() {
     }
 
     const byId = {};
+    const chatContainer = new Element('div', { class: 'ai-assistant-chat-container' });
     const messages = new Element('div', { id: 'ai-assistant-messages' });
+    messages.parent = chatContainer;
+    chatContainer.children.push(messages);
     byId['ai-assistant-messages'] = messages;
 
     function register(element) {
@@ -163,6 +167,12 @@ function createToolCardsDom() {
             length: elements.length,
             elements,
             append(childWrapper) {
+                if (typeof childWrapper === 'string') {
+                    elements.forEach(parent => {
+                        parent.textContent += childWrapper;
+                    });
+                    return this;
+                }
                 const children = childWrapper && childWrapper.elements ? childWrapper.elements : [];
                 elements.forEach(parent => {
                     children.forEach(child => {
@@ -171,6 +181,16 @@ function createToolCardsDom() {
                         parent.children.push(child);
                         register(child);
                     });
+                });
+                return this;
+            },
+            empty() {
+                elements.forEach(element => {
+                    element.children.forEach(child => {
+                        child.parent = null;
+                    });
+                    element.children = [];
+                    element.textContent = '';
                 });
                 return this;
             },
@@ -183,6 +203,24 @@ function createToolCardsDom() {
                     if (name === 'class') {
                         element.classes = new Set(String(value).split(/\s+/).filter(Boolean));
                     }
+                });
+                return this;
+            },
+            prop(name, value) {
+                if (value === undefined) {
+                    return elements[0] ? elements[0][name] : undefined;
+                }
+                elements.forEach(element => {
+                    element[name] = value;
+                });
+                return this;
+            },
+            css(name, value) {
+                if (value === undefined) {
+                    return elements[0] ? elements[0].styles[name] : undefined;
+                }
+                elements.forEach(element => {
+                    element.styles[name] = String(value);
                 });
                 return this;
             },
@@ -217,6 +255,18 @@ function createToolCardsDom() {
             },
             hasClass(className) {
                 return !!(elements[0] && elements[0].classes.has(className));
+            },
+            last() {
+                return wrapper(elements.length ? [elements[elements.length - 1]] : []);
+            },
+            outerHeight() {
+                return elements[0] && elements[0].offsetHeight ? elements[0].offsetHeight : 0;
+            },
+            is(selector) {
+                if (selector === ':visible') {
+                    return !!elements[0] && elements[0].hidden !== true;
+                }
+                return false;
             }
         };
     }
@@ -259,6 +309,9 @@ function createToolCardsDom() {
         if (selector === '#ai-assistant-messages') {
             return wrapper([messages]);
         }
+        if (selector === '.ai-assistant-chat-container') {
+            return wrapper([chatContainer]);
+        }
         if (typeof selector === 'string' && selector[0] === '#') {
             const element = byId[selector.slice(1)];
             return wrapper(element ? [element] : []);
@@ -278,6 +331,15 @@ function createToolCardsDom() {
         get summary() {
             const container = byId['ai-assistant-tool-cards'];
             return container && container.children[0];
+        },
+        get messages() {
+            return messages;
+        },
+        get chatContainer() {
+            return chatContainer;
+        },
+        getById(id) {
+            return byId[id];
         }
     };
 }
@@ -953,5 +1015,132 @@ describe('tool result display', function() {
 
         assert.deepStrictEqual(classes, ['ai-json-key', 'cm-property']);
         assert.deepStrictEqual(valueClasses, []);
+    });
+});
+
+describe('AI changes links', function() {
+    it('uses server-reported AI Changes metadata for read_file links', function() {
+        const assistant = loadUiMixin({
+            aiChangesUrl: 'http://example.test/wp-admin/tools.php?page=ai-changes'
+        });
+
+        assert.strictEqual(
+            assistant.getAiChangesRootFromToolCall(
+                'read_file',
+                { path: 'plugins/example/includes/admin.php' },
+                {
+                    path: 'plugins/example/includes/admin.php',
+                    ai_changes: {
+                        root: 'plugins/example',
+                        type: 'plugin'
+                    }
+                }
+            ),
+            'plugins/example'
+        );
+
+        assert.strictEqual(
+            assistant.getAiChangesUrlForRoot('plugins/example'),
+            'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fexample'
+        );
+    });
+
+    it('does not infer AI Changes links from paths or plugin slugs alone', function() {
+        const assistant = loadUiMixin();
+
+        assert.strictEqual(
+            assistant.getAiChangesRootFromToolCall(
+                'write_file',
+                { path: 'plugins/input-plugin/main.php' },
+                {
+                    path: 'plugins/result-plugin/main.php',
+                    plugin_slug: 'ignored-slug'
+                }
+            ),
+            ''
+        );
+
+        assert.strictEqual(
+            assistant.getAiChangesRootFromToolCall(
+                'write_file',
+                {},
+                { plugin_slug: 'ignored-slug' }
+            ),
+            ''
+        );
+    });
+
+    it('uses nested server metadata from recovery and ability results', function() {
+        const assistant = loadUiMixin();
+
+        assert.strictEqual(
+            assistant.getAiChangesRootFromToolCall(
+                'edit_file',
+                { path: 'plugins/broken-plugin/main.php' },
+                {
+                    error: 'Plugin file change broke WordPress.',
+                    file_result: {
+                        path: 'plugins/broken-plugin/main.php',
+                        ai_changes: {
+                            root: 'plugins/broken-plugin',
+                            type: 'plugin'
+                        }
+                    }
+                }
+            ),
+            'plugins/broken-plugin'
+        );
+
+        assert.strictEqual(
+            assistant.getAiChangesRootFromToolCall(
+                'ability',
+                { ability: 'ai/create-wp-app' },
+                {
+                    result: {
+                        plugin_file: '/var/www/html/wp-content/plugins/my-app/my-app.php',
+                        plugin_slug: 'ignored-slug',
+                        ai_changes: {
+                            root: 'plugins/my-app',
+                            type: 'plugin'
+                        }
+                    }
+                }
+            ),
+            'plugins/my-app'
+        );
+    });
+
+    it('renders AI Changes as a conversation suggestion instead of a tool-card link', function() {
+        const dom = createToolCardsDom();
+        const assistant = loadUiMixin({
+            aiChangesUrl: 'http://example.test/wp-admin/tools.php?page=ai-changes'
+        }, { jQuery: dom.$ });
+
+        assistant.showAiChangesSuggestion(
+            'read_file',
+            { path: 'plugins/example/example.php' },
+            {
+                path: 'plugins/example/example.php',
+                ai_changes: {
+                    root: 'plugins/example',
+                    type: 'plugin'
+                }
+            }
+        );
+
+        const suggestion = dom.getById('ai-assistant-ai-changes-suggestion');
+        const link = dom.getById('ai-assistant-ai-changes-link');
+
+        assert.ok(suggestion);
+        assert.strictEqual(suggestion.parent, dom.chatContainer);
+        assert.strictEqual(suggestion.classes.has('ai-assistant-ai-changes-suggestion'), true);
+        assert.strictEqual(suggestion.hidden, false);
+        assert.ok(link);
+        assert.strictEqual(link.parent, suggestion);
+        assert.strictEqual(link.textContent, 'Review file changes');
+        assert.strictEqual(
+            link.attrs.href,
+            'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fexample'
+        );
     });
 });

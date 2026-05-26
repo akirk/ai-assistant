@@ -264,7 +264,7 @@
                         self.setToolCardState(result.id, 'completed', successOptions);
                     } else {
                         var errorMsg = result.result?.error || 'Failed';
-                        self.setToolCardState(result.id, 'error', { message: errorMsg });
+                        self.setToolCardState(result.id, 'error', { message: errorMsg, output: result.result });
                     }
                     if (self.notifyToolCallCallbacks) {
                         self.notifyToolCallCallbacks(result, provider);
@@ -1499,7 +1499,7 @@
                             : { output: result.result };
                         self.setToolCardState(result.id, 'completed', successOptions);
                     } else {
-                        self.setToolCardState(result.id, 'error', { message: result.result?.error || 'Failed' });
+                        self.setToolCardState(result.id, 'error', { message: result.result?.error || 'Failed', output: result.result });
                     }
                     if (self.notifyToolCallCallbacks) {
                         self.notifyToolCallCallbacks(result, provider);
@@ -1845,7 +1845,7 @@
                         self.setToolCardState(result.id, 'completed', { output: result.result });
                     } else {
                         var errorMsg = result.result?.error || 'Failed';
-                        self.setToolCardState(result.id, 'error', { message: errorMsg });
+                        self.setToolCardState(result.id, 'error', { message: errorMsg, output: result.result });
                     }
                     if (self.notifyToolCallCallbacks) {
                         self.notifyToolCallCallbacks(result, providersById[result.id] || resultProvider);

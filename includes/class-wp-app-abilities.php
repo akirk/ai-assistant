@@ -190,7 +190,7 @@ class Wp_App_Abilities {
             $this->track_created_files($slug, $created_files, $plugin_name);
         }
 
-        return [
+        $response = [
             'plugin_dir'   => $target_dir,
             'plugin_file'  => $target_dir . DIRECTORY_SEPARATOR . $plugin_file,
             'plugin_slug'  => $slug,
@@ -201,6 +201,15 @@ class Wp_App_Abilities {
             'messages'     => $result['messages'] ?? [],
             'warnings'     => $warnings,
         ];
+
+        if ($this->git_tracker_manager !== null) {
+            $ai_changes = $this->git_tracker_manager->get_ai_changes_metadata_for_path('plugins/' . $slug . '/' . $plugin_file);
+            if ($ai_changes !== null) {
+                $response['ai_changes'] = $ai_changes;
+            }
+        }
+
+        return $response;
     }
 
     private function get_input_schema(): array {

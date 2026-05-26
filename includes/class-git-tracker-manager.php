@@ -198,6 +198,40 @@ class Git_Tracker_Manager {
     }
 
     /**
+     * Get AI Changes metadata for a wp-content-relative path.
+     *
+     * Returns null unless the path belongs to a plugin/theme tracker with an
+     * ai-changes branch, which keeps read-only file tools from advertising the
+     * changes page for untouched plugins.
+     *
+     * @param string $path Path relative to wp-content.
+     * @return array<string,string>|null
+     */
+    public function get_ai_changes_metadata_for_path(string $path): ?array {
+        $root = $this->get_root_for_path($path);
+        if ($root === null) {
+            return null;
+        }
+
+        $tracker = $this->get_or_create_tracker($root);
+        if (!$tracker->has_ai_changes()) {
+            return null;
+        }
+
+        $relative_root = $this->get_relative_path($root);
+        $metadata = [
+            'root' => $relative_root,
+            'type' => strpos($relative_root, 'themes/') === 0 ? 'theme' : 'plugin',
+        ];
+
+        if (function_exists('admin_url')) {
+            $metadata['url'] = admin_url('tools.php?page=ai-changes&plugin=' . rawurlencode($relative_root));
+        }
+
+        return $metadata;
+    }
+
+    /**
      * Generate diff for files across all trackers.
      *
      * @param array $file_paths Paths relative to wp-content

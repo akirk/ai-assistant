@@ -13,12 +13,14 @@ class FileToolExecutorTest extends TestCase {
         $this->deleteIfExists($this->secretPath());
         $this->deleteIfExists(WP_CONTENT_DIR . '/secret-link.php');
         $this->deleteIfExists(WP_CONTENT_DIR . '/visible-secret-test.php');
+        $this->deleteDirectoryIfExists(WP_PLUGIN_DIR . '/ai-changes-meta-test');
     }
 
     protected function tearDown(): void {
         $this->deleteIfExists($this->secretPath());
         $this->deleteIfExists(WP_CONTENT_DIR . '/secret-link.php');
         $this->deleteIfExists(WP_CONTENT_DIR . '/visible-secret-test.php');
+        $this->deleteDirectoryIfExists(WP_PLUGIN_DIR . '/ai-changes-meta-test');
     }
 
     public function test_read_file_rejects_file_tool_signing_secret(): void {
@@ -74,6 +76,46 @@ class FileToolExecutorTest extends TestCase {
         $this->assertSame('visible-secret-test.php', $result['matches'][0]['path']);
     }
 
+    public function test_file_tools_report_ai_changes_metadata_server_side(): void {
+        $manager = new \AI_Assistant\Git_Tracker_Manager();
+        $executor = new File_Tool_Executor(WP_CONTENT_DIR, $manager);
+        $path = 'plugins/ai-changes-meta-test/meta.php';
+
+        $write_result = $executor->execute('write_file', [
+            'path' => $path,
+            'content' => "<?php\n// changed\n",
+            'reason' => 'Create metadata test plugin file',
+        ]);
+
+        $this->assertArrayHasKey('ai_changes', $write_result);
+        $this->assertSame('plugins/ai-changes-meta-test', $write_result['ai_changes']['root']);
+        $this->assertSame('plugin', $write_result['ai_changes']['type']);
+
+        $read_result = $executor->execute('read_file', [
+            'path' => $path,
+        ]);
+
+        $this->assertArrayHasKey('ai_changes', $read_result);
+        $this->assertSame('plugins/ai-changes-meta-test', $read_result['ai_changes']['root']);
+    }
+
+    public function test_read_file_omits_ai_changes_metadata_without_tracked_changes(): void {
+        $manager = new \AI_Assistant\Git_Tracker_Manager();
+        $executor = new File_Tool_Executor(WP_CONTENT_DIR, $manager);
+        $dir = WP_PLUGIN_DIR . '/ai-changes-meta-test';
+
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        file_put_contents($dir . '/meta.php', "<?php\n// unchanged\n");
+
+        $result = $executor->execute('read_file', [
+            'path' => 'plugins/ai-changes-meta-test/meta.php',
+        ]);
+
+        $this->assertArrayNotHasKey('ai_changes', $result);
+    }
+
     private function createSecretFile(): void {
         file_put_contents($this->secretPath(), "<?php\nreturn 'test-signing-secret';\n");
     }
@@ -86,5 +128,18 @@ class FileToolExecutorTest extends TestCase {
         if (is_link($path) || is_file($path)) {
             unlink($path);
         }
+    }
+
+    private function deleteDirectoryIfExists(string $dir): void {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        foreach (array_diff(scandir($dir), ['.', '..']) as $file) {
+            $path = $dir . '/' . $file;
+            is_dir($path) ? $this->deleteDirectoryIfExists($path) : unlink($path);
+        }
+
+        rmdir($dir);
     }
 }
