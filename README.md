@@ -110,7 +110,8 @@ Find this under **Tools > AI Changes**. Every file the AI creates or modifies is
 
 - **View diffs**: Click any file to see exactly what changed
 - **Commit history**: Browse individual commits with expandable diffs
-- **Revert**: Restore any file to its original state, or revert to a specific commit
+- **Checkout**: Check out a previous commit to test that state; new AI changes continue from the checked-out commit
+- **Revert**: Restore any file to its original state
 - **Reapply**: Re-apply previously reverted changes
 - **Export**: Select files and download a unified `.patch` file
 - **Import**: Apply patch files to your installation

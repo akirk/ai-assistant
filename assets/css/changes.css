@@ -643,11 +643,13 @@
     background: #f9f9f9;
 }
 
-.ai-commit-current {
+.ai-commit-latest,
+.ai-commit-checked-out {
     background: var(--ai-assistant-accent-soft);
 }
 
-.ai-commit-current:hover {
+.ai-commit-latest:hover,
+.ai-commit-checked-out:hover {
     background: var(--ai-assistant-accent-highlight);
 }
 
@@ -692,7 +694,7 @@
     font-style: italic;
 }
 
-.ai-revert-to-commit {
+.ai-checkout-commit {
     padding: 2px 8px !important;
     font-size: 11px !important;
     min-height: 0 !important;

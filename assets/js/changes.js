@@ -150,12 +150,12 @@
                 self.revertPlugin(plugin, $(this));
             });
 
-            // Revert to commit
-            $(document).on('click', '.ai-revert-to-commit', function(e) {
+            // Checkout commit
+            $(document).on('click', '.ai-checkout-commit', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
                 var sha = $(this).data('sha');
-                self.revertToCommit(sha, $(this));
+                self.checkoutCommit(sha, $(this));
             });
 
             // Commit diff toggle
@@ -201,17 +201,13 @@
             }
         },
 
-        revertToCommit: function(sha, $button) {
-            if (!confirm(aiChanges.strings.confirmRevertToCommit || 'Are you sure you want to revert all files to this commit?')) {
-                return;
-            }
-
+        checkoutCommit: function(sha, $button) {
             var pluginPath = $button.closest('.ai-plugin-card').data('plugin');
             var originalText = $button.text();
-            $button.text(aiChanges.strings.revertingToCommit || 'Reverting...').prop('disabled', true);
+            $button.text(aiChanges.strings.checkingOutCommit || 'Checking out...').prop('disabled', true);
 
             $.post(aiChanges.ajaxUrl, {
-                action: 'ai_assistant_revert_to_commit',
+                action: 'ai_assistant_checkout_commit',
                 nonce: aiChanges.nonce,
                 plugin_path: pluginPath,
                 sha: sha
@@ -219,11 +215,11 @@
                 if (response.success) {
                     location.reload();
                 } else {
-                    alert(response.data.message || aiChanges.strings.revertToCommitError || 'Failed to revert to commit');
+                    alert(response.data.message || aiChanges.strings.checkoutCommitError || 'Failed to check out commit');
                     $button.text(originalText).prop('disabled', false);
                 }
             }).fail(function() {
-                alert(aiChanges.strings.revertToCommitError || 'Failed to revert to commit');
+                alert(aiChanges.strings.checkoutCommitError || 'Failed to check out commit');
                 $button.text(originalText).prop('disabled', false);
             });
         },

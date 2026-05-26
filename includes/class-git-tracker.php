@@ -17,6 +17,7 @@ class Git_Tracker {
     private string $git_dir;
     private string $work_tree;
     private bool $existing_git;
+    private const CHECKOUT_STATE_FILE = 'ai-checkout';
 
     /**
      * Create a Git_Tracker for a specific directory.
@@ -296,6 +297,7 @@ class Git_Tracker {
         }
 
         $commits = $this->get_recent_commits();
+        $checked_out_sha = $this->get_checked_out_commit();
 
         return [
             'path' => basename($this->work_tree),
@@ -305,6 +307,7 @@ class Git_Tracker {
             'file_count' => count($files),
             'commits' => $commits,
             'commit_count' => count($commits),
+            'checked_out_sha' => $checked_out_sha,
         ];
     }
 
@@ -322,7 +325,9 @@ class Git_Tracker {
         }
 
         $commits = [];
-        $sha = trim(file_get_contents($ref_path));
+        $head_sha = trim(file_get_contents($ref_path));
+        $checked_out_sha = $this->get_checked_out_commit();
+        $sha = $head_sha;
 
         while ($sha && count($commits) < $limit) {
             $commit_data = $this->read_object($sha);
@@ -365,6 +370,8 @@ class Git_Tracker {
                 'conversation_id' => $metadata['conversation_id'],
                 'timestamp' => $timestamp,
                 'date' => $timestamp ? date('Y-m-d H:i:s', $timestamp) : null,
+                'is_latest' => $sha === $head_sha,
+                'is_checked_out' => $checked_out_sha !== null && $sha === $checked_out_sha,
             ];
 
             $sha = $parent;
@@ -522,8 +529,12 @@ class Git_Tracker {
 
         $full_path = $this->work_tree . '/' . $relative_path;
 
-        // Ensure ai-changes branch has current state before reverting
-        $this->update_ai_changes_branch();
+        // Ensure ai-changes branch has current state before reverting. When the
+        // working tree is a checked-out commit, the latest branch already
+        // preserves the abandoned state.
+        if ($this->get_checked_out_commit() === null) {
+            $this->update_ai_changes_branch();
+        }
 
         // Check if it's a created file
         $created = $this->get_created_files();
@@ -687,6 +698,19 @@ class Git_Tracker {
      */
     public function has_ai_changes(): bool {
         return file_exists($this->git_dir . '/refs/heads/ai-changes');
+    }
+
+    /**
+     * Get the commit currently checked out into the working tree, if any.
+     */
+    public function get_checked_out_commit(): ?string {
+        $state = $this->read_checkout_state();
+        if ($state === null) {
+            return null;
+        }
+
+        $sha = $state['sha'] ?? '';
+        return $this->is_valid_commit($sha) ? $sha : null;
     }
 
     /**
@@ -1050,7 +1074,9 @@ class Git_Tracker {
         }
 
         $commits = [];
-        $sha = trim(file_get_contents($ref_path));
+        $head_sha = trim(file_get_contents($ref_path));
+        $checked_out_sha = $this->get_checked_out_commit();
+        $sha = $head_sha;
         $skipped = 0;
 
         while ($sha && count($commits) < $limit + 1) {
@@ -1101,6 +1127,8 @@ class Git_Tracker {
                 'conversation_id' => $metadata['conversation_id'],
                 'timestamp' => $timestamp,
                 'date' => $timestamp ? date('Y-m-d H:i:s', $timestamp) : null,
+                'is_latest' => $sha === $head_sha,
+                'is_checked_out' => $checked_out_sha !== null && $sha === $checked_out_sha,
             ];
 
             $sha = $parent;
@@ -1178,9 +1206,9 @@ class Git_Tracker {
     }
 
     /**
-     * Revert all files to the state at a specific commit.
+     * Check out all tracked files to the state at a specific commit.
      */
-    public function revert_to_commit(string $target_sha): array {
+    public function checkout_commit(string $target_sha): array {
         if (!$this->is_active()) {
             return ['success' => false, 'errors' => ['Tracking not active']];
         }
@@ -1196,12 +1224,13 @@ class Git_Tracker {
         $target_tree = $matches[1];
 
         $target_files = $this->get_tree_files($target_tree, '');
+        $paths_seen_by_target = $this->get_paths_seen_by_commit($target_sha);
 
         $entries = $this->read_index();
         $created = $this->get_created_files();
         $all_tracked = array_merge(array_keys($entries), $created);
 
-        $reverted = [];
+        $checked_out = [];
         $errors = [];
 
         foreach ($all_tracked as $path) {
@@ -1215,7 +1244,7 @@ class Git_Tracker {
                         mkdir($dir, 0755, true);
                     }
                     file_put_contents($full_path, $content);
-                    $reverted[] = $path;
+                    $checked_out[] = $path;
                 } else {
                     $errors[] = "Could not read content for: $path";
                 }
@@ -1223,23 +1252,47 @@ class Git_Tracker {
                 if (in_array($path, $created)) {
                     if (file_exists($full_path)) {
                         unlink($full_path);
-                        $reverted[] = $path;
+                        $checked_out[] = $path;
+                    }
+                } elseif (isset($paths_seen_by_target[$path])) {
+                    if (file_exists($full_path)) {
+                        unlink($full_path);
+                        $checked_out[] = $path;
                     }
                 } elseif (isset($entries[$path])) {
                     $original = $this->read_blob($entries[$path]['sha']);
                     if ($original !== null) {
                         file_put_contents($full_path, $original);
-                        $reverted[] = $path;
+                        $checked_out[] = $path;
                     }
                 }
             }
         }
 
+        $head_sha = $this->get_ai_changes_head();
+        if (empty($errors)) {
+            if ($head_sha === $target_sha) {
+                $this->clear_checkout_state();
+            } else {
+                $this->write_checkout_state($target_sha, $head_sha);
+            }
+        }
+
         return [
             'success' => empty($errors),
-            'reverted' => $reverted,
+            'checked_out' => $checked_out,
+            'reverted' => $checked_out,
+            'checked_out_sha' => empty($errors) ? $target_sha : null,
+            'previous_head' => empty($errors) ? $head_sha : null,
             'errors' => $errors,
         ];
+    }
+
+    /**
+     * Backward-compatible alias for older callers.
+     */
+    public function revert_to_commit(string $target_sha): array {
+        return $this->checkout_commit($target_sha);
     }
 
     /**
@@ -1264,6 +1317,126 @@ class Git_Tracker {
         }
 
         return $files;
+    }
+
+    private function get_commit_tree_files(string $commit_sha): array {
+        $commit_data = $this->read_object($commit_sha);
+        if ($commit_data === null || $commit_data['type'] !== 'commit') {
+            return [];
+        }
+
+        if (!preg_match('/^tree ([a-f0-9]{40})/m', $commit_data['content'], $matches)) {
+            return [];
+        }
+
+        return $this->get_tree_files($matches[1], '');
+    }
+
+    private function get_paths_seen_by_commit(string $commit_sha): array {
+        $paths = [];
+        $sha = $commit_sha;
+
+        while ($sha) {
+            $commit_data = $this->read_object($sha);
+            if ($commit_data === null || $commit_data['type'] !== 'commit') {
+                break;
+            }
+
+            if (preg_match('/^tree ([a-f0-9]{40})/m', $commit_data['content'], $matches)) {
+                foreach (array_keys($this->get_tree_files($matches[1], '')) as $path) {
+                    $paths[$path] = true;
+                }
+            }
+
+            $parent = null;
+            if (preg_match('/^parent ([a-f0-9]{40})/m', $commit_data['content'], $matches)) {
+                $parent = $matches[1];
+            }
+            $sha = $parent;
+        }
+
+        return $paths;
+    }
+
+    private function get_ai_changes_head(): ?string {
+        $ref_path = $this->git_dir . '/refs/heads/ai-changes';
+        if (!file_exists($ref_path)) {
+            return null;
+        }
+
+        $sha = trim(file_get_contents($ref_path));
+        return $sha !== '' ? $sha : null;
+    }
+
+    private function is_valid_commit(?string $sha): bool {
+        if (!$sha || !preg_match('/^[a-f0-9]{40}$/', $sha)) {
+            return false;
+        }
+
+        $commit_data = $this->read_object($sha);
+        return $commit_data !== null && $commit_data['type'] === 'commit';
+    }
+
+    private function read_checkout_state(): ?array {
+        $path = $this->git_dir . '/' . self::CHECKOUT_STATE_FILE;
+        if (!file_exists($path)) {
+            return null;
+        }
+
+        $state = json_decode((string) file_get_contents($path), true);
+        if (!is_array($state) || empty($state['sha']) || !is_string($state['sha'])) {
+            return null;
+        }
+
+        if (!preg_match('/^[a-f0-9]{40}$/', $state['sha'])) {
+            return null;
+        }
+
+        if (isset($state['previous_head']) && $state['previous_head'] !== null && !is_string($state['previous_head'])) {
+            $state['previous_head'] = null;
+        }
+
+        return $state;
+    }
+
+    private function write_checkout_state(string $sha, ?string $previous_head): void {
+        $state = [
+            'sha' => $sha,
+            'previous_head' => $previous_head,
+            'timestamp' => time(),
+        ];
+
+        $json = function_exists('wp_json_encode') ? wp_json_encode($state) : json_encode($state);
+        file_put_contents($this->git_dir . '/' . self::CHECKOUT_STATE_FILE, $json);
+    }
+
+    private function clear_checkout_state(): void {
+        $path = $this->git_dir . '/' . self::CHECKOUT_STATE_FILE;
+        if (file_exists($path)) {
+            unlink($path);
+        }
+    }
+
+    private function save_previous_ai_changes_head(?string $sha): ?string {
+        if (!$this->is_valid_commit($sha)) {
+            return null;
+        }
+
+        $refs_dir = $this->git_dir . '/refs/heads/ai-changes-before-checkout';
+        if (!is_dir($refs_dir)) {
+            mkdir($refs_dir, 0755, true);
+        }
+
+        $base_name = gmdate('YmdHis') . '-' . substr((string) $sha, 0, 7);
+        $name = $base_name;
+        $counter = 2;
+        while (file_exists($refs_dir . '/' . $name)) {
+            $name = $base_name . '-' . $counter;
+            $counter++;
+        }
+
+        file_put_contents($refs_dir . '/' . $name, $sha . "\n");
+        return 'ai-changes-before-checkout/' . $name;
     }
 
     // -------------------------------------------------------------------------
@@ -1516,6 +1689,17 @@ class Git_Tracker {
     private function update_ai_changes_branch(string $reason = '', ?int $conversation_id = null): void {
         $entries = $this->read_index();
         $created = $this->get_created_files();
+        $checkout_state = $this->read_checkout_state();
+        $checked_out_sha = null;
+        $checked_out_files = [];
+
+        if ($checkout_state !== null && $this->is_valid_commit($checkout_state['sha'] ?? null)) {
+            $checked_out_sha = $checkout_state['sha'];
+            $checked_out_files = $this->get_commit_tree_files($checked_out_sha);
+        } elseif ($checkout_state !== null) {
+            $this->clear_checkout_state();
+            $checkout_state = null;
+        }
 
         $files = [];
 
@@ -1524,6 +1708,14 @@ class Git_Tracker {
             $full_path = $this->work_tree . '/' . $path;
             if (file_exists($full_path)) {
                 $content = file_get_contents($full_path);
+
+                if ($checked_out_sha !== null && !isset($checked_out_files[$path])) {
+                    $original = $this->read_blob($info['sha']);
+                    if ($original !== null && $content === $original) {
+                        continue;
+                    }
+                }
+
                 $sha = $this->write_blob($content);
                 $files[$path] = $sha;
             }
@@ -1540,7 +1732,7 @@ class Git_Tracker {
             }
         }
 
-        if (empty($files)) {
+        if (empty($files) && empty($entries) && empty($created)) {
             return;
         }
 
@@ -1556,6 +1748,16 @@ class Git_Tracker {
             $parent = file_exists($main_ref) ? trim(file_get_contents($main_ref)) : null;
         }
 
+        if ($checked_out_sha !== null) {
+            if ($parent && $parent !== $checked_out_sha) {
+                $previous_head = $checkout_state['previous_head'] ?? $parent;
+                if ($previous_head !== $checked_out_sha) {
+                    $this->save_previous_ai_changes_head($previous_head);
+                }
+            }
+            $parent = $checked_out_sha;
+        }
+
         $message = $reason ?: 'AI modification';
         if ($conversation_id) {
             $message .= "\n\nConversation: " . $conversation_id;
@@ -1565,6 +1767,10 @@ class Git_Tracker {
         // Update ref and HEAD
         file_put_contents($ref_path, $commit_sha . "\n");
         file_put_contents($this->git_dir . '/HEAD', "ref: refs/heads/ai-changes\n");
+
+        if ($checked_out_sha !== null) {
+            $this->clear_checkout_state();
+        }
     }
 
     /**
