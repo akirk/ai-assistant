@@ -274,6 +274,24 @@ class Chat_UI {
             }
         }
 
+        if (!empty($metadata['version_log']) && is_array($metadata['version_log'])) {
+            $prompt .= "- Current-window version log rows:\n";
+            foreach ($metadata['version_log'] as $row) {
+                if (empty($row['label']) || empty($row['message'])) {
+                    continue;
+                }
+
+                $row_line = "  - {$row['label']}: {$row['message']}";
+                if (!empty($row['time_ago'])) {
+                    $row_line .= " ({$row['time_ago']})";
+                }
+                if (!empty($row['url'])) {
+                    $row_line .= " - {$row['url']}";
+                }
+                $prompt .= $row_line . "\n";
+            }
+        }
+
         return $prompt;
     }
 

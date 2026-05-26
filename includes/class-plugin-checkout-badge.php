@@ -83,6 +83,8 @@ class Plugin_Checkout_Badge {
         $message_excerpt = $this->get_message_excerpt($commit_message);
         $time_ago = $this->format_relative_time(isset($status['commit_timestamp']) ? (int) $status['commit_timestamp'] : null);
         $links = isset($status['links']) && is_array($status['links']) ? $status['links'] : [];
+        $version_log = isset($status['version_log']) && is_array($status['version_log']) ? $status['version_log'] : [];
+        $overview_link = $this->get_overview_link_from_links($links);
         $label = $commit_message !== ''
             ? sprintf(
                 __('Viewing checked-out change for %s: %s', 'ai-assistant'),
@@ -114,12 +116,45 @@ class Plugin_Checkout_Badge {
                 <?php if ($time_ago !== ''): ?>
                 <div class="ai-assistant-checkout-badge-meta"><?php echo esc_html(sprintf(__('Committed %s', 'ai-assistant'), $time_ago)); ?></div>
                 <?php endif; ?>
-                <?php if (!empty($links)): ?>
-                <div class="ai-assistant-checkout-badge-links">
-                    <?php foreach ($links as $link): ?>
-                    <?php if (empty($link['url']) || empty($link['label'])) { continue; } ?>
-                    <a class="ai-assistant-checkout-badge-link" href="<?php echo esc_url($link['url']); ?>"><?php echo esc_html($link['label']); ?></a>
+                <?php if (!empty($version_log)): ?>
+                <div class="ai-assistant-checkout-badge-log" aria-label="<?php esc_attr_e('Version history', 'ai-assistant'); ?>">
+                    <?php foreach ($version_log as $row): ?>
+                    <?php
+                    $row_key = isset($row['key']) ? (string) $row['key'] : '';
+                    $row_label = isset($row['label']) ? (string) $row['label'] : '';
+                    $row_message = isset($row['message_excerpt']) ? (string) $row['message_excerpt'] : (string) ($row['message'] ?? '');
+                    $row_time = isset($row['time_ago']) ? (string) $row['time_ago'] : '';
+                    $row_url = isset($row['url']) ? (string) $row['url'] : '';
+                    $row_classes = ['ai-assistant-checkout-badge-log-row'];
+                    if (!empty($row['is_current'])) {
+                        $row_classes[] = 'is-current';
+                    }
+                    if (!empty($row['is_unavailable'])) {
+                        $row_classes[] = 'is-unavailable';
+                    }
+                    $row_class = implode(' ', $row_classes);
+                    ?>
+                    <?php if ($row_url !== ''): ?>
+                    <a class="<?php echo esc_attr($row_class); ?>" href="<?php echo esc_url($row_url); ?>" data-version-row="<?php echo esc_attr($row_key); ?>">
+                    <?php else: ?>
+                    <div class="<?php echo esc_attr($row_class); ?>" data-version-row="<?php echo esc_attr($row_key); ?>">
+                    <?php endif; ?>
+                        <span class="ai-assistant-checkout-badge-log-label"><?php echo esc_html($row_label); ?></span>
+                        <span class="ai-assistant-checkout-badge-log-message"><?php echo esc_html($row_message); ?></span>
+                        <?php if ($row_time !== ''): ?>
+                        <span class="ai-assistant-checkout-badge-log-time"><?php echo esc_html($row_time); ?></span>
+                        <?php endif; ?>
+                    <?php if ($row_url !== ''): ?>
+                    </a>
+                    <?php else: ?>
+                    </div>
+                    <?php endif; ?>
                     <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
+                <?php if (!empty($overview_link['url'])): ?>
+                <div class="ai-assistant-checkout-badge-actions">
+                    <a class="ai-assistant-checkout-badge-link" href="<?php echo esc_url($overview_link['url']); ?>"><?php echo esc_html($overview_link['label'] ?? __('Overview', 'ai-assistant')); ?></a>
                 </div>
                 <?php endif; ?>
             </div>
@@ -220,10 +255,60 @@ class Plugin_Checkout_Badge {
                 margin-top: 5px;
                 color: #806000;
             }
-            .ai-assistant-checkout-badge-links {
+            .ai-assistant-checkout-badge-log {
+                display: grid;
+                gap: 1px;
+                margin-top: 8px;
+                overflow: hidden;
+                border: 1px solid #ead38d;
+                border-radius: 4px;
+                background: #ead38d;
+            }
+            .ai-assistant-checkout-badge-log-row {
+                display: grid;
+                grid-template-columns: 58px minmax(0, 1fr) auto;
+                align-items: center;
+                gap: 7px;
+                min-height: 24px;
+                padding: 4px 7px;
+                background: #fffdf6;
+                color: #3c434a;
+                text-decoration: none;
+            }
+            .ai-assistant-checkout-badge-log-row:hover,
+            .ai-assistant-checkout-badge-log-row:focus {
+                background: #fff8e5;
+                color: #2c3338;
+                text-decoration: none;
+            }
+            .ai-assistant-checkout-badge-log-row.is-current {
+                background: #fff4d1;
+                font-weight: 700;
+            }
+            .ai-assistant-checkout-badge-log-row.is-unavailable {
+                color: #806000;
+                opacity: 0.72;
+            }
+            .ai-assistant-checkout-badge-log-label {
+                color: #806000;
+                font-size: 10px;
+                font-weight: 700;
+                text-transform: uppercase;
+            }
+            .ai-assistant-checkout-badge-log-message {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .ai-assistant-checkout-badge-log-time {
+                color: #806000;
+                font-size: 10px;
+                white-space: nowrap;
+            }
+            .ai-assistant-checkout-badge-actions {
                 display: flex;
-                flex-wrap: wrap;
-                gap: 8px;
+                justify-content: flex-end;
                 margin-top: 7px;
             }
             .ai-assistant-checkout-badge-link {
@@ -376,7 +461,8 @@ class Plugin_Checkout_Badge {
                 ? admin_url('tools.php?page=ai-changes&plugin=' . rawurlencode($relative_root))
                 : '',
             'open_in_current_window' => true,
-            'links' => $this->get_ai_changes_links($tracker, $relative_root),
+            'version_log' => $this->get_ai_changes_version_log($tracker, $relative_root),
+            'links' => $this->get_ai_changes_links($relative_root),
         ];
     }
 
@@ -410,47 +496,107 @@ class Plugin_Checkout_Badge {
             'ai_changes_url' => function_exists('admin_url')
                 ? admin_url('tools.php?page=ai-changes&plugin=' . rawurlencode($relative_root))
                 : '',
-            'links' => $this->get_ai_changes_links($tracker, $relative_root),
+            'version_log' => $this->get_ai_changes_version_log($tracker, $relative_root),
+            'links' => $this->get_ai_changes_links($relative_root),
             'latest_sha' => $latest_sha,
         ];
     }
 
-    private function get_ai_changes_links(Git_Tracker $tracker, string $relative_root): array {
-        $links = [];
+    private function get_ai_changes_version_log(Git_Tracker $tracker, string $relative_root): array {
         $commits = $tracker->get_recent_commits(100);
+        if (empty($commits)) {
+            return [];
+        }
+
         $current_sha = $tracker->get_checked_out_commit();
-        $current_index = 0;
+        if ($current_sha === null) {
+            $current_sha = $commits[0]['sha'] ?? null;
+        }
 
-        if ($current_sha !== null) {
-            $current_index = null;
-            foreach ($commits as $index => $commit) {
-                if (($commit['sha'] ?? '') === $current_sha) {
-                    $current_index = $index;
-                    break;
-                }
+        $current_index = null;
+        foreach ($commits as $index => $commit) {
+            if (($commit['sha'] ?? '') === $current_sha) {
+                $current_index = $index;
+                break;
             }
         }
 
-        if ($current_index !== null) {
-            if (isset($commits[$current_index + 1]['sha'])) {
-                $links[] = [
-                    'key' => 'previous-version',
-                    'label' => __('Previous version', 'ai-assistant'),
-                    'url' => $this->get_checkout_url($relative_root, $commits[$current_index + 1]['sha']),
-                    'open_in_current_window' => true,
-                ];
-            }
+        $current_commit = $current_index !== null
+            ? $commits[$current_index]
+            : ($current_sha ? $tracker->get_commit_summary($current_sha) : null);
 
-            if ($current_index > 0 && isset($commits[$current_index - 1]['sha'])) {
-                $links[] = [
-                    'key' => 'next-version',
-                    'label' => __('Next version', 'ai-assistant'),
-                    'url' => $this->get_checkout_url($relative_root, $commits[$current_index - 1]['sha']),
-                    'open_in_current_window' => true,
-                ];
-            }
+        return [
+            $this->get_version_log_row(
+                'next',
+                __('Next', 'ai-assistant'),
+                $current_index !== null && $current_index > 0 ? $commits[$current_index - 1] : null,
+                $relative_root,
+                false,
+                __('No newer version', 'ai-assistant')
+            ),
+            $this->get_version_log_row(
+                'current',
+                __('Current', 'ai-assistant'),
+                $current_commit,
+                $relative_root,
+                true,
+                __('Current version unavailable', 'ai-assistant')
+            ),
+            $this->get_version_log_row(
+                'previous',
+                __('Previous', 'ai-assistant'),
+                $current_index !== null && isset($commits[$current_index + 1]) ? $commits[$current_index + 1] : null,
+                $relative_root,
+                false,
+                __('No previous version', 'ai-assistant')
+            ),
+        ];
+    }
+
+    private function get_version_log_row(
+        string $key,
+        string $label,
+        ?array $commit,
+        string $relative_root,
+        bool $is_current,
+        string $empty_message
+    ): array {
+        if (empty($commit['sha'])) {
+            return [
+                'key' => $key,
+                'label' => $label,
+                'message' => $empty_message,
+                'message_excerpt' => $empty_message,
+                'time_ago' => '',
+                'is_current' => $is_current,
+                'is_unavailable' => true,
+            ];
         }
 
+        $message = (string) ($commit['message'] ?? '');
+        $timestamp = isset($commit['timestamp']) ? (int) $commit['timestamp'] : null;
+        $row = [
+            'key' => $key,
+            'label' => $label,
+            'sha' => (string) $commit['sha'],
+            'message' => $message,
+            'message_excerpt' => $this->get_message_excerpt($message),
+            'timestamp' => $timestamp,
+            'time_ago' => $this->format_relative_time($timestamp),
+            'is_current' => $is_current,
+            'is_unavailable' => false,
+            'open_in_current_window' => true,
+        ];
+
+        if (!$is_current) {
+            $row['url'] = $this->get_checkout_url($relative_root, (string) $commit['sha']);
+        }
+
+        return $row;
+    }
+
+    private function get_ai_changes_links(string $relative_root): array {
+        $links = [];
         $overview_url = $this->get_overview_url($relative_root);
         if ($overview_url !== '') {
             $links[] = [
@@ -464,6 +610,16 @@ class Plugin_Checkout_Badge {
         return array_values(array_filter($links, function($link) {
             return !empty($link['url']);
         }));
+    }
+
+    private function get_overview_link_from_links(array $links): array {
+        foreach ($links as $link) {
+            if (($link['key'] ?? '') === 'overview' && !empty($link['url'])) {
+                return $link;
+            }
+        }
+
+        return [];
     }
 
     private function get_overview_url(string $relative_root): string {
