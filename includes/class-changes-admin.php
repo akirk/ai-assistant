@@ -19,7 +19,6 @@ class Changes_Admin {
         add_action('wp_ajax_ai_assistant_get_changes', [$this, 'ajax_get_changes']);
         add_action('wp_ajax_ai_assistant_get_changes_by_plugin', [$this, 'ajax_get_changes_by_plugin']);
         add_action('wp_ajax_ai_assistant_generate_diff', [$this, 'ajax_generate_diff']);
-        add_action('wp_ajax_ai_assistant_clear_changes', [$this, 'ajax_clear_changes']);
         add_action('wp_ajax_ai_assistant_apply_patch', [$this, 'ajax_apply_patch']);
         add_action('wp_ajax_ai_assistant_revert_file', [$this, 'ajax_revert_file']);
         add_action('wp_ajax_ai_assistant_reapply_file', [$this, 'ajax_reapply_file']);
@@ -97,27 +96,10 @@ class Changes_Admin {
         wp_localize_script('ai-assistant-changes', 'aiChanges', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('ai_assistant_changes'),
-            'downloadNonce' => wp_create_nonce('ai_assistant_download_diff'),
-            'downloadUrl' => admin_url('admin.php?action=ai_assistant_download_diff'),
             'strings' => [
-                'confirmClear' => __('Are you sure you want to clear all tracked changes? This cannot be undone.', 'ai-assistant'),
-                'noSelection' => __('Please select at least one file to download.', 'ai-assistant'),
-                'clearing' => __('Clearing...', 'ai-assistant'),
                 'importing' => __('Importing...', 'ai-assistant'),
                 'importSuccess' => __('Patch applied successfully! %d file(s) modified.', 'ai-assistant'),
                 'importError' => __('Failed to apply patch.', 'ai-assistant'),
-                'confirmRevert' => __('Are you sure you want to revert this file to its original state?', 'ai-assistant'),
-                'reverting' => __('...', 'ai-assistant'),
-                'revertError' => __('Failed to revert file.', 'ai-assistant'),
-                'confirmReapply' => __('Are you sure you want to reapply the changes to this file?', 'ai-assistant'),
-                'reapplyError' => __('Failed to reapply changes.', 'ai-assistant'),
-                'revert' => __('Revert', 'ai-assistant'),
-                'reapply' => __('Reapply', 'ai-assistant'),
-                'revertTitle' => __('Revert this change', 'ai-assistant'),
-                'reapplyTitle' => __('Reapply this change', 'ai-assistant'),
-                'confirmRevertDir' => __('Are you sure you want to revert %d file(s) in this directory?', 'ai-assistant'),
-                'confirmRevertPlugin' => __('Are you sure you want to revert %d file(s) in this plugin?', 'ai-assistant'),
-                'nothingToRevert' => __('No files to revert.', 'ai-assistant'),
                 'syntaxError' => __('Syntax Error', 'ai-assistant'),
                 'syntaxOk' => __('Syntax OK', 'ai-assistant'),
                 'checkingOutCommit' => __('Checking out...', 'ai-assistant'),
@@ -141,8 +123,8 @@ class Changes_Admin {
         $screen->add_help_tab([
             'id'      => 'ai-changes-overview',
             'title'   => __('Overview', 'ai-assistant'),
-            'content' => '<p>' . __('The AI Changes page tracks all file modifications made by the AI Assistant. This allows you to review, export, revert, or reapply changes.', 'ai-assistant') . '</p>'
-                       . '<p>' . __('Changes are organized by directory and show the type of modification (created, modified, or deleted).', 'ai-assistant') . '</p>',
+            'content' => '<p>' . __('The AI Changes page tracks file modifications made by the AI Assistant. The overview links to a separate page for each plugin or theme with tracked changes.', 'ai-assistant') . '</p>'
+                       . '<p>' . __('Use the plugin or theme page to review changed files, inspect commit diffs, and check out a previous commit state.', 'ai-assistant') . '</p>',
         ]);
 
         $screen->add_help_tab([
@@ -151,18 +133,15 @@ class Changes_Admin {
             'content' => '<p>' . __('Available actions:', 'ai-assistant') . '</p>'
                        . '<ul>'
                        . '<li><strong>' . __('Import Patch', 'ai-assistant') . '</strong> - ' . __('Upload a .patch, .diff, or .txt file to apply changes to your files.', 'ai-assistant') . '</li>'
-                       . '<li><strong>' . __('Download .patch', 'ai-assistant') . '</strong> - ' . __('Select files and download a unified diff patch file.', 'ai-assistant') . '</li>'
-                       . '<li><strong>' . __('Revert', 'ai-assistant') . '</strong> - ' . __('Restore a file to its original state before AI modification.', 'ai-assistant') . '</li>'
-                       . '<li><strong>' . __('Reapply', 'ai-assistant') . '</strong> - ' . __('Re-apply previously reverted changes.', 'ai-assistant') . '</li>'
-                       . '<li><strong>' . __('Clear History', 'ai-assistant') . '</strong> - ' . __('Remove all tracked changes from the list.', 'ai-assistant') . '</li>'
+                       . '<li><strong>' . __('Download ZIP', 'ai-assistant') . '</strong> - ' . __('Download the plugin or theme with its git history.', 'ai-assistant') . '</li>'
+                       . '<li><strong>' . __('Checkout Commit', 'ai-assistant') . '</strong> - ' . __('Check out all tracked files from a previous commit state.', 'ai-assistant') . '</li>'
                        . '</ul>',
         ]);
 
         $screen->add_help_tab([
             'id'      => 'ai-changes-diff',
             'title'   => __('Diff Preview', 'ai-assistant'),
-            'content' => '<p>' . __('Click the arrow (▶) next to any file to preview its diff inline.', 'ai-assistant') . '</p>'
-                       . '<p>' . __('Select multiple files using the checkboxes to see a combined diff in the preview panel at the bottom.', 'ai-assistant') . '</p>'
+            'content' => '<p>' . __('Click the arrow (▶) next to any file or commit to preview its diff inline.', 'ai-assistant') . '</p>'
                        . '<p>' . __('The diff shows:', 'ai-assistant') . '</p>'
                        . '<ul>'
                        . '<li><span style="color: #22863a;">+ Green lines</span> - ' . __('Added content', 'ai-assistant') . '</li>'
@@ -179,174 +158,236 @@ class Changes_Admin {
 
     public function render_page(): void {
         $plugins = $this->git_tracker_manager->get_all_changes_by_plugin();
-        $has_changes = !empty($plugins);
+        $selected_plugin_path = $this->get_requested_plugin_path();
+        $selected_plugin = $selected_plugin_path !== '' && isset($plugins[$selected_plugin_path])
+            ? $plugins[$selected_plugin_path]
+            : null;
         ?>
         <div class="wrap ai-changes-wrap">
-            <h1><?php esc_html_e('AI Changes', 'ai-assistant'); ?></h1>
+            <?php if ($selected_plugin): ?>
+                <h1>
+                    <?php echo esc_html(sprintf(__('AI Changes: %s', 'ai-assistant'), $selected_plugin['name'])); ?>
+                    <a href="<?php echo esc_url($this->get_all_changes_url()); ?>" class="page-title-action"><?php esc_html_e('All plugins', 'ai-assistant'); ?></a>
+                </h1>
 
-            <p class="description">
-                <?php esc_html_e('Track and export changes made by the AI assistant. Changes are grouped by plugin/theme with commit history and conversation references.', 'ai-assistant'); ?>
-            </p>
+                <p class="description">
+                    <?php echo esc_html(sprintf(__('Review tracked files, commits, and diffs for %s.', 'ai-assistant'), $selected_plugin_path . '/')); ?>
+                </p>
 
-            <?php if ($has_changes): ?>
-            <div class="ai-changes-actions">
-                <button type="button" class="button" id="ai-select-all">
-                    <?php esc_html_e('Select All', 'ai-assistant'); ?>
-                </button>
-                <button type="button" class="button" id="ai-clear-selection">
-                    <?php esc_html_e('Clear Selection', 'ai-assistant'); ?>
-                </button>
-                <button type="button" class="button" id="ai-clear-history">
-                    <?php esc_html_e('Clear History', 'ai-assistant'); ?>
-                </button>
-            </div>
+                <?php $this->render_plugin_detail($selected_plugin_path, $selected_plugin); ?>
+            <?php else: ?>
+                <h1><?php esc_html_e('AI Changes', 'ai-assistant'); ?></h1>
 
-            <div class="ai-changes-plugins">
-                <?php foreach ($plugins as $plugin_path => $plugin): ?>
-                <div class="ai-plugin-card" data-plugin="<?php echo esc_attr($plugin_path); ?>">
-                    <div class="ai-plugin-header">
-                        <label class="ai-plugin-header-label">
-                            <input type="checkbox" class="ai-plugin-checkbox" data-plugin="<?php echo esc_attr($plugin_path); ?>">
-                            <span class="ai-plugin-toggle">▶</span>
-                            <span class="ai-plugin-name"><?php echo esc_html($plugin['name']); ?></span>
-                            <span class="ai-plugin-path"><?php echo esc_html($plugin_path); ?>/</span>
-                        </label>
-                        <span class="ai-plugin-stats">
-                            <?php echo esc_html($plugin['file_count']); ?> <?php echo $plugin['file_count'] === 1 ? 'file' : 'files'; ?>,
-                            <?php echo esc_html($plugin['commit_count']); ?> <?php echo $plugin['commit_count'] === 1 ? 'commit' : 'commits'; ?>
-                        </span>
-                        <?php
-                        $download_url = wp_nonce_url(
-                            admin_url('admin.php?action=ai_assistant_download_plugin&path=' . urlencode($plugin_path)),
-                            'ai_assistant_download_' . $plugin_path
-                        );
-                        ?>
-                        <a href="<?php echo esc_url($download_url); ?>" class="button button-small" title="<?php esc_attr_e('Download as ZIP with git history', 'ai-assistant'); ?>">
-                            <?php esc_html_e('Download ZIP', 'ai-assistant'); ?>
-                        </a>
-                        <button type="button" class="button button-small ai-revert-plugin" data-plugin="<?php echo esc_attr($plugin_path); ?>" title="<?php esc_attr_e('Revert all files in this plugin', 'ai-assistant'); ?>">
-                            <?php esc_html_e('Revert All', 'ai-assistant'); ?>
-                        </button>
-                    </div>
-                    <div class="ai-plugin-content" style="display: none;">
-                        <?php if (!empty($plugin['commits'])): ?>
-                        <div class="ai-plugin-commits">
-                            <div class="ai-plugin-section-header"><?php esc_html_e('Recent Commits', 'ai-assistant'); ?></div>
-                            <?php
-                            $has_checked_out_commit = !empty($plugin['checked_out_sha']);
-                            foreach ($plugin['commits'] as $commit):
-                                $commit_row_classes = ['ai-commit-row'];
-                                if (!empty($commit['is_checked_out'])) {
-                                    $commit_row_classes[] = 'ai-commit-checked-out';
-                                } elseif (!empty($commit['is_latest'])) {
-                                    $commit_row_classes[] = 'ai-commit-latest';
-                                }
-                            ?>
-                            <div class="ai-commit-entry" data-sha="<?php echo esc_attr($commit['sha']); ?>">
-                                <div class="<?php echo esc_attr(implode(' ', $commit_row_classes)); ?>">
-                                    <div class="ai-commit-row-top">
-                                        <button type="button" class="ai-commit-diff-toggle" data-sha="<?php echo esc_attr($commit['sha']); ?>" title="<?php esc_attr_e('Preview diff', 'ai-assistant'); ?>">▶</button>
-                                        <span class="ai-commit-sha"><?php echo esc_html($commit['short_sha']); ?></span>
-                                        <span class="ai-commit-message"><?php echo esc_html($commit['message']); ?></span>
-                                        <?php if (!empty($commit['conversation_id'])): ?>
-                                        <a href="<?php echo esc_url(Conversations_App::get_conversation_url($commit['conversation_id'])); ?>"
-                                           class="ai-commit-conversation"
-                                           data-id="<?php echo esc_attr($commit['conversation_id']); ?>"
-                                           title="<?php esc_attr_e('View conversation', 'ai-assistant'); ?>">
-                                            Conv #<?php echo esc_html($commit['conversation_id']); ?>
-                                        </a>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="ai-commit-row-bottom">
-                                        <span class="ai-commit-date" title="<?php echo esc_attr($commit['date']); ?>"><?php echo esc_html($this->format_time_ago($commit['timestamp'])); ?></span>
-                                        <?php if (!empty($commit['is_latest'])): ?>
-                                        <span class="ai-commit-label"><?php esc_html_e('latest', 'ai-assistant'); ?></span>
-                                        <?php endif; ?>
-                                        <?php if (!empty($commit['is_checked_out'])): ?>
-                                        <span class="ai-commit-label ai-commit-label-checked-out"><?php esc_html_e('checked out', 'ai-assistant'); ?></span>
-                                        <?php endif; ?>
-                                        <?php if (empty($commit['is_checked_out']) && ($has_checked_out_commit || empty($commit['is_latest']))): ?>
-                                        <button type="button" class="button button-small ai-checkout-commit" data-sha="<?php echo esc_attr($commit['sha']); ?>" title="<?php esc_attr_e('Check out files from this commit', 'ai-assistant'); ?>">
-                                            <?php esc_html_e('Checkout', 'ai-assistant'); ?>
-                                        </button>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                                <div class="ai-commit-diff-preview" data-sha="<?php echo esc_attr($commit['sha']); ?>" style="display: none;">
-                                    <pre><code></code></pre>
-                                </div>
-                            </div>
-                            <?php endforeach; ?>
-                        </div>
-                        <?php endif; ?>
+                <p class="description">
+                    <?php esc_html_e('Track and export changes made by the AI assistant. Choose a plugin or theme to review its files, commits, and conversation references.', 'ai-assistant'); ?>
+                </p>
 
-                        <div class="ai-plugin-files">
-                            <div class="ai-plugin-section-header"><?php esc_html_e('Changed Files', 'ai-assistant'); ?></div>
-                            <?php foreach ($plugin['files'] as $file):
-                                $file_id = 'file-' . md5($file['path']);
-                            ?>
-                            <div class="ai-changes-file">
-                                <div class="ai-changes-file-row">
-                                    <input type="checkbox" class="ai-file-checkbox" id="<?php echo esc_attr($file_id); ?>"
-                                           data-path="<?php echo esc_attr($file['path']); ?>"
-                                           data-plugin="<?php echo esc_attr($plugin_path); ?>">
-                                    <button type="button" class="ai-file-preview-toggle" data-path="<?php echo esc_attr($file['path']); ?>" title="<?php esc_attr_e('Preview diff', 'ai-assistant'); ?>">▶</button>
-                                    <label class="ai-changes-file-path" for="<?php echo esc_attr($file_id); ?>"><?php echo esc_html($file['relative_path'] ?: basename($file['path'])); ?></label>
-                                    <span class="ai-lint-status" data-path="<?php echo esc_attr($file['path']); ?>"></span>
-                                    <span class="ai-changes-type ai-changes-type-<?php echo esc_attr($file['change_type']); ?>">
-                                        <?php echo esc_html(ucfirst($file['change_type'])); ?>
-                                    </span>
-                                    <?php if (!empty($file['is_reverted'])): ?>
-                                    <span class="ai-changes-type ai-changes-type-reverted">
-                                        <?php esc_html_e('Reverted', 'ai-assistant'); ?>
-                                    </span>
-                                    <?php endif; ?>
-                                    <?php if (!empty($file['is_reverted'])): ?>
-                                    <button type="button" class="button button-small ai-reapply-file" data-path="<?php echo esc_attr($file['path']); ?>" title="<?php esc_attr_e('Reapply this change', 'ai-assistant'); ?>">
-                                        <?php esc_html_e('Reapply', 'ai-assistant'); ?>
-                                    </button>
-                                    <?php else: ?>
-                                    <button type="button" class="button button-small ai-revert-file" data-path="<?php echo esc_attr($file['path']); ?>" title="<?php esc_attr_e('Revert this change', 'ai-assistant'); ?>">
-                                        <?php esc_html_e('Revert', 'ai-assistant'); ?>
-                                    </button>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="ai-file-inline-preview" data-path="<?php echo esc_attr($file['path']); ?>" style="display: none;">
-                                    <pre><code></code></pre>
-                                </div>
-                            </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
+                <?php if ($selected_plugin_path !== ''): ?>
+                <div class="notice notice-warning inline">
+                    <p><?php echo esc_html(sprintf(__('No AI changes found for %s.', 'ai-assistant'), $selected_plugin_path)); ?></p>
                 </div>
-                <?php endforeach; ?>
-            </div>
-            <div id="ai-diff-preview" class="ai-diff-preview">
-                <div class="ai-diff-preview-header">
-                    <h2><?php esc_html_e('Diff Preview', 'ai-assistant'); ?></h2>
-                    <div class="ai-diff-preview-actions">
-                        <button type="button" class="button button-primary" id="ai-download-diff">
-                            <?php esc_html_e('Download .patch', 'ai-assistant'); ?>
-                        </button>
-                        <button type="button" class="button" id="ai-close-preview">
-                            <?php esc_html_e('Close', 'ai-assistant'); ?>
-                        </button>
-                    </div>
-                </div>
-                <pre class="ai-diff-content"><code></code></pre>
-            </div>
+                <?php endif; ?>
+
+                <?php $this->render_plugins_index($plugins); ?>
             <?php endif; ?>
 
-            <div class="ai-import-section">
-                <h2><?php esc_html_e('Import Patch', 'ai-assistant'); ?></h2>
-                <p class="description">
-                    <?php esc_html_e('Apply a patch file to modify files in your wp-content directory. Supports unified diff format (.patch, .diff, or .txt files).', 'ai-assistant'); ?>
-                </p>
-                <input type="file" id="ai-patch-file" accept=".patch,.diff,.txt" style="display:none;">
-                <button type="button" class="button" id="ai-import-patch">
-                    <?php esc_html_e('Choose Patch File...', 'ai-assistant'); ?>
-                </button>
+            <?php $this->render_import_section(); ?>
+        </div>
+        <?php
+    }
+
+    private function get_requested_plugin_path(): string {
+        if (!isset($_GET['plugin']) || !is_string($_GET['plugin'])) {
+            return '';
+        }
+
+        return trim(sanitize_text_field(wp_unslash($_GET['plugin'])), '/');
+    }
+
+    private function get_all_changes_url(): string {
+        return admin_url('tools.php?page=ai-changes');
+    }
+
+    private function get_plugin_page_url(string $plugin_path): string {
+        return admin_url('tools.php?page=ai-changes&plugin=' . rawurlencode($plugin_path));
+    }
+
+    private function get_plugin_download_url(string $plugin_path): string {
+        return wp_nonce_url(
+            admin_url('admin.php?action=ai_assistant_download_plugin&path=' . urlencode($plugin_path)),
+            'ai_assistant_download_' . $plugin_path
+        );
+    }
+
+    private function render_plugins_index(array $plugins): void {
+        if (empty($plugins)) {
+            ?>
+            <div class="ai-changes-empty">
+                <p><?php esc_html_e('No AI changes tracked yet.', 'ai-assistant'); ?></p>
+                <p class="description"><?php esc_html_e('When the assistant modifies plugin or theme files, they will appear here.', 'ai-assistant'); ?></p>
             </div>
+            <?php
+            return;
+        }
+        ?>
+        <div class="ai-plugin-index">
+            <?php foreach ($plugins as $plugin_path => $plugin):
+                $file_count = (int) ($plugin['file_count'] ?? 0);
+                $commit_count = (int) ($plugin['commit_count'] ?? 0);
+                $latest_commit = !empty($plugin['commits'][0]) ? $plugin['commits'][0] : null;
+            ?>
+            <div class="ai-plugin-index-card">
+                <div class="ai-plugin-index-main">
+                    <a class="ai-plugin-index-name" href="<?php echo esc_url($this->get_plugin_page_url($plugin_path)); ?>">
+                        <?php echo esc_html($plugin['name']); ?>
+                    </a>
+                    <?php if ($latest_commit): ?>
+                    <span class="ai-plugin-index-latest">
+                        <?php echo esc_html(sprintf(__('Latest: %s', 'ai-assistant'), $latest_commit['message'])); ?>
+                    </span>
+                    <?php endif; ?>
+                </div>
+                <span class="ai-plugin-stats">
+                    <?php echo esc_html($file_count); ?> <?php echo $file_count === 1 ? esc_html__('file', 'ai-assistant') : esc_html__('files', 'ai-assistant'); ?>,
+                    <?php echo esc_html($commit_count); ?> <?php echo $commit_count === 1 ? esc_html__('commit', 'ai-assistant') : esc_html__('commits', 'ai-assistant'); ?>
+                </span>
+                <div class="ai-plugin-index-actions">
+                    <a href="<?php echo esc_url($this->get_plugin_page_url($plugin_path)); ?>" class="button button-small">
+                        <?php esc_html_e('Review Changes', 'ai-assistant'); ?>
+                    </a>
+                    <a href="<?php echo esc_url($this->get_plugin_download_url($plugin_path)); ?>" class="button button-small" title="<?php esc_attr_e('Download as ZIP with git history', 'ai-assistant'); ?>">
+                        <?php esc_html_e('Download ZIP', 'ai-assistant'); ?>
+                    </a>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php
+    }
+
+    private function render_plugin_detail(string $plugin_path, array $plugin): void {
+        $file_count = (int) ($plugin['file_count'] ?? 0);
+        $commit_count = (int) ($plugin['commit_count'] ?? 0);
+        ?>
+        <div class="ai-changes-plugins ai-changes-plugin-detail">
+            <div class="ai-plugin-card ai-plugin-card-detail" data-plugin="<?php echo esc_attr($plugin_path); ?>">
+                <div class="ai-plugin-header">
+                    <div class="ai-plugin-header-label">
+                        <span class="ai-plugin-name"><?php echo esc_html($plugin['name']); ?></span>
+                        <span class="ai-plugin-path"><?php echo esc_html($plugin_path); ?>/</span>
+                    </div>
+                    <span class="ai-plugin-stats">
+                        <?php echo esc_html($file_count); ?> <?php echo $file_count === 1 ? esc_html__('file', 'ai-assistant') : esc_html__('files', 'ai-assistant'); ?>,
+                        <?php echo esc_html($commit_count); ?> <?php echo $commit_count === 1 ? esc_html__('commit', 'ai-assistant') : esc_html__('commits', 'ai-assistant'); ?>
+                    </span>
+                    <a href="<?php echo esc_url($this->get_plugin_download_url($plugin_path)); ?>" class="button button-small" title="<?php esc_attr_e('Download as ZIP with git history', 'ai-assistant'); ?>">
+                        <?php esc_html_e('Download ZIP', 'ai-assistant'); ?>
+                    </a>
+                </div>
+                <div class="ai-plugin-content">
+                    <?php $this->render_plugin_commits($plugin); ?>
+                    <?php $this->render_plugin_files($plugin_path, $plugin); ?>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+
+    private function render_plugin_commits(array $plugin): void {
+        if (empty($plugin['commits'])) {
+            return;
+        }
+
+        $has_checked_out_commit = !empty($plugin['checked_out_sha']);
+        ?>
+        <div class="ai-plugin-commits">
+            <div class="ai-plugin-section-header"><?php esc_html_e('Recent Commits', 'ai-assistant'); ?></div>
+            <?php foreach ($plugin['commits'] as $commit):
+                $commit_row_classes = ['ai-commit-row'];
+                if (!empty($commit['is_checked_out'])) {
+                    $commit_row_classes[] = 'ai-commit-checked-out';
+                } elseif (!empty($commit['is_latest'])) {
+                    $commit_row_classes[] = 'ai-commit-latest';
+                }
+            ?>
+            <div class="ai-commit-entry" data-sha="<?php echo esc_attr($commit['sha']); ?>">
+                <div class="<?php echo esc_attr(implode(' ', $commit_row_classes)); ?>">
+                    <div class="ai-commit-row-top">
+                        <button type="button" class="ai-commit-diff-toggle" data-sha="<?php echo esc_attr($commit['sha']); ?>" title="<?php esc_attr_e('Preview diff', 'ai-assistant'); ?>">▶</button>
+                        <span class="ai-commit-sha"><?php echo esc_html($commit['short_sha']); ?></span>
+                        <span class="ai-commit-message"><?php echo esc_html($commit['message']); ?></span>
+                        <?php if (!empty($commit['conversation_id'])): ?>
+                        <a href="<?php echo esc_url(Conversations_App::get_conversation_url($commit['conversation_id'])); ?>"
+                           class="ai-commit-conversation"
+                           data-id="<?php echo esc_attr($commit['conversation_id']); ?>"
+                           title="<?php esc_attr_e('View conversation', 'ai-assistant'); ?>">
+                            Conv #<?php echo esc_html($commit['conversation_id']); ?>
+                        </a>
+                        <?php endif; ?>
+                    </div>
+                    <div class="ai-commit-row-bottom">
+                        <span class="ai-commit-date" title="<?php echo esc_attr($commit['date']); ?>"><?php echo esc_html($this->format_time_ago($commit['timestamp'])); ?></span>
+                        <?php if (!empty($commit['is_latest'])): ?>
+                        <span class="ai-commit-label"><?php esc_html_e('latest', 'ai-assistant'); ?></span>
+                        <?php endif; ?>
+                        <?php if (!empty($commit['is_checked_out'])): ?>
+                        <span class="ai-commit-label ai-commit-label-checked-out"><?php esc_html_e('checked out', 'ai-assistant'); ?></span>
+                        <?php endif; ?>
+                        <?php if (empty($commit['is_checked_out']) && ($has_checked_out_commit || empty($commit['is_latest']))): ?>
+                        <button type="button" class="button button-small ai-checkout-commit" data-sha="<?php echo esc_attr($commit['sha']); ?>" title="<?php esc_attr_e('Check out files from this commit', 'ai-assistant'); ?>">
+                            <?php esc_html_e('Checkout', 'ai-assistant'); ?>
+                        </button>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="ai-commit-diff-preview" data-sha="<?php echo esc_attr($commit['sha']); ?>" style="display: none;">
+                    <pre><code></code></pre>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php
+    }
+
+    private function render_plugin_files(string $plugin_path, array $plugin): void {
+        ?>
+        <div class="ai-plugin-files">
+            <div class="ai-plugin-section-header"><?php esc_html_e('Changed Files', 'ai-assistant'); ?></div>
+            <?php foreach ($plugin['files'] as $file): ?>
+            <div class="ai-changes-file">
+                <div class="ai-changes-file-row">
+                    <button type="button" class="ai-file-preview-toggle" data-path="<?php echo esc_attr($file['path']); ?>" title="<?php esc_attr_e('Preview diff', 'ai-assistant'); ?>">▶</button>
+                    <span class="ai-changes-file-path"><?php echo esc_html($file['relative_path'] ?: basename($file['path'])); ?></span>
+                    <span class="ai-lint-status" data-path="<?php echo esc_attr($file['path']); ?>"></span>
+                    <span class="ai-changes-type ai-changes-type-<?php echo esc_attr($file['change_type']); ?>">
+                        <?php echo esc_html(ucfirst($file['change_type'])); ?>
+                    </span>
+                    <?php if (!empty($file['is_reverted'])): ?>
+                    <span class="ai-changes-type ai-changes-type-reverted">
+                        <?php esc_html_e('Reverted', 'ai-assistant'); ?>
+                    </span>
+                    <?php endif; ?>
+                </div>
+                <div class="ai-file-inline-preview" data-path="<?php echo esc_attr($file['path']); ?>" style="display: none;">
+                    <pre><code></code></pre>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php
+    }
+
+    private function render_import_section(): void {
+        ?>
+        <div class="ai-import-section">
+            <h2><?php esc_html_e('Import Patch', 'ai-assistant'); ?></h2>
+            <p class="description">
+                <?php esc_html_e('Apply a patch file to modify files in your wp-content directory. Supports unified diff format (.patch, .diff, or .txt files).', 'ai-assistant'); ?>
+            </p>
+            <input type="file" id="ai-patch-file" accept=".patch,.diff,.txt" style="display:none;">
+            <button type="button" class="button" id="ai-import-patch">
+                <?php esc_html_e('Choose Patch File...', 'ai-assistant'); ?>
+            </button>
         </div>
         <?php
     }
@@ -388,27 +429,6 @@ class Changes_Admin {
 
         $diff = $this->git_tracker_manager->generate_diff($file_paths);
         wp_send_json_success(['diff' => $diff]);
-    }
-
-    public function ajax_clear_changes(): void {
-        check_ajax_referer('ai_assistant_changes', 'nonce');
-
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => 'Permission denied']);
-        }
-
-        $file_paths = isset($_POST['file_paths']) ? array_map('sanitize_text_field', (array) $_POST['file_paths']) : [];
-
-        if (empty($file_paths)) {
-            $deleted = $this->git_tracker_manager->clear_all();
-        } else {
-            $deleted = $this->git_tracker_manager->clear_files($file_paths);
-        }
-
-        wp_send_json_success([
-            'deleted' => $deleted,
-            'message' => sprintf(__('%d change(s) cleared.', 'ai-assistant'), $deleted),
-        ]);
     }
 
     public function ajax_apply_patch(): void {

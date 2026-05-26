@@ -27,6 +27,57 @@
     gap: 16px;
 }
 
+.ai-plugin-index {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ai-plugin-index-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 14px 16px;
+}
+
+.ai-plugin-index-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ai-plugin-index-name {
+    width: fit-content;
+    font-weight: 600;
+    color: var(--ai-assistant-accent);
+    text-decoration: none;
+}
+
+.ai-plugin-index-name:hover,
+.ai-plugin-index-name:focus {
+    color: var(--ai-assistant-accent-hover);
+    text-decoration: underline;
+}
+
+.ai-plugin-index-latest {
+    color: #50575e;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ai-plugin-index-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
 /* Plugin Card */
 .ai-plugin-card {
     background: #fff;
@@ -46,6 +97,15 @@
 
 .ai-plugin-header:hover {
     background: #f0f0f1;
+}
+
+.ai-plugin-card-detail .ai-plugin-header:hover {
+    background: #f6f7f7;
+}
+
+.ai-plugin-card-detail .ai-plugin-header-label,
+.ai-plugin-card-detail .ai-plugin-name {
+    cursor: default;
 }
 
 .ai-plugin-header-label {
@@ -97,12 +157,12 @@
     display: inline-block;
 }
 
-.ai-revert-plugin {
-    flex-shrink: 0;
-}
-
 .ai-plugin-content {
     padding: 0;
+}
+
+.ai-plugin-card-detail .ai-plugin-content {
+    display: block;
 }
 
 .ai-plugin-section-header {
@@ -261,12 +321,6 @@
     color: var(--ai-assistant-accent);
 }
 
-.ai-changes-file-row .ai-file-checkbox {
-    flex-shrink: 0;
-    width: 16px;
-    height: 16px;
-}
-
 .ai-changes-file-path {
     flex: 1;
     min-width: 100px;
@@ -365,26 +419,6 @@
     flex-shrink: 0;
 }
 
-.ai-revert-file,
-.ai-reapply-file {
-    flex-shrink: 0;
-    margin-left: 1em !important;
-    padding: 2px 8px !important;
-    font-size: 11px !important;
-    min-height: 0 !important;
-    line-height: 1.4 !important;
-    color: #646970 !important;
-    border-color: #c3c4c7 !important;
-    background: #f6f7f7 !important;
-}
-
-.ai-revert-file:hover,
-.ai-reapply-file:hover {
-    color: var(--ai-assistant-accent) !important;
-    border-color: var(--ai-assistant-accent) !important;
-    background: var(--ai-assistant-accent-soft) !important;
-}
-
 .ai-revert-dir {
     flex-shrink: 0;
     margin-left: auto;
@@ -459,109 +493,6 @@
 
 .ai-changes-empty .description {
     margin-bottom: 0;
-}
-
-/* Diff Preview - Fixed bottom panel */
-.ai-diff-preview {
-    display: none;
-    position: fixed;
-    bottom: 0;
-    left: 160px;
-    right: 0;
-    background: #f0f0f1;
-    border-top: 1px solid #c3c4c7;
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-    z-index: 100;
-    max-height: 50vh;
-    flex-direction: column;
-}
-
-.folded .ai-diff-preview {
-    left: 36px;
-}
-
-@media screen and (max-width: 782px) {
-    .ai-diff-preview {
-        left: 0;
-    }
-}
-
-.ai-diff-preview-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 16px;
-    background: #fff;
-    border-bottom: 1px solid #c3c4c7;
-    flex-shrink: 0;
-}
-
-.ai-diff-preview-header h2 {
-    margin: 0;
-    font-size: 13px;
-    font-weight: 600;
-}
-
-.ai-diff-preview-actions {
-    display: flex;
-    gap: 8px;
-}
-
-.ai-diff-content {
-    margin: 0;
-    padding: 12px 16px;
-    overflow: auto;
-    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
-    font-size: 12px;
-    line-height: 1.4;
-    background: #f0f0f1;
-    color: #1d2327;
-    flex: 1;
-    min-height: 0;
-}
-
-.ai-diff-content code {
-    background: none;
-    padding: 0;
-    font-family: inherit;
-    white-space: pre;
-    display: block;
-}
-
-/* Diff syntax highlighting */
-.ai-diff-content .diff-header {
-    color: var(--ai-assistant-accent);
-    font-weight: 600;
-    margin-top: 12px;
-}
-
-.ai-diff-content .diff-header:first-child {
-    margin-top: 0;
-}
-
-.ai-diff-content .diff-file {
-    color: #50575e;
-}
-
-.ai-diff-content .diff-hunk {
-    color: #9a6700;
-    margin-top: 8px;
-}
-
-.ai-diff-content .diff-add {
-    color: #007017;
-    background: #d4edda;
-}
-
-.ai-diff-content .diff-del {
-    color: #8a1f1f;
-    background: #f8d7da;
-}
-
-.ai-diff-preview-empty {
-    padding: 20px;
-    text-align: center;
-    color: #646970;
 }
 
 /* Import Section */
@@ -817,27 +748,23 @@
 }
 
 /* CodeMirror diff mode syntax highlighting */
-.ai-diff-content .cm-positive,
 .ai-file-inline-preview .cm-positive,
 .ai-commit-diff-preview .cm-positive {
     color: #007017;
     background: #d4edda;
 }
 
-.ai-diff-content .cm-negative,
 .ai-file-inline-preview .cm-negative,
 .ai-commit-diff-preview .cm-negative {
     color: #8a1f1f;
     background: #f8d7da;
 }
 
-.ai-diff-content .cm-meta,
 .ai-file-inline-preview .cm-meta,
 .ai-commit-diff-preview .cm-meta {
     color: #9a6700;
 }
 
-.ai-diff-content .cm-header,
 .ai-file-inline-preview .cm-header,
 .ai-commit-diff-preview .cm-header {
     color: var(--ai-assistant-accent);
@@ -846,6 +773,20 @@
 
 /* Mobile Responsive Styles */
 @media screen and (max-width: 600px) {
+    .ai-plugin-index-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .ai-plugin-index-actions {
+        flex-direction: column;
+    }
+
+    .ai-plugin-index-actions .button {
+        text-align: center;
+    }
+
     .ai-plugin-header {
         flex-wrap: wrap;
         padding: 12px;
@@ -894,11 +835,6 @@
         align-items: center;
     }
 
-    .ai-changes-file-row .ai-file-checkbox {
-        order: 0;
-        flex-shrink: 0;
-    }
-
     .ai-file-preview-toggle {
         order: 1;
         padding: 10px;
@@ -922,13 +858,6 @@
         order: 3;
         font-size: 10px;
         padding: 2px 6px;
-    }
-
-    .ai-revert-file,
-    .ai-reapply-file {
-        order: 4;
-        flex: 0 0 auto;
-        margin-left: auto !important;
     }
 
     .ai-file-inline-preview {

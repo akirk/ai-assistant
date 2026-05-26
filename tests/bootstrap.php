@@ -328,12 +328,17 @@ if (!function_exists('register_setting'))    { function register_setting()    {}
 if (!function_exists('add_settings_section')){ function add_settings_section(){} }
 if (!function_exists('add_settings_field'))  { function add_settings_field()  {} }
 if (!function_exists('__'))                  { function __($t, $d = '') { return $t; } }
+if (!function_exists('_n'))                  { function _n($single, $plural, $number, $domain = '') { return (int) $number === 1 ? $single : $plural; } }
 if (!function_exists('esc_html__'))          { function esc_html__($text, $domain = '') { return htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); } }
 if (!function_exists('esc_html'))            { function esc_html($text) { return htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); } }
+if (!function_exists('esc_html_e'))          { function esc_html_e($text, $domain = '') { echo esc_html($text); } }
+if (!function_exists('esc_attr'))            { function esc_attr($text) { return htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); } }
+if (!function_exists('esc_attr_e'))          { function esc_attr_e($text, $domain = '') { echo esc_attr($text); } }
 if (!function_exists('esc_url'))             { function esc_url($url) { return (string) $url; } }
 if (!function_exists('admin_url'))           { function admin_url($path = '') { return 'http://example.test/wp-admin/' . ltrim($path, '/'); } }
 if (!function_exists('wp_nonce_url'))        { function wp_nonce_url($url, $action = -1) { return $url . (strpos($url, '?') === false ? '?' : '&') . '_wpnonce=test'; } }
 if (!function_exists('is_wp_error'))         { function is_wp_error($thing) { return $thing instanceof WP_Error; } }
+if (!function_exists('date_i18n'))           { function date_i18n($format, $timestamp = false) { return date($format, $timestamp ?: time()); } }
 
 if (!function_exists('activate_plugin')) {
     function activate_plugin($plugin, $redirect = '', $network_wide = false, $silent = false) {
