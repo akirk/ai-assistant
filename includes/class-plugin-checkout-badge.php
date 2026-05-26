@@ -59,6 +59,7 @@ class Plugin_Checkout_Badge {
         $commit_message = trim((string) ($status['commit_message'] ?? ''));
         $message_excerpt = $this->get_message_excerpt($commit_message);
         $time_ago = $this->format_relative_time(isset($status['commit_timestamp']) ? (int) $status['commit_timestamp'] : null);
+        $ai_changes_url = (string) ($status['ai_changes_url'] ?? '');
         $label = $commit_message !== ''
             ? sprintf(
                 __('Viewing checked-out change for %s: %s', 'ai-assistant'),
@@ -75,19 +76,23 @@ class Plugin_Checkout_Badge {
         <details class="ai-assistant-checkout-badge" data-ai-plugin="<?php echo esc_attr($status['relative_root'] ?? ''); ?>">
             <summary class="ai-assistant-checkout-badge-summary" aria-label="<?php echo esc_attr($label); ?>">
                 <span class="ai-assistant-checkout-badge-dot" aria-hidden="true"></span>
+                <span class="ai-assistant-checkout-badge-prefix"><?php esc_html_e('Old Version:', 'ai-assistant'); ?></span>
                 <span class="ai-assistant-checkout-badge-message"><?php echo esc_html($message_excerpt); ?></span>
                 <?php if ($time_ago !== ''): ?>
                 <span class="ai-assistant-checkout-badge-time"><?php echo esc_html($time_ago); ?></span>
                 <?php endif; ?>
             </summary>
             <div class="ai-assistant-checkout-badge-panel" role="status">
-                <div class="ai-assistant-checkout-badge-kicker"><?php esc_html_e('Checked-out change', 'ai-assistant'); ?></div>
+                <div class="ai-assistant-checkout-badge-kicker"><?php esc_html_e('Old Version', 'ai-assistant'); ?></div>
                 <div class="ai-assistant-checkout-badge-plugin"><?php echo esc_html($plugin_name); ?></div>
                 <?php if ($commit_message !== ''): ?>
                 <div class="ai-assistant-checkout-badge-full-message"><?php echo esc_html($commit_message); ?></div>
                 <?php endif; ?>
                 <?php if ($time_ago !== ''): ?>
                 <div class="ai-assistant-checkout-badge-meta"><?php echo esc_html(sprintf(__('Committed %s', 'ai-assistant'), $time_ago)); ?></div>
+                <?php endif; ?>
+                <?php if ($ai_changes_url !== ''): ?>
+                <a class="ai-assistant-checkout-badge-link" href="<?php echo esc_url($ai_changes_url); ?>"><?php esc_html_e('View AI Changes', 'ai-assistant'); ?></a>
                 <?php endif; ?>
             </div>
         </details>
@@ -145,6 +150,11 @@ class Plugin_Checkout_Badge {
                 border-radius: 50%;
                 background: #dba617;
             }
+            .ai-assistant-checkout-badge-prefix {
+                flex: 0 0 auto;
+                font-weight: 700;
+                color: #5f4100;
+            }
             .ai-assistant-checkout-badge-message {
                 min-width: 0;
                 overflow: hidden;
@@ -181,6 +191,17 @@ class Plugin_Checkout_Badge {
             .ai-assistant-checkout-badge-meta {
                 margin-top: 5px;
                 color: #806000;
+            }
+            .ai-assistant-checkout-badge-link {
+                display: inline-block;
+                margin-top: 7px;
+                color: #5f4100;
+                font-weight: 700;
+                text-decoration: underline;
+            }
+            .ai-assistant-checkout-badge-link:hover,
+            .ai-assistant-checkout-badge-link:focus {
+                color: #2c3338;
             }
             @media screen and (max-width: 782px) {
                 .ai-assistant-checkout-badge {
@@ -315,14 +336,18 @@ class Plugin_Checkout_Badge {
         }
 
         $commit = $tracker->get_commit_summary($checked_out_sha);
+        $relative_root = $this->get_relative_root($root);
 
         return [
             'name' => $tracker->get_name(),
             'root' => $root,
-            'relative_root' => $this->get_relative_root($root),
+            'relative_root' => $relative_root,
             'checked_out_sha' => $checked_out_sha,
             'commit_message' => $commit['message'] ?? '',
             'commit_timestamp' => $commit['timestamp'] ?? null,
+            'ai_changes_url' => function_exists('admin_url')
+                ? admin_url('tools.php?page=ai-changes&plugin=' . rawurlencode($relative_root))
+                : '',
             'latest_sha' => $latest_sha,
         ];
     }
