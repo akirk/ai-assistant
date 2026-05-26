@@ -320,7 +320,7 @@ class Changes_Admin {
                 <div class="<?php echo esc_attr(implode(' ', $commit_row_classes)); ?>">
                     <div class="ai-commit-row-top">
                         <button type="button" class="ai-commit-diff-toggle" data-sha="<?php echo esc_attr($commit['sha']); ?>" title="<?php esc_attr_e('Preview diff', 'ai-assistant'); ?>">▶</button>
-                        <span class="ai-commit-sha"><?php echo esc_html($commit['short_sha']); ?></span>
+                        <span class="ai-commit-sha" role="button" tabindex="0" title="<?php esc_attr_e('Preview diff', 'ai-assistant'); ?>"><?php echo esc_html($commit['short_sha']); ?></span>
                         <span class="ai-commit-message"
                               title="<?php esc_attr_e('Double-click to edit commit message', 'ai-assistant'); ?>"
                               tabindex="0"><?php echo esc_html($commit['message']); ?></span>
