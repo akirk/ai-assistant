@@ -11,6 +11,8 @@ if (!defined('ABSPATH')) {
  */
 class Plugin_Checkout_Badge {
 
+    public const OPTION_SHOW_IN_PAGE_AI_CHANGES = 'ai_assistant_show_in_page_ai_changes';
+
     private Git_Tracker_Manager $git_tracker_manager;
     private ?array $current_checkout_status = null;
     private ?string $current_rendered_root = null;
@@ -24,6 +26,7 @@ class Plugin_Checkout_Badge {
         add_action('wp_app_body_open', [$this, 'render_badge'], 5);
         add_action('wp_footer', [$this, 'render_badge'], 5);
         add_action('admin_footer', [$this, 'render_admin_badge'], 5);
+        add_action('wp_ajax_ai_assistant_disable_in_page_ai_changes', [$this, 'ajax_disable_in_page_ai_changes']);
     }
 
     public function capture_wp_app_template($template_path, $route_data = []): void {
@@ -37,10 +40,22 @@ class Plugin_Checkout_Badge {
         }
 
         $this->current_rendered_root = $root;
-        $status = $this->get_checkout_status_for_root($root);
+        $status = $this->get_display_status_for_root($root);
         if ($status !== null) {
             $this->current_checkout_status = $status;
         }
+    }
+
+    public function ajax_disable_in_page_ai_changes(): void {
+        check_ajax_referer('ai_assistant_in_page_ai_changes', '_wpnonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'ai-assistant')], 403);
+        }
+
+        update_option(self::OPTION_SHOW_IN_PAGE_AI_CHANGES, '');
+
+        wp_send_json_success(['enabled' => false]);
     }
 
     public function get_current_ai_changes_metadata(): ?array {
@@ -64,7 +79,7 @@ class Plugin_Checkout_Badge {
             return;
         }
 
-        $status = $this->resolve_current_admin_checkout_status();
+        $status = $this->resolve_current_admin_display_status();
         if ($status !== null) {
             $this->current_checkout_status = $status;
         }
@@ -78,6 +93,7 @@ class Plugin_Checkout_Badge {
         }
 
         $status = $this->current_checkout_status;
+        $is_old_version = !empty($status['is_old_version']);
         $plugin_name = $status['name'] ?? __('Plugin', 'ai-assistant');
         $commit_message = trim((string) ($status['commit_message'] ?? ''));
         $message_excerpt = $this->get_message_excerpt($commit_message);
@@ -87,28 +103,40 @@ class Plugin_Checkout_Badge {
         $overview_link = $this->get_overview_link_from_links($links);
         $label = $commit_message !== ''
             ? sprintf(
-                __('Viewing checked-out change for %s: %s', 'ai-assistant'),
+                $is_old_version
+                    ? __('Viewing checked-out change for %s: %s', 'ai-assistant')
+                    : __('Viewing AI Changes for %s: %s', 'ai-assistant'),
                 $plugin_name,
                 $commit_message
             )
             : sprintf(
-                __('Viewing a checked-out change for %s.', 'ai-assistant'),
+                $is_old_version
+                    ? __('Viewing a checked-out change for %s.', 'ai-assistant')
+                    : __('Viewing AI Changes for %s.', 'ai-assistant'),
                 $plugin_name
             );
+        $summary_prefix = $is_old_version ? __('Old Version:', 'ai-assistant') : __('AI Changes:', 'ai-assistant');
+        $panel_kicker = $is_old_version ? __('Old Version', 'ai-assistant') : __('AI Changes', 'ai-assistant');
 
         $this->render_style();
         ?>
-        <details class="ai-assistant-checkout-badge" data-ai-plugin="<?php echo esc_attr($status['relative_root'] ?? ''); ?>">
+        <details class="ai-assistant-checkout-badge <?php echo $is_old_version ? 'is-old-version' : 'is-current-version'; ?>" data-ai-plugin="<?php echo esc_attr($status['relative_root'] ?? ''); ?>">
             <summary class="ai-assistant-checkout-badge-summary" aria-label="<?php echo esc_attr($label); ?>">
                 <span class="ai-assistant-checkout-badge-dot" aria-hidden="true"></span>
-                <span class="ai-assistant-checkout-badge-prefix"><?php esc_html_e('Old Version:', 'ai-assistant'); ?></span>
+                <span class="ai-assistant-checkout-badge-prefix"><?php echo esc_html($summary_prefix); ?></span>
                 <span class="ai-assistant-checkout-badge-message"><?php echo esc_html($message_excerpt); ?></span>
                 <?php if ($time_ago !== ''): ?>
                 <span class="ai-assistant-checkout-badge-time"><?php echo esc_html($time_ago); ?></span>
                 <?php endif; ?>
             </summary>
+            <button
+                type="button"
+                class="ai-assistant-checkout-badge-close"
+                aria-label="<?php esc_attr_e('Hide in-page AI Changes', 'ai-assistant'); ?>"
+                data-ajax-url="<?php echo esc_url($this->get_ajax_url()); ?>"
+                data-nonce="<?php echo esc_attr($this->get_disable_nonce()); ?>">x</button>
             <div class="ai-assistant-checkout-badge-panel" role="status">
-                <div class="ai-assistant-checkout-badge-kicker"><?php esc_html_e('Old Version', 'ai-assistant'); ?></div>
+                <div class="ai-assistant-checkout-badge-kicker"><?php echo esc_html($panel_kicker); ?></div>
                 <div class="ai-assistant-checkout-badge-plugin"><?php echo esc_html($plugin_name); ?></div>
                 <?php if ($commit_message !== ''): ?>
                 <div class="ai-assistant-checkout-badge-full-message"><?php echo esc_html($commit_message); ?></div>
@@ -159,6 +187,7 @@ class Plugin_Checkout_Badge {
                 <?php endif; ?>
             </div>
         </details>
+        <?php $this->render_script(); ?>
         <?php
         $this->badge_rendered = true;
     }
@@ -186,6 +215,11 @@ class Plugin_Checkout_Badge {
                 font: 11px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
                 letter-spacing: 0;
             }
+            .ai-assistant-checkout-badge.is-current-version {
+                border-color: #c3c4c7;
+                background: #fff;
+                color: #3c434a;
+            }
             .ai-assistant-checkout-badge[open] {
                 opacity: 1;
             }
@@ -203,6 +237,9 @@ class Plugin_Checkout_Badge {
                 cursor: pointer;
                 list-style: none;
             }
+            .ai-assistant-checkout-badge.is-current-version .ai-assistant-checkout-badge-summary {
+                max-width: min(280px, calc(100vw - 32px));
+            }
             .ai-assistant-checkout-badge-summary::-webkit-details-marker {
                 display: none;
             }
@@ -213,10 +250,16 @@ class Plugin_Checkout_Badge {
                 border-radius: 50%;
                 background: #dba617;
             }
+            .ai-assistant-checkout-badge.is-current-version .ai-assistant-checkout-badge-dot {
+                background: #72aee6;
+            }
             .ai-assistant-checkout-badge-prefix {
                 flex: 0 0 auto;
                 font-weight: 700;
                 color: #5f4100;
+            }
+            .ai-assistant-checkout-badge.is-current-version .ai-assistant-checkout-badge-prefix {
+                color: #2c3338;
             }
             .ai-assistant-checkout-badge-message {
                 min-width: 0;
@@ -230,6 +273,33 @@ class Plugin_Checkout_Badge {
                 flex: 0 0 auto;
                 color: #806000;
             }
+            .ai-assistant-checkout-badge.is-current-version .ai-assistant-checkout-badge-time {
+                color: #646970;
+            }
+            .ai-assistant-checkout-badge-close {
+                position: absolute;
+                top: 2px;
+                right: 4px;
+                width: 20px;
+                height: 20px;
+                padding: 0;
+                border: 0;
+                border-radius: 50%;
+                background: transparent;
+                color: #806000;
+                cursor: pointer;
+                font: 700 12px/20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                text-align: center;
+            }
+            .ai-assistant-checkout-badge-close:hover,
+            .ai-assistant-checkout-badge-close:focus {
+                background: rgba(0, 0, 0, 0.06);
+                color: #2c3338;
+                outline: none;
+            }
+            .ai-assistant-checkout-badge.is-current-version .ai-assistant-checkout-badge-close {
+                color: #646970;
+            }
             .ai-assistant-checkout-badge-panel {
                 width: min(320px, calc(100vw - 32px));
                 box-sizing: border-box;
@@ -241,6 +311,12 @@ class Plugin_Checkout_Badge {
                 font-size: 10px;
                 font-weight: 700;
                 text-transform: uppercase;
+            }
+            .ai-assistant-checkout-badge.is-current-version .ai-assistant-checkout-badge-kicker,
+            .ai-assistant-checkout-badge.is-current-version .ai-assistant-checkout-badge-meta,
+            .ai-assistant-checkout-badge.is-current-version .ai-assistant-checkout-badge-log-label,
+            .ai-assistant-checkout-badge.is-current-version .ai-assistant-checkout-badge-log-time {
+                color: #646970;
             }
             .ai-assistant-checkout-badge-plugin {
                 margin-bottom: 4px;
@@ -264,6 +340,10 @@ class Plugin_Checkout_Badge {
                 border-radius: 4px;
                 background: #ead38d;
             }
+            .ai-assistant-checkout-badge.is-current-version .ai-assistant-checkout-badge-log {
+                border-color: #dcdcde;
+                background: #dcdcde;
+            }
             .ai-assistant-checkout-badge-log-row {
                 display: grid;
                 grid-template-columns: 58px minmax(0, 1fr) auto;
@@ -275,15 +355,25 @@ class Plugin_Checkout_Badge {
                 color: #3c434a;
                 text-decoration: none;
             }
+            .ai-assistant-checkout-badge.is-current-version .ai-assistant-checkout-badge-log-row {
+                background: #fff;
+            }
             .ai-assistant-checkout-badge-log-row:hover,
             .ai-assistant-checkout-badge-log-row:focus {
                 background: #fff8e5;
                 color: #2c3338;
                 text-decoration: none;
             }
+            .ai-assistant-checkout-badge.is-current-version .ai-assistant-checkout-badge-log-row:hover,
+            .ai-assistant-checkout-badge.is-current-version .ai-assistant-checkout-badge-log-row:focus {
+                background: #f6f7f7;
+            }
             .ai-assistant-checkout-badge-log-row.is-current {
                 background: #fff4d1;
                 font-weight: 700;
+            }
+            .ai-assistant-checkout-badge.is-current-version .ai-assistant-checkout-badge-log-row.is-current {
+                background: #f0f6fc;
             }
             .ai-assistant-checkout-badge-log-row.is-unavailable {
                 color: #806000;
@@ -317,6 +407,9 @@ class Plugin_Checkout_Badge {
                 font-weight: 700;
                 text-decoration: underline;
             }
+            .ai-assistant-checkout-badge.is-current-version .ai-assistant-checkout-badge-link {
+                color: #2271b1;
+            }
             .ai-assistant-checkout-badge-link:hover,
             .ai-assistant-checkout-badge-link:focus {
                 color: #2c3338;
@@ -332,11 +425,59 @@ class Plugin_Checkout_Badge {
         $this->style_rendered = true;
     }
 
+    private function render_script(): void {
+        ?>
+        <script id="ai-assistant-checkout-badge-script">
+            (function() {
+                if (window.aiAssistantCheckoutBadgeCloseBound) {
+                    return;
+                }
+                window.aiAssistantCheckoutBadgeCloseBound = true;
+
+                document.addEventListener('click', function(event) {
+                    var button = event.target.closest ? event.target.closest('.ai-assistant-checkout-badge-close') : null;
+                    if (!button) {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    var badge = button.closest ? button.closest('.ai-assistant-checkout-badge') : null;
+                    if (badge && badge.parentNode) {
+                        badge.parentNode.removeChild(badge);
+                    }
+
+                    if (typeof fetch !== 'function' || typeof URLSearchParams !== 'function') {
+                        return;
+                    }
+
+                    var ajaxUrl = button.getAttribute('data-ajax-url');
+                    if (!ajaxUrl) {
+                        return;
+                    }
+
+                    var body = new URLSearchParams();
+                    body.set('action', 'ai_assistant_disable_in_page_ai_changes');
+                    body.set('_wpnonce', button.getAttribute('data-nonce') || '');
+
+                    fetch(ajaxUrl, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                        },
+                        body: body.toString()
+                    }).catch(function() {});
+                });
+            })();
+        </script>
+        <?php
+    }
+
     private function can_view_badge(): bool {
         return !function_exists('current_user_can') || current_user_can('manage_options');
     }
 
-    private function resolve_current_admin_checkout_status(): ?array {
+    private function resolve_current_admin_display_status(): ?array {
         global $hook_suffix;
 
         $hook = is_string($hook_suffix ?? null) ? $hook_suffix : '';
@@ -352,7 +493,7 @@ class Plugin_Checkout_Badge {
         }
 
         $root = $this->get_root_from_admin_hook($hook);
-        return $root !== null ? $this->get_checkout_status_for_root($root) : null;
+        return $root !== null ? $this->get_display_status_for_root($root) : null;
     }
 
     private function resolve_current_admin_root(): ?string {
@@ -485,12 +626,65 @@ class Plugin_Checkout_Badge {
 
         $commit = $tracker->get_commit_summary($checked_out_sha);
         $relative_root = $this->get_relative_root($root);
+        $this->enable_in_page_ai_changes();
 
         return [
             'name' => $tracker->get_name(),
             'root' => $root,
             'relative_root' => $relative_root,
             'checked_out_sha' => $checked_out_sha,
+            'is_old_version' => true,
+            'commit_message' => $commit['message'] ?? '',
+            'commit_timestamp' => $commit['timestamp'] ?? null,
+            'ai_changes_url' => function_exists('admin_url')
+                ? admin_url('tools.php?page=ai-changes&plugin=' . rawurlencode($relative_root))
+                : '',
+            'version_log' => $this->get_ai_changes_version_log($tracker, $relative_root),
+            'links' => $this->get_ai_changes_links($relative_root),
+            'latest_sha' => $latest_sha,
+        ];
+    }
+
+    private function get_display_status_for_root(string $root): ?array {
+        $checkout_status = $this->get_checkout_status_for_root($root);
+        if ($checkout_status !== null) {
+            return $checkout_status;
+        }
+
+        if (!$this->should_show_in_page_ai_changes()) {
+            return null;
+        }
+
+        return $this->get_current_status_for_root($root);
+    }
+
+    private function get_current_status_for_root(string $root): ?array {
+        $tracker = $this->git_tracker_manager->get_or_create_tracker($root);
+        if (!$tracker->has_ai_changes()) {
+            return null;
+        }
+
+        $commits = $tracker->get_recent_commits(1);
+        if (empty($commits[0]['sha'])) {
+            return null;
+        }
+
+        $latest_sha = (string) $commits[0]['sha'];
+        $checked_out_sha = $tracker->get_checked_out_commit();
+        $current_sha = $checked_out_sha ?: $latest_sha;
+        $commit = $current_sha === $latest_sha ? $commits[0] : $tracker->get_commit_summary($current_sha);
+        if (!is_array($commit)) {
+            return null;
+        }
+
+        $relative_root = $this->get_relative_root($root);
+
+        return [
+            'name' => $tracker->get_name(),
+            'root' => $root,
+            'relative_root' => $relative_root,
+            'checked_out_sha' => $current_sha,
+            'is_old_version' => false,
             'commit_message' => $commit['message'] ?? '',
             'commit_timestamp' => $commit['timestamp'] ?? null,
             'ai_changes_url' => function_exists('admin_url')
@@ -643,6 +837,14 @@ class Plugin_Checkout_Badge {
         return wp_nonce_url($url, 'ai_assistant_checkout_version_' . $relative_root . '_' . $sha);
     }
 
+    private function get_ajax_url(): string {
+        return function_exists('admin_url') ? admin_url('admin-ajax.php') : '';
+    }
+
+    private function get_disable_nonce(): string {
+        return function_exists('wp_create_nonce') ? wp_create_nonce('ai_assistant_in_page_ai_changes') : '';
+    }
+
     private function get_current_request_url(): string {
         $request_uri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
         if ($request_uri === '') {
@@ -669,6 +871,21 @@ class Plugin_Checkout_Badge {
         }
 
         return home_url($request_uri);
+    }
+
+    private function should_show_in_page_ai_changes(): bool {
+        return function_exists('get_option')
+            && get_option(self::OPTION_SHOW_IN_PAGE_AI_CHANGES, '') === '1';
+    }
+
+    private function enable_in_page_ai_changes(): void {
+        if (!function_exists('update_option')) {
+            return;
+        }
+
+        if (!function_exists('get_option') || get_option(self::OPTION_SHOW_IN_PAGE_AI_CHANGES, '') !== '1') {
+            update_option(self::OPTION_SHOW_IN_PAGE_AI_CHANGES, '1');
+        }
     }
 
     private function get_message_excerpt(string $message): string {

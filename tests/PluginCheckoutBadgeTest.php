@@ -9,6 +9,12 @@ class PluginCheckoutBadgeTest extends TestCase {
 
     private array $plugin_dirs = [];
 
+    protected function setUp(): void {
+        $GLOBALS['wp_test_options'] = [];
+        $GLOBALS['wp_test_json_response'] = null;
+        $_POST = [];
+    }
+
     protected function tearDown(): void {
         foreach ($this->plugin_dirs as $dir) {
             $this->removeDirectory($dir);
@@ -17,6 +23,7 @@ class PluginCheckoutBadgeTest extends TestCase {
         unset($GLOBALS['hook_suffix'], $GLOBALS['wp_filter']);
         $GLOBALS['wp_test_site_url'] = 'http://localhost';
         unset($_SERVER['REQUEST_URI']);
+        $_POST = [];
         $this->plugin_dirs = [];
     }
 
@@ -41,7 +48,7 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertArrayNotHasKey('url', $metadata['version_log'][1]);
         $this->assertStringContainsString('action=ai_assistant_checkout_version', $metadata['version_log'][2]['url']);
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
-        $this->assertStringContainsString('<details class="ai-assistant-checkout-badge"', $html);
+        $this->assertStringContainsString('class="ai-assistant-checkout-badge is-old-version"', $html);
         $this->assertStringContainsString('Old Version:', $html);
         $this->assertStringContainsString('ai-assistant-checkout-badge-message">Middle checked out change message...', $html);
         $this->assertStringContainsString('just now', $html);
@@ -60,6 +67,8 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertStringNotContainsString(' title=', $html);
         $this->assertStringNotContainsString(substr($checked_out_sha, 0, 7), $html);
         $this->assertStringContainsString('data-ai-plugin="plugins/badge-demo"', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-close', $html);
+        $this->assertSame('1', get_option(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, ''));
     }
 
     public function test_wp_app_template_does_not_render_badge_for_current_plugin(): void {
@@ -73,6 +82,26 @@ class PluginCheckoutBadgeTest extends TestCase {
         $html = ob_get_clean();
 
         $this->assertSame('', trim($html));
+    }
+
+    public function test_wp_app_template_renders_current_plugin_when_in_page_ai_changes_enabled(): void {
+        update_option(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, '1');
+        [$manager, $template_path] = $this->createCurrentPlugin('badge-current-enabled');
+
+        $badge = new Plugin_Checkout_Badge($manager);
+        $badge->capture_wp_app_template($template_path);
+
+        ob_start();
+        $badge->render_badge();
+        $html = ob_get_clean();
+
+        $this->assertStringContainsString('ai-assistant-checkout-badge is-current-version', $html);
+        $this->assertStringContainsString('AI Changes:', $html);
+        $this->assertStringContainsString('Current', $html);
+        $this->assertStringContainsString('No newer version', $html);
+        $this->assertStringContainsString('Original state before AI modifications', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-close', $html);
+        $this->assertStringNotContainsString('Old Version:', $html);
     }
 
     public function test_admin_page_callback_renders_badge_for_checked_out_plugin(): void {
@@ -115,6 +144,22 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertStringNotContainsString('Not current', $html);
         $this->assertStringNotContainsString(' title=', $html);
         $this->assertStringNotContainsString(substr($checked_out_sha, 0, 7), $html);
+    }
+
+    public function test_close_ajax_disables_in_page_ai_changes_setting(): void {
+        update_option(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, '1');
+        $badge = new Plugin_Checkout_Badge(new Git_Tracker_Manager());
+
+        try {
+            $badge->ajax_disable_in_page_ai_changes();
+            $this->fail('Expected JSON response exception.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('wp_send_json_success', $e->getMessage());
+        }
+
+        $this->assertSame('', get_option(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, ''));
+        $this->assertTrue($GLOBALS['wp_test_json_response']['success']);
+        $this->assertFalse($GLOBALS['wp_test_json_response']['data']['enabled']);
     }
 
     public function test_checkout_redirect_url_does_not_duplicate_site_path(): void {
