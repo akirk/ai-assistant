@@ -170,6 +170,11 @@ class Chat_UI {
         $settings = ai_assistant()->settings();
         $current_user = wp_get_current_user();
         $welcome_tip_context = $this->get_welcome_tip_context();
+        $current_ai_changes = $this->get_current_ai_changes_metadata();
+        $system_prompt = $this->add_current_ai_changes_prompt_context(
+            $settings->get_system_prompt(),
+            $current_ai_changes
+        );
 
         return [
             'ajaxUrl' => admin_url('admin-ajax.php'),
@@ -204,6 +209,7 @@ class Chat_UI {
             ],
             'welcomeTips' => $this->get_welcome_tips($welcome_tip_context),
             'urlComponent' => $welcome_tip_context['url_component'],
+            'currentAiChanges' => $current_ai_changes,
             'maxClientFileBytes' => (int) apply_filters('ai_assistant_client_file_context_bytes', 128 * 1024),
             'compactClientFileBytes' => (int) apply_filters('ai_assistant_client_file_compact_bytes', 32 * 1024),
             'maxMediaUploadBytes' => (int) wp_max_upload_size(),
@@ -212,7 +218,7 @@ class Chat_UI {
                 'coding' => (int) apply_filters('ai_assistant_tool_round_limit_coding', 50),
                 'consecutiveFailures' => (int) apply_filters('ai_assistant_tool_round_limit_consecutive_failures', 3),
             ],
-            'systemPrompt' => $settings->get_system_prompt(),
+            'systemPrompt' => $system_prompt,
             'abilityDomains' => apply_filters('ai_assistant_ability_domains', []),
             'strings' => [
                 'placeholder' => __('Ask me anything about your WordPress site...', 'ai-assistant'),
@@ -229,6 +235,36 @@ class Chat_UI {
                 'close' => __('Close', 'ai-assistant'),
             ],
         ];
+    }
+
+    private function get_current_ai_changes_metadata(): ?array {
+        $assistant = function_exists('ai_assistant') ? ai_assistant() : null;
+        if (!is_object($assistant) || !method_exists($assistant, 'plugin_checkout_badge')) {
+            return null;
+        }
+
+        $badge = $assistant->plugin_checkout_badge();
+        if (!is_object($badge) || !method_exists($badge, 'get_current_ai_changes_metadata')) {
+            return null;
+        }
+
+        $metadata = $badge->get_current_ai_changes_metadata();
+        return is_array($metadata) ? $metadata : null;
+    }
+
+    private function add_current_ai_changes_prompt_context(string $system_prompt, ?array $metadata): string {
+        if (empty($metadata['root']) || empty($metadata['url'])) {
+            return $system_prompt;
+        }
+
+        $root = (string) $metadata['root'];
+        $url = (string) $metadata['url'];
+
+        $prompt = $system_prompt . "\n\nCURRENT PAGE FILE CHANGES:\n"
+            . "- The plugin/theme rendering the current window has tracked AI file changes: {$root}.\n"
+            . "- When it is useful to review those changes, you may call navigate with url \"{$url}\" and link_text \"Review AI changes\". The link should be offered for this current window.\n";
+
+        return $prompt;
     }
 
     /**

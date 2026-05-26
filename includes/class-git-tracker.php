@@ -1019,6 +1019,165 @@ class Git_Tracker {
     }
 
     /**
+     * Get display metadata for a specific commit.
+     */
+    public function get_commit_summary(string $sha): ?array {
+        if (!$this->is_active() || !preg_match('/^[a-f0-9]{40}$/', $sha)) {
+            return null;
+        }
+
+        $commit_data = $this->read_object($sha);
+        if ($commit_data === null || $commit_data['type'] !== 'commit') {
+            return null;
+        }
+
+        $tree = null;
+        $parent = null;
+        $timestamp = null;
+        $message = '';
+        $in_message = false;
+
+        foreach (explode("\n", $commit_data['content']) as $line) {
+            if ($in_message) {
+                $message .= ($message ? "\n" : '') . $line;
+            } elseif ($line === '') {
+                $in_message = true;
+            } elseif (strpos($line, 'tree ') === 0) {
+                $tree = substr($line, 5);
+            } elseif (strpos($line, 'parent ') === 0) {
+                $parent = substr($line, 7);
+            } elseif (strpos($line, 'author ') === 0) {
+                if (preg_match('/(\d+)\s+[+-]\d{4}$/', $line, $m)) {
+                    $timestamp = (int) $m[1];
+                }
+            }
+        }
+
+        $metadata = $this->parse_commit_metadata(trim($message));
+
+        return [
+            'sha' => $sha,
+            'short_sha' => substr($sha, 0, 7),
+            'tree' => $tree,
+            'parent' => $parent,
+            'message' => $metadata['reason'],
+            'conversation_id' => $metadata['conversation_id'],
+            'timestamp' => $timestamp,
+            'date' => $timestamp ? date('Y-m-d H:i:s', $timestamp) : null,
+        ];
+    }
+
+    /**
+     * Update the display message for a commit on the ai-changes branch.
+     *
+     * Git commit messages are part of the commit object hash, so editing an
+     * older commit requires rewriting that commit and every descendant.
+     */
+    public function update_commit_message(string $target_sha, string $message): array {
+        if (!$this->is_active()) {
+            return ['success' => false, 'errors' => ['Tracking not active']];
+        }
+
+        $target_sha = strtolower(trim($target_sha));
+        if (!preg_match('/^[a-f0-9]{40}$/', $target_sha)) {
+            return ['success' => false, 'errors' => ['Invalid commit SHA']];
+        }
+
+        $message = $this->normalize_commit_message($message);
+        if ($message === '') {
+            return ['success' => false, 'errors' => ['Commit message cannot be empty']];
+        }
+
+        $ref_path = $this->git_dir . '/refs/heads/ai-changes';
+        if (!file_exists($ref_path)) {
+            return ['success' => false, 'errors' => ['No AI changes branch found']];
+        }
+
+        $head_sha = trim((string) file_get_contents($ref_path));
+        if (!$this->is_valid_commit($head_sha)) {
+            return ['success' => false, 'errors' => ['Invalid AI changes branch']];
+        }
+
+        $chain = [];
+        $seen = [];
+        $sha = $head_sha;
+        $found = false;
+
+        while ($sha) {
+            if (isset($seen[$sha])) {
+                return ['success' => false, 'errors' => ['Commit history contains a cycle']];
+            }
+            $seen[$sha] = true;
+
+            $commit = $this->parse_commit_parts($sha);
+            if ($commit === null) {
+                return ['success' => false, 'errors' => ['Could not read commit history']];
+            }
+
+            $chain[] = $commit;
+
+            if ($sha === $target_sha) {
+                $found = true;
+                break;
+            }
+
+            $sha = $commit['parent'];
+        }
+
+        if (!$found) {
+            return ['success' => false, 'errors' => ['Commit is not in the current AI changes history']];
+        }
+
+        $sha_map = [];
+        $new_target_sha = null;
+        $new_parent = $chain[count($chain) - 1]['parent'];
+
+        foreach (array_reverse($chain) as $commit) {
+            $commit_message = $commit['message'];
+
+            if ($commit['sha'] === $target_sha) {
+                $metadata = $this->parse_commit_metadata(trim($commit_message));
+                $commit_message = $this->build_commit_message($message, $metadata['conversation_id']);
+            }
+
+            $new_sha = $this->write_commit_with_headers(
+                $commit['tree'],
+                $new_parent,
+                $commit_message,
+                $commit['headers']
+            );
+
+            $sha_map[$commit['sha']] = $new_sha;
+            if ($commit['sha'] === $target_sha) {
+                $new_target_sha = $new_sha;
+            }
+            $new_parent = $new_sha;
+        }
+
+        file_put_contents($ref_path, $new_parent . "\n");
+        file_put_contents($this->git_dir . '/HEAD', "ref: refs/heads/ai-changes\n");
+
+        $main_ref_path = $this->git_dir . '/refs/heads/main';
+        if (file_exists($main_ref_path)) {
+            $main_sha = trim((string) file_get_contents($main_ref_path));
+            if (isset($sha_map[$main_sha])) {
+                file_put_contents($main_ref_path, $sha_map[$main_sha] . "\n");
+            }
+        }
+
+        $this->remap_checkout_state($sha_map);
+
+        return [
+            'success' => true,
+            'old_sha' => $target_sha,
+            'new_sha' => $new_target_sha,
+            'head_sha' => $new_parent,
+            'rewritten' => $sha_map,
+            'errors' => [],
+        ];
+    }
+
+    /**
      * Get paginated commit log from ai-changes branch.
      */
     public function get_commit_log(int $limit = 20, int $offset = 0): array {
@@ -1716,10 +1875,7 @@ class Git_Tracker {
             $parent = $checked_out_sha;
         }
 
-        $message = $reason ?: 'AI modification';
-        if ($conversation_id) {
-            $message .= "\n\nConversation: " . $conversation_id;
-        }
+        $message = $this->build_commit_message($reason ?: 'AI modification', $conversation_id);
         $commit_sha = $this->write_commit($tree_sha, $parent, $message);
 
         // Update ref and HEAD
@@ -1996,6 +2152,129 @@ class Git_Tracker {
         $commit_sha = $this->write_commit($tree_sha, $parent, $message);
 
         file_put_contents($ref_path, $commit_sha . "\n");
+    }
+
+    private function normalize_commit_message(string $message): string {
+        $message = str_replace("\0", '', $message);
+        $message = str_replace(["\r\n", "\r"], "\n", $message);
+        $message = preg_replace("/[ \t]+\n/", "\n", $message) ?? $message;
+
+        return trim($message);
+    }
+
+    private function build_commit_message(string $reason, ?int $conversation_id = null): string {
+        $message = $this->normalize_commit_message($reason);
+        if ($conversation_id) {
+            $message .= "\n\nConversation: " . $conversation_id;
+        }
+
+        return $message;
+    }
+
+    private function parse_commit_parts(string $sha): ?array {
+        $commit_data = $this->read_object($sha);
+        if ($commit_data === null || $commit_data['type'] !== 'commit') {
+            return null;
+        }
+
+        $parts = explode("\n\n", $commit_data['content'], 2);
+        $header_text = $parts[0] ?? '';
+        $message = $parts[1] ?? '';
+        $tree = null;
+        $parent = null;
+        $headers = [];
+
+        foreach (explode("\n", $header_text) as $line) {
+            if ($line === '') {
+                continue;
+            }
+
+            if (strpos($line, 'tree ') === 0) {
+                $tree = substr($line, 5);
+            } elseif (strpos($line, 'parent ') === 0) {
+                $parent = substr($line, 7);
+            } else {
+                $headers[] = $line;
+            }
+        }
+
+        if (!$tree || !preg_match('/^[a-f0-9]{40}$/', $tree)) {
+            return null;
+        }
+
+        return [
+            'sha' => $sha,
+            'tree' => $tree,
+            'parent' => $parent,
+            'headers' => $headers,
+            'message' => rtrim($message, "\n"),
+        ];
+    }
+
+    private function write_commit_with_headers(string $tree_sha, ?string $parent, string $message, array $headers): string {
+        if (empty($headers)) {
+            $ts = time();
+            $author = "AI Assistant <ai@local> {$ts} +0000";
+            $headers = [
+                "author {$author}",
+                "committer {$author}",
+            ];
+        }
+
+        $content = "tree {$tree_sha}\n";
+        if ($parent) {
+            $content .= "parent {$parent}\n";
+        }
+
+        foreach ($headers as $header) {
+            if (!is_string($header) || $header === '' || strpos($header, "\n") !== false) {
+                continue;
+            }
+            $content .= $header . "\n";
+        }
+
+        $content .= "\n" . $this->normalize_commit_message($message) . "\n";
+
+        $header = "commit " . strlen($content) . "\0";
+        $store = $header . $content;
+        $sha = sha1($store);
+
+        $dir = $this->git_dir . '/objects/' . substr($sha, 0, 2);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $path = $dir . '/' . substr($sha, 2);
+        if (!file_exists($path)) {
+            file_put_contents($path, gzcompress($store));
+        }
+
+        return $sha;
+    }
+
+    private function remap_checkout_state(array $sha_map): void {
+        $state = $this->read_checkout_state();
+        if ($state === null) {
+            return;
+        }
+
+        $sha = $state['sha'];
+        $previous_head = $state['previous_head'] ?? null;
+        $changed = false;
+
+        if (isset($sha_map[$sha])) {
+            $sha = $sha_map[$sha];
+            $changed = true;
+        }
+
+        if ($previous_head !== null && isset($sha_map[$previous_head])) {
+            $previous_head = $sha_map[$previous_head];
+            $changed = true;
+        }
+
+        if ($changed) {
+            $this->write_checkout_state($sha, $previous_head);
+        }
     }
 
     private function write_tree(array $entries): string {

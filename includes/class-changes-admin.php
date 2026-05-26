@@ -26,8 +26,10 @@ class Changes_Admin {
         add_action('wp_ajax_ai_assistant_lint_php', [$this, 'ajax_lint_php']);
         add_action('wp_ajax_ai_assistant_get_commit_log', [$this, 'ajax_get_commit_log']);
         add_action('wp_ajax_ai_assistant_get_commit_diff', [$this, 'ajax_get_commit_diff']);
+        add_action('wp_ajax_ai_assistant_update_commit_message', [$this, 'ajax_update_commit_message']);
         add_action('wp_ajax_ai_assistant_checkout_commit', [$this, 'ajax_checkout_commit']);
         add_action('wp_ajax_ai_assistant_revert_to_commit', [$this, 'ajax_checkout_commit']);
+        add_action('admin_action_ai_assistant_checkout_version', [$this, 'handle_checkout_version']);
         add_action('admin_action_ai_assistant_download_diff', [$this, 'handle_diff_download']);
     }
 
@@ -110,6 +112,13 @@ class Changes_Admin {
                 'checkedOut' => __('checked out', 'ai-assistant'),
                 'checkout' => __('Checkout', 'ai-assistant'),
                 'checkoutCommitTitle' => __('Check out files from this commit', 'ai-assistant'),
+                'editCommitMessage' => __('Edit commit message', 'ai-assistant'),
+                'commitMessageLabel' => __('Commit message', 'ai-assistant'),
+                'commitMessageEditHint' => __('Double-click to edit commit message', 'ai-assistant'),
+                'saveCommitMessage' => __('Save', 'ai-assistant'),
+                'cancelCommitMessage' => __('Cancel', 'ai-assistant'),
+                'updatingCommitMessage' => __('Saving...', 'ai-assistant'),
+                'updateCommitMessageError' => __('Failed to update commit message.', 'ai-assistant'),
                 'justNow' => __('just now', 'ai-assistant'),
                 'noCommits' => __('No commits yet', 'ai-assistant'),
                 'viewConversation' => __('View conversation', 'ai-assistant'),
@@ -315,7 +324,28 @@ class Changes_Admin {
                     <div class="ai-commit-row-top">
                         <button type="button" class="ai-commit-diff-toggle" data-sha="<?php echo esc_attr($commit['sha']); ?>" title="<?php esc_attr_e('Preview diff', 'ai-assistant'); ?>">▶</button>
                         <span class="ai-commit-sha"><?php echo esc_html($commit['short_sha']); ?></span>
-                        <span class="ai-commit-message"><?php echo esc_html($commit['message']); ?></span>
+                        <span class="ai-commit-message"
+                              title="<?php esc_attr_e('Double-click to edit commit message', 'ai-assistant'); ?>"
+                              tabindex="0"><?php echo esc_html($commit['message']); ?></span>
+                        <span class="ai-commit-message-editor" hidden>
+                            <input type="text"
+                                   class="regular-text ai-commit-message-input"
+                                   value="<?php echo esc_attr($commit['message']); ?>"
+                                   aria-label="<?php esc_attr_e('Commit message', 'ai-assistant'); ?>">
+                            <button type="button" class="button button-primary button-small ai-save-commit-message">
+                                <?php esc_html_e('Save', 'ai-assistant'); ?>
+                            </button>
+                            <button type="button" class="button button-small ai-cancel-commit-message">
+                                <?php esc_html_e('Cancel', 'ai-assistant'); ?>
+                            </button>
+                        </span>
+                        <button type="button"
+                                class="button-link ai-edit-commit-message"
+                                data-sha="<?php echo esc_attr($commit['sha']); ?>"
+                                title="<?php esc_attr_e('Edit commit message', 'ai-assistant'); ?>">
+                            <span class="dashicons dashicons-edit" aria-hidden="true"></span>
+                            <span class="screen-reader-text"><?php esc_html_e('Edit commit message', 'ai-assistant'); ?></span>
+                        </button>
                         <?php if (!empty($commit['conversation_id'])): ?>
                         <a href="<?php echo esc_url(Conversations_App::get_conversation_url($commit['conversation_id'])); ?>"
                            class="ai-commit-conversation"
@@ -684,6 +714,45 @@ class Changes_Admin {
         wp_send_json_success(['diff' => $diff]);
     }
 
+    public function ajax_update_commit_message(): void {
+        check_ajax_referer('ai_assistant_changes', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => 'Permission denied']);
+        }
+
+        $plugin_path = isset($_POST['plugin_path']) ? sanitize_text_field(wp_unslash($_POST['plugin_path'])) : '';
+        $sha = isset($_POST['sha']) ? sanitize_text_field(wp_unslash($_POST['sha'])) : '';
+        $message = isset($_POST['message']) ? trim(sanitize_text_field(wp_unslash($_POST['message']))) : '';
+
+        if (empty($plugin_path)) {
+            wp_send_json_error(['message' => 'No plugin path specified']);
+        }
+
+        if (empty($sha)) {
+            wp_send_json_error(['message' => 'No commit SHA specified']);
+        }
+
+        if ($message === '') {
+            wp_send_json_error(['message' => 'Commit message cannot be empty']);
+        }
+
+        $result = $this->git_tracker_manager->update_commit_message($plugin_path, $sha, $message);
+
+        if (!empty($result['success'])) {
+            wp_send_json_success([
+                'old_sha' => $result['old_sha'] ?? $sha,
+                'new_sha' => $result['new_sha'] ?? null,
+                'head_sha' => $result['head_sha'] ?? null,
+                'message' => $message,
+            ]);
+        }
+
+        wp_send_json_error([
+            'message' => !empty($result['errors']) ? implode(', ', $result['errors']) : __('Failed to update commit message.', 'ai-assistant'),
+        ]);
+    }
+
     public function ajax_checkout_commit(): void {
         check_ajax_referer('ai_assistant_changes', 'nonce');
 
@@ -716,6 +785,41 @@ class Changes_Admin {
                 'message' => implode(', ', $result['errors']),
             ]);
         }
+    }
+
+    public function handle_checkout_version(): void {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Permission denied.', 'ai-assistant'));
+        }
+
+        $plugin_path = isset($_GET['plugin_path']) ? sanitize_text_field(wp_unslash($_GET['plugin_path'])) : '';
+        $sha = isset($_GET['sha']) ? sanitize_text_field(wp_unslash($_GET['sha'])) : '';
+        $nonce = isset($_GET['_wpnonce']) ? sanitize_text_field(wp_unslash($_GET['_wpnonce'])) : '';
+
+        if ($plugin_path === '' || $sha === '') {
+            wp_die(__('Missing checkout target.', 'ai-assistant'));
+        }
+
+        if (!wp_verify_nonce($nonce, 'ai_assistant_checkout_version_' . $plugin_path . '_' . $sha)) {
+            wp_die(__('Security check failed.', 'ai-assistant'));
+        }
+
+        $result = $this->git_tracker_manager->checkout_commit($plugin_path, $sha);
+        if (empty($result['success'])) {
+            $errors = !empty($result['errors']) && is_array($result['errors'])
+                ? implode(', ', $result['errors'])
+                : __('Unable to check out version.', 'ai-assistant');
+            wp_die(esc_html($errors));
+        }
+
+        $fallback = admin_url('tools.php?page=ai-changes&plugin=' . rawurlencode($plugin_path));
+        $redirect_to = isset($_GET['redirect_to']) ? esc_url_raw(wp_unslash($_GET['redirect_to'])) : $fallback;
+        if ($redirect_to === '') {
+            $redirect_to = $fallback;
+        }
+
+        wp_safe_redirect($redirect_to);
+        exit;
     }
 
     private function parse_patch(string $patch): array {

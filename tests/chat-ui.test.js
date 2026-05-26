@@ -200,6 +200,9 @@ function createToolCardsDom() {
                 }
                 elements.forEach(element => {
                     element.attrs[name] = String(value);
+                    if (name === 'id') {
+                        byId[String(value)] = element;
+                    }
                     if (name === 'class') {
                         element.classes = new Set(String(value).split(/\s+/).filter(Boolean));
                     }
@@ -1137,10 +1140,84 @@ describe('AI changes links', function() {
         assert.strictEqual(suggestion.hidden, false);
         assert.ok(link);
         assert.strictEqual(link.parent, suggestion);
-        assert.strictEqual(link.textContent, 'Review file changes');
+        assert.strictEqual(link.textContent, 'Review AI changes');
         assert.strictEqual(
             link.attrs.href,
             'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fexample'
         );
+        assert.strictEqual(link.attrs.target, '_blank');
+    });
+
+    it('renders current page AI Changes suggestion in the current window', function() {
+        const dom = createToolCardsDom();
+        const assistant = loadUiMixin({
+            currentAiChanges: {
+                root: 'plugins/current-app',
+                type: 'plugin',
+                url: 'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fcurrent-app',
+                open_in_current_window: true,
+                version_log: [
+                    {
+                        key: 'next',
+                        label: 'Next',
+                        message: 'Latest change message with more words',
+                        message_excerpt: 'Latest change message with more...',
+                        time_ago: '2 min ago',
+                        url: 'http://example.test/wp-admin/admin.php?action=ai_assistant_checkout_version&sha=next',
+                        open_in_current_window: true
+                    },
+                    {
+                        key: 'current',
+                        label: 'Current',
+                        message: 'Middle checked out change message with more words',
+                        message_excerpt: 'Middle checked out change message...',
+                        time_ago: '5 min ago',
+                        is_current: true,
+                        open_in_current_window: true
+                    },
+                    {
+                        key: 'previous',
+                        label: 'Previous',
+                        message: 'First older change message with more words',
+                        message_excerpt: 'First older change message with...',
+                        time_ago: '8 min ago',
+                        url: 'http://example.test/wp-admin/admin.php?action=ai_assistant_checkout_version&sha=previous',
+                        open_in_current_window: true
+                    }
+                ],
+                links: [
+                    {
+                        key: 'overview',
+                        label: 'Overview',
+                        url: 'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fcurrent-app',
+                        open_in_current_window: true
+                    }
+                ]
+            }
+        }, { jQuery: dom.$ });
+
+        assistant.showCurrentAiChangesSuggestion();
+
+        const suggestion = dom.getById('ai-assistant-ai-changes-suggestion');
+        const link = dom.getById('ai-assistant-ai-changes-link');
+
+        assert.ok(suggestion);
+        assert.strictEqual(suggestion.hidden, false);
+        const previous = dom.getById('ai-assistant-ai-changes-version-previous');
+        const current = dom.getById('ai-assistant-ai-changes-version-current');
+        const next = dom.getById('ai-assistant-ai-changes-version-next');
+        const overview = dom.getById('ai-assistant-ai-changes-link-overview');
+
+        assert.ok(link);
+        assert.strictEqual(previous, undefined);
+        assert.strictEqual(current, undefined);
+        assert.strictEqual(next, undefined);
+        assert.strictEqual(overview, undefined);
+        assert.strictEqual(link.textContent, 'Review AI changes');
+        assert.strictEqual(
+            link.attrs.href,
+            'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fcurrent-app'
+        );
+        assert.strictEqual(link.attrs.target, undefined);
     });
 });

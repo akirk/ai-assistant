@@ -1568,6 +1568,47 @@
             return $suggestion;
         },
 
+        renderAiChangesSuggestion: function(metadata) {
+            metadata = metadata || {};
+            var root = typeof metadata.root === 'string' ? metadata.root : '';
+            var url = typeof metadata.url === 'string' && metadata.url
+                ? metadata.url
+                : this.getAiChangesUrlForRoot(root);
+            var links = Array.isArray(metadata.links) ? metadata.links.filter(function(link) {
+                return link && typeof link.url === 'string' && link.url;
+            }) : [];
+            var overviewLink = links.find(function(link) {
+                return (link.key || '') === 'overview';
+            }) || null;
+            var link = overviewLink || {
+                url: url,
+                open_in_current_window: metadata.open_in_current_window
+            };
+
+            if (!link.url) {
+                return;
+            }
+
+            var applyLinkTarget = function($link, item) {
+                if (!item.open_in_current_window && !metadata.open_in_current_window) {
+                    $link
+                        .attr('target', '_blank')
+                        .attr('rel', 'noopener noreferrer');
+                }
+            };
+            var $suggestion = this.ensureAiChangesSuggestion();
+            $suggestion.empty();
+
+            var $link = $('<a id="ai-assistant-ai-changes-link" class="ai-assistant-ai-changes-link"></a>')
+                .attr('href', link.url)
+                .text('Review AI changes');
+            applyLinkTarget($link, link);
+            $suggestion.append($link);
+
+            $suggestion.prop('hidden', false);
+            this.moveAiChangesSuggestionToEnd();
+        },
+
         getElementOuterHeight: function($element) {
             if (!$element || !$element.length) {
                 return 0;
@@ -1618,15 +1659,21 @@
                 return;
             }
 
-            var $suggestion = this.ensureAiChangesSuggestion();
-            $suggestion.empty()
-                .append(
-                    $('<a id="ai-assistant-ai-changes-link" target="_blank" rel="noopener noreferrer"></a>')
-                    .attr('href', url)
-                    .text('Review file changes')
-                )
-                .prop('hidden', false);
-            this.moveAiChangesSuggestionToEnd();
+            metadata.url = url;
+            this.renderAiChangesSuggestion(metadata);
+        },
+
+        showCurrentAiChangesSuggestion: function() {
+            var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+            var metadata = config.currentAiChanges;
+            if (!metadata || typeof metadata !== 'object') {
+                return;
+            }
+
+            this.renderAiChangesSuggestion($.extend({
+                link_text: 'Review AI changes',
+                open_in_current_window: true
+            }, metadata));
         },
 
         renderToolResultOutput: function($card, toolName, output, input) {

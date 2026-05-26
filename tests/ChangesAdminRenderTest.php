@@ -57,6 +57,33 @@ class ChangesAdminRenderTest extends TestCase {
         $this->assertStringNotContainsString('beta.php', $html);
     }
 
+    public function test_plugin_detail_renders_commit_message_edit_button(): void {
+        $_GET = ['plugin' => 'plugins/alpha'];
+
+        $fixture = $this->plugin_fixture();
+        $fixture['plugins/alpha']['commits'] = [
+            [
+                'sha' => '1111111111111111111111111111111111111111',
+                'short_sha' => '1111111',
+                'message' => 'Old commit text',
+                'conversation_id' => null,
+                'timestamp' => time(),
+                'date' => date('Y-m-d H:i:s'),
+                'is_latest' => true,
+                'is_checked_out' => false,
+            ],
+        ];
+
+        $html = $this->render_admin($fixture);
+
+        $this->assertStringContainsString('class="button-link ai-edit-commit-message"', $html);
+        $this->assertStringContainsString('data-sha="1111111111111111111111111111111111111111"', $html);
+        $this->assertStringContainsString('class="regular-text ai-commit-message-input"', $html);
+        $this->assertStringContainsString('value="Old commit text"', $html);
+        $this->assertStringContainsString('Double-click to edit commit message', $html);
+        $this->assertStringContainsString('Edit commit message', $html);
+    }
+
     public function test_unknown_plugin_parameter_keeps_overview_with_warning(): void {
         $_GET = ['plugin' => 'plugins/missing'];
 

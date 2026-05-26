@@ -79,6 +79,7 @@ final class AI_Assistant {
     private $plugin_downloads;
     private $changes_admin;
     private $plugin_recovery_admin;
+    private $plugin_checkout_badge;
     private $connectors_bridge;
     private $llm_proxy;
     private $wp_app_abilities;
@@ -120,6 +121,7 @@ final class AI_Assistant {
         $this->plugin_downloads = new AI_Assistant\Plugin_Downloads($this->git_tracker_manager);
         $this->changes_admin = new AI_Assistant\Changes_Admin($this->git_tracker_manager);
         $this->plugin_recovery_admin = new AI_Assistant\Plugin_Recovery_Admin();
+        $this->plugin_checkout_badge = new AI_Assistant\Plugin_Checkout_Badge($this->git_tracker_manager);
         $this->conversations_app = new AI_Assistant\Conversations_App();
         $this->wp_app_abilities = new AI_Assistant\Wp_App_Abilities($this->git_tracker_manager);
     }
@@ -171,6 +173,10 @@ final class AI_Assistant {
      */
     public function conversations_app() {
         return $this->conversations_app;
+    }
+
+    public function plugin_checkout_badge() {
+        return $this->plugin_checkout_badge;
     }
 
     /**
