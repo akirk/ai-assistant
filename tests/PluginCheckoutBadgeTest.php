@@ -29,9 +29,13 @@ class PluginCheckoutBadgeTest extends TestCase {
         $html = ob_get_clean();
 
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
-        $this->assertStringContainsString('Not current', $html);
+        $this->assertStringContainsString('<details class="ai-assistant-checkout-badge"', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-message">First checked out change message...', $html);
+        $this->assertStringContainsString('just now', $html);
         $this->assertStringContainsString('Badge Demo', $html);
-        $this->assertStringContainsString('Checked out change: First', $html);
+        $this->assertStringContainsString('First checked out change message with more words', $html);
+        $this->assertStringNotContainsString('Not current', $html);
+        $this->assertStringNotContainsString(' title=', $html);
         $this->assertStringNotContainsString(substr($checked_out_sha, 0, 7), $html);
         $this->assertStringContainsString('data-ai-plugin="plugins/badge-demo"', $html);
     }
@@ -73,7 +77,9 @@ class PluginCheckoutBadgeTest extends TestCase {
 
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
         $this->assertStringContainsString('Badge Admin', $html);
-        $this->assertStringContainsString('Checked out change: First', $html);
+        $this->assertStringContainsString('First checked out change message with more words', $html);
+        $this->assertStringNotContainsString('Not current', $html);
+        $this->assertStringNotContainsString(' title=', $html);
         $this->assertStringNotContainsString(substr($checked_out_sha, 0, 7), $html);
     }
 
@@ -84,7 +90,7 @@ class PluginCheckoutBadgeTest extends TestCase {
         $original = $this->pluginHeader($slug) . "\n// original\n";
 
         file_put_contents($main_file, $this->pluginHeader($slug) . "\n// version 1\n");
-        $tracker->track_change($relative_main_file, 'modified', $original, 'First');
+        $tracker->track_change($relative_main_file, 'modified', $original, 'First checked out change message with more words');
         $checked_out_sha = $tracker->get_recent_commits()[0]['sha'];
 
         file_put_contents($main_file, $this->pluginHeader($slug) . "\n// version 2\n");

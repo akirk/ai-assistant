@@ -57,22 +57,40 @@ class Plugin_Checkout_Badge {
         $status = $this->current_checkout_status;
         $plugin_name = $status['name'] ?? __('Plugin', 'ai-assistant');
         $commit_message = trim((string) ($status['commit_message'] ?? ''));
-        $title = $commit_message !== ''
+        $message_excerpt = $this->get_message_excerpt($commit_message);
+        $time_ago = $this->format_relative_time(isset($status['commit_timestamp']) ? (int) $status['commit_timestamp'] : null);
+        $label = $commit_message !== ''
             ? sprintf(
-                __('%s is not current. Checked out change: %s', 'ai-assistant'),
+                __('Viewing checked-out change for %s: %s', 'ai-assistant'),
                 $plugin_name,
                 $commit_message
             )
             : sprintf(
-                __('%s is checked out and is not showing the latest tracked state.', 'ai-assistant'),
+                __('Viewing a checked-out change for %s.', 'ai-assistant'),
                 $plugin_name
             );
 
         $this->render_style();
         ?>
-        <div class="ai-assistant-checkout-badge" role="status" aria-label="<?php echo esc_attr($title); ?>" title="<?php echo esc_attr($title); ?>" data-ai-plugin="<?php echo esc_attr($status['relative_root'] ?? ''); ?>">
-            <span class="ai-assistant-checkout-badge-label"><?php esc_html_e('Not current', 'ai-assistant'); ?></span>
-        </div>
+        <details class="ai-assistant-checkout-badge" data-ai-plugin="<?php echo esc_attr($status['relative_root'] ?? ''); ?>">
+            <summary class="ai-assistant-checkout-badge-summary" aria-label="<?php echo esc_attr($label); ?>">
+                <span class="ai-assistant-checkout-badge-dot" aria-hidden="true"></span>
+                <span class="ai-assistant-checkout-badge-message"><?php echo esc_html($message_excerpt); ?></span>
+                <?php if ($time_ago !== ''): ?>
+                <span class="ai-assistant-checkout-badge-time"><?php echo esc_html($time_ago); ?></span>
+                <?php endif; ?>
+            </summary>
+            <div class="ai-assistant-checkout-badge-panel" role="status">
+                <div class="ai-assistant-checkout-badge-kicker"><?php esc_html_e('Checked-out change', 'ai-assistant'); ?></div>
+                <div class="ai-assistant-checkout-badge-plugin"><?php echo esc_html($plugin_name); ?></div>
+                <?php if ($commit_message !== ''): ?>
+                <div class="ai-assistant-checkout-badge-full-message"><?php echo esc_html($commit_message); ?></div>
+                <?php endif; ?>
+                <?php if ($time_ago !== ''): ?>
+                <div class="ai-assistant-checkout-badge-meta"><?php echo esc_html(sprintf(__('Committed %s', 'ai-assistant'), $time_ago)); ?></div>
+                <?php endif; ?>
+            </div>
+        </details>
         <?php
         $this->badge_rendered = true;
     }
@@ -89,8 +107,8 @@ class Plugin_Checkout_Badge {
                 bottom: 16px;
                 right: 16px;
                 z-index: 1000000;
+                max-width: min(320px, calc(100vw - 32px));
                 box-sizing: border-box;
-                padding: 4px 8px;
                 border: 1px solid #dba617;
                 border-radius: 4px;
                 background: #fff8e5;
@@ -100,14 +118,69 @@ class Plugin_Checkout_Badge {
                 font: 11px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
                 letter-spacing: 0;
             }
+            .ai-assistant-checkout-badge[open] {
+                opacity: 1;
+            }
             .ai-assistant-checkout-badge:hover,
             .ai-assistant-checkout-badge:focus-within {
                 opacity: 1;
             }
-            .ai-assistant-checkout-badge-label {
-                font-weight: 700;
+            .ai-assistant-checkout-badge-summary {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                max-width: min(260px, calc(100vw - 32px));
+                box-sizing: border-box;
+                padding: 4px 8px;
+                cursor: pointer;
+                list-style: none;
+            }
+            .ai-assistant-checkout-badge-summary::-webkit-details-marker {
+                display: none;
+            }
+            .ai-assistant-checkout-badge-dot {
+                width: 6px;
+                height: 6px;
+                flex: 0 0 auto;
+                border-radius: 50%;
+                background: #dba617;
+            }
+            .ai-assistant-checkout-badge-message {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                font-weight: 600;
                 color: inherit;
+            }
+            .ai-assistant-checkout-badge-time {
+                flex: 0 0 auto;
+                color: #806000;
+            }
+            .ai-assistant-checkout-badge-panel {
+                width: min(320px, calc(100vw - 32px));
+                box-sizing: border-box;
+                padding: 0 10px 9px;
+            }
+            .ai-assistant-checkout-badge-kicker {
+                margin: 2px 0 3px;
+                color: #806000;
+                font-size: 10px;
+                font-weight: 700;
                 text-transform: uppercase;
+            }
+            .ai-assistant-checkout-badge-plugin {
+                margin-bottom: 4px;
+                color: #2c3338;
+                font-weight: 700;
+            }
+            .ai-assistant-checkout-badge-full-message {
+                color: #3c434a;
+                overflow-wrap: anywhere;
+            }
+            .ai-assistant-checkout-badge-meta {
+                margin-top: 5px;
+                color: #806000;
             }
             @media screen and (max-width: 782px) {
                 .ai-assistant-checkout-badge {
@@ -249,8 +322,48 @@ class Plugin_Checkout_Badge {
             'relative_root' => $this->get_relative_root($root),
             'checked_out_sha' => $checked_out_sha,
             'commit_message' => $commit['message'] ?? '',
+            'commit_timestamp' => $commit['timestamp'] ?? null,
             'latest_sha' => $latest_sha,
         ];
+    }
+
+    private function get_message_excerpt(string $message): string {
+        $message = trim(preg_replace('/\s+/', ' ', $message) ?? '');
+        if ($message === '') {
+            return __('Checked-out change', 'ai-assistant');
+        }
+
+        $words = preg_split('/\s+/', $message);
+        if (!is_array($words) || count($words) <= 5) {
+            return $message;
+        }
+
+        return implode(' ', array_slice($words, 0, 5)) . '...';
+    }
+
+    private function format_relative_time(?int $timestamp): string {
+        if (!$timestamp) {
+            return '';
+        }
+
+        $diff = max(0, time() - $timestamp);
+        if ($diff < 60) {
+            return __('just now', 'ai-assistant');
+        }
+
+        if ($diff < 3600) {
+            return sprintf(__('%d min ago', 'ai-assistant'), (int) floor($diff / 60));
+        }
+
+        if ($diff < 86400) {
+            return sprintf(__('%d hr ago', 'ai-assistant'), (int) floor($diff / 3600));
+        }
+
+        if ($diff < 604800) {
+            return sprintf(__('%d d ago', 'ai-assistant'), (int) floor($diff / 86400));
+        }
+
+        return function_exists('date_i18n') ? date_i18n('M j', $timestamp) : date('M j', $timestamp);
     }
 
     private function get_root_for_absolute_file(string $file): ?string {
