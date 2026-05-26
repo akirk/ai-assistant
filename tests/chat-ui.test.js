@@ -1140,7 +1140,7 @@ describe('AI changes links', function() {
         assert.strictEqual(suggestion.hidden, false);
         assert.ok(link);
         assert.strictEqual(link.parent, suggestion);
-        assert.strictEqual(link.textContent, 'Review file changes');
+        assert.strictEqual(link.textContent, 'Review AI changes');
         assert.strictEqual(
             link.attrs.href,
             'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fexample'
@@ -1208,29 +1208,16 @@ describe('AI changes links', function() {
         const next = dom.getById('ai-assistant-ai-changes-version-next');
         const overview = dom.getById('ai-assistant-ai-changes-link-overview');
 
-        assert.strictEqual(link, undefined);
-        assert.ok(previous);
-        assert.ok(current);
-        assert.ok(next);
-        assert.ok(overview);
-        assert.strictEqual(next.children[0].textContent, 'Next');
-        assert.strictEqual(next.children[1].textContent, 'Latest change message with more...');
-        assert.strictEqual(current.children[0].textContent, 'Current');
-        assert.strictEqual(current.children[1].textContent, 'Middle checked out change message...');
-        assert.strictEqual(previous.children[0].textContent, 'Previous');
-        assert.strictEqual(previous.children[1].textContent, 'First older change message with...');
-        assert.strictEqual(overview.textContent, 'Overview');
+        assert.ok(link);
+        assert.strictEqual(previous, undefined);
+        assert.strictEqual(current, undefined);
+        assert.strictEqual(next, undefined);
+        assert.strictEqual(overview, undefined);
+        assert.strictEqual(link.textContent, 'Review AI changes');
         assert.strictEqual(
-            next.attrs.href,
-            'http://example.test/wp-admin/admin.php?action=ai_assistant_checkout_version&sha=next'
-        );
-        assert.strictEqual(current.attrs.href, undefined);
-        assert.strictEqual(
-            overview.attrs.href,
+            link.attrs.href,
             'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fcurrent-app'
         );
-        assert.strictEqual(previous.attrs.target, undefined);
-        assert.strictEqual(next.attrs.target, undefined);
-        assert.strictEqual(overview.attrs.target, undefined);
+        assert.strictEqual(link.attrs.target, undefined);
     });
 });
