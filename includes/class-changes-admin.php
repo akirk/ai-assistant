@@ -28,6 +28,7 @@ class Changes_Admin {
         add_action('wp_ajax_ai_assistant_get_commit_diff', [$this, 'ajax_get_commit_diff']);
         add_action('wp_ajax_ai_assistant_checkout_commit', [$this, 'ajax_checkout_commit']);
         add_action('wp_ajax_ai_assistant_revert_to_commit', [$this, 'ajax_checkout_commit']);
+        add_action('admin_action_ai_assistant_checkout_version', [$this, 'handle_checkout_version']);
         add_action('admin_action_ai_assistant_download_diff', [$this, 'handle_diff_download']);
     }
 
@@ -716,6 +717,41 @@ class Changes_Admin {
                 'message' => implode(', ', $result['errors']),
             ]);
         }
+    }
+
+    public function handle_checkout_version(): void {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Permission denied.', 'ai-assistant'));
+        }
+
+        $plugin_path = isset($_GET['plugin_path']) ? sanitize_text_field(wp_unslash($_GET['plugin_path'])) : '';
+        $sha = isset($_GET['sha']) ? sanitize_text_field(wp_unslash($_GET['sha'])) : '';
+        $nonce = isset($_GET['_wpnonce']) ? sanitize_text_field(wp_unslash($_GET['_wpnonce'])) : '';
+
+        if ($plugin_path === '' || $sha === '') {
+            wp_die(__('Missing checkout target.', 'ai-assistant'));
+        }
+
+        if (!wp_verify_nonce($nonce, 'ai_assistant_checkout_version_' . $plugin_path . '_' . $sha)) {
+            wp_die(__('Security check failed.', 'ai-assistant'));
+        }
+
+        $result = $this->git_tracker_manager->checkout_commit($plugin_path, $sha);
+        if (empty($result['success'])) {
+            $errors = !empty($result['errors']) && is_array($result['errors'])
+                ? implode(', ', $result['errors'])
+                : __('Unable to check out version.', 'ai-assistant');
+            wp_die(esc_html($errors));
+        }
+
+        $fallback = admin_url('tools.php?page=ai-changes&plugin=' . rawurlencode($plugin_path));
+        $redirect_to = isset($_GET['redirect_to']) ? esc_url_raw(wp_unslash($_GET['redirect_to'])) : $fallback;
+        if ($redirect_to === '') {
+            $redirect_to = $fallback;
+        }
+
+        wp_safe_redirect($redirect_to);
+        exit;
     }
 
     private function parse_patch(string $patch): array {

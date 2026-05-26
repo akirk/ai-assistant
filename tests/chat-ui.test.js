@@ -200,6 +200,9 @@ function createToolCardsDom() {
                 }
                 elements.forEach(element => {
                     element.attrs[name] = String(value);
+                    if (name === 'id') {
+                        byId[String(value)] = element;
+                    }
                     if (name === 'class') {
                         element.classes = new Set(String(value).split(/\s+/).filter(Boolean));
                     }
@@ -1152,7 +1155,27 @@ describe('AI changes links', function() {
                 root: 'plugins/current-app',
                 type: 'plugin',
                 url: 'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fcurrent-app',
-                open_in_current_window: true
+                open_in_current_window: true,
+                links: [
+                    {
+                        key: 'previous-version',
+                        label: 'Previous version',
+                        url: 'http://example.test/wp-admin/admin.php?action=ai_assistant_checkout_version&sha=previous',
+                        open_in_current_window: true
+                    },
+                    {
+                        key: 'next-version',
+                        label: 'Next version',
+                        url: 'http://example.test/wp-admin/admin.php?action=ai_assistant_checkout_version&sha=next',
+                        open_in_current_window: true
+                    },
+                    {
+                        key: 'overview',
+                        label: 'Overview',
+                        url: 'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fcurrent-app',
+                        open_in_current_window: true
+                    }
+                ]
             }
         }, { jQuery: dom.$ });
 
@@ -1163,13 +1186,23 @@ describe('AI changes links', function() {
 
         assert.ok(suggestion);
         assert.strictEqual(suggestion.hidden, false);
-        assert.ok(link);
-        assert.strictEqual(link.textContent, 'Review file changes');
+        const previous = dom.getById('ai-assistant-ai-changes-link-previous-version');
+        const next = dom.getById('ai-assistant-ai-changes-link-next-version');
+        const overview = dom.getById('ai-assistant-ai-changes-link-overview');
+
+        assert.strictEqual(link, undefined);
+        assert.ok(previous);
+        assert.ok(next);
+        assert.ok(overview);
+        assert.strictEqual(previous.textContent, 'Previous version');
+        assert.strictEqual(next.textContent, 'Next version');
+        assert.strictEqual(overview.textContent, 'Overview');
         assert.strictEqual(
-            link.attrs.href,
+            overview.attrs.href,
             'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fcurrent-app'
         );
-        assert.strictEqual(link.attrs.target, undefined);
-        assert.strictEqual(link.attrs.rel, undefined);
+        assert.strictEqual(previous.attrs.target, undefined);
+        assert.strictEqual(next.attrs.target, undefined);
+        assert.strictEqual(overview.attrs.target, undefined);
     });
 });

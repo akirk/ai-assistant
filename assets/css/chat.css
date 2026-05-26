@@ -2623,6 +2623,10 @@ body.wp-app-body .ai-message-user .ai-message-content *::selection,
     padding: 0;
     text-align: right;
     pointer-events: auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
 }
 
 .ai-assistant-area-suggestion[hidden] {

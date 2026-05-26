@@ -33,14 +33,18 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertSame('plugin', $metadata['type']);
         $this->assertTrue($metadata['open_in_current_window']);
         $this->assertSame('http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fbadge-demo', $metadata['url']);
+        $this->assertSame(['previous-version', 'next-version', 'overview'], array_column($metadata['links'], 'key'));
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
         $this->assertStringContainsString('<details class="ai-assistant-checkout-badge"', $html);
         $this->assertStringContainsString('Old Version:', $html);
-        $this->assertStringContainsString('ai-assistant-checkout-badge-message">First checked out change message...', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-message">Middle checked out change message...', $html);
         $this->assertStringContainsString('just now', $html);
         $this->assertStringContainsString('Badge Demo', $html);
-        $this->assertStringContainsString('First checked out change message with more words', $html);
-        $this->assertStringContainsString('Checkout another version', $html);
+        $this->assertStringContainsString('Middle checked out change message with more words', $html);
+        $this->assertStringContainsString('Previous version', $html);
+        $this->assertStringContainsString('Next version', $html);
+        $this->assertStringContainsString('Overview', $html);
+        $this->assertStringContainsString('action=ai_assistant_checkout_version', $html);
         $this->assertStringContainsString('tools.php?page=ai-changes&plugin=plugins%2Fbadge-demo', $html);
         $this->assertStringNotContainsString('Not current', $html);
         $this->assertStringNotContainsString(' title=', $html);
@@ -86,11 +90,14 @@ class PluginCheckoutBadgeTest extends TestCase {
 
         $this->assertSame('plugins/badge-admin', $metadata['root']);
         $this->assertSame('http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fbadge-admin', $metadata['url']);
+        $this->assertSame(['previous-version', 'next-version', 'overview'], array_column($metadata['links'], 'key'));
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
         $this->assertStringContainsString('Badge Admin', $html);
         $this->assertStringContainsString('Old Version:', $html);
-        $this->assertStringContainsString('First checked out change message with more words', $html);
-        $this->assertStringContainsString('Checkout another version', $html);
+        $this->assertStringContainsString('Middle checked out change message with more words', $html);
+        $this->assertStringContainsString('Previous version', $html);
+        $this->assertStringContainsString('Next version', $html);
+        $this->assertStringContainsString('Overview', $html);
         $this->assertStringContainsString('tools.php?page=ai-changes&plugin=plugins%2Fbadge-admin', $html);
         $this->assertStringNotContainsString('Not current', $html);
         $this->assertStringNotContainsString(' title=', $html);
@@ -103,12 +110,15 @@ class PluginCheckoutBadgeTest extends TestCase {
         $relative_main_file = $slug . '.php';
         $original = $this->pluginHeader($slug) . "\n// original\n";
 
-        file_put_contents($main_file, $this->pluginHeader($slug) . "\n// version 1\n");
-        $tracker->track_change($relative_main_file, 'modified', $original, 'First checked out change message with more words');
+        file_put_contents($main_file, $this->pluginHeader($slug) . "\n// version 2\n");
+        $tracker->track_change($relative_main_file, 'modified', $original, 'First older change message with more words');
+
+        file_put_contents($main_file, $this->pluginHeader($slug) . "\n// version 3\n");
+        $tracker->track_change($relative_main_file, 'modified', $original, 'Middle checked out change message with more words');
         $checked_out_sha = $tracker->get_recent_commits()[0]['sha'];
 
-        file_put_contents($main_file, $this->pluginHeader($slug) . "\n// version 2\n");
-        $tracker->track_change($relative_main_file, 'modified', $original, 'Second');
+        file_put_contents($main_file, $this->pluginHeader($slug) . "\n// version 4\n");
+        $tracker->track_change($relative_main_file, 'modified', $original, 'Latest change message with more words');
         $tracker->checkout_commit($checked_out_sha);
 
         return [$manager, $checked_out_sha, $template_path];
