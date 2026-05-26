@@ -70,6 +70,11 @@
                 self.toggleFilePreview($(this).closest('.ai-changes-file').find('.ai-file-preview-toggle'));
             });
 
+            $(document).on('click', '.ai-preview-height-toggle', function(e) {
+                e.preventDefault();
+                self.togglePreviewHeight($(this));
+            });
+
             // Import patch - trigger file input
             $('#ai-import-patch').on('click', function() {
                 $('#ai-patch-file').click();
@@ -168,17 +173,21 @@
 
         toggleCommitDiff: function($toggle) {
             var self = this;
+            var $entry = $toggle.closest('.ai-commit-entry');
             var sha = $toggle.data('sha');
-            var $preview = $('.ai-commit-diff-preview[data-sha="' + sha + '"]');
+            var $preview = $entry.find('.ai-commit-diff-preview');
+            var $heightToggle = $entry.find('.ai-commit-preview-height-toggle');
             var $code = $preview.find('code');
             var isVisible = $preview.is(':visible');
 
             if (isVisible) {
                 $toggle.text('▶').removeClass('expanded');
                 $preview.slideUp(200);
+                self.resetPreviewHeight($preview, $heightToggle);
             } else {
                 $toggle.text('▼').addClass('expanded');
                 $preview.slideDown(200);
+                $heightToggle.css('display', 'flex');
 
                 if (!$code.html()) {
                     var pluginPath = self.getPluginPath($toggle);
@@ -869,15 +878,49 @@
             }
         },
 
+        resetPreviewHeight: function($preview, $heightToggle) {
+            $preview.removeClass('ai-preview-expanded');
+            $heightToggle
+                .hide()
+                .attr('aria-expanded', 'false')
+                .find('.ai-preview-height-arrow')
+                .text('▼');
+            $heightToggle
+                .find('.ai-preview-height-label')
+                .text(aiChanges.strings.expandFilePreview);
+        },
+
+        togglePreviewHeight: function($button) {
+            var $container = $button.closest('.ai-changes-file, .ai-commit-entry');
+            var $preview = $container.find('.ai-file-inline-preview, .ai-commit-diff-preview').first();
+            var isExpanded = !$preview.hasClass('ai-preview-expanded');
+            var label = isExpanded ? aiChanges.strings.collapseFilePreview : aiChanges.strings.expandFilePreview;
+
+            $preview
+                .toggleClass('ai-preview-expanded', isExpanded);
+
+            $button
+                .attr('aria-expanded', isExpanded ? 'true' : 'false')
+                .find('.ai-preview-height-arrow')
+                .text(isExpanded ? '▲' : '▼');
+
+            $button
+                .find('.ai-preview-height-label')
+                .text(label);
+        },
+
         toggleFilePreview: function($toggle) {
             var filePath = $toggle.data('path');
-            var previewType = $toggle.closest('.ai-changes-file').data('preview-type') || 'diff';
-            var $preview = $('.ai-file-inline-preview[data-path="' + filePath + '"]');
+            var $file = $toggle.closest('.ai-changes-file');
+            var previewType = $file.data('preview-type') || 'diff';
+            var $preview = $file.find('.ai-file-inline-preview');
+            var $heightToggle = $file.find('.ai-file-preview-height-toggle');
             var $code = $preview.find('code');
             var isVisible = $preview.is(':visible');
 
             if (isVisible) {
                 $preview.slideUp(150);
+                this.resetPreviewHeight($preview, $heightToggle);
                 $toggle.text('▶').removeClass('expanded');
             } else {
                 // Check if already loaded
@@ -910,6 +953,7 @@
                     });
                 }
                 $preview.slideDown(150);
+                $heightToggle.css('display', 'flex');
                 $toggle.text('▼').addClass('expanded');
             }
         },
