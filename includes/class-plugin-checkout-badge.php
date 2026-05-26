@@ -13,6 +13,7 @@ class Plugin_Checkout_Badge {
 
     private Git_Tracker_Manager $git_tracker_manager;
     private ?array $current_checkout_status = null;
+    private ?string $current_rendered_root = null;
     private bool $badge_rendered = false;
     private bool $style_rendered = false;
 
@@ -30,10 +31,32 @@ class Plugin_Checkout_Badge {
             return;
         }
 
-        $status = $this->get_checkout_status_for_file((string) $template_path);
+        $root = $this->get_root_for_absolute_file((string) $template_path);
+        if ($root === null) {
+            return;
+        }
+
+        $this->current_rendered_root = $root;
+        $status = $this->get_checkout_status_for_root($root);
         if ($status !== null) {
             $this->current_checkout_status = $status;
         }
+    }
+
+    public function get_current_ai_changes_metadata(): ?array {
+        if (!$this->can_view_badge()) {
+            return null;
+        }
+
+        if ($this->current_rendered_root !== null) {
+            $metadata = $this->get_ai_changes_metadata_for_root($this->current_rendered_root);
+            if ($metadata !== null) {
+                return $metadata;
+            }
+        }
+
+        $admin_root = $this->resolve_current_admin_root();
+        return $admin_root !== null ? $this->get_ai_changes_metadata_for_root($admin_root) : null;
     }
 
     public function render_admin_badge(): void {
@@ -233,10 +256,29 @@ class Plugin_Checkout_Badge {
             return null;
         }
 
-        return $this->get_checkout_status_from_admin_hook($hook);
+        $root = $this->get_root_from_admin_hook($hook);
+        return $root !== null ? $this->get_checkout_status_for_root($root) : null;
     }
 
-    private function get_checkout_status_from_admin_hook(string $hook): ?array {
+    private function resolve_current_admin_root(): ?string {
+        global $hook_suffix;
+
+        $hook = is_string($hook_suffix ?? null) ? $hook_suffix : '';
+        if ($hook === '' && function_exists('get_current_screen')) {
+            $screen = get_current_screen();
+            if (is_object($screen) && !empty($screen->id)) {
+                $hook = (string) $screen->id;
+            }
+        }
+
+        if ($hook === '') {
+            return null;
+        }
+
+        return $this->get_root_from_admin_hook($hook);
+    }
+
+    private function get_root_from_admin_hook(string $hook): ?string {
         global $wp_filter;
 
         if (empty($wp_filter[$hook])) {
@@ -249,9 +291,9 @@ class Plugin_Checkout_Badge {
                 continue;
             }
 
-            $status = $this->get_checkout_status_for_file($file);
-            if ($status !== null) {
-                return $status;
+            $root = $this->get_root_for_absolute_file($file);
+            if ($root !== null) {
+                return $root;
             }
         }
 
@@ -309,13 +351,22 @@ class Plugin_Checkout_Badge {
         return is_string($file) && $file !== '' ? $file : null;
     }
 
-    private function get_checkout_status_for_file(string $file): ?array {
-        $root = $this->get_root_for_absolute_file($file);
-        if ($root === null) {
+    private function get_ai_changes_metadata_for_root(string $root): ?array {
+        $tracker = $this->git_tracker_manager->get_or_create_tracker($root);
+        if (!$tracker->has_ai_changes()) {
             return null;
         }
 
-        return $this->get_checkout_status_for_root($root);
+        $relative_root = $this->get_relative_root($root);
+
+        return [
+            'root' => $relative_root,
+            'type' => strpos($relative_root, 'themes/') === 0 ? 'theme' : 'plugin',
+            'url' => function_exists('admin_url')
+                ? admin_url('tools.php?page=ai-changes&plugin=' . rawurlencode($relative_root))
+                : '',
+            'open_in_current_window' => true,
+        ];
     }
 
     private function get_checkout_status_for_root(string $root): ?array {

@@ -1142,5 +1142,34 @@ describe('AI changes links', function() {
             link.attrs.href,
             'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fexample'
         );
+        assert.strictEqual(link.attrs.target, '_blank');
+    });
+
+    it('renders current page AI Changes suggestion in the current window', function() {
+        const dom = createToolCardsDom();
+        const assistant = loadUiMixin({
+            currentAiChanges: {
+                root: 'plugins/current-app',
+                type: 'plugin',
+                url: 'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fcurrent-app',
+                open_in_current_window: true
+            }
+        }, { jQuery: dom.$ });
+
+        assistant.showCurrentAiChangesSuggestion();
+
+        const suggestion = dom.getById('ai-assistant-ai-changes-suggestion');
+        const link = dom.getById('ai-assistant-ai-changes-link');
+
+        assert.ok(suggestion);
+        assert.strictEqual(suggestion.hidden, false);
+        assert.ok(link);
+        assert.strictEqual(link.textContent, 'Review file changes');
+        assert.strictEqual(
+            link.attrs.href,
+            'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fcurrent-app'
+        );
+        assert.strictEqual(link.attrs.target, undefined);
+        assert.strictEqual(link.attrs.rel, undefined);
     });
 });
