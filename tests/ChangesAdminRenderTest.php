@@ -10,13 +10,16 @@ use PHPUnit\Framework\TestCase;
 class ChangesAdminRenderTest extends TestCase {
 
     private array $previous_get;
+    private array $previous_post;
 
     protected function setUp(): void {
         $this->previous_get = $_GET;
+        $this->previous_post = $_POST;
     }
 
     protected function tearDown(): void {
         $_GET = $this->previous_get;
+        $_POST = $this->previous_post;
     }
 
     public function test_overview_links_to_plugin_pages_without_rendering_file_details_or_paths(): void {
@@ -143,6 +146,36 @@ class ChangesAdminRenderTest extends TestCase {
         $this->assertStringContainsString('class="ai-plugin-index"', $html);
         $this->assertStringContainsString('Alpha Plugin', $html);
         $this->assertStringNotContainsString('alpha.php', $html);
+    }
+
+    public function test_ajax_generate_diff_returns_content_for_created_file_preview(): void {
+        $_POST = ['file_paths' => ['plugins/alpha/new.php']];
+
+        $admin = new Changes_Admin(new class extends Git_Tracker_Manager {
+            public function is_created_file(string $path): bool {
+                return $path === 'plugins/alpha/new.php';
+            }
+
+            public function get_current_content(string $path): ?string {
+                return "<?php\n// created\n";
+            }
+
+            public function generate_diff(array $file_paths): string {
+                return 'unexpected diff';
+            }
+        });
+
+        try {
+            $admin->ajax_generate_diff();
+            $this->fail('Expected wp_send_json_success to stop execution');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('wp_send_json_success', $e->getMessage());
+        }
+
+        $this->assertTrue($GLOBALS['wp_test_json_response']['success']);
+        $this->assertSame('content', $GLOBALS['wp_test_json_response']['data']['type']);
+        $this->assertSame("<?php\n// created\n", $GLOBALS['wp_test_json_response']['data']['content']);
+        $this->assertSame('plugins/alpha/new.php', $GLOBALS['wp_test_json_response']['data']['path']);
     }
 
     private function render_admin(array $plugins): string {

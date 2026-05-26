@@ -323,6 +323,49 @@
             return container.innerHTML;
         },
 
+        highlightContent: function(content, path) {
+            var modeName = this.getModeForPath(path);
+            var container = document.createElement('pre');
+            container.className = 'cm-s-default';
+
+            if (modeName && wp.CodeMirror && wp.CodeMirror.getMode && wp.CodeMirror.runMode) {
+                try {
+                    wp.CodeMirror.runMode(content, wp.CodeMirror.getMode({}, modeName), container);
+                    return container.innerHTML;
+                } catch (error) {
+                    // Fall back to escaped plain text when a mode is unavailable.
+                }
+            }
+
+            return this.escapeHtml(content);
+        },
+
+        getModeForPath: function(path) {
+            var extension = String(path || '').split('?')[0].split('.').pop().toLowerCase();
+            var modes = {
+                css: 'css',
+                htm: 'htmlmixed',
+                html: 'htmlmixed',
+                js: 'javascript',
+                json: 'application/json',
+                jsx: 'jsx',
+                md: 'markdown',
+                php: 'php',
+                scss: 'css',
+                svg: 'xml',
+                ts: 'javascript',
+                tsx: 'jsx',
+                txt: null,
+                xml: 'xml'
+            };
+
+            return Object.prototype.hasOwnProperty.call(modes, extension) ? modes[extension] : null;
+        },
+
+        escapeHtml: function(content) {
+            return $('<div></div>').text(content || '').html();
+        },
+
         toggleFilePreview: function($toggle) {
             var filePath = $toggle.data('path');
             var $preview = $('.ai-file-inline-preview[data-path="' + filePath + '"]');
@@ -343,7 +386,11 @@
                         file_paths: [filePath]
                     }, function(response) {
                         if (response.success) {
-                            $code.html(self.highlightDiff(response.data.diff));
+                            if (response.data.type === 'content') {
+                                $code.html(self.highlightContent(response.data.content || '', response.data.path || filePath));
+                            } else {
+                                $code.html(self.highlightDiff(response.data.diff || ''));
+                            }
                         } else {
                             $code.html('<span class="loading">Error loading diff</span>');
                         }

@@ -188,6 +188,17 @@ class GitTrackerTest extends TestCase {
         $this->assertStringContainsString('+new content', $diff);
     }
 
+    public function test_created_file_content_helpers(): void {
+        $test_file = $this->plugin_dir . '/new.txt';
+        file_put_contents($test_file, "new content\nsecond line");
+
+        $this->tracker->track_change('new.txt', 'created', null, 'Created file');
+
+        $this->assertTrue($this->tracker->is_created_file('new.txt'));
+        $this->assertFalse($this->tracker->is_created_file('missing.txt'));
+        $this->assertSame("new content\nsecond line", $this->tracker->get_current_content('new.txt'));
+    }
+
     // -------------------------------------------------------------------------
     // Revert and reapply tests
     // -------------------------------------------------------------------------

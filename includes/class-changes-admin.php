@@ -480,8 +480,22 @@ class Changes_Admin {
             wp_send_json_error(['message' => 'No files selected']);
         }
 
+        if (count($file_paths) === 1 && $this->git_tracker_manager->is_created_file($file_paths[0])) {
+            $content = $this->git_tracker_manager->get_current_content($file_paths[0]);
+            if ($content !== null) {
+                wp_send_json_success([
+                    'type' => 'content',
+                    'content' => $content,
+                    'path' => $file_paths[0],
+                ]);
+            }
+        }
+
         $diff = $this->git_tracker_manager->generate_diff($file_paths);
-        wp_send_json_success(['diff' => $diff]);
+        wp_send_json_success([
+            'type' => 'diff',
+            'diff' => $diff,
+        ]);
     }
 
     public function ajax_apply_patch(): void {

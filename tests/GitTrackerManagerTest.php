@@ -220,6 +220,17 @@ class GitTrackerManagerTest extends TestCase {
         );
     }
 
+    public function test_created_file_content_helpers_use_wp_content_relative_paths(): void {
+        $test_file = $this->plugin1_dir . '/new.txt';
+        file_put_contents($test_file, "created content\n");
+
+        $this->manager->track_change('plugins/test-plugin-1/new.txt', 'created', null, 'Created file');
+
+        $this->assertTrue($this->manager->is_created_file('plugins/test-plugin-1/new.txt'));
+        $this->assertFalse($this->manager->is_created_file('plugins/test-plugin-1/missing.txt'));
+        $this->assertSame("created content\n", $this->manager->get_current_content('plugins/test-plugin-1/new.txt'));
+    }
+
     public function test_update_commit_message_updates_plugin_commit(): void {
         $test_file = $this->plugin1_dir . '/test.txt';
         file_put_contents($test_file, 'modified');
