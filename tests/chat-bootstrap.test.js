@@ -15,7 +15,16 @@ class FakeElement {
         this.handlers = {};
         this.visible = true;
         this.styles = {};
+        this.style = {
+            removeProperty: (name) => {
+                delete this.styles[name];
+            }
+        };
         this.htmlContent = '';
+    }
+
+    getBoundingClientRect() {
+        return { right: 640 };
     }
 }
 
@@ -122,6 +131,7 @@ function createHarness(useCoreScreenMeta) {
             on(eventName, handler) {
                 const eventType = eventName.split('.')[0];
                 elems.forEach((element) => {
+                    element.handlers = element.handlers || {};
                     element.handlers[eventType] = element.handlers[eventType] || [];
                     element.handlers[eventType].push(handler);
                 });
@@ -130,6 +140,7 @@ function createHarness(useCoreScreenMeta) {
             off(eventName) {
                 const eventType = eventName.split('.')[0];
                 elems.forEach((element) => {
+                    element.handlers = element.handlers || {};
                     element.handlers[eventType] = [];
                 });
                 return this;
@@ -137,6 +148,7 @@ function createHarness(useCoreScreenMeta) {
             trigger(eventName) {
                 const eventType = eventName.split('.')[0];
                 elems.forEach((element) => {
+                    element.handlers = element.handlers || {};
                     const event = {
                         type: eventType,
                         prevented: false,
@@ -173,10 +185,26 @@ function createHarness(useCoreScreenMeta) {
                 elems.forEach((element) => element.classes.delete(className));
                 return this;
             },
+            toggleClass(className, force) {
+                elems.forEach((element) => {
+                    if (force === undefined ? !element.classes.has(className) : !!force) {
+                        element.classes.add(className);
+                    } else {
+                        element.classes.delete(className);
+                    }
+                });
+                return this;
+            },
             hasClass(className) {
                 return elems[0] ? elems[0].classes.has(className) : false;
             },
             css(name, value) {
+                if (name && typeof name === 'object') {
+                    elems.forEach((element) => {
+                        Object.assign(element.styles, name);
+                    });
+                    return this;
+                }
                 elems.forEach((element) => {
                     element.styles[name] = value;
                 });
@@ -217,6 +245,20 @@ function createHarness(useCoreScreenMeta) {
             },
             parent() {
                 return collection(elems.map((element) => element.parentNode));
+            },
+            closest(selector) {
+                const found = [];
+                elems.forEach((element) => {
+                    let current = element;
+                    while (current) {
+                        if (matchesSelector(current, selector)) {
+                            found.push(current);
+                            break;
+                        }
+                        current = current.parentNode;
+                    }
+                });
+                return collection(found);
             },
             find(selector) {
                 let found = [];
@@ -263,6 +305,19 @@ function createHarness(useCoreScreenMeta) {
             },
             children() {
                 return collection(elems.flatMap((element) => element.children));
+            },
+            outerHeight() {
+                return 320;
+            },
+            promise() {
+                return {
+                    done(callback) {
+                        if (callback) {
+                            callback();
+                        }
+                        return this;
+                    }
+                };
             },
             is(selector) {
                 return elems[0] ? matchesSelector(elems[0], selector) : false;
@@ -356,6 +411,9 @@ function createHarness(useCoreScreenMeta) {
         },
         document: {
             nodeType: 9,
+            documentElement: {
+                clientWidth: 1024
+            },
             getElementById(id) {
                 return elements[id] || null;
             }
