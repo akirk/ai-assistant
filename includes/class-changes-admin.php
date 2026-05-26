@@ -19,6 +19,7 @@ class Changes_Admin {
         add_action('wp_ajax_ai_assistant_get_changes', [$this, 'ajax_get_changes']);
         add_action('wp_ajax_ai_assistant_get_changes_by_plugin', [$this, 'ajax_get_changes_by_plugin']);
         add_action('wp_ajax_ai_assistant_generate_diff', [$this, 'ajax_generate_diff']);
+        add_action('wp_ajax_ai_assistant_get_file_content', [$this, 'ajax_get_file_content']);
         add_action('wp_ajax_ai_assistant_apply_patch', [$this, 'ajax_apply_patch']);
         add_action('wp_ajax_ai_assistant_revert_file', [$this, 'ajax_revert_file']);
         add_action('wp_ajax_ai_assistant_reapply_file', [$this, 'ajax_reapply_file']);
@@ -389,8 +390,9 @@ class Changes_Admin {
                 $change_types = isset($file['change_types']) && is_array($file['change_types'])
                     ? array_values(array_unique(array_filter($file['change_types'], 'is_string')))
                     : [(string) ($file['change_type'] ?? '')];
+                $preview_type = in_array('created', $change_types, true) ? 'content' : 'diff';
             ?>
-            <div class="ai-changes-file">
+            <div class="ai-changes-file" data-preview-type="<?php echo esc_attr($preview_type); ?>">
                 <div class="ai-changes-file-row">
                     <button type="button" class="ai-file-preview-toggle" data-path="<?php echo esc_attr($file['path']); ?>" title="<?php esc_attr_e('Preview diff', 'ai-assistant'); ?>">▶</button>
                     <span class="ai-changes-file-path"><?php echo esc_html($file['relative_path'] ?: basename($file['path'])); ?></span>
@@ -507,6 +509,35 @@ class Changes_Admin {
         wp_send_json_success([
             'type' => 'diff',
             'diff' => $diff,
+        ]);
+    }
+
+    public function ajax_get_file_content(): void {
+        check_ajax_referer('ai_assistant_changes', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => 'Permission denied']);
+        }
+
+        $file_path = isset($_POST['file_path']) ? sanitize_text_field($_POST['file_path']) : '';
+
+        if ($file_path === '') {
+            wp_send_json_error(['message' => 'No file specified']);
+        }
+
+        if (!$this->git_tracker_manager->is_created_file($file_path)) {
+            wp_send_json_error(['message' => 'File is not tracked as created']);
+        }
+
+        $content = $this->git_tracker_manager->get_current_content($file_path);
+        if ($content === null) {
+            wp_send_json_error(['message' => 'Failed to read file']);
+        }
+
+        wp_send_json_success([
+            'type' => 'content',
+            'content' => $content,
+            'path' => $file_path,
         ]);
     }
 

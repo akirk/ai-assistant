@@ -323,52 +323,163 @@
             return container.innerHTML;
         },
 
-        highlightContent: function(content, path) {
-            var modeName = this.getModeForPath(path);
-            var container = document.createElement('pre');
+        highlightContent: function($code, content, path) {
+            var language = this.getLanguageForPath(path);
+            var effectiveLanguage = language;
+            var element = $code[0];
 
-            if (modeName && typeof wp !== 'undefined' && wp.CodeMirror && wp.CodeMirror.getMode && wp.CodeMirror.runMode) {
+            if ((language === 'javascript' || language === 'js') && this.isJsonLikeText(content)) {
+                effectiveLanguage = 'json';
+            }
+
+            element.textContent = '';
+            $code
+                .removeClass('cm-s-default ai-code-preview ai-file-content-preview ai-file-diff-preview ai-code-with-lines ai-language-css ai-language-html ai-language-javascript ai-language-json ai-language-markdown ai-language-php ai-language-xml')
+                .addClass('cm-s-default ai-code-preview ai-file-content-preview');
+            this.setCodeLanguageClass(element, effectiveLanguage);
+
+            if (effectiveLanguage && typeof wp !== 'undefined' && wp.CodeMirror && wp.CodeMirror.getMode && wp.CodeMirror.runMode) {
                 try {
-                    wp.CodeMirror.runMode(content, wp.CodeMirror.getMode({}, modeName), container);
-                    return container.innerHTML;
+                    var modeName = this.getCodeMirrorMode(effectiveLanguage);
+                    var codeToHighlight = content;
+                    var prependedPhpTag = false;
+
+                    if (modeName === 'php' && !String(content).trim().startsWith('<?')) {
+                        codeToHighlight = '<?php\n' + content;
+                        prependedPhpTag = true;
+                    }
+
+                    wp.CodeMirror.runMode(codeToHighlight, wp.CodeMirror.getMode({}, modeName), element);
+
+                    if (prependedPhpTag) {
+                        this.removePrependedPhpTag(element);
+                    } else {
+                        this.addLineNumbers(element);
+                    }
+
+                    if (effectiveLanguage === 'json') {
+                        this.markJsonPropertyTokens(element);
+                    }
+
+                    return;
                 } catch (error) {
                     if (window.console && console.warn) {
-                        console.warn('[AI Changes] CodeMirror highlighting failed for', path, modeName, error);
+                        console.warn('[AI Changes] CodeMirror highlighting failed for', path, effectiveLanguage, error);
                     }
                 }
             }
 
-            return this.escapeHtml(content);
+            element.textContent = content || '';
         },
 
-        getModeForPath: function(path) {
+        getLanguageForPath: function(path) {
             var extension = String(path || '').split('?')[0].split('.').pop().toLowerCase();
-            var modes = {
+            var languages = {
                 css: 'css',
-                htm: 'htmlmixed',
-                html: 'htmlmixed',
+                htm: 'html',
+                html: 'html',
                 js: 'javascript',
-                json: 'application/json',
-                jsx: 'jsx',
+                json: 'json',
+                jsx: 'javascript',
                 md: 'markdown',
                 php: 'php',
                 scss: 'css',
                 svg: 'xml',
                 ts: 'javascript',
-                tsx: 'jsx',
+                tsx: 'javascript',
                 txt: null,
                 xml: 'xml'
             };
 
-            return Object.prototype.hasOwnProperty.call(modes, extension) ? modes[extension] : null;
+            return Object.prototype.hasOwnProperty.call(languages, extension) ? languages[extension] : null;
         },
 
-        escapeHtml: function(content) {
-            return $('<div></div>').text(content || '').html();
+        getCodeMirrorMode: function(language) {
+            var modes = {
+                html: 'htmlmixed',
+                js: 'javascript',
+                json: { name: 'javascript', json: true }
+            };
+
+            return modes[language] || language;
+        },
+
+        setCodeLanguageClass: function(element, language) {
+            if (!element || !language) {
+                return;
+            }
+
+            element.classList.add('ai-language-' + String(language).replace(/[^a-z0-9_-]/gi, '-').toLowerCase());
+        },
+
+        isJsonLikeText: function(text) {
+            var trimmed = String(text || '').trim();
+
+            if (!trimmed) {
+                return false;
+            }
+
+            if (!((trimmed.charAt(0) === '{' && trimmed.charAt(trimmed.length - 1) === '}') ||
+                (trimmed.charAt(0) === '[' && trimmed.charAt(trimmed.length - 1) === ']'))) {
+                return false;
+            }
+
+            try {
+                JSON.parse(trimmed);
+                return true;
+            } catch (error) {
+                return false;
+            }
+        },
+
+        markJsonPropertyTokens: function(element) {
+            if (!element || typeof element.querySelectorAll !== 'function') {
+                return;
+            }
+
+            Array.prototype.slice.call(element.querySelectorAll('.cm-string')).forEach(function(token) {
+                var sibling = token.nextSibling;
+                while (sibling) {
+                    var text = sibling.textContent || '';
+                    if (sibling.nodeType === 3) {
+                        if (/^\s*:/.test(text)) {
+                            token.classList.add('ai-json-key');
+                            token.classList.add('cm-property');
+                        }
+                        if (text.trim() !== '') {
+                            return;
+                        }
+                    } else if (sibling.nodeType === 1 && text.trim() !== '') {
+                        return;
+                    }
+                    sibling = sibling.nextSibling;
+                }
+            });
+        },
+
+        addLineNumbers: function(element) {
+            var lines = element.innerHTML.split('\n');
+
+            element.innerHTML = lines.map(function(line, index) {
+                return '<span class="ai-line"><span class="ai-line-number">' + (index + 1) + '</span><span class="ai-line-content">' + (line || ' ') + '</span></span>';
+            }).join('');
+            element.classList.add('ai-code-with-lines');
+        },
+
+        removePrependedPhpTag: function(element) {
+            var firstChild = element.firstChild;
+
+            if (firstChild && firstChild.classList && firstChild.classList.contains('cm-meta')) {
+                firstChild.remove();
+                if (element.firstChild && element.firstChild.nodeType === 3 && element.firstChild.textContent === '\n') {
+                    element.firstChild.remove();
+                }
+            }
         },
 
         toggleFilePreview: function($toggle) {
             var filePath = $toggle.data('path');
+            var previewType = $toggle.closest('.ai-changes-file').data('preview-type') || 'diff';
             var $preview = $('.ai-file-inline-preview[data-path="' + filePath + '"]');
             var $code = $preview.find('code');
             var isVisible = $preview.is(':visible');
@@ -381,17 +492,21 @@
                 if ($code.html() === '') {
                     $code.html('<span class="loading">Loading...</span>');
                     var self = this;
-                    $.post(aiChanges.ajaxUrl, {
+                    var request = previewType === 'content' ? {
+                        action: 'ai_assistant_get_file_content',
+                        nonce: aiChanges.nonce,
+                        file_path: filePath
+                    } : {
                         action: 'ai_assistant_generate_diff',
                         nonce: aiChanges.nonce,
                         file_paths: [filePath]
-                    }, function(response) {
+                    };
+
+                    $.post(aiChanges.ajaxUrl, request, function(response) {
                         if (response.success) {
-                            $code.removeClass('cm-s-default ai-file-content-preview ai-file-diff-preview');
+                            $code.removeClass('cm-s-default ai-code-preview ai-file-content-preview ai-file-diff-preview ai-code-with-lines ai-language-css ai-language-html ai-language-javascript ai-language-json ai-language-markdown ai-language-php ai-language-xml');
                             if (response.data.type === 'content') {
-                                $code
-                                    .addClass('cm-s-default ai-file-content-preview')
-                                    .html(self.highlightContent(response.data.content || '', response.data.path || filePath));
+                                self.highlightContent($code, response.data.content || '', response.data.path || filePath);
                             } else {
                                 $code
                                     .addClass('cm-s-default ai-file-diff-preview')

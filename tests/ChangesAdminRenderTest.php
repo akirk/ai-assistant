@@ -135,6 +135,7 @@ class ChangesAdminRenderTest extends TestCase {
         $this->assertStringContainsString('class="ai-changes-file-badges"', $html);
         $this->assertStringContainsString('ai-changes-type-created', $html);
         $this->assertStringContainsString('ai-changes-type-modified', $html);
+        $this->assertStringContainsString('data-preview-type="content"', $html);
         $this->assertStringContainsString('Created', $html);
         $this->assertStringContainsString('Changed', $html);
     }
@@ -178,6 +179,32 @@ class ChangesAdminRenderTest extends TestCase {
         $this->assertSame('content', $GLOBALS['wp_test_json_response']['data']['type']);
         $this->assertSame("<?php\n// created\n", $GLOBALS['wp_test_json_response']['data']['content']);
         $this->assertSame('plugins/alpha/new.php', $GLOBALS['wp_test_json_response']['data']['path']);
+    }
+
+    public function test_ajax_get_file_content_returns_created_file_content(): void {
+        $_POST = ['file_path' => 'plugins/alpha/new.json'];
+
+        $admin = new Changes_Admin(new class extends Git_Tracker_Manager {
+            public function is_created_file(string $path): bool {
+                return $path === 'plugins/alpha/new.json';
+            }
+
+            public function get_current_content(string $path): ?string {
+                return '{"ok":true}';
+            }
+        });
+
+        try {
+            $admin->ajax_get_file_content();
+            $this->fail('Expected wp_send_json_success to stop execution');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('wp_send_json_success', $e->getMessage());
+        }
+
+        $this->assertTrue($GLOBALS['wp_test_json_response']['success']);
+        $this->assertSame('content', $GLOBALS['wp_test_json_response']['data']['type']);
+        $this->assertSame('{"ok":true}', $GLOBALS['wp_test_json_response']['data']['content']);
+        $this->assertSame('plugins/alpha/new.json', $GLOBALS['wp_test_json_response']['data']['path']);
     }
 
     private function render_admin(array $plugins): string {
