@@ -14,7 +14,7 @@
 
         autoExpandFromUrl: function() {
             var self = this;
-            var $detailCards = $('.ai-plugin-card-detail');
+            var $detailCards = $('.ai-changes-plugin-detail[data-plugin]');
 
             if ($detailCards.length) {
                 $detailCards.each(function() {
@@ -145,6 +145,10 @@
             });
         },
 
+        getPluginPath: function($element) {
+            return $element.closest('[data-plugin]').data('plugin') || '';
+        },
+
         toggleCommitDiff: function($toggle) {
             var self = this;
             var sha = $toggle.data('sha');
@@ -160,7 +164,7 @@
                 $preview.slideDown(200);
 
                 if (!$code.html()) {
-                    var pluginPath = $toggle.closest('.ai-plugin-card').data('plugin');
+                    var pluginPath = self.getPluginPath($toggle);
                     $code.html('<span class="loading">' + (aiChanges.strings.loading || 'Loading...') + '</span>');
                     $.post(aiChanges.ajaxUrl, {
                         action: 'ai_assistant_get_commit_diff',
@@ -181,7 +185,7 @@
         },
 
         checkoutCommit: function(sha, $button) {
-            var pluginPath = $button.closest('.ai-plugin-card').data('plugin');
+            var pluginPath = this.getPluginPath($button);
             var originalText = $button.text();
             $button.text(aiChanges.strings.checkingOutCommit || 'Checking out...').prop('disabled', true);
 
@@ -279,7 +283,7 @@
         },
 
         updateCommitMessage: function(sha, message, $rowTop) {
-            var pluginPath = $rowTop.closest('.ai-plugin-card').data('plugin');
+            var pluginPath = this.getPluginPath($rowTop);
             var $input = $rowTop.find('.ai-commit-message-input');
             var $save = $rowTop.find('.ai-save-commit-message');
             var originalSaveText = $save.text();
@@ -402,7 +406,7 @@
         lintFile: function(filePath) {
             var self = this;
             var $status = $('.ai-lint-status[data-path="' + filePath + '"]');
-            var $pluginCard = $status.closest('.ai-plugin-card');
+            var $pluginCard = $status.closest('[data-plugin]');
 
             $status.data('linted', true);
 
@@ -437,12 +441,21 @@
         },
 
         updatePluginLintStatus: function($pluginCard) {
-            var $header = $pluginCard.find('.ai-plugin-header');
-            var $pluginStatus = $header.find('.ai-plugin-lint-status');
+            var $statusTarget = $pluginCard.find('.ai-plugin-files .ai-changes-panel-header').first();
+
+            if (!$statusTarget.length) {
+                $statusTarget = $pluginCard.find('.ai-plugin-header').first();
+            }
+
+            if (!$statusTarget.length) {
+                return;
+            }
+
+            var $pluginStatus = $statusTarget.find('.ai-plugin-lint-status');
 
             if ($pluginStatus.length === 0) {
                 $pluginStatus = $('<span class="ai-plugin-lint-status"></span>');
-                $header.find('.ai-plugin-stats').after($pluginStatus);
+                $statusTarget.append($pluginStatus);
             }
 
             var errorCount = $pluginCard.find('.ai-lint-error').length;

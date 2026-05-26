@@ -32,7 +32,7 @@ class ChangesAdminRenderTest extends TestCase {
         $this->assertStringNotContainsString('id="ai-clear-history"', $html);
         $this->assertStringNotContainsString('Clear History', $html);
         $this->assertStringNotContainsString('alpha.php', $html);
-        $this->assertStringNotContainsString('class="ai-plugin-card ai-plugin-card-detail"', $html);
+        $this->assertStringNotContainsString('class="ai-changes-plugin-detail"', $html);
     }
 
     public function test_plugin_parameter_renders_only_the_selected_plugin_detail(): void {
@@ -42,9 +42,14 @@ class ChangesAdminRenderTest extends TestCase {
 
         $this->assertStringContainsString('AI Changes: Alpha Plugin', $html);
         $this->assertStringContainsString('All plugins', $html);
-        $this->assertStringContainsString('class="ai-plugin-card ai-plugin-card-detail"', $html);
-        $this->assertStringContainsString('plugins/alpha/', $html);
+        $this->assertStringContainsString('Download ZIP', $html);
+        $this->assertStringContainsString('class="ai-changes-plugin-detail"', $html);
+        $this->assertStringContainsString('class="ai-plugin-files ai-changes-panel"', $html);
         $this->assertStringContainsString('alpha.php', $html);
+        $this->assertStringNotContainsString('class="ai-plugin-detail-bar"', $html);
+        $this->assertStringNotContainsString('class="ai-plugin-detail-path"', $html);
+        $this->assertStringNotContainsString('<span class="ai-plugin-detail-path">plugins/alpha/</span>', $html);
+        $this->assertStringNotContainsString('class="ai-plugin-header"', $html);
         $this->assertStringNotContainsString('ai-plugin-checkbox', $html);
         $this->assertStringNotContainsString('ai-file-checkbox', $html);
         $this->assertStringNotContainsString('id="ai-select-all"', $html);
@@ -82,6 +87,33 @@ class ChangesAdminRenderTest extends TestCase {
         $this->assertStringContainsString('value="Old commit text"', $html);
         $this->assertStringContainsString('Double-click to edit commit message', $html);
         $this->assertStringContainsString('Edit commit message', $html);
+    }
+
+    public function test_plugin_detail_renders_commits_before_files_in_separate_panels(): void {
+        $_GET = ['plugin' => 'plugins/alpha'];
+
+        $fixture = $this->plugin_fixture();
+        $fixture['plugins/alpha']['commits'] = [
+            [
+                'sha' => '1111111111111111111111111111111111111111',
+                'short_sha' => '1111111',
+                'message' => 'Tracked change',
+                'conversation_id' => null,
+                'timestamp' => time(),
+                'date' => date('Y-m-d H:i:s'),
+                'is_latest' => true,
+                'is_checked_out' => false,
+            ],
+        ];
+
+        $html = $this->render_admin($fixture);
+
+        $this->assertStringContainsString('class="ai-plugin-files ai-changes-panel"', $html);
+        $this->assertStringContainsString('class="ai-plugin-commits ai-changes-panel"', $html);
+        $this->assertLessThan(
+            strpos($html, 'class="ai-plugin-files ai-changes-panel"'),
+            strpos($html, 'class="ai-plugin-commits ai-changes-panel"')
+        );
     }
 
     public function test_plugin_detail_renders_multiple_change_badges_for_one_file(): void {

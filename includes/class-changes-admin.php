@@ -177,6 +177,9 @@ class Changes_Admin {
                 <h1>
                     <?php echo esc_html(sprintf(__('AI Changes: %s', 'ai-assistant'), $selected_plugin['name'])); ?>
                     <a href="<?php echo esc_url($this->get_all_changes_url()); ?>" class="page-title-action"><?php esc_html_e('All plugins', 'ai-assistant'); ?></a>
+                    <a href="<?php echo esc_url($this->get_plugin_download_url($selected_plugin_path)); ?>" class="page-title-action" title="<?php esc_attr_e('Download as ZIP with git history', 'ai-assistant'); ?>">
+                        <?php esc_html_e('Download ZIP', 'ai-assistant'); ?>
+                    </a>
                 </h1>
 
                 <p class="description">
@@ -275,29 +278,10 @@ class Changes_Admin {
     }
 
     private function render_plugin_detail(string $plugin_path, array $plugin): void {
-        $file_count = (int) ($plugin['file_count'] ?? 0);
-        $commit_count = (int) ($plugin['commit_count'] ?? 0);
         ?>
-        <div class="ai-changes-plugins ai-changes-plugin-detail">
-            <div class="ai-plugin-card ai-plugin-card-detail" data-plugin="<?php echo esc_attr($plugin_path); ?>">
-                <div class="ai-plugin-header">
-                    <div class="ai-plugin-header-label">
-                        <span class="ai-plugin-name"><?php echo esc_html($plugin['name']); ?></span>
-                        <span class="ai-plugin-path"><?php echo esc_html($plugin_path); ?>/</span>
-                    </div>
-                    <span class="ai-plugin-stats">
-                        <?php echo esc_html($file_count); ?> <?php echo $file_count === 1 ? esc_html__('file', 'ai-assistant') : esc_html__('files', 'ai-assistant'); ?>,
-                        <?php echo esc_html($commit_count); ?> <?php echo $commit_count === 1 ? esc_html__('commit', 'ai-assistant') : esc_html__('commits', 'ai-assistant'); ?>
-                    </span>
-                    <a href="<?php echo esc_url($this->get_plugin_download_url($plugin_path)); ?>" class="button button-small" title="<?php esc_attr_e('Download as ZIP with git history', 'ai-assistant'); ?>">
-                        <?php esc_html_e('Download ZIP', 'ai-assistant'); ?>
-                    </a>
-                </div>
-                <div class="ai-plugin-content">
-                    <?php $this->render_plugin_commits($plugin); ?>
-                    <?php $this->render_plugin_files($plugin_path, $plugin); ?>
-                </div>
-            </div>
+        <div class="ai-changes-plugin-detail" data-plugin="<?php echo esc_attr($plugin_path); ?>">
+            <?php $this->render_plugin_commits($plugin); ?>
+            <?php $this->render_plugin_files($plugin_path, $plugin); ?>
         </div>
         <?php
     }
@@ -308,9 +292,15 @@ class Changes_Admin {
         }
 
         $has_checked_out_commit = !empty($plugin['checked_out_sha']);
+        $commit_count = count($plugin['commits']);
         ?>
-        <div class="ai-plugin-commits">
-            <div class="ai-plugin-section-header"><?php esc_html_e('Recent Commits', 'ai-assistant'); ?></div>
+        <section class="ai-plugin-commits ai-changes-panel">
+            <div class="ai-changes-panel-header">
+                <h2><?php esc_html_e('Recent commits', 'ai-assistant'); ?></h2>
+                <span class="ai-changes-panel-count">
+                    <?php echo esc_html($commit_count); ?> <?php echo $commit_count === 1 ? esc_html__('commit', 'ai-assistant') : esc_html__('commits', 'ai-assistant'); ?>
+                </span>
+            </div>
             <?php foreach ($plugin['commits'] as $commit):
                 $commit_row_classes = ['ai-commit-row'];
                 if (!empty($commit['is_checked_out'])) {
@@ -375,14 +365,20 @@ class Changes_Admin {
                 </div>
             </div>
             <?php endforeach; ?>
-        </div>
+        </section>
         <?php
     }
 
     private function render_plugin_files(string $plugin_path, array $plugin): void {
+        $file_count = isset($plugin['files']) && is_array($plugin['files']) ? count($plugin['files']) : 0;
         ?>
-        <div class="ai-plugin-files">
-            <div class="ai-plugin-section-header"><?php esc_html_e('Changed Files', 'ai-assistant'); ?></div>
+        <section class="ai-plugin-files ai-changes-panel">
+            <div class="ai-changes-panel-header">
+                <h2><?php esc_html_e('Changed files', 'ai-assistant'); ?></h2>
+                <span class="ai-changes-panel-count">
+                    <?php echo esc_html($file_count); ?> <?php echo $file_count === 1 ? esc_html__('file', 'ai-assistant') : esc_html__('files', 'ai-assistant'); ?>
+                </span>
+            </div>
             <?php foreach ($plugin['files'] as $file):
                 $change_types = isset($file['change_types']) && is_array($file['change_types'])
                     ? array_values(array_unique(array_filter($file['change_types'], 'is_string')))
@@ -415,7 +411,7 @@ class Changes_Admin {
                 </div>
             </div>
             <?php endforeach; ?>
-        </div>
+        </section>
         <?php
     }
 

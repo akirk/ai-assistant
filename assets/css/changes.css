@@ -27,6 +27,13 @@
     gap: 16px;
 }
 
+.ai-changes-plugin-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 16px;
+}
+
 .ai-plugin-index {
     display: flex;
     flex-direction: column;
@@ -165,19 +172,40 @@
     display: block;
 }
 
-.ai-plugin-section-header {
-    padding: 10px 16px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
+.ai-changes-panel-count {
     color: #646970;
-    background: #f9f9f9;
-    border-bottom: 1px solid #f0f0f1;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.ai-changes-panel {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.ai-changes-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #f6f7f7;
+    border-bottom: 1px solid #e2e4e7;
+}
+
+.ai-changes-panel-header h2 {
+    margin: 0;
+    color: #1d2327;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
 }
 
 /* Plugin Commits Section */
 .ai-plugin-commits {
-    border-bottom: 1px solid #e2e4e7;
+    border-bottom: 1px solid #c3c4c7;
 }
 
 .ai-plugin-commits .ai-commit-entry {
@@ -197,7 +225,7 @@
     border-top: 1px solid #f0f0f1;
 }
 
-.ai-plugin-files .ai-changes-file:first-child {
+.ai-plugin-files .ai-changes-panel-header + .ai-changes-file {
     border-top: none;
 }
 
@@ -885,6 +913,12 @@
     .ai-plugin-header .button {
         flex: 1;
         text-align: center;
+    }
+
+    .ai-changes-panel-header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
     }
 
     .ai-changes-file-row {
