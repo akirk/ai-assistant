@@ -601,10 +601,61 @@
 }
 
 .ai-commit-message {
-    flex: 1;
+    flex: 0 1 auto;
     font-size: 13px;
     color: #1d2327;
+    min-width: 0;
     word-break: break-word;
+}
+
+.ai-commit-message[tabindex] {
+    cursor: text;
+}
+
+.ai-commit-row-top.ai-commit-message-editing .ai-commit-message,
+.ai-commit-row-top.ai-commit-message-editing .ai-edit-commit-message {
+    display: none;
+}
+
+.ai-commit-message-editor {
+    align-items: center;
+    display: flex;
+    flex: 1;
+    gap: 6px;
+    min-width: 240px;
+}
+
+.ai-commit-message-editor[hidden] {
+    display: none;
+}
+
+.ai-commit-message-input {
+    flex: 1;
+    min-width: 180px;
+}
+
+.ai-commit-message-input-error {
+    border-color: #d63638 !important;
+    box-shadow: 0 0 0 1px #d63638 !important;
+}
+
+.ai-edit-commit-message {
+    color: #646970;
+    flex-shrink: 0;
+    line-height: 1;
+    min-height: 20px;
+    padding: 2px;
+}
+
+.ai-edit-commit-message:hover,
+.ai-edit-commit-message:focus {
+    color: var(--ai-assistant-accent);
+}
+
+.ai-edit-commit-message .dashicons {
+    font-size: 16px;
+    height: 16px;
+    width: 16px;
 }
 
 .ai-commit-row-bottom {
@@ -877,8 +928,22 @@
     }
 
     .ai-commit-message {
-        flex: 1 1 100%;
+        flex: 0 1 auto;
         order: 3;
+    }
+
+    .ai-commit-message-editor {
+        flex: 1 1 100%;
+        min-width: 0;
+        order: 3;
+    }
+
+    .ai-commit-message-input {
+        min-width: 0;
+    }
+
+    .ai-edit-commit-message {
+        order: 4;
     }
 
     .ai-commit-conversation {

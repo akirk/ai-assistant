@@ -220,6 +220,24 @@ class GitTrackerManagerTest extends TestCase {
         );
     }
 
+    public function test_update_commit_message_updates_plugin_commit(): void {
+        $test_file = $this->plugin1_dir . '/test.txt';
+        file_put_contents($test_file, 'modified');
+
+        $this->manager->track_change('plugins/test-plugin-1/test.txt', 'modified', 'original', 'Old text');
+
+        $changes = $this->manager->get_all_changes_by_plugin();
+        $old_sha = $changes['plugins/test-plugin-1']['commits'][0]['sha'];
+
+        $result = $this->manager->update_commit_message('plugins/test-plugin-1', $old_sha, 'New text');
+
+        $this->assertTrue($result['success']);
+
+        $updated_changes = $this->manager->get_all_changes_by_plugin();
+        $this->assertSame('New text', $updated_changes['plugins/test-plugin-1']['commits'][0]['message']);
+        $this->assertNotSame($old_sha, $updated_changes['plugins/test-plugin-1']['commits'][0]['sha']);
+    }
+
     // -------------------------------------------------------------------------
     // Path resolution tests
     // -------------------------------------------------------------------------

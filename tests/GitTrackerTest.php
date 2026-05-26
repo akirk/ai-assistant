@@ -438,6 +438,78 @@ class GitTrackerTest extends TestCase {
         $this->assertCount(2, $result);
     }
 
+    public function test_update_commit_message_rewrites_latest_commit_and_preserves_conversation_metadata(): void {
+        $test_file = $this->plugin_dir . '/test.txt';
+        file_put_contents($test_file, 'modified content');
+
+        $this->tracker->track_change('test.txt', 'modified', 'original content', 'Old commit text', 123);
+        $old_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        $result = $this->tracker->update_commit_message($old_sha, 'New commit text');
+
+        $this->assertTrue($result['success']);
+
+        $commits = $this->tracker->get_recent_commits();
+        $this->assertSame('New commit text', $commits[0]['message']);
+        $this->assertSame(123, $commits[0]['conversation_id']);
+        $this->assertNotSame($old_sha, $commits[0]['sha']);
+
+        $diff = $this->tracker->get_commit_diff($commits[0]['sha']);
+        $this->assertStringContainsString('-original content', $diff);
+        $this->assertStringContainsString('+modified content', $diff);
+    }
+
+    public function test_update_commit_message_rewrites_descendant_commits(): void {
+        $test_file = $this->plugin_dir . '/test.txt';
+
+        file_put_contents($test_file, 'version 1');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'First');
+        $first_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        file_put_contents($test_file, 'version 2');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Second');
+
+        file_put_contents($test_file, 'version 3');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Third');
+        $old_commits = $this->tracker->get_recent_commits();
+        $old_latest_sha = $old_commits[0]['sha'];
+        $old_second_sha = $old_commits[1]['sha'];
+
+        $result = $this->tracker->update_commit_message($first_sha, 'Updated first');
+
+        $this->assertTrue($result['success']);
+
+        $commits = $this->tracker->get_recent_commits();
+        $this->assertSame('Third', $commits[0]['message']);
+        $this->assertSame('Second', $commits[1]['message']);
+        $this->assertSame('Updated first', $commits[2]['message']);
+        $this->assertNotSame($old_latest_sha, $commits[0]['sha']);
+        $this->assertNotSame($old_second_sha, $commits[1]['sha']);
+        $this->assertSame($commits[1]['sha'], $commits[0]['parent']);
+        $this->assertSame($commits[2]['sha'], $commits[1]['parent']);
+    }
+
+    public function test_update_commit_message_remaps_checked_out_commit(): void {
+        $test_file = $this->plugin_dir . '/test.txt';
+
+        file_put_contents($test_file, 'version 1');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'First');
+        $first_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        file_put_contents($test_file, 'version 2');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Second');
+
+        $this->tracker->checkout_commit($first_sha);
+        $result = $this->tracker->update_commit_message($first_sha, 'Updated first');
+
+        $this->assertTrue($result['success']);
+
+        $commits = $this->tracker->get_recent_commits();
+        $this->assertSame('Updated first', $commits[1]['message']);
+        $this->assertSame($commits[1]['sha'], $this->tracker->get_checked_out_commit());
+        $this->assertTrue($commits[1]['is_checked_out']);
+    }
+
     // -------------------------------------------------------------------------
     // get_commit_diff tests
     // -------------------------------------------------------------------------

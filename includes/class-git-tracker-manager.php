@@ -393,6 +393,24 @@ class Git_Tracker_Manager {
     }
 
     /**
+     * Update the display message for a commit in a specific plugin/theme.
+     *
+     * @param string $plugin_path Path like "plugins/my-plugin"
+     * @param string $sha Commit SHA
+     * @param string $message New commit message text
+     * @return array
+     */
+    public function update_commit_message(string $plugin_path, string $sha, string $message): array {
+        $root = $this->get_root_for_path($plugin_path . '/dummy');
+        if ($root === null) {
+            return ['success' => false, 'errors' => ['Invalid plugin path']];
+        }
+
+        $tracker = $this->get_or_create_tracker($root);
+        return $tracker->update_commit_message($sha, $message);
+    }
+
+    /**
      * Check out all tracked files to a specific commit.
      *
      * @param string $plugin_path Path like "plugins/my-plugin"

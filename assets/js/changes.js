@@ -102,6 +102,47 @@
                 e.stopPropagation();
                 self.toggleCommitDiff($(this));
             });
+
+            // Commit message edit
+            $(document).on('click', '.ai-edit-commit-message', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                self.beginCommitMessageEdit($(this));
+            });
+
+            $(document).on('dblclick', '.ai-commit-message', function(e) {
+                e.preventDefault();
+                self.beginCommitMessageEdit($(this));
+            });
+
+            $(document).on('keydown', '.ai-commit-message', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    self.beginCommitMessageEdit($(this));
+                }
+            });
+
+            $(document).on('click', '.ai-save-commit-message', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                self.saveCommitMessage($(this));
+            });
+
+            $(document).on('click', '.ai-cancel-commit-message', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                self.cancelCommitMessageEdit($(this));
+            });
+
+            $(document).on('keydown', '.ai-commit-message-input', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    self.saveCommitMessage($(this));
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    self.cancelCommitMessageEdit($(this));
+                }
+            });
         },
 
         toggleCommitDiff: function($toggle) {
@@ -159,6 +200,114 @@
             }).fail(function() {
                 alert(aiChanges.strings.checkoutCommitError || 'Failed to check out commit');
                 $button.text(originalText).prop('disabled', false);
+            });
+        },
+
+        beginCommitMessageEdit: function($trigger) {
+            var self = this;
+            var $rowTop = $trigger.closest('.ai-commit-row-top');
+            var $message = $rowTop.find('.ai-commit-message');
+            var $editor = $rowTop.find('.ai-commit-message-editor');
+            var $input = $rowTop.find('.ai-commit-message-input');
+            var currentMessage = $.trim($message.text());
+
+            if ($rowTop.hasClass('ai-commit-message-editing')) {
+                $input.trigger('focus');
+                if ($input[0]) {
+                    $input[0].select();
+                }
+                return;
+            }
+
+            $('.ai-commit-row-top.ai-commit-message-editing').not($rowTop).each(function() {
+                self.cancelCommitMessageEdit($(this));
+            });
+
+            $rowTop
+                .addClass('ai-commit-message-editing')
+                .data('original-message', currentMessage);
+            $message.attr('aria-hidden', 'true');
+            $rowTop.find('.ai-edit-commit-message').attr('aria-hidden', 'true');
+            $input.val(currentMessage).removeClass('ai-commit-message-input-error').prop('disabled', false);
+            $editor.prop('hidden', false);
+            $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message').prop('disabled', false);
+
+            window.setTimeout(function() {
+                $input.trigger('focus');
+                if ($input[0]) {
+                    $input[0].select();
+                }
+            }, 0);
+        },
+
+        saveCommitMessage: function($trigger) {
+            var $rowTop = $trigger.closest('.ai-commit-row-top');
+            var $input = $rowTop.find('.ai-commit-message-input');
+            var originalMessage = $rowTop.data('original-message') || $.trim($rowTop.find('.ai-commit-message').text());
+            var nextMessage = $.trim($input.val());
+            var sha = $rowTop.closest('.ai-commit-entry').data('sha');
+
+            if (!nextMessage) {
+                $input.addClass('ai-commit-message-input-error').trigger('focus');
+                return;
+            }
+
+            $input.removeClass('ai-commit-message-input-error');
+
+            if (nextMessage === originalMessage) {
+                this.cancelCommitMessageEdit($rowTop);
+                return;
+            }
+
+            this.updateCommitMessage(sha, nextMessage, $rowTop);
+        },
+
+        cancelCommitMessageEdit: function($trigger) {
+            var $rowTop = $trigger.hasClass('ai-commit-row-top') ? $trigger : $trigger.closest('.ai-commit-row-top');
+            var originalMessage = $rowTop.data('original-message') || $.trim($rowTop.find('.ai-commit-message').text());
+
+            $rowTop.removeClass('ai-commit-message-editing');
+            $rowTop.find('.ai-commit-message').removeAttr('aria-hidden');
+            $rowTop.find('.ai-edit-commit-message').removeAttr('aria-hidden').prop('disabled', false);
+            $rowTop.find('.ai-commit-message-input')
+                .val(originalMessage)
+                .removeClass('ai-commit-message-input-error')
+                .prop('disabled', false);
+            $rowTop.find('.ai-commit-message-editor').prop('hidden', true);
+            $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message').prop('disabled', false);
+            $rowTop.find('.ai-save-commit-message').text(aiChanges.strings.saveCommitMessage || 'Save');
+        },
+
+        updateCommitMessage: function(sha, message, $rowTop) {
+            var pluginPath = $rowTop.closest('.ai-plugin-card').data('plugin');
+            var $input = $rowTop.find('.ai-commit-message-input');
+            var $save = $rowTop.find('.ai-save-commit-message');
+            var originalSaveText = $save.text();
+
+            $input.prop('disabled', true);
+            $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message, .ai-edit-commit-message').prop('disabled', true);
+            $save.text(aiChanges.strings.updatingCommitMessage || 'Saving...');
+
+            $.post(aiChanges.ajaxUrl, {
+                action: 'ai_assistant_update_commit_message',
+                nonce: aiChanges.nonce,
+                plugin_path: pluginPath,
+                sha: sha,
+                message: message
+            }, function(response) {
+                if (response.success) {
+                    location.reload();
+                } else {
+                    alert((response.data && response.data.message) || aiChanges.strings.updateCommitMessageError || 'Failed to update commit message.');
+                    $input.prop('disabled', false).trigger('focus');
+                    $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message, .ai-edit-commit-message').prop('disabled', false);
+                    $save.text(originalSaveText);
+                }
+            }).fail(function() {
+                alert(aiChanges.strings.updateCommitMessageError || 'Failed to update commit message.');
+                $input.prop('disabled', false).trigger('focus');
+                $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message, .ai-edit-commit-message').prop('disabled', false);
+                $save.text(originalSaveText);
             });
         },
 
