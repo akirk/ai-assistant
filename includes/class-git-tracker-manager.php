@@ -406,20 +406,27 @@ class Git_Tracker_Manager {
     }
 
     /**
-     * Revert all files to a specific commit.
+     * Check out all tracked files to a specific commit.
      *
      * @param string $plugin_path Path like "plugins/my-plugin"
      * @param string $sha Commit SHA
      * @return array
      */
-    public function revert_to_commit(string $plugin_path, string $sha): array {
+    public function checkout_commit(string $plugin_path, string $sha): array {
         $root = $this->get_root_for_path($plugin_path . '/dummy');
         if ($root === null) {
             return ['success' => false, 'errors' => ['Invalid plugin path']];
         }
 
         $tracker = $this->get_or_create_tracker($root);
-        return $tracker->revert_to_commit($sha);
+        return $tracker->checkout_commit($sha);
+    }
+
+    /**
+     * Backward-compatible alias for older callers.
+     */
+    public function revert_to_commit(string $plugin_path, string $sha): array {
+        return $this->checkout_commit($plugin_path, $sha);
     }
 
     /**

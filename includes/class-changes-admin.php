@@ -27,7 +27,8 @@ class Changes_Admin {
         add_action('wp_ajax_ai_assistant_lint_php', [$this, 'ajax_lint_php']);
         add_action('wp_ajax_ai_assistant_get_commit_log', [$this, 'ajax_get_commit_log']);
         add_action('wp_ajax_ai_assistant_get_commit_diff', [$this, 'ajax_get_commit_diff']);
-        add_action('wp_ajax_ai_assistant_revert_to_commit', [$this, 'ajax_revert_to_commit']);
+        add_action('wp_ajax_ai_assistant_checkout_commit', [$this, 'ajax_checkout_commit']);
+        add_action('wp_ajax_ai_assistant_revert_to_commit', [$this, 'ajax_checkout_commit']);
         add_action('admin_action_ai_assistant_download_diff', [$this, 'handle_diff_download']);
     }
 
@@ -119,14 +120,14 @@ class Changes_Admin {
                 'nothingToRevert' => __('No files to revert.', 'ai-assistant'),
                 'syntaxError' => __('Syntax Error', 'ai-assistant'),
                 'syntaxOk' => __('Syntax OK', 'ai-assistant'),
-                'confirmRevertToCommit' => __('Are you sure you want to revert all files to this commit? This will restore files to how they were at that point.', 'ai-assistant'),
-                'revertingToCommit' => __('Reverting...', 'ai-assistant'),
-                'revertToCommitError' => __('Failed to revert to commit.', 'ai-assistant'),
+                'checkingOutCommit' => __('Checking out...', 'ai-assistant'),
+                'checkoutCommitError' => __('Failed to check out commit.', 'ai-assistant'),
                 'loading' => __('Loading...', 'ai-assistant'),
                 'loadMore' => __('Load more', 'ai-assistant'),
-                'current' => __('(current)', 'ai-assistant'),
-                'revertToHere' => __('Revert to here', 'ai-assistant'),
-                'revertToCommitTitle' => __('Revert files to this commit', 'ai-assistant'),
+                'latest' => __('latest', 'ai-assistant'),
+                'checkedOut' => __('checked out', 'ai-assistant'),
+                'checkout' => __('Checkout', 'ai-assistant'),
+                'checkoutCommitTitle' => __('Check out files from this commit', 'ai-assistant'),
                 'justNow' => __('just now', 'ai-assistant'),
                 'noCommits' => __('No commits yet', 'ai-assistant'),
                 'viewConversation' => __('View conversation', 'ai-assistant'),
@@ -231,9 +232,18 @@ class Changes_Admin {
                         <?php if (!empty($plugin['commits'])): ?>
                         <div class="ai-plugin-commits">
                             <div class="ai-plugin-section-header"><?php esc_html_e('Recent Commits', 'ai-assistant'); ?></div>
-                            <?php foreach ($plugin['commits'] as $index => $commit): ?>
+                            <?php
+                            $has_checked_out_commit = !empty($plugin['checked_out_sha']);
+                            foreach ($plugin['commits'] as $commit):
+                                $commit_row_classes = ['ai-commit-row'];
+                                if (!empty($commit['is_checked_out'])) {
+                                    $commit_row_classes[] = 'ai-commit-checked-out';
+                                } elseif (!empty($commit['is_latest'])) {
+                                    $commit_row_classes[] = 'ai-commit-latest';
+                                }
+                            ?>
                             <div class="ai-commit-entry" data-sha="<?php echo esc_attr($commit['sha']); ?>">
-                                <div class="ai-commit-row<?php echo $index === 0 ? ' ai-commit-current' : ''; ?>">
+                                <div class="<?php echo esc_attr(implode(' ', $commit_row_classes)); ?>">
                                     <div class="ai-commit-row-top">
                                         <button type="button" class="ai-commit-diff-toggle" data-sha="<?php echo esc_attr($commit['sha']); ?>" title="<?php esc_attr_e('Preview diff', 'ai-assistant'); ?>">▶</button>
                                         <span class="ai-commit-sha"><?php echo esc_html($commit['short_sha']); ?></span>
@@ -249,11 +259,15 @@ class Changes_Admin {
                                     </div>
                                     <div class="ai-commit-row-bottom">
                                         <span class="ai-commit-date" title="<?php echo esc_attr($commit['date']); ?>"><?php echo esc_html($this->format_time_ago($commit['timestamp'])); ?></span>
-                                        <?php if ($index === 0): ?>
-                                        <span class="ai-commit-label"><?php esc_html_e('(current)', 'ai-assistant'); ?></span>
-                                        <?php else: ?>
-                                        <button type="button" class="button button-small ai-revert-to-commit" data-sha="<?php echo esc_attr($commit['sha']); ?>" title="<?php esc_attr_e('Revert files to this commit', 'ai-assistant'); ?>">
-                                            <?php esc_html_e('Revert to here', 'ai-assistant'); ?>
+                                        <?php if (!empty($commit['is_latest'])): ?>
+                                        <span class="ai-commit-label"><?php esc_html_e('latest', 'ai-assistant'); ?></span>
+                                        <?php endif; ?>
+                                        <?php if (!empty($commit['is_checked_out'])): ?>
+                                        <span class="ai-commit-label ai-commit-label-checked-out"><?php esc_html_e('checked out', 'ai-assistant'); ?></span>
+                                        <?php endif; ?>
+                                        <?php if (empty($commit['is_checked_out']) && ($has_checked_out_commit || empty($commit['is_latest']))): ?>
+                                        <button type="button" class="button button-small ai-checkout-commit" data-sha="<?php echo esc_attr($commit['sha']); ?>" title="<?php esc_attr_e('Check out files from this commit', 'ai-assistant'); ?>">
+                                            <?php esc_html_e('Checkout', 'ai-assistant'); ?>
                                         </button>
                                         <?php endif; ?>
                                     </div>
@@ -650,7 +664,7 @@ class Changes_Admin {
         wp_send_json_success(['diff' => $diff]);
     }
 
-    public function ajax_revert_to_commit(): void {
+    public function ajax_checkout_commit(): void {
         check_ajax_referer('ai_assistant_changes', 'nonce');
 
         if (!current_user_can('manage_options')) {
@@ -668,12 +682,14 @@ class Changes_Admin {
             wp_send_json_error(['message' => 'No commit SHA specified']);
         }
 
-        $result = $this->git_tracker_manager->revert_to_commit($plugin_path, $sha);
+        $result = $this->git_tracker_manager->checkout_commit($plugin_path, $sha);
 
         if ($result['success']) {
             wp_send_json_success([
-                'reverted' => $result['reverted'],
-                'message' => sprintf(__('%d file(s) reverted to commit state.', 'ai-assistant'), count($result['reverted'])),
+                'checked_out' => $result['checked_out'],
+                'checked_out_sha' => $result['checked_out_sha'] ?? null,
+                'previous_head' => $result['previous_head'] ?? null,
+                'message' => sprintf(__('%d file(s) checked out from commit state.', 'ai-assistant'), count($result['checked_out'])),
             ]);
         } else {
             wp_send_json_error([

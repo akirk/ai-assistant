@@ -563,6 +563,109 @@ class GitTrackerTest extends TestCase {
     }
 
     // -------------------------------------------------------------------------
+    // checkout_commit tests
+    // -------------------------------------------------------------------------
+
+    public function test_checkout_commit_restores_file_content_and_marks_commit(): void {
+        $test_file = $this->plugin_dir . '/test.txt';
+
+        file_put_contents($test_file, 'version 1');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'First');
+        $first_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        file_put_contents($test_file, 'version 2');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Second');
+
+        $result = $this->tracker->checkout_commit($first_sha);
+
+        $this->assertTrue($result['success']);
+        $this->assertEquals('version 1', file_get_contents($test_file));
+        $this->assertSame($first_sha, $this->tracker->get_checked_out_commit());
+
+        $commits = $this->tracker->get_recent_commits();
+        $this->assertTrue($commits[0]['is_latest']);
+        $this->assertFalse($commits[0]['is_checked_out']);
+        $this->assertTrue($commits[1]['is_checked_out']);
+    }
+
+    public function test_checkout_commit_to_latest_clears_checkout_marker(): void {
+        $test_file = $this->plugin_dir . '/test.txt';
+
+        file_put_contents($test_file, 'version 1');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'First');
+        $first_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        file_put_contents($test_file, 'version 2');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Second');
+        $latest_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        $this->tracker->checkout_commit($first_sha);
+        $this->assertSame($first_sha, $this->tracker->get_checked_out_commit());
+
+        $result = $this->tracker->checkout_commit($latest_sha);
+
+        $this->assertTrue($result['success']);
+        $this->assertNull($this->tracker->get_checked_out_commit());
+        $this->assertEquals('version 2', file_get_contents($test_file));
+    }
+
+    public function test_next_change_after_checkout_continues_from_checked_out_commit(): void {
+        $test_file = $this->plugin_dir . '/test.txt';
+
+        file_put_contents($test_file, 'version 1');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'First');
+        $first_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        file_put_contents($test_file, 'version 2');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Second');
+
+        file_put_contents($test_file, 'version 3');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Third');
+        $old_head = $this->tracker->get_recent_commits()[0]['sha'];
+
+        $this->tracker->checkout_commit($first_sha);
+        file_put_contents($test_file, 'version 1 continued');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Fourth');
+
+        $commits = $this->tracker->get_recent_commits();
+
+        $this->assertSame('Fourth', $commits[0]['message']);
+        $this->assertSame($first_sha, $commits[0]['parent']);
+        $this->assertSame('First', $commits[1]['message']);
+        $this->assertNull($this->tracker->get_checked_out_commit());
+
+        $messages = array_column($commits, 'message');
+        $this->assertNotContains('Second', $messages);
+        $this->assertNotContains('Third', $messages);
+
+        $backup_refs = glob($this->git_dir . '/refs/heads/ai-changes-before-checkout/*');
+        $this->assertNotEmpty($backup_refs);
+        $this->assertContains($old_head . "\n", array_map('file_get_contents', $backup_refs));
+    }
+
+    public function test_next_change_after_checkout_does_not_carry_original_later_files(): void {
+        $first_file = $this->plugin_dir . '/first.txt';
+        $later_file = $this->plugin_dir . '/later.txt';
+
+        file_put_contents($first_file, 'first version 1');
+        $this->tracker->track_change('first.txt', 'modified', 'first original', 'First');
+        $first_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        file_put_contents($later_file, 'later version 1');
+        $this->tracker->track_change('later.txt', 'modified', 'later original', 'Second');
+
+        $this->tracker->checkout_commit($first_sha);
+        file_put_contents($first_file, 'first version 2');
+        $this->tracker->track_change('first.txt', 'modified', 'first version 1', 'Third');
+
+        $commits = $this->tracker->get_recent_commits();
+        $diff = $this->tracker->get_commit_diff($commits[0]['sha']);
+
+        $this->assertStringContainsString('first.txt', $diff);
+        $this->assertStringNotContainsString('later.txt', $diff);
+    }
+
+    // -------------------------------------------------------------------------
     // Plugin name tests
     // -------------------------------------------------------------------------
 
