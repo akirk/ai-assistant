@@ -600,6 +600,7 @@ body.ai-assistant-panel-resizing {
 
 /* Messages container */
 #ai-assistant-messages {
+    position: relative;
     flex: 1;
     overflow-y: auto;
     padding: 14px;
@@ -2613,19 +2614,35 @@ body.wp-app-body .ai-message-user .ai-message-content *::selection,
     line-height: 1.4;
 }
 
+.ai-assistant-ai-changes-suggestion {
+    position: absolute;
+    right: 14px;
+    bottom: var(--ai-assistant-ai-changes-bottom, 84px);
+    z-index: 31;
+    max-width: calc(100% - 28px);
+    padding: 0;
+    text-align: right;
+    pointer-events: auto;
+}
+
 .ai-assistant-area-suggestion[hidden] {
     display: none;
 }
 
 #ai-assistant-area-suggestion a,
 #ai-assistant-area-suggestion a:visited,
-#ai-assistant-area-suggestion a:active {
+#ai-assistant-area-suggestion a:active,
+#ai-assistant-ai-changes-suggestion a,
+#ai-assistant-ai-changes-suggestion a:visited,
+#ai-assistant-ai-changes-suggestion a:active {
     color: var(--ai-assistant-accent) !important;
     white-space: nowrap;
 }
 
 #ai-assistant-area-suggestion a:hover,
-#ai-assistant-area-suggestion a:focus {
+#ai-assistant-area-suggestion a:focus,
+#ai-assistant-ai-changes-suggestion a:hover,
+#ai-assistant-ai-changes-suggestion a:focus {
     color: var(--ai-assistant-accent-hover) !important;
 }
 

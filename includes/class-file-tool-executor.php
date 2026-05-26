@@ -31,27 +31,31 @@ class File_Tool_Executor {
     public function execute(string $tool_name, array $arguments, ?int $conversation_id = null): array {
         switch ($tool_name) {
             case 'read_file':
-                return $this->read_file($this->get_string_arg($arguments, 'path', $tool_name));
+                $path = $this->get_string_arg($arguments, 'path', $tool_name);
+                return $this->with_ai_changes_metadata($this->read_file($path), $path);
             case 'write_file':
-                return $this->write_file(
-                    $this->get_string_arg($arguments, 'path', $tool_name),
+                $path = $this->get_string_arg($arguments, 'path', $tool_name);
+                return $this->with_ai_changes_metadata($this->write_file(
+                    $path,
                     $this->get_content_arg($arguments, 'content', $tool_name),
                     $this->get_string_arg($arguments, 'reason', $tool_name, ''),
                     $conversation_id
-                );
+                ), $path);
             case 'edit_file':
-                return $this->edit_file(
-                    $this->get_string_arg($arguments, 'path', $tool_name),
+                $path = $this->get_string_arg($arguments, 'path', $tool_name);
+                return $this->with_ai_changes_metadata($this->edit_file(
+                    $path,
                     $this->get_edits_arg($arguments),
                     $this->get_string_arg($arguments, 'reason', $tool_name, ''),
                     $conversation_id
-                );
+                ), $path);
             case 'delete_file':
-                return $this->delete_file(
-                    $this->get_string_arg($arguments, 'path', $tool_name),
+                $path = $this->get_string_arg($arguments, 'path', $tool_name);
+                return $this->with_ai_changes_metadata($this->delete_file(
+                    $path,
                     $this->get_string_arg($arguments, 'reason', $tool_name, ''),
                     $conversation_id
-                );
+                ), $path);
             case 'find':
                 return $this->execute_find($arguments);
             case 'emergency_deactivate_plugin':
@@ -73,6 +77,19 @@ class File_Tool_Executor {
             default:
                 throw new \Exception("File tool endpoint cannot execute tool: $tool_name");
         }
+    }
+
+    private function with_ai_changes_metadata(array $result, string $path): array {
+        if ($this->git_tracker_manager === null) {
+            return $result;
+        }
+
+        $metadata = $this->git_tracker_manager->get_ai_changes_metadata_for_path($path);
+        if ($metadata !== null) {
+            $result['ai_changes'] = $metadata;
+        }
+
+        return $result;
     }
 
     private function execute_find(array $arguments): array {

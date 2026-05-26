@@ -57,6 +57,7 @@
             }
 
             $messages.append($message);
+            this.moveAiChangesSuggestionToEnd();
             this.scrollToBottom();
         },
 
@@ -245,6 +246,7 @@
                 '<div class="ai-message-content"></div>' +
                 '</div>');
             $messages.append($message);
+            this.moveAiChangesSuggestionToEnd();
             this.scrollToBottom();
             return $message;
         },
@@ -263,6 +265,7 @@
                 '<div class="ai-thinking-content"></div>' +
                 '</div>');
             $messages.append($thinking);
+            this.moveAiChangesSuggestionToEnd();
             this.scrollToBottom();
             return $thinking;
         },
@@ -1482,9 +1485,154 @@
             }
         },
 
-        renderToolResultOutput: function($card, toolName, output) {
+        isAiChangesAwareTool: function(toolName, input) {
+            if (['read_file', 'write_file', 'edit_file', 'delete_file'].indexOf(toolName) >= 0) {
+                return true;
+            }
+
+            input = input || {};
+            return (
+                (toolName === 'ability' || toolName === 'execute_ability') &&
+                (input.ability === 'ai/create-wp-app' || input.ability === 'create-wp-app')
+            );
+        },
+
+        getAiChangesUrlForRoot: function(root) {
+            root = String(root || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+            if (!root) {
+                return '';
+            }
+
+            var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+            var baseUrl = config.aiChangesUrl || ((config.adminUrl || '/wp-admin/') + 'tools.php?page=ai-changes');
+            var separator = baseUrl.indexOf('?') === -1 ? '?' : '&';
+
+            return baseUrl + separator + 'plugin=' + encodeURIComponent(root);
+        },
+
+        getAiChangesMetadataFromToolResult: function(output) {
+            if (!output || typeof output !== 'object') {
+                return null;
+            }
+
+            if (output.ai_changes && typeof output.ai_changes === 'object') {
+                return output.ai_changes;
+            }
+
+            if (output.file_result && typeof output.file_result === 'object') {
+                var fileResultMetadata = this.getAiChangesMetadataFromToolResult(output.file_result);
+                if (fileResultMetadata) {
+                    return fileResultMetadata;
+                }
+            }
+
+            if (output.result && typeof output.result === 'object') {
+                return this.getAiChangesMetadataFromToolResult(output.result);
+            }
+
+            return null;
+        },
+
+        getAiChangesRootFromToolCall: function(toolName, input, output) {
+            if (!this.isAiChangesAwareTool(toolName, input)) {
+                return '';
+            }
+
+            var metadata = this.getAiChangesMetadataFromToolResult(output);
+            return metadata && typeof metadata.root === 'string' ? metadata.root : '';
+        },
+
+        moveAiChangesSuggestionToEnd: function() {
+            var $suggestion = $('#ai-assistant-ai-changes-suggestion');
+            if ($suggestion.length) {
+                this.getAiChangesSuggestionContainer().append($suggestion);
+                this.updateAiChangesSuggestionPosition($suggestion);
+            }
+        },
+
+        getAiChangesSuggestionContainer: function() {
+            var $container = $('.ai-assistant-chat-container').last();
+            return $container.length ? $container : $('#ai-assistant-messages');
+        },
+
+        ensureAiChangesSuggestion: function() {
+            var $suggestion = $('#ai-assistant-ai-changes-suggestion');
+            if ($suggestion.length) {
+                this.updateAiChangesSuggestionPosition($suggestion);
+                return $suggestion;
+            }
+
+            $suggestion = $('<div id="ai-assistant-ai-changes-suggestion" class="ai-assistant-area-suggestion ai-assistant-ai-changes-suggestion" role="status" aria-live="polite" hidden></div>');
+            this.getAiChangesSuggestionContainer().append($suggestion);
+            this.updateAiChangesSuggestionPosition($suggestion);
+            return $suggestion;
+        },
+
+        getElementOuterHeight: function($element) {
+            if (!$element || !$element.length) {
+                return 0;
+            }
+
+            if (typeof $element.outerHeight === 'function') {
+                var outerHeight = parseFloat($element.outerHeight(true));
+                if (outerHeight > 0) {
+                    return outerHeight;
+                }
+            }
+
+            var element = $element[0];
+            return element && element.offsetHeight ? element.offsetHeight : 0;
+        },
+
+        updateAiChangesSuggestionPosition: function($suggestion) {
+            $suggestion = $suggestion && $suggestion.length ? $suggestion : $('#ai-assistant-ai-changes-suggestion');
+            if (!$suggestion.length) {
+                return;
+            }
+
+            var $container = this.getAiChangesSuggestionContainer();
+            var bottom = 28 + this.getElementOuterHeight($container.find('.ai-assistant-input-area').last());
+            var $attachments = $container.find('#ai-assistant-attachments').last();
+            if ($attachments.length && (!$attachments.is || $attachments.is(':visible'))) {
+                bottom += this.getElementOuterHeight($attachments);
+            }
+
+            $suggestion.css('--ai-assistant-ai-changes-bottom', bottom + 'px');
+        },
+
+        showAiChangesSuggestion: function(toolName, input, output) {
+            if (!this.isAiChangesAwareTool(toolName, input || {})) {
+                return;
+            }
+
+            var metadata = this.getAiChangesMetadataFromToolResult(output || {});
+            var root = metadata && typeof metadata.root === 'string' ? metadata.root : '';
+            if (!root) {
+                return;
+            }
+
+            var url = metadata && typeof metadata.url === 'string' && metadata.url
+                ? metadata.url
+                : this.getAiChangesUrlForRoot(root);
+            if (!url) {
+                return;
+            }
+
+            var $suggestion = this.ensureAiChangesSuggestion();
+            $suggestion.empty()
+                .append(
+                    $('<a id="ai-assistant-ai-changes-link" target="_blank" rel="noopener noreferrer"></a>')
+                    .attr('href', url)
+                    .text('Review file changes')
+                )
+                .prop('hidden', false);
+            this.moveAiChangesSuggestionToEnd();
+        },
+
+        renderToolResultOutput: function($card, toolName, output, input) {
             if (output === undefined || output === null) return;
             if (toolName === 'navigate') return;
+            this.showAiChangesSuggestion(toolName, input || {}, output);
             if (toolName === 'pick_image' && this.renderPickedImageOutput($card, output)) {
                 return;
             }
@@ -1568,7 +1716,7 @@
 
             // Add result output
             if (result !== undefined) {
-                this.renderToolResultOutput($card, toolName, result);
+                this.renderToolResultOutput($card, toolName, result, input || {});
             }
 
             $messages.append($card);
@@ -2852,13 +3000,19 @@
                     $card.find('.ai-tool-card-size').hide();
                     if (options.output) {
                         var toolCardName = this.toolCardsState[toolId] && this.toolCardsState[toolId].name;
-                        this.renderToolResultOutput($card, toolCardName, options.output);
+                        var toolCardInput = this.toolCardsState[toolId] && this.toolCardsState[toolId].arguments;
+                        this.renderToolResultOutput($card, toolCardName, options.output, toolCardInput || {});
                     }
                     break;
                 case 'error':
                     $status.text(options.message || 'Error');
                     $spinner.hide();
                     $actions.empty();
+                    if (options.output) {
+                        var errorToolCardName = this.toolCardsState[toolId] && this.toolCardsState[toolId].name;
+                        var errorToolCardInput = this.toolCardsState[toolId] && this.toolCardsState[toolId].arguments;
+                        this.showAiChangesSuggestion(errorToolCardName, errorToolCardInput || {}, options.output);
+                    }
                     break;
                 case 'skipped':
                     $status.text('Skipped by user');

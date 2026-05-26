@@ -197,6 +197,29 @@ class GitTrackerManagerTest extends TestCase {
         $this->assertTrue($this->manager->has_changes());
     }
 
+    public function test_get_ai_changes_metadata_for_path_requires_ai_changes_branch(): void {
+        $this->createGitDir($this->plugin1_dir, false);
+
+        $this->assertNull($this->manager->get_ai_changes_metadata_for_path('plugins/test-plugin-1/test.txt'));
+    }
+
+    public function test_get_ai_changes_metadata_for_path_returns_root_and_url(): void {
+        $test_file = $this->plugin1_dir . '/test.txt';
+        file_put_contents($test_file, 'modified');
+
+        $this->manager->track_change('plugins/test-plugin-1/test.txt', 'modified', 'original', 'Test');
+
+        $metadata = $this->manager->get_ai_changes_metadata_for_path('plugins/test-plugin-1/test.txt');
+
+        $this->assertIsArray($metadata);
+        $this->assertSame('plugins/test-plugin-1', $metadata['root']);
+        $this->assertSame('plugin', $metadata['type']);
+        $this->assertSame(
+            'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Ftest-plugin-1',
+            $metadata['url']
+        );
+    }
+
     // -------------------------------------------------------------------------
     // Path resolution tests
     // -------------------------------------------------------------------------
