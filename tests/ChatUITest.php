@@ -77,6 +77,23 @@ class ChatUITest extends TestCase {
         $this->assertSame([], $this->get_welcome_tips());
     }
 
+    public function test_current_ai_changes_prompt_context_mentions_review_link(): void {
+        $chat_ui = new Chat_UI();
+        $reflection = new ReflectionClass($chat_ui);
+        $method = $reflection->getMethod('add_current_ai_changes_prompt_context');
+        $method->setAccessible(true);
+
+        $prompt = $method->invoke($chat_ui, 'Base prompt', [
+            'root' => 'plugins/example',
+            'url' => 'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fexample',
+        ]);
+
+        $this->assertStringContainsString('CURRENT PAGE FILE CHANGES', $prompt);
+        $this->assertStringContainsString('plugins/example', $prompt);
+        $this->assertStringContainsString('Review file changes', $prompt);
+        $this->assertStringContainsString('current window', $prompt);
+    }
+
     private function get_welcome_tips(): array {
         $chat_ui = new Chat_UI();
         $reflection = new ReflectionClass($chat_ui);

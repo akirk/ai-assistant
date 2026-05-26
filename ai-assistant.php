@@ -175,6 +175,10 @@ final class AI_Assistant {
         return $this->conversations_app;
     }
 
+    public function plugin_checkout_badge() {
+        return $this->plugin_checkout_badge;
+    }
+
     /**
      * Plugin activation
      */

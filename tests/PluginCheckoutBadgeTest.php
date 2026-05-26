@@ -23,11 +23,16 @@ class PluginCheckoutBadgeTest extends TestCase {
 
         $badge = new Plugin_Checkout_Badge($manager);
         $badge->capture_wp_app_template($template_path);
+        $metadata = $badge->get_current_ai_changes_metadata();
 
         ob_start();
         $badge->render_badge();
         $html = ob_get_clean();
 
+        $this->assertSame('plugins/badge-demo', $metadata['root']);
+        $this->assertSame('plugin', $metadata['type']);
+        $this->assertTrue($metadata['open_in_current_window']);
+        $this->assertSame('http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fbadge-demo', $metadata['url']);
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
         $this->assertStringContainsString('<details class="ai-assistant-checkout-badge"', $html);
         $this->assertStringContainsString('Old Version:', $html);
@@ -73,11 +78,14 @@ class PluginCheckoutBadgeTest extends TestCase {
         ];
 
         $badge = new Plugin_Checkout_Badge($manager);
+        $metadata = $badge->get_current_ai_changes_metadata();
 
         ob_start();
         $badge->render_admin_badge();
         $html = ob_get_clean();
 
+        $this->assertSame('plugins/badge-admin', $metadata['root']);
+        $this->assertSame('http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fbadge-admin', $metadata['url']);
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
         $this->assertStringContainsString('Badge Admin', $html);
         $this->assertStringContainsString('Old Version:', $html);

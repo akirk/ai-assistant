@@ -134,6 +134,10 @@
             } else {
                 this.loadWelcomeMessage();
             }
+
+            if (this.showCurrentAiChangesSuggestion) {
+                this.showCurrentAiChangesSuggestion();
+            }
         },
 
         bindEvents: function() {
