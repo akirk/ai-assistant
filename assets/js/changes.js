@@ -321,14 +321,15 @@
         highlightContent: function(content, path) {
             var modeName = this.getModeForPath(path);
             var container = document.createElement('pre');
-            container.className = 'cm-s-default';
 
-            if (modeName && wp.CodeMirror && wp.CodeMirror.getMode && wp.CodeMirror.runMode) {
+            if (modeName && typeof wp !== 'undefined' && wp.CodeMirror && wp.CodeMirror.getMode && wp.CodeMirror.runMode) {
                 try {
                     wp.CodeMirror.runMode(content, wp.CodeMirror.getMode({}, modeName), container);
                     return container.innerHTML;
                 } catch (error) {
-                    // Fall back to escaped plain text when a mode is unavailable.
+                    if (window.console && console.warn) {
+                        console.warn('[AI Changes] CodeMirror highlighting failed for', path, modeName, error);
+                    }
                 }
             }
 
@@ -381,10 +382,15 @@
                         file_paths: [filePath]
                     }, function(response) {
                         if (response.success) {
+                            $code.removeClass('cm-s-default ai-file-content-preview ai-file-diff-preview');
                             if (response.data.type === 'content') {
-                                $code.html(self.highlightContent(response.data.content || '', response.data.path || filePath));
+                                $code
+                                    .addClass('cm-s-default ai-file-content-preview')
+                                    .html(self.highlightContent(response.data.content || '', response.data.path || filePath));
                             } else {
-                                $code.html(self.highlightDiff(response.data.diff || ''));
+                                $code
+                                    .addClass('cm-s-default ai-file-diff-preview')
+                                    .html(self.highlightDiff(response.data.diff || ''));
                             }
                         } else {
                             $code.html('<span class="loading">Error loading diff</span>');
