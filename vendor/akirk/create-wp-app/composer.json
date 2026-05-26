@@ -1,0 +1,19 @@
+{
+    "name": "akirk/create-wp-app",
+    "description": "Scaffold a WordPress plugin powered by WpApp",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=7.4",
+        "akirk/wp-app": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Akirk\\CreateWpApp\\": "src/",
+            "{{namespace}}\\": "src/"
+        }
+    },
+    "scripts": {
+        "post-create-project-cmd": "php scripts/configure.php"
+    }
+}
