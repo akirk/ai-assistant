@@ -30,10 +30,13 @@ class PluginCheckoutBadgeTest extends TestCase {
 
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
         $this->assertStringContainsString('<details class="ai-assistant-checkout-badge"', $html);
+        $this->assertStringContainsString('Old Version:', $html);
         $this->assertStringContainsString('ai-assistant-checkout-badge-message">First checked out change message...', $html);
         $this->assertStringContainsString('just now', $html);
         $this->assertStringContainsString('Badge Demo', $html);
         $this->assertStringContainsString('First checked out change message with more words', $html);
+        $this->assertStringContainsString('View AI Changes', $html);
+        $this->assertStringContainsString('tools.php?page=ai-changes&plugin=plugins%2Fbadge-demo', $html);
         $this->assertStringNotContainsString('Not current', $html);
         $this->assertStringNotContainsString(' title=', $html);
         $this->assertStringNotContainsString(substr($checked_out_sha, 0, 7), $html);
@@ -77,7 +80,10 @@ class PluginCheckoutBadgeTest extends TestCase {
 
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
         $this->assertStringContainsString('Badge Admin', $html);
+        $this->assertStringContainsString('Old Version:', $html);
         $this->assertStringContainsString('First checked out change message with more words', $html);
+        $this->assertStringContainsString('View AI Changes', $html);
+        $this->assertStringContainsString('tools.php?page=ai-changes&plugin=plugins%2Fbadge-admin', $html);
         $this->assertStringNotContainsString('Not current', $html);
         $this->assertStringNotContainsString(' title=', $html);
         $this->assertStringNotContainsString(substr($checked_out_sha, 0, 7), $html);
