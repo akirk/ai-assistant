@@ -92,36 +92,14 @@ class ChatUITest extends TestCase {
                     'url' => 'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fexample',
                 ],
             ],
-            'version_log' => [
-                [
-                    'label' => 'Next',
-                    'message' => 'Newer change',
-                    'time_ago' => '3 min ago',
-                    'url' => 'http://example.test/wp-admin/admin.php?action=ai_assistant_checkout_version&sha=next',
-                ],
-                [
-                    'label' => 'Current',
-                    'message' => 'Current change',
-                    'time_ago' => '5 min ago',
-                ],
-                [
-                    'label' => 'Previous',
-                    'message' => 'Older change',
-                    'time_ago' => '8 min ago',
-                    'url' => 'http://example.test/wp-admin/admin.php?action=ai_assistant_checkout_version&sha=previous',
-                ],
-            ],
         ]);
 
         $this->assertStringContainsString('CURRENT PAGE FILE CHANGES', $prompt);
         $this->assertStringContainsString('plugins/example', $prompt);
-        $this->assertStringContainsString('Review file changes', $prompt);
+        $this->assertStringContainsString('Review AI changes', $prompt);
         $this->assertStringContainsString('current window', $prompt);
-        $this->assertStringContainsString('Overview', $prompt);
-        $this->assertStringContainsString('Current-window version log rows', $prompt);
-        $this->assertStringContainsString('Next: Newer change (3 min ago)', $prompt);
-        $this->assertStringContainsString('Current: Current change (5 min ago)', $prompt);
-        $this->assertStringContainsString('Previous: Older change (8 min ago)', $prompt);
+        $this->assertStringNotContainsString('Current-window version log rows', $prompt);
+        $this->assertStringNotContainsString('Overview:', $prompt);
     }
 
     private function get_welcome_tips(): array {

@@ -1577,11 +1577,15 @@
             var links = Array.isArray(metadata.links) ? metadata.links.filter(function(link) {
                 return link && typeof link.url === 'string' && link.url;
             }) : [];
-            var versionLog = Array.isArray(metadata.version_log) ? metadata.version_log.filter(function(row) {
-                return row && typeof row === 'object';
-            }) : [];
+            var overviewLink = links.find(function(link) {
+                return (link.key || '') === 'overview';
+            }) || null;
+            var link = overviewLink || {
+                url: url,
+                open_in_current_window: metadata.open_in_current_window
+            };
 
-            if (!versionLog.length && !links.length && !url) {
+            if (!link.url) {
                 return;
             }
 
@@ -1592,88 +1596,14 @@
                         .attr('rel', 'noopener noreferrer');
                 }
             };
-            var sanitizeKey = function(key) {
-                return String(key || '').replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
-            };
-
             var $suggestion = this.ensureAiChangesSuggestion();
             $suggestion.empty();
 
-            if (versionLog.length) {
-                var $log = $('<div class="ai-assistant-ai-changes-log" aria-label="Version history"></div>');
-
-                versionLog.forEach(function(row) {
-                    var key = sanitizeKey(row.key || row.label);
-                    var canNavigate = !!(row.url && !row.is_current && !row.is_unavailable);
-                    var className = 'ai-assistant-ai-changes-log-row';
-                    if (row.is_current) {
-                        className += ' is-current';
-                    }
-                    if (row.is_unavailable) {
-                        className += ' is-unavailable';
-                    }
-
-                    var $row = $(canNavigate ? '<a class="' + className + '"></a>' : '<span class="' + className + '"></span>');
-                    if (key) {
-                        $row.attr('id', 'ai-assistant-ai-changes-version-' + key);
-                    }
-                    if (canNavigate) {
-                        $row.attr('href', row.url);
-                        applyLinkTarget($row, row);
-                    }
-
-                    $row.append($('<span class="ai-assistant-ai-changes-log-label"></span>').text(row.label || 'Version'));
-                    $row.append($('<span class="ai-assistant-ai-changes-log-message"></span>').text(row.message_excerpt || row.message || ''));
-                    if (row.time_ago) {
-                        $row.append($('<span class="ai-assistant-ai-changes-log-time"></span>').text(row.time_ago));
-                    }
-                    $log.append($row);
-                });
-
-                $suggestion.append($log);
-
-                links.forEach(function(link) {
-                    if ((link.key || '') !== 'overview') {
-                        return;
-                    }
-
-                    var $overview = $('<a id="ai-assistant-ai-changes-link-overview" class="ai-assistant-ai-changes-overview"></a>')
-                        .attr('href', link.url)
-                        .text(link.label || 'Overview');
-                    applyLinkTarget($overview, link);
-                    $suggestion.append($overview);
-                });
-
-                $suggestion.prop('hidden', false);
-                this.moveAiChangesSuggestionToEnd();
-                return;
-            }
-
-            if (!links.length) {
-                links = [{
-                    key: '',
-                    label: metadata.link_text || 'Review file changes',
-                    url: url,
-                    open_in_current_window: metadata.open_in_current_window
-                }];
-            }
-
-            links.forEach(function(link, index) {
-                var key = sanitizeKey(link.key);
-                var $link = $('<a class="ai-assistant-ai-changes-link"></a>')
-                    .attr('href', link.url)
-                    .text(link.label || metadata.link_text || 'Review file changes');
-
-                if (key) {
-                    $link.attr('id', 'ai-assistant-ai-changes-link-' + key);
-                } else if (index === 0) {
-                    $link.attr('id', 'ai-assistant-ai-changes-link');
-                }
-
-                applyLinkTarget($link, link);
-
-                $suggestion.append($link);
-            });
+            var $link = $('<a id="ai-assistant-ai-changes-link" class="ai-assistant-ai-changes-link"></a>')
+                .attr('href', link.url)
+                .text('Review AI changes');
+            applyLinkTarget($link, link);
+            $suggestion.append($link);
 
             $suggestion.prop('hidden', false);
             this.moveAiChangesSuggestionToEnd();
@@ -1741,7 +1671,7 @@
             }
 
             this.renderAiChangesSuggestion($.extend({
-                link_text: 'Review file changes',
+                link_text: 'Review AI changes',
                 open_in_current_window: true
             }, metadata));
         },

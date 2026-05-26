@@ -262,35 +262,7 @@ class Chat_UI {
 
         $prompt = $system_prompt . "\n\nCURRENT PAGE FILE CHANGES:\n"
             . "- The plugin/theme rendering the current window has tracked AI file changes: {$root}.\n"
-            . "- When it is useful to review or check out another version, you may call navigate with url \"{$url}\" and link_text \"Review file changes\". The link should be offered for this current window.\n";
-
-        if (!empty($metadata['links']) && is_array($metadata['links'])) {
-            $prompt .= "- Available current-window file-change links:\n";
-            foreach ($metadata['links'] as $link) {
-                if (empty($link['label']) || empty($link['url'])) {
-                    continue;
-                }
-                $prompt .= "  - {$link['label']}: {$link['url']}\n";
-            }
-        }
-
-        if (!empty($metadata['version_log']) && is_array($metadata['version_log'])) {
-            $prompt .= "- Current-window version log rows:\n";
-            foreach ($metadata['version_log'] as $row) {
-                if (empty($row['label']) || empty($row['message'])) {
-                    continue;
-                }
-
-                $row_line = "  - {$row['label']}: {$row['message']}";
-                if (!empty($row['time_ago'])) {
-                    $row_line .= " ({$row['time_ago']})";
-                }
-                if (!empty($row['url'])) {
-                    $row_line .= " - {$row['url']}";
-                }
-                $prompt .= $row_line . "\n";
-            }
-        }
+            . "- When it is useful to review those changes, you may call navigate with url \"{$url}\" and link_text \"Review AI changes\". The link should be offered for this current window.\n";
 
         return $prompt;
     }
