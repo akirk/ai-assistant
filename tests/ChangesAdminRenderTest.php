@@ -25,6 +25,7 @@ class ChangesAdminRenderTest extends TestCase {
         $html = $this->render_admin($this->plugin_fixture());
 
         $this->assertStringContainsString('class="ai-plugin-index"', $html);
+        $this->assertStringNotContainsString('ai-changes-wrap-detail', $html);
         $this->assertStringContainsString('Alpha Plugin', $html);
         $this->assertStringContainsString('plugin=plugins%2Falpha', $html);
         $this->assertStringContainsString('Review Changes', $html);
@@ -41,6 +42,7 @@ class ChangesAdminRenderTest extends TestCase {
         $html = $this->render_admin($this->plugin_fixture());
 
         $this->assertStringContainsString('AI Changes: Alpha Plugin', $html);
+        $this->assertStringContainsString('ai-changes-wrap-detail', $html);
         $this->assertStringContainsString('All plugins', $html);
         $this->assertStringContainsString('Download ZIP', $html);
         $this->assertStringContainsString('class="ai-changes-plugin-detail"', $html);

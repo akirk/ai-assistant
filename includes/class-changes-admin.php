@@ -172,7 +172,7 @@ class Changes_Admin {
             ? $plugins[$selected_plugin_path]
             : null;
         ?>
-        <div class="wrap ai-changes-wrap">
+        <div class="wrap ai-changes-wrap<?php echo $selected_plugin ? ' ai-changes-wrap-detail' : ''; ?>">
             <?php if ($selected_plugin): ?>
                 <h1>
                     <?php echo esc_html(sprintf(__('AI Changes: %s', 'ai-assistant'), $selected_plugin['name'])); ?>

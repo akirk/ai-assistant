@@ -13,6 +13,10 @@
     max-width: 900px;
 }
 
+.ai-changes-wrap-detail {
+    max-width: none;
+}
+
 .ai-changes-actions {
     margin: 20px 0;
     display: flex;
