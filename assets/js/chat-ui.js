@@ -1574,24 +1574,48 @@
             var url = typeof metadata.url === 'string' && metadata.url
                 ? metadata.url
                 : this.getAiChangesUrlForRoot(root);
-            if (!url) {
+            var links = Array.isArray(metadata.links) ? metadata.links.filter(function(link) {
+                return link && typeof link.url === 'string' && link.url;
+            }) : [];
+
+            if (!links.length && !url) {
                 return;
             }
 
-            var $link = $('<a id="ai-assistant-ai-changes-link"></a>')
-                .attr('href', url)
-                .text(metadata.link_text || 'Review file changes');
-
-            if (!metadata.open_in_current_window) {
-                $link
-                    .attr('target', '_blank')
-                    .attr('rel', 'noopener noreferrer');
+            if (!links.length) {
+                links = [{
+                    key: '',
+                    label: metadata.link_text || 'Review file changes',
+                    url: url,
+                    open_in_current_window: metadata.open_in_current_window
+                }];
             }
 
             var $suggestion = this.ensureAiChangesSuggestion();
-            $suggestion.empty()
-                .append($link)
-                .prop('hidden', false);
+            $suggestion.empty();
+
+            links.forEach(function(link, index) {
+                var key = String(link.key || '').replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
+                var $link = $('<a class="ai-assistant-ai-changes-link"></a>')
+                    .attr('href', link.url)
+                    .text(link.label || metadata.link_text || 'Review file changes');
+
+                if (key) {
+                    $link.attr('id', 'ai-assistant-ai-changes-link-' + key);
+                } else if (index === 0) {
+                    $link.attr('id', 'ai-assistant-ai-changes-link');
+                }
+
+                if (!link.open_in_current_window && !metadata.open_in_current_window) {
+                    $link
+                        .attr('target', '_blank')
+                        .attr('rel', 'noopener noreferrer');
+                }
+
+                $suggestion.append($link);
+            });
+
+            $suggestion.prop('hidden', false);
             this.moveAiChangesSuggestionToEnd();
         },
 

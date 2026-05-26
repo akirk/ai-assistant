@@ -86,12 +86,24 @@ class ChatUITest extends TestCase {
         $prompt = $method->invoke($chat_ui, 'Base prompt', [
             'root' => 'plugins/example',
             'url' => 'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fexample',
+            'links' => [
+                [
+                    'label' => 'Previous version',
+                    'url' => 'http://example.test/wp-admin/admin.php?action=ai_assistant_checkout_version&sha=previous',
+                ],
+                [
+                    'label' => 'Overview',
+                    'url' => 'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fexample',
+                ],
+            ],
         ]);
 
         $this->assertStringContainsString('CURRENT PAGE FILE CHANGES', $prompt);
         $this->assertStringContainsString('plugins/example', $prompt);
         $this->assertStringContainsString('Review file changes', $prompt);
         $this->assertStringContainsString('current window', $prompt);
+        $this->assertStringContainsString('Previous version', $prompt);
+        $this->assertStringContainsString('Overview', $prompt);
     }
 
     private function get_welcome_tips(): array {

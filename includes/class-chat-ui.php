@@ -260,9 +260,21 @@ class Chat_UI {
         $root = (string) $metadata['root'];
         $url = (string) $metadata['url'];
 
-        return $system_prompt . "\n\nCURRENT PAGE FILE CHANGES:\n"
+        $prompt = $system_prompt . "\n\nCURRENT PAGE FILE CHANGES:\n"
             . "- The plugin/theme rendering the current window has tracked AI file changes: {$root}.\n"
             . "- When it is useful to review or check out another version, you may call navigate with url \"{$url}\" and link_text \"Review file changes\". The link should be offered for this current window.\n";
+
+        if (!empty($metadata['links']) && is_array($metadata['links'])) {
+            $prompt .= "- Available current-window file-change links:\n";
+            foreach ($metadata['links'] as $link) {
+                if (empty($link['label']) || empty($link['url'])) {
+                    continue;
+                }
+                $prompt .= "  - {$link['label']}: {$link['url']}\n";
+            }
+        }
+
+        return $prompt;
     }
 
     /**
