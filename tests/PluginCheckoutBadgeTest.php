@@ -106,6 +106,54 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertStringNotContainsString('Old Version:', $html);
     }
 
+    public function test_wp_app_template_renders_badge_for_checked_out_external_git_plugin(): void {
+        [$manager, $checked_out_sha, $template_path] = $this->createCheckedOutExternalWpAppPlugin('external-badge');
+
+        $badge = new Plugin_Checkout_Badge($manager);
+        $badge->capture_wp_app_template($template_path);
+        $metadata = $badge->get_current_ai_changes_metadata();
+
+        ob_start();
+        $badge->render_badge();
+        $html = ob_get_clean();
+
+        $this->assertSame('plugins/external-badge', $metadata['root']);
+        $this->assertSame('http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fexternal-badge', $metadata['url']);
+        $this->assertSame(['next', 'current', 'previous'], array_column($metadata['version_log'], 'key'));
+        $this->assertStringContainsString('action=ai_assistant_checkout_version', $metadata['version_log'][0]['url']);
+        $this->assertArrayNotHasKey('url', $metadata['version_log'][1]);
+        $this->assertStringContainsString('action=ai_assistant_checkout_version', $metadata['version_log'][2]['url']);
+        $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
+        $this->assertStringContainsString('class="ai-assistant-checkout-badge is-old-version"', $html);
+        $this->assertStringContainsString('Old Version:', $html);
+        $this->assertStringContainsString('External Badge', $html);
+        $this->assertStringContainsString('External middle checked out change with more words', $html);
+        $this->assertStringContainsString('External latest change with more...', $html);
+        $this->assertStringContainsString('External first older change with...', $html);
+        $this->assertStringContainsString('tools.php?page=ai-changes&plugin=plugins%2Fexternal-badge', $html);
+        $this->assertStringNotContainsString(substr($checked_out_sha, 0, 7), $html);
+    }
+
+    public function test_wp_app_template_renders_current_external_git_plugin_when_in_page_ai_changes_enabled(): void {
+        update_option(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, '1');
+        [$manager, $template_path] = $this->createCurrentExternalWpAppPlugin('external-current');
+
+        $badge = new Plugin_Checkout_Badge($manager);
+        $badge->capture_wp_app_template($template_path);
+
+        ob_start();
+        $badge->render_badge();
+        $html = ob_get_clean();
+
+        $this->assertStringContainsString('ai-assistant-checkout-badge is-current-version', $html);
+        $this->assertStringContainsString('Current version', $html);
+        $this->assertStringContainsString('External Current', $html);
+        $this->assertStringContainsString('No newer version', $html);
+        $this->assertStringContainsString('Original state before AI modifications', $html);
+        $this->assertStringContainsString('tools.php?page=ai-changes&plugin=plugins%2Fexternal-current', $html);
+        $this->assertStringNotContainsString('Old Version:', $html);
+    }
+
     public function test_admin_page_callback_renders_badge_for_checked_out_plugin(): void {
         [$manager, $checked_out_sha] = $this->createCheckedOutPlugin('badge-admin');
         $callback = $this->createAdminCallback('badge-admin');
@@ -210,6 +258,63 @@ class PluginCheckoutBadgeTest extends TestCase {
         $tracker->track_change($relative_main_file, 'modified', $original, 'Current');
 
         return [$manager, $template_path];
+    }
+
+    private function createCheckedOutExternalWpAppPlugin(string $slug): array {
+        [$manager, $tracker, $template_path] = $this->createPlugin($slug);
+        $this->markPluginAsWpApp($slug);
+
+        $main_file = WP_PLUGIN_DIR . '/' . $slug . '/' . $slug . '.php';
+        $relative_main_file = $slug . '.php';
+        $original = $this->pluginHeader($slug) . "\n// original\n";
+
+        file_put_contents($main_file, $this->pluginHeader($slug) . "\n// external version 2\n");
+        $tracker->track_change($relative_main_file, 'modified', $original, 'External first older change with more words');
+
+        file_put_contents($main_file, $this->pluginHeader($slug) . "\n// external version 3\n");
+        $tracker->track_change($relative_main_file, 'modified', $original, 'External middle checked out change with more words');
+        $checked_out_sha = $tracker->get_recent_commits()[0]['sha'];
+
+        file_put_contents($main_file, $this->pluginHeader($slug) . "\n// external version 4\n");
+        $tracker->track_change($relative_main_file, 'modified', $original, 'External latest change with more words');
+
+        $this->convertAiChangesRepoToExternalGit($slug);
+        $result = $manager->checkout_commit('plugins/' . $slug, $checked_out_sha);
+        $this->assertTrue($result['success']);
+
+        return [$manager, $checked_out_sha, $template_path];
+    }
+
+    private function createCurrentExternalWpAppPlugin(string $slug): array {
+        [$manager, $tracker, $template_path] = $this->createPlugin($slug);
+        $this->markPluginAsWpApp($slug);
+
+        $main_file = WP_PLUGIN_DIR . '/' . $slug . '/' . $slug . '.php';
+        $relative_main_file = $slug . '.php';
+        $original = $this->pluginHeader($slug) . "\n// original\n";
+
+        file_put_contents($main_file, $this->pluginHeader($slug) . "\n// external current\n");
+        $tracker->track_change($relative_main_file, 'modified', $original, 'External current change');
+        $this->convertAiChangesRepoToExternalGit($slug);
+
+        return [$manager, $template_path];
+    }
+
+    private function markPluginAsWpApp(string $slug): void {
+        $wp_app_dir = WP_PLUGIN_DIR . '/' . $slug . '/vendor/akirk/wp-app';
+        if (!is_dir($wp_app_dir)) {
+            mkdir($wp_app_dir, 0755, true);
+        }
+    }
+
+    private function convertAiChangesRepoToExternalGit(string $slug): void {
+        $git_dir = WP_PLUGIN_DIR . '/' . $slug . '/.git';
+        $ai_changes_ref = $git_dir . '/refs/heads/ai-changes';
+        $latest_sha = trim((string) file_get_contents($ai_changes_ref));
+
+        file_put_contents($git_dir . '/refs/heads/main', $latest_sha . "\n");
+        file_put_contents($git_dir . '/HEAD', "ref: refs/heads/main\n");
+        unlink($ai_changes_ref);
     }
 
     private function createPlugin(string $slug): array {

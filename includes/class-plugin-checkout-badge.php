@@ -594,12 +594,11 @@ class Plugin_Checkout_Badge {
     }
 
     private function get_ai_changes_metadata_for_root(string $root): ?array {
-        $tracker = $this->git_tracker_manager->get_or_create_tracker($root);
-        if (!$tracker->has_ai_changes()) {
+        $relative_root = $this->get_relative_root($root);
+        $repository = $this->get_repository_info_for_root($root);
+        if ($repository === null) {
             return null;
         }
-
-        $relative_root = $this->get_relative_root($root);
 
         return [
             'root' => $relative_root,
@@ -608,34 +607,36 @@ class Plugin_Checkout_Badge {
                 ? admin_url('tools.php?page=ai-changes&plugin=' . rawurlencode($relative_root))
                 : '',
             'open_in_current_window' => true,
-            'version_log' => $this->get_ai_changes_version_log($tracker, $relative_root),
+            'version_log' => $this->get_repository_version_log($repository, $relative_root),
             'links' => $this->get_ai_changes_links($relative_root),
         ];
     }
 
     private function get_checkout_status_for_root(string $root): ?array {
-        $tracker = $this->git_tracker_manager->get_or_create_tracker($root);
-        if (!$tracker->has_ai_changes()) {
+        $relative_root = $this->get_relative_root($root);
+        $repository = $this->get_repository_info_for_root($root);
+        if ($repository === null) {
             return null;
         }
 
-        $checked_out_sha = $tracker->get_checked_out_commit();
-        if ($checked_out_sha === null) {
+        $checked_out_sha = isset($repository['checked_out_sha']) && is_string($repository['checked_out_sha'])
+            ? $repository['checked_out_sha']
+            : null;
+        if ($checked_out_sha === null || $checked_out_sha === '') {
             return null;
         }
 
-        $commits = $tracker->get_recent_commits(1);
-        $latest_sha = $commits[0]['sha'] ?? null;
+        $commits = $this->get_repository_commits($repository, $relative_root, 100);
+        $latest_sha = $this->get_latest_commit_sha($commits);
         if ($latest_sha && $checked_out_sha === $latest_sha) {
             return null;
         }
 
-        $commit = $tracker->get_commit_summary($checked_out_sha);
-        $relative_root = $this->get_relative_root($root);
+        $commit = $this->get_repository_commit_summary($repository, $relative_root, $checked_out_sha);
         $this->enable_in_page_ai_changes();
 
         return [
-            'name' => $tracker->get_name(),
+            'name' => $repository['name'] ?? __('Plugin', 'ai-assistant'),
             'root' => $root,
             'relative_root' => $relative_root,
             'checked_out_sha' => $checked_out_sha,
@@ -645,7 +646,7 @@ class Plugin_Checkout_Badge {
             'ai_changes_url' => function_exists('admin_url')
                 ? admin_url('tools.php?page=ai-changes&plugin=' . rawurlencode($relative_root))
                 : '',
-            'version_log' => $this->get_ai_changes_version_log($tracker, $relative_root),
+            'version_log' => $this->get_repository_version_log($repository, $relative_root),
             'links' => $this->get_ai_changes_links($relative_root),
             'latest_sha' => $latest_sha,
         ];
@@ -665,28 +666,29 @@ class Plugin_Checkout_Badge {
     }
 
     private function get_current_status_for_root(string $root): ?array {
-        $tracker = $this->git_tracker_manager->get_or_create_tracker($root);
-        if (!$tracker->has_ai_changes()) {
+        $relative_root = $this->get_relative_root($root);
+        $repository = $this->get_repository_info_for_root($root);
+        if ($repository === null) {
             return null;
         }
 
-        $commits = $tracker->get_recent_commits(1);
+        $commits = $this->get_repository_commits($repository, $relative_root, 100);
         if (empty($commits[0]['sha'])) {
             return null;
         }
 
-        $latest_sha = (string) $commits[0]['sha'];
-        $checked_out_sha = $tracker->get_checked_out_commit();
+        $latest_sha = $this->get_latest_commit_sha($commits) ?: (string) $commits[0]['sha'];
+        $checked_out_sha = isset($repository['checked_out_sha']) && is_string($repository['checked_out_sha'])
+            ? $repository['checked_out_sha']
+            : null;
         $current_sha = $checked_out_sha ?: $latest_sha;
-        $commit = $current_sha === $latest_sha ? $commits[0] : $tracker->get_commit_summary($current_sha);
+        $commit = $current_sha === $latest_sha ? $this->get_commit_from_list($commits, $latest_sha) : $this->get_repository_commit_summary($repository, $relative_root, $current_sha);
         if (!is_array($commit)) {
             return null;
         }
 
-        $relative_root = $this->get_relative_root($root);
-
         return [
-            'name' => $tracker->get_name(),
+            'name' => $repository['name'] ?? __('Plugin', 'ai-assistant'),
             'root' => $root,
             'relative_root' => $relative_root,
             'checked_out_sha' => $current_sha,
@@ -696,21 +698,32 @@ class Plugin_Checkout_Badge {
             'ai_changes_url' => function_exists('admin_url')
                 ? admin_url('tools.php?page=ai-changes&plugin=' . rawurlencode($relative_root))
                 : '',
-            'version_log' => $this->get_ai_changes_version_log($tracker, $relative_root),
+            'version_log' => $this->get_repository_version_log($repository, $relative_root),
             'links' => $this->get_ai_changes_links($relative_root),
             'latest_sha' => $latest_sha,
         ];
     }
 
-    private function get_ai_changes_version_log(Git_Tracker $tracker, string $relative_root): array {
-        $commits = $tracker->get_recent_commits(100);
+    private function get_repository_info_for_root(string $root): ?array {
+        $relative_root = $this->get_relative_root($root);
+        $repositories = $this->git_tracker_manager->get_all_repositories_for_changes_page($relative_root);
+
+        return isset($repositories[$relative_root]) && is_array($repositories[$relative_root])
+            ? $repositories[$relative_root]
+            : null;
+    }
+
+    private function get_repository_version_log(array $repository, string $relative_root): array {
+        $commits = $this->get_repository_commits($repository, $relative_root, 100);
         if (empty($commits)) {
             return [];
         }
 
-        $current_sha = $tracker->get_checked_out_commit();
-        if ($current_sha === null) {
-            $current_sha = $commits[0]['sha'] ?? null;
+        $current_sha = isset($repository['checked_out_sha']) && is_string($repository['checked_out_sha'])
+            ? $repository['checked_out_sha']
+            : null;
+        if ($current_sha === null || $current_sha === '') {
+            $current_sha = $this->get_latest_commit_sha($commits) ?: ($commits[0]['sha'] ?? null);
         }
 
         $current_index = null;
@@ -723,7 +736,7 @@ class Plugin_Checkout_Badge {
 
         $current_commit = $current_index !== null
             ? $commits[$current_index]
-            : ($current_sha ? $tracker->get_commit_summary($current_sha) : null);
+            : ($current_sha ? $this->get_repository_commit_summary($repository, $relative_root, $current_sha) : null);
 
         return [
             $this->get_version_log_row(
@@ -751,6 +764,92 @@ class Plugin_Checkout_Badge {
                 __('No previous version', 'ai-assistant')
             ),
         ];
+    }
+
+    private function get_repository_commits(array $repository, string $relative_root, int $limit): array {
+        $log = $this->git_tracker_manager->get_commit_log($relative_root, $limit, 0);
+        if (!empty($log['commits']) && is_array($log['commits'])) {
+            return $this->order_commits_by_first_parent($log['commits']);
+        }
+
+        $commits = !empty($repository['commits']) && is_array($repository['commits'])
+            ? array_slice($repository['commits'], 0, $limit)
+            : [];
+
+        return $this->order_commits_by_first_parent($commits);
+    }
+
+    private function order_commits_by_first_parent(array $commits): array {
+        if (count($commits) < 2) {
+            return $commits;
+        }
+
+        $by_sha = [];
+        $latest_sha = null;
+        foreach ($commits as $commit) {
+            if (empty($commit['sha'])) {
+                continue;
+            }
+
+            $sha = (string) $commit['sha'];
+            $by_sha[$sha] = $commit;
+            if (!empty($commit['is_latest'])) {
+                $latest_sha = $sha;
+            }
+        }
+
+        if ($latest_sha === null || !isset($by_sha[$latest_sha])) {
+            return $commits;
+        }
+
+        $ordered = [];
+        $sha = $latest_sha;
+        while ($sha !== '' && isset($by_sha[$sha])) {
+            $commit = $by_sha[$sha];
+            $ordered[] = $commit;
+            unset($by_sha[$sha]);
+            $sha = isset($commit['parent']) && is_string($commit['parent']) ? $commit['parent'] : '';
+        }
+
+        foreach ($commits as $commit) {
+            $sha = isset($commit['sha']) ? (string) $commit['sha'] : '';
+            if ($sha !== '' && isset($by_sha[$sha])) {
+                $ordered[] = $commit;
+                unset($by_sha[$sha]);
+            }
+        }
+
+        return $ordered;
+    }
+
+    private function get_repository_commit_summary(array $repository, string $relative_root, string $sha): ?array {
+        $commits = !empty($repository['commits']) && is_array($repository['commits']) ? $repository['commits'] : [];
+        $commit = $this->get_commit_from_list($commits, $sha);
+        if ($commit !== null) {
+            return $commit;
+        }
+
+        return $this->git_tracker_manager->get_commit_summary($relative_root, $sha);
+    }
+
+    private function get_latest_commit_sha(array $commits): ?string {
+        foreach ($commits as $commit) {
+            if (!empty($commit['is_latest']) && !empty($commit['sha'])) {
+                return (string) $commit['sha'];
+            }
+        }
+
+        return !empty($commits[0]['sha']) ? (string) $commits[0]['sha'] : null;
+    }
+
+    private function get_commit_from_list(array $commits, string $sha): ?array {
+        foreach ($commits as $commit) {
+            if (($commit['sha'] ?? '') === $sha) {
+                return $commit;
+            }
+        }
+
+        return null;
     }
 
     private function get_version_log_row(

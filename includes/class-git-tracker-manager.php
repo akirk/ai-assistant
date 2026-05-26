@@ -492,6 +492,15 @@ class Git_Tracker_Manager {
         return $tracker->get_commit_log($limit, $offset);
     }
 
+    public function get_commit_summary(string $plugin_path, string $sha): ?array {
+        $tracker = $this->get_repository_tracker($plugin_path);
+        if ($tracker === null || !method_exists($tracker, 'get_commit_summary')) {
+            return null;
+        }
+
+        return $tracker->get_commit_summary($sha);
+    }
+
     /**
      * Get diff for a specific commit.
      *

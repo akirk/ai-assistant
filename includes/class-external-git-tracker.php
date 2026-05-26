@@ -164,6 +164,36 @@ class External_Git_Tracker {
         return ['commits' => $commits, 'has_more' => $has_more];
     }
 
+    public function get_commit_summary(string $sha): ?array {
+        if (!$this->is_active() || !$this->is_valid_sha($sha)) {
+            return null;
+        }
+
+        $commit_data = $this->read_object($sha);
+        if ($commit_data === null || $commit_data['type'] !== 'commit') {
+            return null;
+        }
+
+        $parsed = $this->parse_commit($commit_data['content']);
+        $head_sha = $this->get_head_sha();
+        $checked_out_sha = $this->get_checked_out_commit();
+        $refs_by_sha = $this->get_commit_refs();
+
+        return [
+            'sha' => $sha,
+            'short_sha' => substr($sha, 0, 7),
+            'tree' => $parsed['tree'],
+            'parent' => $parsed['parent'],
+            'message' => $this->summarize_message($parsed['message']),
+            'conversation_id' => null,
+            'timestamp' => $parsed['timestamp'],
+            'date' => $parsed['timestamp'] ? date('Y-m-d H:i:s', $parsed['timestamp']) : null,
+            'is_latest' => $sha === $head_sha,
+            'is_checked_out' => $checked_out_sha !== null && $sha === $checked_out_sha,
+            'refs' => $refs_by_sha[$sha] ?? [],
+        ];
+    }
+
     public function get_commit_diff(string $sha): string {
         $commit_data = $this->read_object($sha);
         if ($commit_data === null || $commit_data['type'] !== 'commit') {
