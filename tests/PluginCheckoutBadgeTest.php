@@ -31,7 +31,8 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
         $this->assertStringContainsString('Not current', $html);
         $this->assertStringContainsString('Badge Demo', $html);
-        $this->assertStringContainsString(substr($checked_out_sha, 0, 7), $html);
+        $this->assertStringContainsString('Checked out change: First', $html);
+        $this->assertStringNotContainsString(substr($checked_out_sha, 0, 7), $html);
         $this->assertStringContainsString('data-ai-plugin="plugins/badge-demo"', $html);
     }
 
@@ -72,7 +73,8 @@ class PluginCheckoutBadgeTest extends TestCase {
 
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
         $this->assertStringContainsString('Badge Admin', $html);
-        $this->assertStringContainsString(substr($checked_out_sha, 0, 7), $html);
+        $this->assertStringContainsString('Checked out change: First', $html);
+        $this->assertStringNotContainsString(substr($checked_out_sha, 0, 7), $html);
     }
 
     private function createCheckedOutPlugin(string $slug): array {
