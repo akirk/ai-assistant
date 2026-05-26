@@ -15,6 +15,8 @@ class PluginCheckoutBadgeTest extends TestCase {
         }
 
         unset($GLOBALS['hook_suffix'], $GLOBALS['wp_filter']);
+        $GLOBALS['wp_test_site_url'] = 'http://localhost';
+        unset($_SERVER['REQUEST_URI']);
         $this->plugin_dirs = [];
     }
 
@@ -113,6 +115,22 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertStringNotContainsString('Not current', $html);
         $this->assertStringNotContainsString(' title=', $html);
         $this->assertStringNotContainsString(substr($checked_out_sha, 0, 7), $html);
+    }
+
+    public function test_checkout_redirect_url_does_not_duplicate_site_path(): void {
+        $GLOBALS['wp_test_site_url'] = 'http://example.test/scope:default';
+        $_SERVER['REQUEST_URI'] = '/scope:default/demo-page/?tab=one';
+        [$manager,, $template_path] = $this->createCheckedOutPlugin('badge-scoped');
+
+        $badge = new Plugin_Checkout_Badge($manager);
+        $badge->capture_wp_app_template($template_path);
+        $metadata = $badge->get_current_ai_changes_metadata();
+
+        $query = parse_url($metadata['version_log'][0]['url'], PHP_URL_QUERY);
+        parse_str((string) $query, $params);
+
+        $this->assertSame('http://example.test/scope:default/demo-page/?tab=one', $params['redirect_to'] ?? '');
+        $this->assertStringNotContainsString('/scope:default/scope:default/', $params['redirect_to'] ?? '');
     }
 
     private function createCheckedOutPlugin(string $slug): array {

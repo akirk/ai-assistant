@@ -644,8 +644,31 @@ class Plugin_Checkout_Badge {
     }
 
     private function get_current_request_url(): string {
-        $request_uri = $_SERVER['REQUEST_URI'] ?? '/';
-        return function_exists('home_url') ? home_url($request_uri) : (string) $request_uri;
+        $request_uri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+        if ($request_uri === '') {
+            $request_uri = '/';
+        }
+
+        if (!function_exists('home_url')) {
+            return $request_uri;
+        }
+
+        $site_path = function_exists('wp_parse_url')
+            ? wp_parse_url(home_url(), PHP_URL_PATH)
+            : parse_url(home_url(), PHP_URL_PATH);
+
+        if (is_string($site_path) && $site_path !== '' && $site_path !== '/') {
+            $site_path = '/' . trim($site_path, '/');
+            if ($request_uri === $site_path) {
+                $request_uri = '/';
+            } elseif (strpos($request_uri, $site_path . '/') === 0) {
+                $request_uri = substr($request_uri, strlen($site_path)) ?: '/';
+            } elseif (strpos($request_uri, $site_path . '?') === 0) {
+                $request_uri = '/' . substr($request_uri, strlen($site_path));
+            }
+        }
+
+        return home_url($request_uri);
     }
 
     private function get_message_excerpt(string $message): string {
