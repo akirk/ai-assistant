@@ -33,7 +33,11 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertSame('plugin', $metadata['type']);
         $this->assertTrue($metadata['open_in_current_window']);
         $this->assertSame('http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fbadge-demo', $metadata['url']);
-        $this->assertSame(['previous-version', 'next-version', 'overview'], array_column($metadata['links'], 'key'));
+        $this->assertSame(['overview'], array_column($metadata['links'], 'key'));
+        $this->assertSame(['next', 'current', 'previous'], array_column($metadata['version_log'], 'key'));
+        $this->assertStringContainsString('action=ai_assistant_checkout_version', $metadata['version_log'][0]['url']);
+        $this->assertArrayNotHasKey('url', $metadata['version_log'][1]);
+        $this->assertStringContainsString('action=ai_assistant_checkout_version', $metadata['version_log'][2]['url']);
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
         $this->assertStringContainsString('<details class="ai-assistant-checkout-badge"', $html);
         $this->assertStringContainsString('Old Version:', $html);
@@ -41,8 +45,12 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertStringContainsString('just now', $html);
         $this->assertStringContainsString('Badge Demo', $html);
         $this->assertStringContainsString('Middle checked out change message with more words', $html);
-        $this->assertStringContainsString('Previous version', $html);
-        $this->assertStringContainsString('Next version', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-log', $html);
+        $this->assertStringContainsString('Next', $html);
+        $this->assertStringContainsString('Current', $html);
+        $this->assertStringContainsString('Previous', $html);
+        $this->assertStringContainsString('Latest change message with more...', $html);
+        $this->assertStringContainsString('First older change message with...', $html);
         $this->assertStringContainsString('Overview', $html);
         $this->assertStringContainsString('action=ai_assistant_checkout_version', $html);
         $this->assertStringContainsString('tools.php?page=ai-changes&plugin=plugins%2Fbadge-demo', $html);
@@ -90,13 +98,16 @@ class PluginCheckoutBadgeTest extends TestCase {
 
         $this->assertSame('plugins/badge-admin', $metadata['root']);
         $this->assertSame('http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fbadge-admin', $metadata['url']);
-        $this->assertSame(['previous-version', 'next-version', 'overview'], array_column($metadata['links'], 'key'));
+        $this->assertSame(['overview'], array_column($metadata['links'], 'key'));
+        $this->assertSame(['next', 'current', 'previous'], array_column($metadata['version_log'], 'key'));
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
         $this->assertStringContainsString('Badge Admin', $html);
         $this->assertStringContainsString('Old Version:', $html);
         $this->assertStringContainsString('Middle checked out change message with more words', $html);
-        $this->assertStringContainsString('Previous version', $html);
-        $this->assertStringContainsString('Next version', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-log', $html);
+        $this->assertStringContainsString('Next', $html);
+        $this->assertStringContainsString('Current', $html);
+        $this->assertStringContainsString('Previous', $html);
         $this->assertStringContainsString('Overview', $html);
         $this->assertStringContainsString('tools.php?page=ai-changes&plugin=plugins%2Fbadge-admin', $html);
         $this->assertStringNotContainsString('Not current', $html);
