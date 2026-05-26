@@ -367,24 +367,6 @@ class GitTrackerTest extends TestCase {
         $this->recursiveDelete($target_dir);
     }
 
-    // -------------------------------------------------------------------------
-    // Clear tests
-    // -------------------------------------------------------------------------
-
-    public function test_clear_all(): void {
-        $test_file = $this->plugin_dir . '/test.txt';
-        file_put_contents($test_file, 'modified content');
-
-        $this->tracker->track_change('test.txt', 'modified', 'original content', 'Test change');
-
-        $this->assertTrue($this->tracker->is_active());
-
-        $count = $this->tracker->clear_all();
-
-        $this->assertGreaterThan(0, $count);
-        $this->assertFalse($this->tracker->is_active());
-    }
-
     public function test_has_changes(): void {
         $this->assertFalse($this->tracker->has_changes());
 

@@ -75,11 +75,6 @@
                 self.toggleFilePreview($(this));
             });
 
-            // Clear history
-            $('#ai-clear-history').on('click', function() {
-                self.clearHistory();
-            });
-
             // Import patch - trigger file input
             $('#ai-import-patch').on('click', function() {
                 $('#ai-patch-file').click();
@@ -206,31 +201,6 @@
                 $preview.slideDown(150);
                 $toggle.text('▼').addClass('expanded');
             }
-        },
-
-        clearHistory: function() {
-            if (!confirm(aiChanges.strings.confirmClear)) {
-                return;
-            }
-
-            var $button = $('#ai-clear-history');
-            var originalText = $button.text();
-            $button.text(aiChanges.strings.clearing).prop('disabled', true);
-
-            $.post(aiChanges.ajaxUrl, {
-                action: 'ai_assistant_clear_changes',
-                nonce: aiChanges.nonce
-            }, function(response) {
-                if (response.success) {
-                    location.reload();
-                } else {
-                    alert(response.data.message || 'Failed to clear history');
-                    $button.text(originalText).prop('disabled', false);
-                }
-            }).fail(function() {
-                alert('Failed to clear history');
-                $button.text(originalText).prop('disabled', false);
-            });
         },
 
         importPatch: function(file) {

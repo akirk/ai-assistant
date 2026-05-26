@@ -29,6 +29,8 @@ class ChangesAdminRenderTest extends TestCase {
         $this->assertStringContainsString('plugin=plugins%2Falpha', $html);
         $this->assertStringContainsString('Review Changes', $html);
         $this->assertStringNotContainsString('<span class="ai-plugin-path">plugins/alpha/</span>', $html);
+        $this->assertStringNotContainsString('id="ai-clear-history"', $html);
+        $this->assertStringNotContainsString('Clear History', $html);
         $this->assertStringNotContainsString('alpha.php', $html);
         $this->assertStringNotContainsString('class="ai-plugin-card ai-plugin-card-detail"', $html);
     }

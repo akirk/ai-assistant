@@ -348,53 +348,6 @@ class Git_Tracker_Manager {
     }
 
     /**
-     * Clear all tracked changes.
-     *
-     * @return int Number of files cleared
-     */
-    public function clear_all(): int {
-        $trackers = $this->get_active_trackers();
-        $count = 0;
-
-        foreach ($trackers as $tracker) {
-            $count += $tracker->clear_all();
-        }
-
-        return $count;
-    }
-
-    /**
-     * Clear specific files from tracking.
-     *
-     * @param array $paths Paths relative to wp-content
-     * @return int
-     */
-    public function clear_files(array $paths): int {
-        $by_tracker = [];
-        foreach ($paths as $path) {
-            $root = $this->get_root_for_path($path);
-            if ($root === null) {
-                continue;
-            }
-
-            if (!isset($by_tracker[$root])) {
-                $by_tracker[$root] = [];
-            }
-
-            $relative = $this->path_relative_to_root($path, $root);
-            $by_tracker[$root][] = $relative;
-        }
-
-        $count = 0;
-        foreach ($by_tracker as $root => $tracker_paths) {
-            $tracker = $this->get_or_create_tracker($root);
-            $count += $tracker->clear_files($tracker_paths);
-        }
-
-        return $count;
-    }
-
-    /**
      * Get commit log from a specific plugin/theme.
      *
      * @param string $plugin_path Path like "plugins/my-plugin"

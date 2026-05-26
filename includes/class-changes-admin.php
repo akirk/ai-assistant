@@ -19,7 +19,6 @@ class Changes_Admin {
         add_action('wp_ajax_ai_assistant_get_changes', [$this, 'ajax_get_changes']);
         add_action('wp_ajax_ai_assistant_get_changes_by_plugin', [$this, 'ajax_get_changes_by_plugin']);
         add_action('wp_ajax_ai_assistant_generate_diff', [$this, 'ajax_generate_diff']);
-        add_action('wp_ajax_ai_assistant_clear_changes', [$this, 'ajax_clear_changes']);
         add_action('wp_ajax_ai_assistant_apply_patch', [$this, 'ajax_apply_patch']);
         add_action('wp_ajax_ai_assistant_revert_file', [$this, 'ajax_revert_file']);
         add_action('wp_ajax_ai_assistant_reapply_file', [$this, 'ajax_reapply_file']);
@@ -98,8 +97,6 @@ class Changes_Admin {
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('ai_assistant_changes'),
             'strings' => [
-                'confirmClear' => __('Are you sure you want to clear all tracked changes? This cannot be undone.', 'ai-assistant'),
-                'clearing' => __('Clearing...', 'ai-assistant'),
                 'importing' => __('Importing...', 'ai-assistant'),
                 'importSuccess' => __('Patch applied successfully! %d file(s) modified.', 'ai-assistant'),
                 'importError' => __('Failed to apply patch.', 'ai-assistant'),
@@ -138,7 +135,6 @@ class Changes_Admin {
                        . '<li><strong>' . __('Import Patch', 'ai-assistant') . '</strong> - ' . __('Upload a .patch, .diff, or .txt file to apply changes to your files.', 'ai-assistant') . '</li>'
                        . '<li><strong>' . __('Download ZIP', 'ai-assistant') . '</strong> - ' . __('Download the plugin or theme with its git history.', 'ai-assistant') . '</li>'
                        . '<li><strong>' . __('Checkout Commit', 'ai-assistant') . '</strong> - ' . __('Check out all tracked files from a previous commit state.', 'ai-assistant') . '</li>'
-                       . '<li><strong>' . __('Clear History', 'ai-assistant') . '</strong> - ' . __('Remove all tracked changes from the list.', 'ai-assistant') . '</li>'
                        . '</ul>',
         ]);
 
@@ -234,12 +230,6 @@ class Changes_Admin {
             return;
         }
         ?>
-        <div class="ai-changes-actions">
-            <button type="button" class="button" id="ai-clear-history">
-                <?php esc_html_e('Clear History', 'ai-assistant'); ?>
-            </button>
-        </div>
-
         <div class="ai-plugin-index">
             <?php foreach ($plugins as $plugin_path => $plugin):
                 $file_count = (int) ($plugin['file_count'] ?? 0);
@@ -439,27 +429,6 @@ class Changes_Admin {
 
         $diff = $this->git_tracker_manager->generate_diff($file_paths);
         wp_send_json_success(['diff' => $diff]);
-    }
-
-    public function ajax_clear_changes(): void {
-        check_ajax_referer('ai_assistant_changes', 'nonce');
-
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => 'Permission denied']);
-        }
-
-        $file_paths = isset($_POST['file_paths']) ? array_map('sanitize_text_field', (array) $_POST['file_paths']) : [];
-
-        if (empty($file_paths)) {
-            $deleted = $this->git_tracker_manager->clear_all();
-        } else {
-            $deleted = $this->git_tracker_manager->clear_files($file_paths);
-        }
-
-        wp_send_json_success([
-            'deleted' => $deleted,
-            'message' => sprintf(__('%d change(s) cleared.', 'ai-assistant'), $deleted),
-        ]);
     }
 
     public function ajax_apply_patch(): void {

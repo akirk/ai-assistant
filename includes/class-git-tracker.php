@@ -644,48 +644,6 @@ class Git_Tracker {
     }
 
     /**
-     * Clear all tracking.
-     */
-    public function clear_all(): int {
-        if (!is_dir($this->git_dir)) {
-            return 0;
-        }
-
-        $entries = $this->read_index();
-        $created = $this->get_created_files();
-        $count = count($entries) + count($created);
-
-        $this->recursive_delete($this->git_dir);
-
-        return $count;
-    }
-
-    /**
-     * Clear specific files from tracking.
-     */
-    public function clear_files(array $paths): int {
-        $count = 0;
-        foreach ($paths as $path) {
-            $relative_path = $this->to_relative_path($path);
-            if ($relative_path && $this->remove_from_index($relative_path)) {
-                $count++;
-            }
-            if ($relative_path && $this->remove_created_file($relative_path)) {
-                $count++;
-            }
-        }
-
-        // Clean up if nothing left
-        $entries = $this->read_index();
-        $created = $this->get_created_files();
-        if (empty($entries) && empty($created)) {
-            $this->recursive_delete($this->git_dir);
-        }
-
-        return $count;
-    }
-
-    /**
      * Check if tracking is active (has .git directory).
      */
     public function is_active(): bool {
