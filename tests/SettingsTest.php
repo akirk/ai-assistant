@@ -244,6 +244,34 @@ class SettingsTest extends TestCase {
         $this->assertStringContainsString('report title, ID, edit URL.', $prompt);
     }
 
+    public function test_system_prompt_explains_how_to_enable_disabled_file_editing_tools(): void {
+        $this->setEnabledToolCaps(array_diff(
+            array_keys($this->settings->get_all_tools_with_meta()),
+            ['write_file', 'edit_file', 'delete_file']
+        ));
+
+        $prompt = $this->settings->get_system_prompt();
+
+        $this->assertStringContainsString('FILE EDITING TOOLS ARE DISABLED:', $prompt);
+        $this->assertStringContainsString('You cannot create, modify, overwrite, or delete files in wp-content.', $prompt);
+        $this->assertStringContainsString('Do not call write_file, edit_file, delete_file, or invent file-writing tools or abilities.', $prompt);
+        $this->assertStringContainsString('a site admin can enable Write File and/or Edit File in AI Assistant > Settings > Tool Permissions', $prompt);
+        $this->assertStringNotContainsString('apply manually', $prompt);
+    }
+
+    public function test_system_prompt_does_not_advertise_disabled_partial_file_tools(): void {
+        $this->setEnabledToolCaps(['read_file', 'list_directory', 'search_files', 'search_content', 'write_file']);
+
+        $prompt = $this->settings->get_system_prompt();
+
+        $this->assertStringContainsString('FILE TOOL AVAILABILITY:', $prompt);
+        $this->assertStringContainsString('Enabled file mutation tools: write_file', $prompt);
+        $this->assertStringContainsString('Disabled file mutation tools: Edit File (edit_file), Delete File (delete_file)', $prompt);
+        $this->assertStringContainsString('Modifying existing files is unavailable because edit_file is disabled.', $prompt);
+        $this->assertStringContainsString('Deleting files is unavailable because delete_file is disabled.', $prompt);
+        $this->assertStringNotContainsString('Use edit_file for modifying EXISTING files', $prompt);
+    }
+
     public function test_system_prompt_distinguishes_ability_domains_from_ids(): void {
         $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
         $GLOBALS['wp_test_filters']['ai_assistant_ability_domains'] = [
@@ -488,5 +516,11 @@ class SettingsTest extends TestCase {
                 return $this->result;
             }
         };
+    }
+
+    private function setEnabledToolCaps(array $enabled_tools): void {
+        foreach (array_keys($this->settings->get_all_tools_with_meta()) as $tool) {
+            $GLOBALS['wp_test_capabilities']['ai_assistant_tool_' . $tool] = in_array($tool, $enabled_tools, true);
+        }
     }
 }
