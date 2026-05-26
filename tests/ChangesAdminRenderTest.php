@@ -84,6 +84,22 @@ class ChangesAdminRenderTest extends TestCase {
         $this->assertStringContainsString('Edit commit message', $html);
     }
 
+    public function test_plugin_detail_renders_multiple_change_badges_for_one_file(): void {
+        $_GET = ['plugin' => 'plugins/alpha'];
+
+        $fixture = $this->plugin_fixture();
+        $fixture['plugins/alpha']['files'][0]['change_type'] = 'created';
+        $fixture['plugins/alpha']['files'][0]['change_types'] = ['created', 'modified'];
+
+        $html = $this->render_admin($fixture);
+
+        $this->assertStringContainsString('class="ai-changes-file-badges"', $html);
+        $this->assertStringContainsString('ai-changes-type-created', $html);
+        $this->assertStringContainsString('ai-changes-type-modified', $html);
+        $this->assertStringContainsString('Created', $html);
+        $this->assertStringContainsString('Changed', $html);
+    }
+
     public function test_unknown_plugin_parameter_keeps_overview_with_warning(): void {
         $_GET = ['plugin' => 'plugins/missing'];
 
