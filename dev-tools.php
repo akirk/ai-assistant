@@ -129,7 +129,19 @@ class AI_Assistant_Dev_Tools {
 
     public static function register_system_prompt(string $prompt, array $enabled_tools, array $wp_info = [], ?\AI_Assistant\Settings $settings = null): string {
         $has_run_php = in_array('run_php', $enabled_tools, true);
-        $has_file_mutation = count(array_intersect(['write_file', 'edit_file', 'delete_file'], $enabled_tools)) > 0;
+        $has_write_file = in_array('write_file', $enabled_tools, true);
+        $has_edit_file = in_array('edit_file', $enabled_tools, true);
+        $has_delete_file = in_array('delete_file', $enabled_tools, true);
+        $file_mutation_tools = [
+            'write_file'  => 'Write File',
+            'edit_file'   => 'Edit File',
+            'delete_file' => 'Delete File',
+        ];
+        $enabled_file_mutation_tools = array_values(array_filter(
+            array_keys($file_mutation_tools),
+            fn($tool_name) => in_array($tool_name, $enabled_tools, true)
+        ));
+        $disabled_file_mutation_tools = array_values(array_diff(array_keys($file_mutation_tools), $enabled_file_mutation_tools));
 
         if ($has_run_php) {
             $prompt .= "\nFor plugin-specific data or actions, check abilities first (ability action:list) before reaching for run_php.\n";
@@ -137,23 +149,58 @@ class AI_Assistant_Dev_Tools {
             $prompt .= "POST/PAGE DRAFT FALLBACK: use run_php/wp_insert_post only if REST cannot create the requested draft.\n";
         }
 
-        if ($has_file_mutation) {
+        if (empty($enabled_file_mutation_tools)) {
             $prompt .= <<<'PROMPT'
 
 
-FILE EDITING RULES:
-- Use write_file ONLY for creating NEW files
-- Use edit_file for modifying EXISTING files - it uses search/replace operations which is more efficient and easier to review
-- The edit_file tool takes a real JSON array of {search, replace} objects, not a string containing JSON, markdown, XML, or tool-call tags
-- Each edit_file search string must be exact and unique in the current file
-- If an edit_file operation fails (string not found or not unique), use read_file to see the current content and retry
+FILE EDITING TOOLS ARE DISABLED:
+- You cannot create, modify, overwrite, or delete files in wp-content.
+- Do not call write_file, edit_file, delete_file, or invent file-writing tools or abilities.
+- The ability tool can only execute exact ability IDs returned by ability:list/get; do not use guessed abilities to write files.
+- If the user asks for plugin or theme file changes, explain that file editing tools are disabled. Tell them a site admin can enable Write File and/or Edit File in AI Assistant > Settings > Tool Permissions. Delete File is only needed for file removal.
+PROMPT;
+        } else {
+            $prompt .= "\n\nFILE TOOL AVAILABILITY:\n";
+            $prompt .= '- Enabled file mutation tools: ' . implode(', ', $enabled_file_mutation_tools) . "\n";
+            if (!empty($disabled_file_mutation_tools)) {
+                $disabled_labels = array_map(
+                    fn($tool_name) => $file_mutation_tools[$tool_name] . ' (' . $tool_name . ')',
+                    $disabled_file_mutation_tools
+                );
+                $prompt .= '- Disabled file mutation tools: ' . implode(', ', $disabled_labels) . ". Do not call disabled file tools or invent equivalent abilities. If one is needed, tell the user a site admin can enable it in AI Assistant > Settings > Tool Permissions.\n";
+            }
+
+            $prompt .= "\nFILE EDITING RULES:\n";
+            if ($has_write_file) {
+                $prompt .= "- Use write_file ONLY for creating NEW files.\n";
+            } else {
+                $prompt .= "- Creating new files is unavailable because write_file is disabled. Tell the user a site admin can enable Write File if new files are needed.\n";
+            }
+
+            if ($has_edit_file) {
+                $prompt .= "- Use edit_file for modifying EXISTING files - it uses search/replace operations which is more efficient and easier to review.\n";
+                $prompt .= "- The edit_file tool takes a real JSON array of {search, replace} objects, not a string containing JSON, markdown, XML, or tool-call tags.\n";
+                $prompt .= "- Each edit_file search string must be exact and unique in the current file.\n";
+                $prompt .= "- If an edit_file operation fails (string not found or not unique), use read_file to see the current content and retry.\n";
+            } else {
+                $prompt .= "- Modifying existing files is unavailable because edit_file is disabled. Do not use write_file to overwrite existing files; tell the user a site admin can enable Edit File.\n";
+            }
+
+            if ($has_delete_file) {
+                $prompt .= "- Use delete_file only when the user explicitly asks to remove a file.\n";
+            } else {
+                $prompt .= "- Deleting files is unavailable because delete_file is disabled. Tell the user a site admin can enable Delete File if removal is needed.\n";
+            }
+
+            $prompt .= <<<'PROMPT'
+
 
 EMERGENCY PLUGIN DISABLING:
 - AI Assistant may emergency-disable a plugin after plugin edits or activation break WordPress. This inserts a reversible guard at the top of the plugin main file: AI_ASSISTANT_EMERGENCY_DISABLED.
 - When a user asks why a plugin was disabled or to get it working again, inspect the plugin main file and relevant changed files with read_file/find before editing.
 - Fix the plugin code before removing an emergency guard. Removing the guard first can immediately fatal WordPress again.
 - After a fix, verify the plugin is active and WordPress still loads. If environment_info without inactive plugins does not list the plugin, call environment_info with include_inactive true or get_plugins before claiming it is working.
-- If WordPress-backed tools fail after plugin file edits, continue with direct file tools and explain that the plugin may have been emergency-disabled for recovery.
+- If WordPress-backed tools fail after plugin file edits, continue with enabled direct file tools and explain that the plugin may have been emergency-disabled for recovery.
 PROMPT;
         }
 
