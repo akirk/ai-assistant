@@ -563,6 +563,7 @@
 }
 
 .ai-diff-stats,
+.ai-diff-file-stats,
 .ai-diff-view-switcher {
     display: flex;
     align-items: center;
@@ -628,6 +629,7 @@
 }
 
 .ai-diff-file-path {
+    min-width: 0;
     overflow: hidden;
     color: #24292f;
     font-weight: 600;
@@ -635,6 +637,7 @@
 }
 
 .ai-diff-file-stats {
+    flex: 0 0 auto;
     color: #646970;
     font-size: 11px;
     white-space: nowrap;
@@ -709,8 +712,38 @@
     background: #f6f8fa !important;
 }
 
+.ai-diff-table-split {
+    table-layout: fixed;
+}
+
+.ai-diff-table-split .ai-diff-split-line-col {
+    width: 48px;
+}
+
+.ai-diff-table-split .ai-diff-split-code-col {
+    width: calc(50% - 48px);
+}
+
+.ai-diff-table-split .ai-diff-line-no {
+    box-sizing: border-box;
+    width: 48px;
+    min-width: 48px;
+}
+
 .ai-diff-table-split .ai-diff-code {
-    width: 49%;
+    width: auto;
+    min-width: 0;
+    max-width: calc(50% - 48px);
+    padding: 0 !important;
+    white-space: normal;
+}
+
+.ai-diff-table-split .ai-diff-code-content {
+    box-sizing: border-box;
+    width: 100%;
+    overflow-x: auto;
+    padding: 0 10px;
+    white-space: pre;
 }
 
 .ai-diff-raw {

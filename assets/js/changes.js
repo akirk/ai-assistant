@@ -475,27 +475,24 @@
             };
         },
 
-        buildDiffRenderer: function(data, view) {
-            var $renderer = $('<div class="ai-diff-renderer"></div>');
-            var $toolbar = $('<div class="ai-diff-toolbar"></div>');
-            var $stats = $('<div class="ai-diff-stats"></div>');
-            var $views = $('<div class="ai-diff-view-switcher" role="group" aria-label="Diff view"></div>');
-            var totalChanges = data.additions + data.deletions;
-            var additionBlocks = totalChanges > 0 ? Math.round(data.additions / totalChanges * 5) : 0;
+        buildDiffStats: function(additions, deletions, className) {
+            var $stats = $('<div></div>');
+            var totalChanges = additions + deletions;
+            var additionBlocks = totalChanges > 0 ? Math.round(additions / totalChanges * 5) : 0;
             var blockIndex;
-            var self = this;
-
-            if (data.additions > 0 && additionBlocks === 0) {
-                additionBlocks = 1;
-            }
-            if (data.deletions > 0 && additionBlocks === 5) {
-                additionBlocks = 4;
-            }
 
             $stats
-                .attr('title', data.additions + ' additions, ' + data.deletions + ' deletions')
-                .append($('<span class="ai-diff-stat ai-diff-stat-add"></span>').text('+' + data.additions))
-                .append($('<span class="ai-diff-stat ai-diff-stat-del"></span>').text('-' + data.deletions));
+                .addClass(className)
+                .attr('title', additions + ' additions, ' + deletions + ' deletions')
+                .append($('<span class="ai-diff-stat ai-diff-stat-add"></span>').text('+' + additions))
+                .append($('<span class="ai-diff-stat ai-diff-stat-del"></span>').text('-' + deletions));
+
+            if (additions > 0 && additionBlocks === 0) {
+                additionBlocks = 1;
+            }
+            if (deletions > 0 && additionBlocks === 5) {
+                additionBlocks = 4;
+            }
 
             if (totalChanges > 0) {
                 var $bar = $('<span class="ai-diff-stat-bar" aria-hidden="true"></span>');
@@ -506,6 +503,16 @@
                 }
                 $stats.append($bar);
             }
+
+            return $stats;
+        },
+
+        buildDiffRenderer: function(data, view) {
+            var $renderer = $('<div class="ai-diff-renderer"></div>');
+            var $toolbar = $('<div class="ai-diff-toolbar"></div>');
+            var $stats = this.buildDiffStats(data.additions, data.deletions, 'ai-diff-stats');
+            var $views = $('<div class="ai-diff-view-switcher" role="group" aria-label="Diff view"></div>');
+            var self = this;
 
             ['unified', 'split', 'raw'].forEach(function(option) {
                 $('<button type="button" class="button button-small ai-diff-view-button"></button>')
@@ -543,7 +550,7 @@
             $file.append(
                 $('<div class="ai-diff-file-header"></div>')
                     .append($('<span class="ai-diff-file-path"></span>').text(path))
-                    .append($('<span class="ai-diff-file-stats"></span>').text('+' + file.additions + ' -' + file.deletions))
+                    .append(this.buildDiffStats(file.additions, file.deletions, 'ai-diff-file-stats'))
             );
 
             if (view === 'split') {
@@ -583,9 +590,17 @@
         },
 
         buildSplitDiffTable: function(file) {
-            var $table = $('<table class="ai-diff-table ai-diff-table-split"><tbody></tbody></table>');
-            var $body = $table.find('tbody');
+            var $table = $('<table class="ai-diff-table ai-diff-table-split"></table>');
+            var $body = $('<tbody></tbody>').appendTo($table);
             var self = this;
+
+            $table.prepend(
+                $('<colgroup></colgroup>')
+                    .append($('<col class="ai-diff-split-line-col">'))
+                    .append($('<col class="ai-diff-split-code-col">'))
+                    .append($('<col class="ai-diff-split-line-col">'))
+                    .append($('<col class="ai-diff-split-code-col">'))
+            );
 
             file.hunks.forEach(function(hunk) {
                 if (hunk.header) {
@@ -669,17 +684,19 @@
 
         buildSplitCodeCell: function(row, side) {
             var $cell = $('<td class="ai-diff-code"></td>');
+            var $content = $('<div class="ai-diff-code-content"></div>').appendTo($cell);
 
             if (!row) {
                 return $cell.addClass('ai-diff-empty-cell');
             }
 
             $cell
-                .addClass(this.getDiffRowClass(row.type))
-                .text((row.type === 'add' ? '+ ' : (row.type === 'del' ? '- ' : '  ')) + row.text);
+                .addClass(this.getDiffRowClass(row.type));
+            $content.text((row.type === 'add' ? '+ ' : (row.type === 'del' ? '- ' : '  ')) + row.text);
 
             if ((side === 'old' && row.type === 'add') || (side === 'new' && row.type === 'del')) {
-                $cell.addClass('ai-diff-empty-cell').text('');
+                $cell.addClass('ai-diff-empty-cell');
+                $content.text('');
             }
 
             return $cell;
