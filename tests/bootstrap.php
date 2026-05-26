@@ -395,6 +395,7 @@ require_once $plugin_dir . '/includes/class-executor.php';
 require_once $plugin_dir . '/dev-tools.php';
 require_once $plugin_dir . '/includes/class-api-handler.php';
 require_once $plugin_dir . '/includes/class-git-tracker.php';
+require_once $plugin_dir . '/includes/class-external-git-tracker.php';
 require_once $plugin_dir . '/includes/class-git-tracker-manager.php';
 require_once $plugin_dir . '/includes/class-plugin-checkout-badge.php';
 require_once $plugin_dir . '/includes/class-admin-colors.php';

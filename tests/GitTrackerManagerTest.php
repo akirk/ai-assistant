@@ -220,6 +220,41 @@ class GitTrackerManagerTest extends TestCase {
         );
     }
 
+    public function test_external_git_repositories_are_limited_to_wpapp_plugins(): void {
+        $this->createGitDir($this->plugin1_dir, false);
+        $this->createGitDir($this->plugin2_dir, false);
+
+        file_put_contents(
+            $this->plugin1_dir . '/test-plugin-1.php',
+            "<?php\n/**\n * Plugin Name: Ordinary Plugin\n */\n"
+        );
+
+        mkdir($this->plugin2_dir . '/vendor/akirk/wp-app', 0755, true);
+        file_put_contents(
+            $this->plugin2_dir . '/test-plugin-2.php',
+            "<?php\n/**\n * Plugin Name: WpApp Plugin\n * Description: A WordPress app powered by WpApp.\n */\n"
+        );
+
+        $repositories = $this->manager->get_all_repositories_for_changes_page();
+
+        $this->assertArrayNotHasKey('plugins/test-plugin-1', $repositories);
+        $this->assertArrayHasKey('plugins/test-plugin-2', $repositories);
+        $this->assertTrue($repositories['plugins/test-plugin-2']['is_external_git']);
+    }
+
+    public function test_external_git_repository_detection_accepts_wpapp_composer_dependency(): void {
+        $this->createGitDir($this->plugin1_dir, false);
+        file_put_contents(
+            $this->plugin1_dir . '/composer.json',
+            json_encode(['require' => ['akirk/wp-app' => '^1.0']])
+        );
+
+        $repositories = $this->manager->get_all_repositories_for_changes_page();
+
+        $this->assertArrayHasKey('plugins/test-plugin-1', $repositories);
+        $this->assertTrue($repositories['plugins/test-plugin-1']['is_external_git']);
+    }
+
     // -------------------------------------------------------------------------
     // Path resolution tests
     // -------------------------------------------------------------------------

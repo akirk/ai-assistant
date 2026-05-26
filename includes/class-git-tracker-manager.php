@@ -181,6 +181,10 @@ class Git_Tracker_Manager {
                 continue;
             }
 
+            if (!$this->is_wp_app_repository_root($root, $relative_root)) {
+                continue;
+            }
+
             $external = $this->get_or_create_external_tracker($root);
             if (!$external->is_active()) {
                 continue;
@@ -196,6 +200,84 @@ class Git_Tracker_Manager {
 
         ksort($result);
         return $result;
+    }
+
+    private function is_wp_app_repository_root(string $root, string $relative_root): bool {
+        if (strpos($relative_root, 'plugins/') !== 0) {
+            return false;
+        }
+
+        if (is_dir($root . '/vendor/akirk/wp-app')) {
+            return true;
+        }
+
+        if ($this->composer_requires_wp_app($root . '/composer.json')) {
+            return true;
+        }
+
+        foreach ($this->get_plugin_header_candidates($root) as $file) {
+            $content = file_get_contents($file, false, null, 0, 65536);
+            if ($content === false) {
+                continue;
+            }
+
+            if (
+                stripos($content, 'WpApp') !== false &&
+                (
+                    strpos($content, 'WpApp\\') !== false ||
+                    strpos($content, '\\WpApp\\') !== false ||
+                    strpos($content, 'wp_app_') !== false ||
+                    stripos($content, 'powered by WpApp') !== false
+                )
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function composer_requires_wp_app(string $composer_path): bool {
+        if (!is_file($composer_path)) {
+            return false;
+        }
+
+        $content = file_get_contents($composer_path, false, null, 0, 65536);
+        if ($content === false) {
+            return false;
+        }
+
+        $composer = json_decode($content, true);
+        if (!is_array($composer)) {
+            return false;
+        }
+
+        foreach (['require', 'require-dev'] as $key) {
+            if (isset($composer[$key]) && is_array($composer[$key]) && array_key_exists('akirk/wp-app', $composer[$key])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function get_plugin_header_candidates(string $root): array {
+        $candidates = [];
+        $main_file = $root . '/' . basename($root) . '.php';
+        if (is_file($main_file)) {
+            $candidates[] = $main_file;
+        }
+
+        $php_files = glob($root . '/*.php');
+        if ($php_files) {
+            foreach ($php_files as $file) {
+                if (!in_array($file, $candidates, true)) {
+                    $candidates[] = $file;
+                }
+            }
+        }
+
+        return $candidates;
     }
 
     /**
