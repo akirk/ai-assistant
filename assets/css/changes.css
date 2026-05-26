@@ -157,6 +157,28 @@
     display: inline-block;
 }
 
+.ai-plugin-git-badge,
+.ai-plugin-git-status {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.ai-plugin-git-badge {
+    color: var(--ai-assistant-accent);
+    background: var(--ai-assistant-accent-soft);
+}
+
+.ai-plugin-git-status {
+    color: #8a6d3b;
+    background: #fcf8e3;
+}
+
+.ai-revert-plugin {
+    flex-shrink: 0;
+}
+
 .ai-plugin-content {
     padding: 0;
 }
@@ -190,6 +212,39 @@
 
 .ai-plugin-commits .ai-commit-row {
     padding: 10px 16px;
+}
+
+.ai-plugin-external-note {
+    padding: 12px 16px;
+    color: #646970;
+    font-size: 13px;
+    line-height: 1.5;
+    background: #fff;
+}
+
+.ai-plugin-git-debug {
+    border-top: 1px solid #f0f0f1;
+    background: #fff;
+}
+
+.ai-plugin-git-debug summary {
+    cursor: pointer;
+    padding: 10px 16px;
+    color: #50575e;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.ai-plugin-git-debug pre {
+    margin: 0;
+    padding: 0 16px 14px 16px;
+    max-height: 360px;
+    overflow: auto;
+    color: #1d2327;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    font-size: 11px;
+    line-height: 1.45;
+    white-space: pre-wrap;
 }
 
 /* Plugin Files Section */
@@ -597,6 +652,17 @@
     background: #f0f0f1;
     padding: 2px 6px;
     border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.ai-commit-ref {
+    font-size: 11px;
+    color: #50575e;
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
     flex-shrink: 0;
 }
 

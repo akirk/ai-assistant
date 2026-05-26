@@ -15,6 +15,7 @@ if (!defined('ABSPATH') && !defined('AI_ASSISTANT_FILE_TOOLS_ENDPOINT')) {
 class Git_Tracker_Manager {
 
     private array $trackers = [];
+    private array $external_trackers = [];
 
     /**
      * Get the Git_Tracker for a given file path.
@@ -74,6 +75,16 @@ class Git_Tracker_Manager {
         }
 
         return $this->trackers[$root];
+    }
+
+    public function get_or_create_external_tracker(string $root): External_Git_Tracker {
+        $root = rtrim($root, '/');
+
+        if (!isset($this->external_trackers[$root])) {
+            $this->external_trackers[$root] = new External_Git_Tracker($root);
+        }
+
+        return $this->external_trackers[$root];
     }
 
     /**
@@ -149,6 +160,41 @@ class Git_Tracker_Manager {
             }
         }
 
+        return $result;
+    }
+
+    /**
+     * Get repositories for the AI Changes page.
+     *
+     * AI-managed repositories keep the existing file-action structure. Ordinary
+     * external Git repositories are included as read-only history cards with
+     * checkout support.
+     */
+    public function get_all_repositories_for_changes_page(string $detail_path = ''): array {
+        $this->discover_trackers();
+        $detail_path = trim($detail_path, '/');
+
+        $result = $this->get_all_changes_by_plugin();
+        foreach ($this->trackers as $root => $tracker) {
+            $relative_root = $this->get_relative_path($root);
+            if (isset($result[$relative_root]) || $tracker->has_ai_changes()) {
+                continue;
+            }
+
+            $external = $this->get_or_create_external_tracker($root);
+            if (!$external->is_active()) {
+                continue;
+            }
+
+            $info = $relative_root === $detail_path
+                ? $external->get_info()
+                : $external->get_summary_info();
+            $info['path'] = $relative_root;
+            $info['work_tree'] = $root;
+            $result[$relative_root] = $info;
+        }
+
+        ksort($result);
         return $result;
     }
 
@@ -356,23 +402,12 @@ class Git_Tracker_Manager {
      * @return array
      */
     public function get_commit_log(string $plugin_path, int $limit = 20, int $offset = 0): array {
-        $root = $this->get_root_for_path($plugin_path . '/dummy');
-        if ($root === null) {
+        $tracker = $this->get_repository_tracker($plugin_path);
+        if ($tracker === null) {
             return ['commits' => [], 'has_more' => false];
         }
 
-        $tracker = $this->get_or_create_tracker($root);
-        $commits = $tracker->get_recent_commits($limit + 1);
-
-        // Skip offset
-        $commits = array_slice($commits, $offset);
-
-        $has_more = count($commits) > $limit;
-        if ($has_more) {
-            array_pop($commits);
-        }
-
-        return ['commits' => $commits, 'has_more' => $has_more];
+        return $tracker->get_commit_log($limit, $offset);
     }
 
     /**
@@ -383,12 +418,11 @@ class Git_Tracker_Manager {
      * @return string
      */
     public function get_commit_diff(string $plugin_path, string $sha): string {
-        $root = $this->get_root_for_path($plugin_path . '/dummy');
-        if ($root === null) {
+        $tracker = $this->get_repository_tracker($plugin_path);
+        if ($tracker === null) {
             return '';
         }
 
-        $tracker = $this->get_or_create_tracker($root);
         return $tracker->get_commit_diff($sha);
     }
 
@@ -400,12 +434,11 @@ class Git_Tracker_Manager {
      * @return array
      */
     public function checkout_commit(string $plugin_path, string $sha): array {
-        $root = $this->get_root_for_path($plugin_path . '/dummy');
-        if ($root === null) {
+        $tracker = $this->get_repository_tracker($plugin_path);
+        if ($tracker === null) {
             return ['success' => false, 'errors' => ['Invalid plugin path']];
         }
 
-        $tracker = $this->get_or_create_tracker($root);
         return $tracker->checkout_commit($sha);
     }
 
@@ -543,5 +576,19 @@ class Git_Tracker_Manager {
         }
 
         return '';
+    }
+
+    private function get_repository_tracker(string $plugin_path) {
+        $root = $this->get_root_for_path($plugin_path . '/dummy');
+        if ($root === null || !is_dir($root . '/.git')) {
+            return null;
+        }
+
+        $tracker = $this->get_or_create_tracker($root);
+        if ($tracker->has_ai_changes()) {
+            return $tracker;
+        }
+
+        return $this->get_or_create_external_tracker($root);
     }
 }

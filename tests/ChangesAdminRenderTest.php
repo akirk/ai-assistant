@@ -68,6 +68,35 @@ class ChangesAdminRenderTest extends TestCase {
         $this->assertStringNotContainsString('alpha.php', $html);
     }
 
+    public function test_external_git_overview_uses_lightweight_history_card(): void {
+        $_GET = [];
+
+        $html = $this->render_admin($this->external_git_fixture());
+
+        $this->assertStringContainsString('External Plugin', $html);
+        $this->assertStringContainsString('External Git', $html);
+        $this->assertStringContainsString('Review History', $html);
+        $this->assertStringContainsString('history on detail page', $html);
+        $this->assertStringNotContainsString('Download ZIP', $html);
+        $this->assertStringNotContainsString('external.php', $html);
+    }
+
+    public function test_external_git_detail_renders_history_without_file_actions(): void {
+        $_GET = ['plugin' => 'plugins/external'];
+
+        $html = $this->render_admin($this->external_git_fixture(true));
+
+        $this->assertStringContainsString('AI Changes: External Plugin', $html);
+        $this->assertStringContainsString('External Git', $html);
+        $this->assertStringContainsString('12 tracked files, 1 commit', $html);
+        $this->assertStringContainsString('main', $html);
+        $this->assertStringContainsString('Git debug', $html);
+        $this->assertStringContainsString('This repository was not created by AI Assistant.', $html);
+        $this->assertStringNotContainsString('Download ZIP', $html);
+        $this->assertStringNotContainsString('Changed Files', $html);
+        $this->assertStringNotContainsString('ai-file-preview-toggle', $html);
+    }
+
     private function render_admin(array $plugins): string {
         $admin = new Changes_Admin(new class($plugins) extends Git_Tracker_Manager {
             private array $plugins;
@@ -76,7 +105,7 @@ class ChangesAdminRenderTest extends TestCase {
                 $this->plugins = $plugins;
             }
 
-            public function get_all_changes_by_plugin(): array {
+            public function get_all_repositories_for_changes_page(string $detail_path = ''): array {
                 return $this->plugins;
             }
         });
@@ -115,6 +144,43 @@ class ChangesAdminRenderTest extends TestCase {
                         'is_reverted' => false,
                     ],
                 ],
+            ],
+        ];
+    }
+
+    private function external_git_fixture(bool $detail = false): array {
+        return [
+            'plugins/external' => [
+                'name' => 'External Plugin',
+                'file_count' => 0,
+                'tracked_file_count' => $detail ? 12 : null,
+                'commit_count' => $detail ? 1 : null,
+                'commits' => $detail ? [
+                    [
+                        'sha' => '1234567890abcdef',
+                        'short_sha' => '1234567',
+                        'message' => 'Initial external commit',
+                        'conversation_id' => null,
+                        'timestamp' => time(),
+                        'date' => '2026-05-26 12:00:00',
+                        'is_latest' => true,
+                        'is_checked_out' => false,
+                        'refs' => ['HEAD', 'main'],
+                    ],
+                ] : [],
+                'files' => $detail ? [
+                    [
+                        'path' => 'plugins/external/external.php',
+                        'relative_path' => 'external.php',
+                        'change_type' => 'modified',
+                        'is_reverted' => false,
+                    ],
+                ] : [],
+                'checked_out_sha' => null,
+                'is_external_git' => true,
+                'supports_file_actions' => false,
+                'status_message' => null,
+                'debug' => $detail ? ['debug_version' => 'test'] : [],
             ],
         ];
     }

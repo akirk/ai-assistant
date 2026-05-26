@@ -125,7 +125,7 @@ class Changes_Admin {
             'id'      => 'ai-changes-overview',
             'title'   => __('Overview', 'ai-assistant'),
             'content' => '<p>' . __('The AI Changes page tracks file modifications made by the AI Assistant. The overview links to a separate page for each plugin or theme with tracked changes.', 'ai-assistant') . '</p>'
-                       . '<p>' . __('Use the plugin or theme page to review changed files, inspect commit diffs, and check out a previous commit state.', 'ai-assistant') . '</p>',
+                       . '<p>' . __('Use the plugin or theme page to review changed files, inspect commit diffs, and check out a previous commit state. External Git repositories can also be browsed as read-only history.', 'ai-assistant') . '</p>',
         ]);
 
         $screen->add_help_tab([
@@ -158,8 +158,8 @@ class Changes_Admin {
     }
 
     public function render_page(): void {
-        $plugins = $this->git_tracker_manager->get_all_changes_by_plugin();
         $selected_plugin_path = $this->get_requested_plugin_path();
+        $plugins = $this->git_tracker_manager->get_all_repositories_for_changes_page($selected_plugin_path);
         $selected_plugin = $selected_plugin_path !== '' && isset($plugins[$selected_plugin_path])
             ? $plugins[$selected_plugin_path]
             : null;
@@ -233,15 +233,22 @@ class Changes_Admin {
         ?>
         <div class="ai-plugin-index">
             <?php foreach ($plugins as $plugin_path => $plugin):
-                $file_count = (int) ($plugin['file_count'] ?? 0);
-                $commit_count = (int) ($plugin['commit_count'] ?? 0);
+                $is_external_git = !empty($plugin['is_external_git']);
                 $latest_commit = !empty($plugin['commits'][0]) ? $plugin['commits'][0] : null;
             ?>
-            <div class="ai-plugin-index-card">
+            <div class="ai-plugin-index-card<?php echo $is_external_git ? ' ai-plugin-card-external' : ''; ?>">
                 <div class="ai-plugin-index-main">
                     <a class="ai-plugin-index-name" href="<?php echo esc_url($this->get_plugin_page_url($plugin_path)); ?>">
                         <?php echo esc_html($plugin['name']); ?>
                     </a>
+                    <?php if ($is_external_git): ?>
+                    <span>
+                        <span class="ai-plugin-git-badge"><?php esc_html_e('External Git', 'ai-assistant'); ?></span>
+                        <?php if (!empty($plugin['status_message'])): ?>
+                        <span class="ai-plugin-git-status" title="<?php echo esc_attr($plugin['status_message']); ?>"><?php esc_html_e('Limited', 'ai-assistant'); ?></span>
+                        <?php endif; ?>
+                    </span>
+                    <?php endif; ?>
                     <?php if ($latest_commit): ?>
                     <span class="ai-plugin-index-latest">
                         <?php echo esc_html(sprintf(__('Latest: %s', 'ai-assistant'), $latest_commit['message'])); ?>
@@ -249,16 +256,17 @@ class Changes_Admin {
                     <?php endif; ?>
                 </div>
                 <span class="ai-plugin-stats">
-                    <?php echo esc_html($file_count); ?> <?php echo $file_count === 1 ? esc_html__('file', 'ai-assistant') : esc_html__('files', 'ai-assistant'); ?>,
-                    <?php echo esc_html($commit_count); ?> <?php echo $commit_count === 1 ? esc_html__('commit', 'ai-assistant') : esc_html__('commits', 'ai-assistant'); ?>
+                    <?php echo esc_html($this->format_repository_stats($plugin)); ?>
                 </span>
                 <div class="ai-plugin-index-actions">
                     <a href="<?php echo esc_url($this->get_plugin_page_url($plugin_path)); ?>" class="button button-small">
-                        <?php esc_html_e('Review Changes', 'ai-assistant'); ?>
+                        <?php echo esc_html($is_external_git ? __('Review History', 'ai-assistant') : __('Review Changes', 'ai-assistant')); ?>
                     </a>
+                    <?php if (!$is_external_git): ?>
                     <a href="<?php echo esc_url($this->get_plugin_download_url($plugin_path)); ?>" class="button button-small" title="<?php esc_attr_e('Download as ZIP with git history', 'ai-assistant'); ?>">
                         <?php esc_html_e('Download ZIP', 'ai-assistant'); ?>
                     </a>
+                    <?php endif; ?>
                 </div>
             </div>
             <?php endforeach; ?>
@@ -267,31 +275,75 @@ class Changes_Admin {
     }
 
     private function render_plugin_detail(string $plugin_path, array $plugin): void {
-        $file_count = (int) ($plugin['file_count'] ?? 0);
-        $commit_count = (int) ($plugin['commit_count'] ?? 0);
+        $is_external_git = !empty($plugin['is_external_git']);
         ?>
         <div class="ai-changes-plugins ai-changes-plugin-detail">
-            <div class="ai-plugin-card ai-plugin-card-detail" data-plugin="<?php echo esc_attr($plugin_path); ?>">
+            <div class="ai-plugin-card ai-plugin-card-detail<?php echo $is_external_git ? ' ai-plugin-card-external' : ''; ?>" data-plugin="<?php echo esc_attr($plugin_path); ?>">
                 <div class="ai-plugin-header">
                     <div class="ai-plugin-header-label">
                         <span class="ai-plugin-name"><?php echo esc_html($plugin['name']); ?></span>
                         <span class="ai-plugin-path"><?php echo esc_html($plugin_path); ?>/</span>
                     </div>
                     <span class="ai-plugin-stats">
-                        <?php echo esc_html($file_count); ?> <?php echo $file_count === 1 ? esc_html__('file', 'ai-assistant') : esc_html__('files', 'ai-assistant'); ?>,
-                        <?php echo esc_html($commit_count); ?> <?php echo $commit_count === 1 ? esc_html__('commit', 'ai-assistant') : esc_html__('commits', 'ai-assistant'); ?>
+                        <?php echo esc_html($this->format_repository_stats($plugin)); ?>
                     </span>
+                    <?php if ($is_external_git): ?>
+                    <span class="ai-plugin-git-badge"><?php esc_html_e('External Git', 'ai-assistant'); ?></span>
+                    <?php if (!empty($plugin['status_message'])): ?>
+                    <span class="ai-plugin-git-status" title="<?php echo esc_attr($plugin['status_message']); ?>"><?php esc_html_e('Limited', 'ai-assistant'); ?></span>
+                    <?php endif; ?>
+                    <?php else: ?>
                     <a href="<?php echo esc_url($this->get_plugin_download_url($plugin_path)); ?>" class="button button-small" title="<?php esc_attr_e('Download as ZIP with git history', 'ai-assistant'); ?>">
                         <?php esc_html_e('Download ZIP', 'ai-assistant'); ?>
                     </a>
+                    <?php endif; ?>
                 </div>
                 <div class="ai-plugin-content">
                     <?php $this->render_plugin_commits($plugin); ?>
+                    <?php if ($is_external_git): ?>
+                    <?php $this->render_external_git_note($plugin); ?>
+                    <?php else: ?>
                     <?php $this->render_plugin_files($plugin_path, $plugin); ?>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
         <?php
+    }
+
+    private function format_repository_stats(array $plugin): string {
+        $is_external_git = !empty($plugin['is_external_git']);
+        $parts = [];
+
+        if ($is_external_git) {
+            if (isset($plugin['tracked_file_count']) && $plugin['tracked_file_count'] !== null) {
+                $file_count = (int) $plugin['tracked_file_count'];
+                $parts[] = sprintf(
+                    _n('%d tracked file', '%d tracked files', $file_count, 'ai-assistant'),
+                    $file_count
+                );
+            } else {
+                $parts[] = __('external Git', 'ai-assistant');
+            }
+        } else {
+            $file_count = (int) ($plugin['file_count'] ?? 0);
+            $parts[] = sprintf(
+                _n('%d file', '%d files', $file_count, 'ai-assistant'),
+                $file_count
+            );
+        }
+
+        if (isset($plugin['commit_count']) && $plugin['commit_count'] !== null) {
+            $commit_count = (int) $plugin['commit_count'];
+            $parts[] = sprintf(
+                _n('%d commit', '%d commits', $commit_count, 'ai-assistant'),
+                $commit_count
+            );
+        } elseif ($is_external_git) {
+            $parts[] = __('history on detail page', 'ai-assistant');
+        }
+
+        return implode(', ', $parts);
     }
 
     private function render_plugin_commits(array $plugin): void {
@@ -316,6 +368,20 @@ class Changes_Admin {
                     <div class="ai-commit-row-top">
                         <button type="button" class="ai-commit-diff-toggle" data-sha="<?php echo esc_attr($commit['sha']); ?>" title="<?php esc_attr_e('Preview diff', 'ai-assistant'); ?>">▶</button>
                         <span class="ai-commit-sha"><?php echo esc_html($commit['short_sha']); ?></span>
+                        <?php
+                        $commit_refs = [];
+                        foreach ((array) ($commit['refs'] ?? []) as $commit_ref) {
+                            if ($commit_ref !== 'HEAD') {
+                                $commit_refs[] = $commit_ref;
+                            }
+                        }
+                        foreach (array_slice($commit_refs, 0, 3) as $commit_ref):
+                        ?>
+                        <span class="ai-commit-ref"><?php echo esc_html($commit_ref); ?></span>
+                        <?php endforeach; ?>
+                        <?php if (count($commit_refs) > 3): ?>
+                        <span class="ai-commit-ref">+<?php echo esc_html(count($commit_refs) - 3); ?></span>
+                        <?php endif; ?>
                         <span class="ai-commit-message"><?php echo esc_html($commit['message']); ?></span>
                         <?php if (!empty($commit['conversation_id'])): ?>
                         <a href="<?php echo esc_url(Conversations_App::get_conversation_url($commit['conversation_id'])); ?>"
@@ -350,7 +416,34 @@ class Changes_Admin {
         <?php
     }
 
+    private function render_external_git_note(array $plugin): void {
+        ?>
+        <div class="ai-plugin-external-note">
+            <?php if (!empty($plugin['status_message'])): ?>
+            <?php echo esc_html($plugin['status_message']); ?>
+            <?php else: ?>
+            <?php esc_html_e('This repository was not created by AI Assistant. History is read-only; checkout copies a selected commit state into the working tree without changing Git refs.', 'ai-assistant'); ?>
+            <?php endif; ?>
+        </div>
+        <?php if (!empty($plugin['debug']) && is_array($plugin['debug'])): ?>
+        <details class="ai-plugin-git-debug">
+            <summary><?php esc_html_e('Git debug', 'ai-assistant'); ?></summary>
+            <?php
+            $git_debug_json = function_exists('wp_json_encode')
+                ? wp_json_encode($plugin['debug'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+                : json_encode($plugin['debug'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            ?>
+            <pre><?php echo esc_html((string) $git_debug_json); ?></pre>
+        </details>
+        <?php endif; ?>
+        <?php
+    }
+
     private function render_plugin_files(string $plugin_path, array $plugin): void {
+        if (empty($plugin['files'])) {
+            return;
+        }
+
         ?>
         <div class="ai-plugin-files">
             <div class="ai-plugin-section-header"><?php esc_html_e('Changed Files', 'ai-assistant'); ?></div>
