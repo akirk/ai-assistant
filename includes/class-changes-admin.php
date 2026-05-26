@@ -129,6 +129,8 @@ class Changes_Admin {
                 'justNow' => __('just now', 'ai-assistant'),
                 'noCommits' => __('No commits yet', 'ai-assistant'),
                 'viewConversation' => __('View conversation', 'ai-assistant'),
+                'expandFilePreview' => __('Expand preview', 'ai-assistant'),
+                'collapseFilePreview' => __('Limit preview height', 'ai-assistant'),
             ],
         ]);
     }
@@ -370,6 +372,15 @@ class Changes_Admin {
                 <div class="ai-commit-diff-preview" data-sha="<?php echo esc_attr($commit['sha']); ?>" style="display: none;">
                     <pre><code></code></pre>
                 </div>
+                <button
+                    type="button"
+                    class="ai-preview-height-toggle ai-commit-preview-height-toggle"
+                    aria-expanded="false"
+                    style="display: none;"
+                >
+                    <span class="ai-preview-height-arrow" aria-hidden="true">▼</span>
+                    <span class="ai-preview-height-label"><?php esc_html_e('Expand preview', 'ai-assistant'); ?></span>
+                </button>
             </div>
             <?php endforeach; ?>
         </section>
@@ -417,6 +428,16 @@ class Changes_Admin {
                 <div class="ai-file-inline-preview" data-path="<?php echo esc_attr($file['path']); ?>" style="display: none;">
                     <pre><code></code></pre>
                 </div>
+                <button
+                    type="button"
+                    class="ai-preview-height-toggle ai-file-preview-height-toggle"
+                    data-path="<?php echo esc_attr($file['path']); ?>"
+                    aria-expanded="false"
+                    style="display: none;"
+                >
+                    <span class="ai-preview-height-arrow" aria-hidden="true">▼</span>
+                    <span class="ai-preview-height-label"><?php esc_html_e('Expand preview', 'ai-assistant'); ?></span>
+                </button>
             </div>
             <?php endforeach; ?>
             <div class="ai-plugin-files-actions">

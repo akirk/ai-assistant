@@ -472,12 +472,51 @@
 
 /* Inline file preview */
 .ai-file-inline-preview {
-    margin: 0 16px 8px;
+    margin: 0 16px;
     background: #f6f7f7;
     border: 1px solid #e2e4e7;
-    border-radius: 3px;
+    border-bottom: 0;
+    border-radius: 3px 3px 0 0;
     max-height: 300px;
     overflow: auto;
+}
+
+.ai-file-inline-preview.ai-preview-expanded,
+.ai-commit-diff-preview.ai-preview-expanded {
+    max-height: none;
+}
+
+.ai-preview-height-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 24px;
+    padding: 2px 8px;
+    border: 1px solid #e2e4e7;
+    border-radius: 0 0 3px 3px;
+    background: #fff;
+    color: #50575e;
+    cursor: pointer;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.ai-preview-height-toggle:hover,
+.ai-preview-height-toggle:focus {
+    background: #f0f6fc;
+    border-color: var(--ai-assistant-accent);
+    color: var(--ai-assistant-accent);
+}
+
+.ai-file-preview-height-toggle {
+    width: calc(100% - 32px);
+    margin: 0 16px 8px;
+}
+
+.ai-preview-height-arrow {
+    font-size: 10px;
+    line-height: 1;
 }
 
 .ai-plugin-files-actions {
@@ -1045,12 +1084,18 @@
 }
 
 .ai-commit-diff-preview {
-    margin: 0 16px 12px 28px;
+    margin: 0 16px 0 28px;
     background: #f6f7f7;
     border: 1px solid #e2e4e7;
-    border-radius: 3px;
+    border-bottom: 0;
+    border-radius: 3px 3px 0 0;
     max-height: 300px;
     overflow: auto;
+}
+
+.ai-commit-preview-height-toggle {
+    width: calc(100% - 44px);
+    margin: 0 16px 12px 28px;
 }
 
 .ai-commit-diff-preview pre {
@@ -1250,7 +1295,17 @@
     }
 
     .ai-file-inline-preview {
-        margin: 0 8px 8px 8px;
+        margin: 0 8px;
+    }
+
+    .ai-file-preview-height-toggle {
+        width: calc(100% - 16px);
+        margin: 0 8px 8px;
+    }
+
+    .ai-commit-preview-height-toggle {
+        width: calc(100% - 16px);
+        margin: 0 8px 12px;
     }
 
     .ai-commit-row-top {
@@ -1290,7 +1345,7 @@
     }
 
     .ai-commit-diff-preview {
-        margin: 0 8px 12px 8px;
+        margin: 0 8px;
     }
 
     .ai-changes-actions {
