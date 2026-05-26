@@ -102,7 +102,13 @@ class Changes_Admin {
                 'importing' => __('Importing...', 'ai-assistant'),
                 'importSuccess' => __('Patch applied successfully! %d file(s) modified.', 'ai-assistant'),
                 'importError' => __('Failed to apply patch.', 'ai-assistant'),
+                'checkPhpSyntax' => __('Check PHP syntax', 'ai-assistant'),
+                'checkingPhpSyntax' => __('Checking...', 'ai-assistant'),
+                'noPhpFiles' => __('No PHP files found.', 'ai-assistant'),
+                'syntaxChecked' => __('PHP syntax OK.', 'ai-assistant'),
                 'syntaxError' => __('Syntax Error', 'ai-assistant'),
+                'syntaxErrorsFound' => __('%d syntax error(s).', 'ai-assistant'),
+                'syntaxCheckFailed' => __('Syntax check failed', 'ai-assistant'),
                 'syntaxOk' => __('Syntax OK', 'ai-assistant'),
                 'checkingOutCommit' => __('Checking out...', 'ai-assistant'),
                 'checkoutCommitError' => __('Failed to check out commit.', 'ai-assistant'),
@@ -411,6 +417,12 @@ class Changes_Admin {
                 </div>
             </div>
             <?php endforeach; ?>
+            <div class="ai-plugin-files-actions">
+                <button type="button" class="button button-small ai-lint-files">
+                    <?php esc_html_e('Check PHP syntax', 'ai-assistant'); ?>
+                </button>
+                <span class="ai-lint-summary" role="status" aria-live="polite"></span>
+            </div>
         </section>
         <?php
     }

@@ -8,18 +8,13 @@
 
         init: function() {
             this.bindEvents();
-            this.lintAllPhpFiles();
             this.autoExpandFromUrl();
         },
 
         autoExpandFromUrl: function() {
-            var self = this;
             var $detailCards = $('.ai-changes-plugin-detail[data-plugin]');
 
             if ($detailCards.length) {
-                $detailCards.each(function() {
-                    self.lintFilesInCard($(this));
-                });
                 return;
             }
 
@@ -34,7 +29,6 @@
 
                     $toggle.text('▼');
                     $content.show();
-                    self.lintFilesInCard($card);
 
                     // Scroll to the card
                     $('html, body').animate({
@@ -62,10 +56,6 @@
 
                 $toggle.text(willBeVisible ? '▼' : '▶');
                 $content.slideToggle(200);
-
-                if (willBeVisible) {
-                    self.lintFilesInCard($card);
-                }
             });
 
             // Per-file preview toggle
@@ -142,6 +132,11 @@
                     e.preventDefault();
                     self.cancelCommitMessageEdit($(this));
                 }
+            });
+
+            $(document).on('click', '.ai-lint-files', function(e) {
+                e.preventDefault();
+                self.checkPhpSyntax($(this));
             });
         },
 
@@ -437,17 +432,59 @@
 
         lintFilesInCard: function($card) {
             var self = this;
+            var requests = [];
+
             $card.find('.ai-lint-status').each(function() {
                 var $status = $(this);
-                if (!$status.data('linted')) {
-                    self.lintFile($status.data('path'));
-                }
+                requests.push(self.lintFile($status.data('path')));
             });
+
+            return requests;
         },
 
         lintAllPhpFiles: function() {
-            // This is now a no-op since we lint on-demand when cards are expanded
+            // This is now a no-op since syntax checks are manually triggered.
             // Keep the method for compatibility
+        },
+
+        checkPhpSyntax: function($button) {
+            var self = this;
+            var $card = $button.closest('[data-plugin]');
+            var $summary = $button.siblings('.ai-lint-summary');
+            var originalText = $.trim($button.text());
+            var requests = this.lintFilesInCard($card);
+
+            $button
+                .text(aiChanges.strings.checkingPhpSyntax || 'Checking...')
+                .prop('disabled', true);
+            $summary.text('');
+
+            if (requests.length === 0) {
+                $button
+                    .text(originalText || aiChanges.strings.checkPhpSyntax || 'Check PHP syntax')
+                    .prop('disabled', false);
+                $summary.text(aiChanges.strings.noPhpFiles || 'No PHP files found.');
+                return;
+            }
+
+            $.when.apply($, requests).always(function() {
+                var checkedCount = $card.find('.ai-lint-ok, .ai-lint-error').length;
+                var errorCount = $card.find('.ai-lint-error').length;
+
+                $button
+                    .text(originalText || aiChanges.strings.checkPhpSyntax || 'Check PHP syntax')
+                    .prop('disabled', false);
+
+                if (errorCount > 0) {
+                    $summary.text((aiChanges.strings.syntaxErrorsFound || '%d syntax error(s).').replace('%d', errorCount));
+                } else if (checkedCount > 0) {
+                    $summary.text(aiChanges.strings.syntaxChecked || 'PHP syntax OK.');
+                } else {
+                    $summary.text(aiChanges.strings.noPhpFiles || 'No PHP files found.');
+                }
+
+                self.updatePluginLintStatus($card);
+            });
         },
 
         lintFile: function(filePath) {
@@ -457,13 +494,14 @@
 
             $status.data('linted', true);
 
-            $.post(aiChanges.ajaxUrl, {
+            return $.post(aiChanges.ajaxUrl, {
                 action: 'ai_assistant_lint_php',
                 nonce: aiChanges.nonce,
                 file_path: filePath
-            }, function(response) {
+            }).then(function(response) {
                 if (!response.success || !response.data.is_php) {
-                    return;
+                    $status.text('').removeClass('ai-lint-ok ai-lint-error').removeAttr('title');
+                    return { isPhp: false, valid: true };
                 }
 
                 if (response.data.valid) {
@@ -484,6 +522,14 @@
                 }
 
                 self.updatePluginLintStatus($pluginCard);
+                return { isPhp: true, valid: !!response.data.valid };
+            }, function() {
+                $status
+                    .text(aiChanges.strings.syntaxCheckFailed || 'Syntax check failed')
+                    .removeClass('ai-lint-ok')
+                    .addClass('ai-lint-error');
+                self.updatePluginLintStatus($pluginCard);
+                return { isPhp: true, valid: false };
             });
         },
 
