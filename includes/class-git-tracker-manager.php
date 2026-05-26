@@ -268,6 +268,32 @@ class Git_Tracker_Manager {
     }
 
     /**
+     * Check whether a wp-content relative path is tracked as newly created.
+     */
+    public function is_created_file(string $path): bool {
+        $tracker = $this->get_tracker_for_path($path);
+        if ($tracker === null) {
+            return false;
+        }
+
+        $relative = $this->path_relative_to_tracker($path, $tracker);
+        return $tracker->is_created_file($relative);
+    }
+
+    /**
+     * Get current content for a wp-content relative tracked file path.
+     */
+    public function get_current_content(string $path): ?string {
+        $tracker = $this->get_tracker_for_path($path);
+        if ($tracker === null) {
+            return null;
+        }
+
+        $relative = $this->path_relative_to_tracker($path, $tracker);
+        return $tracker->get_current_content($relative);
+    }
+
+    /**
      * Get original content of a file.
      *
      * @param string $path Path relative to wp-content

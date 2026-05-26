@@ -10,13 +10,16 @@ use PHPUnit\Framework\TestCase;
 class ChangesAdminRenderTest extends TestCase {
 
     private array $previous_get;
+    private array $previous_post;
 
     protected function setUp(): void {
         $this->previous_get = $_GET;
+        $this->previous_post = $_POST;
     }
 
     protected function tearDown(): void {
         $_GET = $this->previous_get;
+        $_POST = $this->previous_post;
     }
 
     public function test_overview_links_to_plugin_pages_without_rendering_file_details_or_paths(): void {
@@ -25,6 +28,7 @@ class ChangesAdminRenderTest extends TestCase {
         $html = $this->render_admin($this->plugin_fixture());
 
         $this->assertStringContainsString('class="ai-plugin-index"', $html);
+        $this->assertStringNotContainsString('ai-changes-wrap-detail', $html);
         $this->assertStringContainsString('Alpha Plugin', $html);
         $this->assertStringContainsString('plugin=plugins%2Falpha', $html);
         $this->assertStringContainsString('Review Changes', $html);
@@ -32,7 +36,7 @@ class ChangesAdminRenderTest extends TestCase {
         $this->assertStringNotContainsString('id="ai-clear-history"', $html);
         $this->assertStringNotContainsString('Clear History', $html);
         $this->assertStringNotContainsString('alpha.php', $html);
-        $this->assertStringNotContainsString('class="ai-plugin-card ai-plugin-card-detail"', $html);
+        $this->assertStringNotContainsString('class="ai-changes-plugin-detail"', $html);
     }
 
     public function test_plugin_parameter_renders_only_the_selected_plugin_detail(): void {
@@ -41,10 +45,18 @@ class ChangesAdminRenderTest extends TestCase {
         $html = $this->render_admin($this->plugin_fixture());
 
         $this->assertStringContainsString('AI Changes: Alpha Plugin', $html);
+        $this->assertStringContainsString('ai-changes-wrap-detail', $html);
         $this->assertStringContainsString('All plugins', $html);
-        $this->assertStringContainsString('class="ai-plugin-card ai-plugin-card-detail"', $html);
-        $this->assertStringContainsString('plugins/alpha/', $html);
+        $this->assertStringContainsString('Download ZIP', $html);
+        $this->assertStringContainsString('class="ai-changes-plugin-detail"', $html);
+        $this->assertStringContainsString('class="ai-plugin-files ai-changes-panel"', $html);
         $this->assertStringContainsString('alpha.php', $html);
+        $this->assertStringContainsString('class="button button-small ai-lint-files"', $html);
+        $this->assertStringContainsString('Check PHP syntax', $html);
+        $this->assertStringNotContainsString('class="ai-plugin-detail-bar"', $html);
+        $this->assertStringNotContainsString('class="ai-plugin-detail-path"', $html);
+        $this->assertStringNotContainsString('<span class="ai-plugin-detail-path">plugins/alpha/</span>', $html);
+        $this->assertStringNotContainsString('class="ai-plugin-header"', $html);
         $this->assertStringNotContainsString('ai-plugin-checkbox', $html);
         $this->assertStringNotContainsString('ai-file-checkbox', $html);
         $this->assertStringNotContainsString('id="ai-select-all"', $html);
@@ -84,6 +96,33 @@ class ChangesAdminRenderTest extends TestCase {
         $this->assertStringContainsString('Edit commit message', $html);
     }
 
+    public function test_plugin_detail_renders_commits_before_files_in_separate_panels(): void {
+        $_GET = ['plugin' => 'plugins/alpha'];
+
+        $fixture = $this->plugin_fixture();
+        $fixture['plugins/alpha']['commits'] = [
+            [
+                'sha' => '1111111111111111111111111111111111111111',
+                'short_sha' => '1111111',
+                'message' => 'Tracked change',
+                'conversation_id' => null,
+                'timestamp' => time(),
+                'date' => date('Y-m-d H:i:s'),
+                'is_latest' => true,
+                'is_checked_out' => false,
+            ],
+        ];
+
+        $html = $this->render_admin($fixture);
+
+        $this->assertStringContainsString('class="ai-plugin-files ai-changes-panel"', $html);
+        $this->assertStringContainsString('class="ai-plugin-commits ai-changes-panel"', $html);
+        $this->assertLessThan(
+            strpos($html, 'class="ai-plugin-files ai-changes-panel"'),
+            strpos($html, 'class="ai-plugin-commits ai-changes-panel"')
+        );
+    }
+
     public function test_plugin_detail_renders_multiple_change_badges_for_one_file(): void {
         $_GET = ['plugin' => 'plugins/alpha'];
 
@@ -96,6 +135,7 @@ class ChangesAdminRenderTest extends TestCase {
         $this->assertStringContainsString('class="ai-changes-file-badges"', $html);
         $this->assertStringContainsString('ai-changes-type-created', $html);
         $this->assertStringContainsString('ai-changes-type-modified', $html);
+        $this->assertStringContainsString('data-preview-type="content"', $html);
         $this->assertStringContainsString('Created', $html);
         $this->assertStringContainsString('Changed', $html);
     }
@@ -109,6 +149,62 @@ class ChangesAdminRenderTest extends TestCase {
         $this->assertStringContainsString('class="ai-plugin-index"', $html);
         $this->assertStringContainsString('Alpha Plugin', $html);
         $this->assertStringNotContainsString('alpha.php', $html);
+    }
+
+    public function test_ajax_generate_diff_returns_content_for_created_file_preview(): void {
+        $_POST = ['file_paths' => ['plugins/alpha/new.php']];
+
+        $admin = new Changes_Admin(new class extends Git_Tracker_Manager {
+            public function is_created_file(string $path): bool {
+                return $path === 'plugins/alpha/new.php';
+            }
+
+            public function get_current_content(string $path): ?string {
+                return "<?php\n// created\n";
+            }
+
+            public function generate_diff(array $file_paths): string {
+                return 'unexpected diff';
+            }
+        });
+
+        try {
+            $admin->ajax_generate_diff();
+            $this->fail('Expected wp_send_json_success to stop execution');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('wp_send_json_success', $e->getMessage());
+        }
+
+        $this->assertTrue($GLOBALS['wp_test_json_response']['success']);
+        $this->assertSame('content', $GLOBALS['wp_test_json_response']['data']['type']);
+        $this->assertSame("<?php\n// created\n", $GLOBALS['wp_test_json_response']['data']['content']);
+        $this->assertSame('plugins/alpha/new.php', $GLOBALS['wp_test_json_response']['data']['path']);
+    }
+
+    public function test_ajax_get_file_content_returns_created_file_content(): void {
+        $_POST = ['file_path' => 'plugins/alpha/new.json'];
+
+        $admin = new Changes_Admin(new class extends Git_Tracker_Manager {
+            public function is_created_file(string $path): bool {
+                return $path === 'plugins/alpha/new.json';
+            }
+
+            public function get_current_content(string $path): ?string {
+                return '{"ok":true}';
+            }
+        });
+
+        try {
+            $admin->ajax_get_file_content();
+            $this->fail('Expected wp_send_json_success to stop execution');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('wp_send_json_success', $e->getMessage());
+        }
+
+        $this->assertTrue($GLOBALS['wp_test_json_response']['success']);
+        $this->assertSame('content', $GLOBALS['wp_test_json_response']['data']['type']);
+        $this->assertSame('{"ok":true}', $GLOBALS['wp_test_json_response']['data']['content']);
+        $this->assertSame('plugins/alpha/new.json', $GLOBALS['wp_test_json_response']['data']['path']);
     }
 
     private function render_admin(array $plugins): string {

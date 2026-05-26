@@ -563,6 +563,36 @@ class Git_Tracker {
     }
 
     /**
+     * Check whether a file is tracked as newly created.
+     */
+    public function is_created_file(string $path): bool {
+        $relative_path = $this->to_relative_path($path);
+        if (!$relative_path) {
+            return false;
+        }
+
+        return in_array($relative_path, $this->get_created_files(), true);
+    }
+
+    /**
+     * Get the current working-tree content for a tracked path.
+     */
+    public function get_current_content(string $path): ?string {
+        $relative_path = $this->to_relative_path($path);
+        if (!$relative_path) {
+            return null;
+        }
+
+        $full_path = $this->work_tree . '/' . $relative_path;
+        if (!is_file($full_path)) {
+            return null;
+        }
+
+        $content = file_get_contents($full_path);
+        return is_string($content) ? $content : null;
+    }
+
+    /**
      * Get original content of a file.
      */
     public function get_original_content(string $path): ?string {
