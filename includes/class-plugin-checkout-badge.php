@@ -92,7 +92,7 @@ class Plugin_Checkout_Badge {
                 <div class="ai-assistant-checkout-badge-meta"><?php echo esc_html(sprintf(__('Committed %s', 'ai-assistant'), $time_ago)); ?></div>
                 <?php endif; ?>
                 <?php if ($ai_changes_url !== ''): ?>
-                <a class="ai-assistant-checkout-badge-link" href="<?php echo esc_url($ai_changes_url); ?>"><?php esc_html_e('View AI Changes', 'ai-assistant'); ?></a>
+                <a class="ai-assistant-checkout-badge-link" href="<?php echo esc_url($ai_changes_url); ?>"><?php esc_html_e('Checkout another version', 'ai-assistant'); ?></a>
                 <?php endif; ?>
             </div>
         </details>

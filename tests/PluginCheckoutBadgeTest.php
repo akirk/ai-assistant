@@ -35,7 +35,7 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertStringContainsString('just now', $html);
         $this->assertStringContainsString('Badge Demo', $html);
         $this->assertStringContainsString('First checked out change message with more words', $html);
-        $this->assertStringContainsString('View AI Changes', $html);
+        $this->assertStringContainsString('Checkout another version', $html);
         $this->assertStringContainsString('tools.php?page=ai-changes&plugin=plugins%2Fbadge-demo', $html);
         $this->assertStringNotContainsString('Not current', $html);
         $this->assertStringNotContainsString(' title=', $html);
@@ -82,7 +82,7 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertStringContainsString('Badge Admin', $html);
         $this->assertStringContainsString('Old Version:', $html);
         $this->assertStringContainsString('First checked out change message with more words', $html);
-        $this->assertStringContainsString('View AI Changes', $html);
+        $this->assertStringContainsString('Checkout another version', $html);
         $this->assertStringContainsString('tools.php?page=ai-changes&plugin=plugins%2Fbadge-admin', $html);
         $this->assertStringNotContainsString('Not current', $html);
         $this->assertStringNotContainsString(' title=', $html);
