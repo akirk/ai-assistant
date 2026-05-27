@@ -10,7 +10,7 @@ const ALL_ENABLED = [
     'get_plugins', 'get_themes', 'install_plugin',
     'list_abilities', 'get_ability', 'execute_ability',
     'get_page_html', 'pick_image', 'summarize_conversation',
-    'inspect_tool_result', 'list_skills', 'get_skill',
+    'inspect_tool_result', 'delegate', 'list_skills', 'get_skill',
 ];
 
 function createInstance(overrides) {
@@ -108,6 +108,30 @@ describe('getAllToolDefinitions', function() {
         assert.ok(Object.hasOwn(def.input_schema.properties, 'max_length'));
     });
 
+    it('defines delegate as a read-only subagent tool', function() {
+        const def = toolsMixin.getAllToolDefinitions().find(d => d.name === 'delegate');
+
+        assert.ok(def);
+        assert.ok(def.description.includes('Read-only subagent'));
+        assert.deepStrictEqual(def.input_schema.required, ['task_type', 'request']);
+        assert.deepStrictEqual(def.input_schema.properties.task_type.enum, [
+            'codebase_investigation',
+            'conversation_recall',
+            'page_inspection',
+        ]);
+    });
+
+    it('defines find path-only mode for broad text searches', function() {
+        const def = toolsMixin.getAllToolDefinitions().find(d => d.name === 'find');
+
+        assert.ok(def);
+        assert.deepStrictEqual(def.input_schema.properties.mode.enum, ['snippets', 'paths']);
+        assert.ok(def.input_schema.properties.max_results);
+        assert.ok(def.description.includes('mode=paths'));
+        assert.ok(def.description.includes('returns paths only'));
+        assert.ok(def.description.includes('task_type=codebase_investigation'));
+    });
+
     it('guides native post drafts toward rest_api', function() {
         withToolDefinitions(DEV_TOOL_DEFINITIONS, function() {
             const defs = toolsMixin.getAllToolDefinitions();
@@ -183,6 +207,11 @@ describe('isToolEnabled', function() {
         assert.ok(toolsMixin.isToolEnabled('environment_info', ['get_plugins']));
         assert.ok(toolsMixin.isToolEnabled('environment_info', ['get_themes']));
         assert.ok(!toolsMixin.isToolEnabled('environment_info', ['read_file']));
+    });
+
+    it('enables delegate directly', function() {
+        assert.ok(toolsMixin.isToolEnabled('delegate', ['delegate']));
+        assert.ok(!toolsMixin.isToolEnabled('delegate', ['summarize_conversation']));
     });
 });
 

@@ -18,6 +18,7 @@ class Conversations {
         add_action('wp_ajax_ai_assistant_rename_conversation', [$this, 'ajax_rename_conversation']);
         add_action('wp_ajax_ai_assistant_save_summary', [$this, 'ajax_save_summary']);
         add_action('wp_ajax_ai_assistant_get_conversation_for_summary', [$this, 'ajax_get_conversation_for_summary']);
+        add_action('wp_ajax_ai_assistant_recall_conversations', [$this, 'ajax_recall_conversations']);
         add_action('admin_post_ai_assistant_export_conversation', [$this, 'admin_post_export_conversation']);
         add_filter('ai_assistant_conversation_export_formats', [$this, 'register_default_export_formats'], 10, 2);
         add_filter('ai_assistant_conversation_export_shrink_tool_calls', [$this, 'shrink_file_tool_calls_for_export'], 10, 3);
@@ -1310,6 +1311,13 @@ class Conversations {
             'cache_creation_input_tokens' => $cache_creation_input_tokens,
             'cache_read_input_tokens' => $cache_read_input_tokens,
             'reasoning_output_tokens' => $this->sanitize_token_count($usage['reasoning_output_tokens'] ?? 0),
+            'subagent_input_tokens' => $this->sanitize_token_count($usage['subagent_input_tokens'] ?? 0),
+            'subagent_output_tokens' => $this->sanitize_token_count($usage['subagent_output_tokens'] ?? 0),
+            'subagent_total_tokens' => $this->sanitize_token_count($usage['subagent_total_tokens'] ?? 0),
+            'subagent_cached_input_tokens' => $this->sanitize_token_count($usage['subagent_cached_input_tokens'] ?? 0),
+            'subagent_reasoning_output_tokens' => $this->sanitize_token_count($usage['subagent_reasoning_output_tokens'] ?? 0),
+            'subagent_saved_tokens' => $this->sanitize_token_count($usage['subagent_saved_tokens'] ?? 0),
+            'subagent_source' => sanitize_key((string) ($usage['subagent_source'] ?? 'none')) ?: 'none',
             'source' => sanitize_key((string) ($usage['source'] ?? 'none')) ?: 'none',
         ];
     }
@@ -1337,33 +1345,73 @@ class Conversations {
             'cache_creation_input_tokens' => 0,
             'cache_read_input_tokens' => 0,
             'reasoning_output_tokens' => 0,
+            'subagent_input_tokens' => 0,
+            'subagent_output_tokens' => 0,
+            'subagent_total_tokens' => 0,
+            'subagent_cached_input_tokens' => 0,
+            'subagent_reasoning_output_tokens' => 0,
+            'subagent_saved_tokens' => 0,
+            'subagent_source' => 'none',
             'source' => 'none',
         ];
         $has_provider = false;
         $has_estimate = false;
+        $subagent_has_provider = false;
+        $subagent_has_estimate = false;
+        $hidden_subagent_context_tokens = 0;
 
         foreach ($messages as $message) {
-            if (!is_array($message) || ($message['role'] ?? '') !== 'assistant' || empty($message['_usage']) || !is_array($message['_usage'])) {
+            if (!is_array($message) || ($message['role'] ?? '') !== 'assistant') {
                 continue;
             }
 
-            $message_usage = $this->sanitize_token_usage_array($message['_usage']);
-            $usage['input_tokens'] += $message_usage['input_tokens'];
-            $usage['output_tokens'] += $message_usage['output_tokens'];
-            $usage['total_tokens'] += $message_usage['total_tokens'] ?: $message_usage['input_tokens'] + $message_usage['output_tokens'];
-            $usage['cached_input_tokens'] += $message_usage['cached_input_tokens'];
-            $usage['cache_creation_input_tokens'] += $message_usage['cache_creation_input_tokens'];
-            $usage['cache_read_input_tokens'] += $message_usage['cache_read_input_tokens'];
-            $usage['reasoning_output_tokens'] += $message_usage['reasoning_output_tokens'];
+            if (!empty($message['_usage']) && is_array($message['_usage'])) {
+                $message_usage = $this->sanitize_token_usage_array($message['_usage']);
+                if ($hidden_subagent_context_tokens > 0) {
+                    $usage['subagent_saved_tokens'] += $hidden_subagent_context_tokens;
+                }
+                $usage['input_tokens'] += $message_usage['input_tokens'];
+                $usage['output_tokens'] += $message_usage['output_tokens'];
+                $usage['total_tokens'] += $message_usage['total_tokens'] ?: $message_usage['input_tokens'] + $message_usage['output_tokens'];
+                $usage['cached_input_tokens'] += $message_usage['cached_input_tokens'];
+                $usage['cache_creation_input_tokens'] += $message_usage['cache_creation_input_tokens'];
+                $usage['cache_read_input_tokens'] += $message_usage['cache_read_input_tokens'];
+                $usage['reasoning_output_tokens'] += $message_usage['reasoning_output_tokens'];
 
-            if (($message_usage['source'] ?? '') === 'provider') {
-                $has_provider = true;
-            } elseif (($message_usage['source'] ?? '') !== 'none') {
-                $has_estimate = true;
+                if (($message_usage['source'] ?? '') === 'provider') {
+                    $has_provider = true;
+                } elseif (($message_usage['source'] ?? '') !== 'none') {
+                    $has_estimate = true;
+                }
+            }
+
+            if (!empty($message['_subagent_usage']) && is_array($message['_subagent_usage'])) {
+                $subagent_usage = $this->sanitize_token_usage_array($message['_subagent_usage']);
+                $subagent_total = $subagent_usage['total_tokens'] ?: $subagent_usage['input_tokens'] + $subagent_usage['output_tokens'];
+                $usage['input_tokens'] += $subagent_usage['input_tokens'];
+                $usage['output_tokens'] += $subagent_usage['output_tokens'];
+                $usage['total_tokens'] += $subagent_total;
+                $usage['cached_input_tokens'] += $subagent_usage['cached_input_tokens'];
+                $usage['reasoning_output_tokens'] += $subagent_usage['reasoning_output_tokens'];
+                $usage['subagent_input_tokens'] += $subagent_usage['input_tokens'];
+                $usage['subagent_output_tokens'] += $subagent_usage['output_tokens'];
+                $usage['subagent_total_tokens'] += $subagent_total;
+                $usage['subagent_cached_input_tokens'] += $subagent_usage['cached_input_tokens'];
+                $usage['subagent_reasoning_output_tokens'] += $subagent_usage['reasoning_output_tokens'];
+                $hidden_subagent_context_tokens += $subagent_total;
+
+                if (($subagent_usage['source'] ?? '') === 'provider') {
+                    $has_provider = true;
+                    $subagent_has_provider = true;
+                } elseif (($subagent_usage['source'] ?? '') !== 'none') {
+                    $has_estimate = true;
+                    $subagent_has_estimate = true;
+                }
             }
         }
 
         $usage['source'] = $has_provider && $has_estimate ? 'mixed' : ($has_provider ? 'provider' : ($has_estimate ? 'estimate' : 'none'));
+        $usage['subagent_source'] = $subagent_has_provider && $subagent_has_estimate ? 'mixed' : ($subagent_has_provider ? 'provider' : ($subagent_has_estimate ? 'estimate' : 'none'));
 
         return $usage;
     }
@@ -1642,6 +1690,119 @@ class Conversations {
             }
         }
         return trim($text);
+    }
+
+    public function ajax_recall_conversations() {
+        check_ajax_referer('ai_assistant_chat', '_wpnonce');
+
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(['message' => 'Permission denied']);
+        }
+
+        $query = sanitize_text_field(wp_unslash($_POST['query'] ?? ''));
+        $limit = max(1, min(10, intval(wp_unslash($_POST['limit'] ?? 5))));
+
+        wp_send_json_success([
+            'conversations' => $this->get_conversation_recall_results($query, $limit),
+        ]);
+    }
+
+    public function get_conversation_recall_results(string $query = '', int $limit = 5): array {
+        $limit = max(1, min(10, $limit));
+        $args = [
+            'post_type' => self::POST_TYPE,
+            'post_status' => 'publish',
+            'posts_per_page' => $query !== '' ? max(20, $limit) : $limit,
+            'orderby' => 'modified',
+            'order' => 'DESC',
+        ];
+
+        if (!current_user_can('edit_others_posts')) {
+            $args['author'] = get_current_user_id();
+        }
+
+        $wp_query = new \WP_Query($args);
+        $results = [];
+
+        foreach ($wp_query->posts as $post) {
+            $summary = trim((string) $post->post_excerpt);
+            $excerpt = ($summary !== '' && $query === '')
+                ? $summary
+                : $this->build_conversation_recall_excerpt($post, $query);
+            if ($excerpt === '' && $summary !== '') {
+                $excerpt = $summary;
+            }
+            if ($query !== '') {
+                $haystack = strtolower($post->post_title . "\n" . $summary . "\n" . $excerpt);
+                if (strpos($haystack, strtolower($query)) === false) {
+                    continue;
+                }
+            }
+
+            $results[] = [
+                'id' => (int) $post->ID,
+                'title' => $post->post_title,
+                'modified' => $post->post_modified,
+                'message_count' => (int) (get_post_meta($post->ID, '_ai_message_count', true) ?: 0),
+                'has_summary' => $summary !== '',
+                'summary' => $summary,
+                'excerpt' => $excerpt,
+            ];
+
+            if (count($results) >= $limit) {
+                break;
+            }
+        }
+
+        return $results;
+    }
+
+    private function build_conversation_recall_excerpt($post, string $query = ''): string {
+        $messages = $this->get_messages($post);
+        if (empty($messages)) {
+            return '';
+        }
+
+        $lines = [];
+        $needle = strtolower($query);
+        foreach ($messages as $message) {
+            if (!is_array($message)) {
+                continue;
+            }
+            $role = isset($message['role']) ? (string) $message['role'] : 'message';
+            $content = is_array($message['content'] ?? null)
+                ? $this->extract_text_content($message['content'])
+                : (string) ($message['content'] ?? '');
+            $content = trim(preg_replace('/\s+/', ' ', $content));
+            if ($content === '') {
+                continue;
+            }
+            if ($needle !== '' && strpos(strtolower($content), $needle) === false && strpos(strtolower((string) $post->post_title), $needle) === false) {
+                continue;
+            }
+            $lines[] = ucfirst($role) . ': ' . wp_trim_words($content, 36, '...');
+            if (count($lines) >= 4) {
+                break;
+            }
+        }
+
+        if (empty($lines)) {
+            foreach (array_slice($messages, -4) as $message) {
+                if (!is_array($message)) {
+                    continue;
+                }
+                $role = isset($message['role']) ? (string) $message['role'] : 'message';
+                $content = is_array($message['content'] ?? null)
+                    ? $this->extract_text_content($message['content'])
+                    : (string) ($message['content'] ?? '');
+                $content = trim(preg_replace('/\s+/', ' ', $content));
+                if ($content !== '') {
+                    $lines[] = ucfirst($role) . ': ' . wp_trim_words($content, 36, '...');
+                }
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     public function ajax_save_summary() {

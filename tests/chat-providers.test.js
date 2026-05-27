@@ -492,12 +492,18 @@ describe('provider request message sanitization', function() {
                     input_tokens: 12,
                     output_tokens: 3
                 },
+                _subagent_usage: {
+                    source: 'provider',
+                    input_tokens: 20,
+                    output_tokens: 5
+                },
                 _private: 'kept out of provider payloads'
             }
         ]);
 
         assert.strictEqual(sanitized.length, 2);
         assert.strictEqual(Object.prototype.hasOwnProperty.call(sanitized[1], '_usage'), false);
+        assert.strictEqual(Object.prototype.hasOwnProperty.call(sanitized[1], '_subagent_usage'), false);
         assert.strictEqual(Object.prototype.hasOwnProperty.call(sanitized[1], '_ts'), false);
         assert.strictEqual(Object.prototype.hasOwnProperty.call(sanitized[1], '_thinking'), false);
         assert.strictEqual(Object.prototype.hasOwnProperty.call(sanitized[1], '_private'), false);

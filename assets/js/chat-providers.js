@@ -1816,10 +1816,16 @@
             };
         },
 
-        prepareAnthropicMessages: function(mode) {
-            var prepared = this.repairAnthropicMessages(this.messages);
+        prepareAnthropicMessages: function(messages, options) {
+            options = options || {};
+            if (typeof messages === 'string') {
+                options.mode = messages;
+                messages = this.messages;
+            }
+            messages = Array.isArray(messages) ? messages : this.messages;
+            var prepared = this.repairAnthropicMessages(messages);
 
-            if (prepared.repaired) {
+            if (prepared.repaired && !options.promptOnly) {
                 this.messages = prepared.messages;
                 this.updateTokenCount();
                 this.autoSaveConversation();
@@ -1829,7 +1835,7 @@
                 return this.stripMessageMetadata(message);
             }, this);
 
-            return this.compactProviderMessagesForRequest(requestMessages, 'anthropic', mode);
+            return this.compactProviderMessagesForRequest(requestMessages, 'anthropic', options.mode || 'normal');
         },
 
         canSendAnthropicMessages: function(messages) {
@@ -1847,7 +1853,16 @@
 
             try {
                 var requestMode = 'normal';
-                var requestMessages = this.prepareAnthropicMessages(requestMode);
+                var requestState = this.prepareProviderRequestMessages
+                    ? await this.prepareProviderRequestMessages('anthropic', this.messages)
+                    : { messages: this.messages, compacted: false };
+                var buildAnthropicRequestMessages = function(mode) {
+                    return this.prepareAnthropicMessages(requestState.messages, {
+                        promptOnly: !!requestState.compacted,
+                        mode: mode
+                    });
+                }.bind(this);
+                var requestMessages = buildAnthropicRequestMessages(requestMode);
                 if (!this.canSendAnthropicMessages(requestMessages)) {
                     console.warn('[AI Assistant] Skipped Anthropic request because the message history does not end with a user message.');
                     this.setLoading(false);
@@ -1888,7 +1903,7 @@
                     var errorDetails = await this.getProviderErrorDetails(response, 'API request failed');
                     if (this.isProviderContextRecoverableError('anthropic', errorDetails.status, errorDetails.message)) {
                         requestMode = 'recovery';
-                        requestMessages = this.prepareAnthropicMessages(requestMode);
+                        requestMessages = buildAnthropicRequestMessages(requestMode);
                         if (!this.canSendAnthropicMessages(requestMessages)) {
                             console.warn('[AI Assistant] Skipped Anthropic recovery request because the message history does not end with a user message.');
                             this.setLoading(false);
@@ -2067,10 +2082,13 @@
 
             try {
                 var requestMode = 'normal';
+                var openAiRequestState = this.prepareProviderRequestMessages
+                    ? await this.prepareProviderRequestMessages('openai', this.messages)
+                    : { messages: this.messages, compacted: false };
                 var buildRequestMessages = function(mode) {
                     return [
                         { role: 'system', content: this.systemPrompt },
-                        ...this.compactProviderMessagesForRequest(this.sanitizeMessages(this.messages), 'openai', mode)
+                        ...this.compactProviderMessagesForRequest(this.sanitizeMessages(openAiRequestState.messages), 'openai', mode)
                     ];
                 }.bind(this);
                 var requestMessages = buildRequestMessages(requestMode);
@@ -2317,10 +2335,13 @@
 
             try {
                 var requestMode = 'normal';
+                var localRequestState = this.prepareProviderRequestMessages
+                    ? await this.prepareProviderRequestMessages('local', this.messages)
+                    : { messages: this.messages, compacted: false };
                 var buildRequestMessages = function(mode) {
                     return [
                         { role: 'system', content: this.systemPrompt },
-                        ...this.compactProviderMessagesForRequest(this.sanitizeMessages(this.messages), 'local', mode)
+                        ...this.compactProviderMessagesForRequest(this.sanitizeMessages(localRequestState.messages), 'local', mode)
                     ];
                 }.bind(this);
                 var requestMessages = buildRequestMessages(requestMode);
@@ -2589,7 +2610,9 @@
                 var expectedAbort = this.isExpectedGenerationAbort
                     ? this.isExpectedGenerationAbort(error)
                     : error.name === 'AbortError';
-                if (streamState && streamState.$reply) streamState.$reply.remove();
+                if (typeof streamState !== 'undefined' && streamState && streamState.$reply) {
+                    streamState.$reply.remove();
+                }
                 this.hideToolProgress();
                 this.pendingToolResults = [];
                 this.pendingActions = [];

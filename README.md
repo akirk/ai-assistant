@@ -50,7 +50,7 @@ The AI Assistant panel appears in the WordPress admin screen meta area (alongsid
 | `write_file` | Create new files (use `edit_file` for modifications) |
 | `edit_file` | Edit existing files via search/replace operations |
 | `delete_file` | Delete files |
-| `find` | Find files (by path/glob) or search file contents |
+| `find` | Find files by path/glob or search content; `mode=paths` returns matching file paths without snippets |
 | `run_php` | Execute PHP code in the WordPress environment |
 | `environment_info` | Get active plugins with titles/descriptions, themes, WP/PHP versions |
 | `db_query` | Execute SELECT/DESCRIBE/SHOW queries on the database |

@@ -1428,6 +1428,15 @@
                 }
             }
 
+            if (toolName === 'delegate' && output.summary) {
+                return {
+                    text: this.formatDelegateResultDisplay(output),
+                    language: 'markdown',
+                    label: 'Delegate report',
+                    lineNumbers: false
+                };
+            }
+
             if (toolName === 'navigate') return;
 
             var outputText = '';
@@ -1472,6 +1481,69 @@
                 language: language || this.inferToolResultLanguage(toolName, output, outputText),
                 label: 'Result'
             };
+        },
+
+        formatDelegateToolCallInput: function(input) {
+            if (!input || typeof input !== 'object' || Object.keys(input).length === 0) {
+                return '';
+            }
+
+            var text;
+            try {
+                text = JSON.stringify(input);
+            } catch (e) {
+                text = String(input);
+            }
+
+            if (text.length > 180) {
+                text = text.substring(0, 177) + '...';
+            }
+
+            return text;
+        },
+
+        formatDelegateResultDisplay: function(output) {
+            var lines = [];
+            var omitted = output.omitted || {};
+            var toolCalls = Array.isArray(output.tool_calls) ? output.tool_calls : [];
+            var sources = Array.isArray(output.sources) ? output.sources : [];
+            var availableTools = Array.isArray(output.available_tools) ? output.available_tools : [];
+
+            lines.push('Task: ' + (output.task_type || 'delegate'));
+            if (availableTools.length) {
+                lines.push('Available subagent tools: ' + availableTools.join(', '));
+            }
+            if (output.max_rounds) {
+                lines.push('Tool round budget: ' + output.max_rounds);
+            }
+            lines.push('Hidden tool calls: ' + (omitted.tool_result_count !== undefined ? omitted.tool_result_count : toolCalls.length));
+            lines.push('Round limit reached: ' + (omitted.round_limit_reached ? 'yes' : 'no'));
+            if (omitted.final_synthesis) {
+                lines.push('Final synthesis: yes');
+            }
+
+            if (toolCalls.length) {
+                lines.push('');
+                lines.push('Tool calls:');
+                toolCalls.forEach(function(toolCall) {
+                    var input = this.formatDelegateToolCallInput(toolCall.input);
+                    lines.push('- ' + toolCall.name + (input ? ' ' + input : '') + ' ' + (toolCall.success ? 'ok' : 'failed'));
+                }, this);
+            }
+
+            if (sources.length) {
+                lines.push('');
+                lines.push('Sources:');
+                sources.forEach(function(source) {
+                    lines.push('- ' + (source.type ? source.type + ': ' : '') + (source.label || source.id || 'source'));
+                });
+            }
+
+            lines.push('');
+            lines.push('Report:');
+            lines.push(output.summary || '');
+
+            return lines.join('\n');
         },
 
         inferToolResultLanguage: function(toolName, output, outputText) {
@@ -1742,7 +1814,9 @@
                 '</div></div>');
             var $pre = $output.find('.ai-code-preview');
             if (display.language && typeof this.highlightCode === 'function') {
-                this.highlightCode($pre[0], outputText, display.language, !!display.isEdit);
+                this.highlightCode($pre[0], outputText, display.language, !!display.isEdit, {
+                    lineNumbers: display.lineNumbers !== false
+                });
             } else {
                 $pre.text(outputText);
             }
@@ -2575,6 +2649,19 @@
             return message;
         },
 
+        getMessageSubagentTokenUsage: function(message) {
+            if (!message || !message._subagent_usage) {
+                return null;
+            }
+
+            return this.normalizeTokenUsage(
+                message._subagent_usage,
+                message._subagent_usage.provider || '',
+                message._subagent_usage.model || '',
+                message._subagent_usage.source || 'provider'
+            );
+        },
+
         getMessageTokenUsage: function(message, priorMessages) {
             if (message && message._usage) {
                 return this.normalizeTokenUsage(
@@ -2604,15 +2691,39 @@
                 cache_creation_input_tokens: 0,
                 cache_read_input_tokens: 0,
                 reasoning_output_tokens: 0,
+                subagent_input_tokens: 0,
+                subagent_output_tokens: 0,
+                subagent_total_tokens: 0,
+                subagent_cached_input_tokens: 0,
+                subagent_reasoning_output_tokens: 0,
+                subagent_saved_tokens: 0,
+                subagent_source: 'none',
                 source: 'none'
             };
             var priorMessages = [];
             var hasProvider = false;
             var hasEstimate = false;
+            var subagentHasProvider = false;
+            var subagentHasEstimate = false;
+            var hiddenSubagentContextTokens = 0;
+
+            function applySource(usage) {
+                if (!usage) {
+                    return;
+                }
+                if (usage.source === 'provider') {
+                    hasProvider = true;
+                } else if (usage.source && usage.source !== 'none') {
+                    hasEstimate = true;
+                }
+            }
 
             (this.messages || []).forEach(function(message) {
                 var usage = this.getMessageTokenUsage(message, priorMessages);
                 if (usage) {
+                    if (hiddenSubagentContextTokens > 0) {
+                        summary.subagent_saved_tokens += hiddenSubagentContextTokens;
+                    }
                     summary.input_tokens += usage.input_tokens;
                     summary.output_tokens += usage.output_tokens;
                     summary.total_tokens += usage.total_tokens || usage.input_tokens + usage.output_tokens;
@@ -2620,16 +2731,35 @@
                     summary.cache_creation_input_tokens += usage.cache_creation_input_tokens || 0;
                     summary.cache_read_input_tokens += usage.cache_read_input_tokens || 0;
                     summary.reasoning_output_tokens += usage.reasoning_output_tokens || 0;
-                    if (usage.source === 'provider') {
-                        hasProvider = true;
-                    } else {
-                        hasEstimate = true;
+                    applySource(usage);
+                }
+
+                var subagentUsage = this.getMessageSubagentTokenUsage(message);
+                if (subagentUsage) {
+                    var subagentTotal = subagentUsage.total_tokens || subagentUsage.input_tokens + subagentUsage.output_tokens;
+                    summary.input_tokens += subagentUsage.input_tokens;
+                    summary.output_tokens += subagentUsage.output_tokens;
+                    summary.total_tokens += subagentTotal;
+                    summary.cached_input_tokens += subagentUsage.cached_input_tokens || 0;
+                    summary.reasoning_output_tokens += subagentUsage.reasoning_output_tokens || 0;
+                    summary.subagent_input_tokens += subagentUsage.input_tokens;
+                    summary.subagent_output_tokens += subagentUsage.output_tokens;
+                    summary.subagent_total_tokens += subagentTotal;
+                    summary.subagent_cached_input_tokens += subagentUsage.cached_input_tokens || 0;
+                    summary.subagent_reasoning_output_tokens += subagentUsage.reasoning_output_tokens || 0;
+                    hiddenSubagentContextTokens += subagentTotal;
+                    applySource(subagentUsage);
+                    if (subagentUsage.source === 'provider') {
+                        subagentHasProvider = true;
+                    } else if (subagentUsage.source && subagentUsage.source !== 'none') {
+                        subagentHasEstimate = true;
                     }
                 }
                 priorMessages.push(message);
             }, this);
 
             summary.source = hasProvider && hasEstimate ? 'mixed' : (hasProvider ? 'provider' : (hasEstimate ? 'estimate' : 'none'));
+            summary.subagent_source = subagentHasProvider && subagentHasEstimate ? 'mixed' : (subagentHasProvider ? 'provider' : (subagentHasEstimate ? 'estimate' : 'none'));
 
             return summary;
         },
@@ -2667,6 +2797,9 @@
             var outputEstimated = usage.output_tokens > 0 && usageEstimated;
             var freshEstimated = freshTotal > 0 && usageEstimated;
             var hasEstimatedValues = totalEstimated || freshEstimated || inputEstimated || outputEstimated;
+            var subagentEstimated = usage.subagent_total_tokens > 0 && usage.subagent_source !== 'provider';
+            var savedEstimated = usage.subagent_saved_tokens > 0;
+            hasEstimatedValues = hasEstimatedValues || subagentEstimated || savedEstimated;
             var freshTotalRow = cacheReadTokens > 0 ? (
                 '<div class="ai-token-hover-row ai-token-explained-row">' +
                     '<span class="ai-token-context-label">Fresh sent and received' +
@@ -2694,6 +2827,29 @@
                 '</div>' +
                 '<div class="ai-token-help">Input tokens stored in prompt cache. Some providers bill cache writes differently from normal input and cache reads.</div>'
             ) : '';
+            var subagentRow = usage.subagent_total_tokens > 0 ? (
+                '<div class="ai-token-hover-row ai-token-explained-row">' +
+                    '<span class="ai-token-context-label">Of which subagents' +
+                        '<span class="ai-token-info" tabindex="0" aria-label="Subagent tokens are hidden delegate model calls used to inspect code, recall conversations, or inspect pages. They are included in the total usage above.">i</span>' +
+                    '</span>' +
+                    '<strong>' + this.formatTokenValue(usage.subagent_total_tokens, subagentEstimated, false) + '</strong>' +
+                '</div>' +
+                '<div class="ai-token-help">Tokens used by delegate subagents. These are included in total sent and received tokens, even though their hidden working transcript is not kept in the main conversation.</div>'
+            ) : '';
+            var savedRow = usage.subagent_saved_tokens > 0 ? (
+                '<div class="ai-token-hover-row ai-token-explained-row">' +
+                    '<span class="ai-token-context-label">Saved through subagents' +
+                        '<span class="ai-token-info" tabindex="0" aria-label="Estimated tokens not resent to the main model because hidden subagent work stayed outside the conversation context.">i</span>' +
+                    '</span>' +
+                    '<strong>' + this.formatTokenValue(usage.subagent_saved_tokens, savedEstimated, false) + '</strong>' +
+                '</div>' +
+                '<div class="ai-token-help">Estimate: hidden subagent transcript tokens multiplied by later main-model requests where that hidden transcript would otherwise have been context.</div>'
+            ) : '';
+            var subagentSection = (subagentRow || savedRow) ? (
+                '<div class="ai-token-section-title">Subagents</div>' +
+                subagentRow +
+                savedRow
+            ) : '';
             var estimatedLegend = hasEstimatedValues
                 ? '<div class="ai-token-hover-legend">* Estimated</div>'
                 : '';
@@ -2719,6 +2875,7 @@
                         '<strong>' + this.formatTokenValue(usage.output_tokens, outputEstimated, false) + '</strong>' +
                     '</div>' +
                     '<div class="ai-token-help">Cumulative tokens received from the AI, including assistant text, tool-call JSON, and reported reasoning tokens when available.</div>' +
+                    subagentSection +
                     estimatedLegend +
                 '</div>';
 
@@ -2726,12 +2883,18 @@
             $counter.html(tooltip);
             $counter.removeAttr('title');
             $counter.attr('tabindex', '0');
-            $counter.attr(
-                'aria-label',
-                display + '. Sent to AI ' + this.formatTokenDetail(usage.input_tokens) +
-                    ', received from AI ' + this.formatTokenDetail(usage.output_tokens) +
-                    (cacheReadTokens > 0 ? ', read from cache ' + this.formatTokenDetail(cacheReadTokens) : '') + '.'
-            );
+            var ariaLabel = display + '. Sent to AI ' + this.formatTokenDetail(usage.input_tokens) + ', received from AI ' + this.formatTokenDetail(usage.output_tokens);
+            if (cacheReadTokens > 0) {
+                ariaLabel += ', read from cache ' + this.formatTokenDetail(cacheReadTokens);
+            }
+            ariaLabel += '.';
+            if (usage.subagent_total_tokens > 0) {
+                ariaLabel += ' Of which subagents used ' + this.formatTokenDetail(usage.subagent_total_tokens) + '.';
+            }
+            if (usage.subagent_saved_tokens > 0) {
+                ariaLabel += ' Estimated tokens saved through subagents ' + this.formatTokenDetail(usage.subagent_saved_tokens) + '.';
+            }
+            $counter.attr('aria-label', ariaLabel);
             $counter.removeClass('ai-tokens-warning ai-tokens-danger');
 
             if (visibleTotal > 100000) {
@@ -2791,7 +2954,8 @@
             });
         },
 
-        highlightCode: function(element, code, language, isEdit) {
+        highlightCode: function(element, code, language, isEdit, options) {
+            options = options || {};
             var effectiveLanguage = language;
             if ((language === 'javascript' || language === 'js') && this.isJsonLikeText && this.isJsonLikeText(code)) {
                 effectiveLanguage = 'json';
@@ -2861,8 +3025,9 @@
                             }
                         }
                     } else {
-                        // Add line numbers (only when we didn't prepend <?php)
-                        this.addLineNumbers(element);
+                        if (options.lineNumbers !== false) {
+                            this.addLineNumbers(element);
+                        }
                         if (effectiveLanguage === 'json') {
                             this.markJsonPropertyTokens(element);
                         }
@@ -3098,6 +3263,121 @@
                     this.highlightCode($pre[0], contentStr, preview.language, preview.isEdit);
                 }
             }
+        },
+
+        formatDelegateLiveInput: function(input) {
+            return this.formatDelegateToolCallInput(input);
+        },
+
+        updateDelegateToolCardDetails: function(toolId, event, details) {
+            if (!toolId) {
+                return;
+            }
+
+            var state = this.toolCardsState[toolId];
+            if (!state) {
+                return;
+            }
+
+            var delegate = state.delegate || {
+                task_type: '',
+                status: '',
+                round: 0,
+                available_tools: [],
+                tool_calls: []
+            };
+            state.delegate = delegate;
+
+            switch (event) {
+                case 'start':
+                    delegate.task_type = details.task_type || delegate.task_type;
+                    delegate.status = 'Starting subagent';
+                    delegate.available_tools = details.available_tools || delegate.available_tools;
+                    delegate.max_rounds = details.max_rounds || delegate.max_rounds;
+                    delegate.request = details.request || '';
+                    delegate.target = details.target || '';
+                    break;
+                case 'round_response':
+                    delegate.round = details.round || delegate.round;
+                    delegate.status = 'Round ' + delegate.round + ': ' + ((details.tool_calls || []).length || 0) + ' tool call' + (((details.tool_calls || []).length || 0) === 1 ? '' : 's');
+                    delegate.pending_tool_calls = details.tool_calls || [];
+                    break;
+                case 'tool_result':
+                    delegate.status = 'Ran ' + (details.tool || 'tool');
+                    delegate.tool_calls.push({
+                        round: details.round || delegate.round,
+                        name: details.tool || 'tool',
+                        input: details.input || {},
+                        success: !!details.success
+                    });
+                    break;
+                case 'final_synthesis_start':
+                    delegate.status = 'Synthesizing final report';
+                    delegate.final_synthesis = true;
+                    break;
+                case 'final_synthesis_response':
+                    delegate.status = 'Final report received';
+                    break;
+                case 'complete':
+                    delegate.status = 'Completed';
+                    delegate.round_limit_reached = !!(details.omitted && details.omitted.round_limit_reached);
+                    break;
+            }
+
+            this.renderDelegateToolCardDetails(toolId);
+        },
+
+        formatDelegateLiveMeta: function(delegate) {
+            var meta = [];
+            if (delegate.task_type) {
+                meta.push(delegate.task_type);
+            }
+            if (delegate.round) {
+                meta.push('round ' + delegate.round + (delegate.max_rounds ? '/' + delegate.max_rounds : ''));
+            } else if (delegate.max_rounds) {
+                meta.push('round budget: ' + delegate.max_rounds);
+            }
+            if (delegate.available_tools && delegate.available_tools.length) {
+                meta.push('available tools: ' + delegate.available_tools.join(', '));
+            }
+
+            return meta.join(' - ');
+        },
+
+        renderDelegateToolCardDetails: function(toolId) {
+            var state = this.toolCardsState[toolId];
+            var delegate = state && state.delegate;
+            var $card = $('[data-tool-id="' + toolId + '"]');
+            if (!$card.length || !delegate) {
+                return;
+            }
+
+            var $preview = $card.find('.ai-tool-card-preview');
+            var $details = $('<div class="ai-delegate-live"></div>');
+            var meta = this.formatDelegateLiveMeta(delegate);
+
+            $('<div class="ai-delegate-live-status"></div>')
+                .text(delegate.status || 'Running subagent')
+                .appendTo($details);
+            if (meta) {
+                $('<div class="ai-delegate-live-meta"></div>')
+                    .text(meta)
+                    .appendTo($details);
+            }
+
+            var visibleCalls = (delegate.tool_calls || []).slice(-6);
+            if (visibleCalls.length) {
+                var $list = $('<ul class="ai-delegate-live-calls"></ul>');
+                visibleCalls.forEach(function(call) {
+                    var input = this.formatDelegateLiveInput(call.input);
+                    $('<li></li>')
+                        .text('r' + (call.round || '?') + ' ' + call.name + (input ? ' ' + input : '') + ' - ' + (call.success ? 'ok' : 'failed'))
+                        .appendTo($list);
+                }, this);
+                $details.append($list);
+            }
+
+            $preview.empty().append($details);
         },
 
         setToolCardState: function(toolId, state, options) {

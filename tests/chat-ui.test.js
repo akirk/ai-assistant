@@ -28,6 +28,7 @@ function loadUiMixin(config, globals) {
         window: windowGlobals,
         aiAssistantConfig: config || {},
         aiAssistantProviders: globals.aiAssistantProviders,
+        wp: globals.wp,
         fetch: globals.fetch || fetch,
         URL,
         jQuery,
@@ -485,6 +486,61 @@ describe('token usage accounting', function() {
         assert.strictEqual(usage.source, 'mixed');
     });
 
+    it('includes subagent usage and estimates saved follow-up context tokens', function() {
+        const assistant = loadUiMixin();
+        assistant.messages = [
+            {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{
+                    id: 'delegate-parent',
+                    type: 'function',
+                    function: {
+                        name: 'delegate',
+                        arguments: '{}'
+                    }
+                }],
+                _usage: {
+                    version: 1,
+                    source: 'provider',
+                    input_tokens: 10,
+                    output_tokens: 2,
+                    total_tokens: 12
+                },
+                _subagent_usage: {
+                    version: 1,
+                    source: 'provider',
+                    input_tokens: 30,
+                    output_tokens: 8,
+                    total_tokens: 38
+                }
+            },
+            { role: 'tool', tool_call_id: 'delegate-parent', content: '{"summary":"short report"}' },
+            {
+                role: 'assistant',
+                content: 'Done',
+                _usage: {
+                    version: 1,
+                    source: 'provider',
+                    input_tokens: 20,
+                    output_tokens: 4,
+                    total_tokens: 24
+                }
+            }
+        ];
+
+        const usage = assistant.getTokenUsageSummary();
+
+        assert.strictEqual(usage.input_tokens, 60);
+        assert.strictEqual(usage.output_tokens, 14);
+        assert.strictEqual(usage.total_tokens, 74);
+        assert.strictEqual(usage.subagent_input_tokens, 30);
+        assert.strictEqual(usage.subagent_output_tokens, 8);
+        assert.strictEqual(usage.subagent_total_tokens, 38);
+        assert.strictEqual(usage.subagent_saved_tokens, 38);
+        assert.strictEqual(usage.subagent_source, 'provider');
+    });
+
     it('normalizes provider usage details for OpenAI-style responses', function() {
         const assistant = loadUiMixin();
 
@@ -583,6 +639,52 @@ describe('token usage accounting', function() {
         assert.match(dom.counter.htmlContent, /Received from AI \(output\)/);
         assert.match(dom.counter.attrs['aria-label'], /18 fresh tokens/);
         assert.match(dom.counter.attrs['aria-label'], /Sent to AI 17, received from AI 4, read from cache 3/);
+    });
+
+    it('shows subagent token usage and savings in the token tooltip', function() {
+        const dom = createTokenCounterDom();
+        const assistant = loadUiMixin({}, { jQuery: dom.$ });
+        assistant.messages = [
+            {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'delegate-parent', type: 'function', function: { name: 'delegate', arguments: '{}' } }],
+                _usage: {
+                    version: 1,
+                    source: 'provider',
+                    input_tokens: 10,
+                    output_tokens: 2,
+                    total_tokens: 12
+                },
+                _subagent_usage: {
+                    version: 1,
+                    source: 'provider',
+                    input_tokens: 30,
+                    output_tokens: 8,
+                    total_tokens: 38
+                }
+            },
+            {
+                role: 'assistant',
+                content: 'Done',
+                _usage: {
+                    version: 1,
+                    source: 'provider',
+                    input_tokens: 20,
+                    output_tokens: 4,
+                    total_tokens: 24
+                }
+            }
+        ];
+
+        assistant.updateTokenCount();
+
+        assert.match(dom.counter.htmlContent, /ai-token-section-title">Subagents/);
+        assert.match(dom.counter.htmlContent, /Subagents[\s\S]*Of which subagents/);
+        assert.match(dom.counter.htmlContent, /Of which subagents/);
+        assert.match(dom.counter.htmlContent, /Saved through subagents/);
+        assert.match(dom.counter.attrs['aria-label'], /subagents used 38/);
+        assert.match(dom.counter.attrs['aria-label'], /saved through subagents 38/);
     });
 });
 
@@ -1042,6 +1144,57 @@ describe('tool result display', function() {
         assert.strictEqual(display.text, '{"name":"Ada","active":true}');
     });
 
+    it('renders delegate results with subagent details', function() {
+        const assistant = loadUiMixin();
+
+        const display = assistant.getToolResultDisplay('delegate', {
+            task_type: 'codebase_investigation',
+            summary: 'Summary: found the relevant code.',
+            available_tools: ['find', 'read_file'],
+            max_rounds: 6,
+            tool_calls: [
+                {
+                    name: 'find',
+                    input: { text: 'needle', mode: 'paths' },
+                    success: true
+                }
+            ],
+            sources: [
+                { type: 'file', label: 'plugins/example/app.php' }
+            ],
+            omitted: {
+                tool_result_count: 1,
+                round_limit_reached: false,
+                final_synthesis: false
+            }
+        });
+
+        assert.strictEqual(display.label, 'Delegate report');
+        assert.strictEqual(display.language, 'markdown');
+        assert.strictEqual(display.lineNumbers, false);
+        assert.match(display.text, /Task: codebase_investigation/);
+        assert.match(display.text, /Available subagent tools: find, read_file/);
+        assert.match(display.text, /Tool round budget: 6/);
+        assert.match(display.text, /Hidden tool calls: 1/);
+        assert.match(display.text, /find \{"text":"needle","mode":"paths"\} ok/);
+        assert.match(display.text, /file: plugins\/example\/app\.php/);
+        assert.match(display.text, /Report:\nSummary: found the relevant code\./);
+    });
+
+    it('labels delegate live meta with round budget and available tools', function() {
+        const assistant = loadUiMixin();
+
+        assert.strictEqual(
+            assistant.formatDelegateLiveMeta({
+                task_type: 'codebase_investigation',
+                round: 2,
+                max_rounds: 6,
+                available_tools: ['find', 'read_file']
+            }),
+            'codebase_investigation - round 2/6 - available tools: find, read_file'
+        );
+    });
+
     it('normalizes language classes for highlighted code blocks', function() {
         const assistant = loadUiMixin();
 
@@ -1069,6 +1222,45 @@ describe('tool result display', function() {
         assert.ok(classList.includes('ai-language-json'));
         assert.ok(!classList.includes('ai-language-javascript'));
         assert.strictEqual(element.textContent, '{"id":3360212}');
+    });
+
+    it('can highlight CodeMirror output without adding line numbers', function() {
+        const runModeCalls = [];
+        const assistant = loadUiMixin({}, {
+            wp: {
+                CodeMirror: {
+                    getMode(config, modeName) {
+                        return modeName;
+                    },
+                    runMode(code, mode, element) {
+                        runModeCalls.push({ code, mode });
+                        element.innerHTML = '<span class="cm-header"># Heading</span>';
+                    }
+                }
+            }
+        });
+        let addLineNumbersCalled = false;
+        assistant.addLineNumbers = function() {
+            addLineNumbersCalled = true;
+        };
+        const classes = [];
+        const element = {
+            textContent: '',
+            innerHTML: '',
+            classList: {
+                add(className) {
+                    classes.push(className);
+                },
+                remove() {}
+            }
+        };
+
+        assistant.highlightCode(element, '# Heading', 'markdown', false, { lineNumbers: false });
+
+        assert.deepStrictEqual(runModeCalls, [{ code: '# Heading', mode: 'markdown' }]);
+        assert.equal(addLineNumbersCalled, false);
+        assert.ok(classes.includes('ai-language-markdown'));
+        assert.ok(classes.includes('cm-s-default'));
     });
 
     it('marks CodeMirror JSON string tokens followed by a colon as keys', function() {

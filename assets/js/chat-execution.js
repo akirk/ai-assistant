@@ -1020,6 +1020,10 @@
                 return this.executePickImage(toolCall);
             }
 
+            if (toolName === 'delegate' && this.executeDelegate) {
+                return this.executeDelegate(toolCall);
+            }
+
             if (this.canUseFileToolEndpoint(toolName)) {
                 return this.executeFileToolEndpoint(toolCall);
             }
@@ -2764,6 +2768,9 @@
                     return 'Delete: ' + (args.path || 'unknown');
                 case 'find':
                     if (args.text) {
+                        if (args.mode === 'paths') {
+                            return 'Find matching files for: "' + args.text.substring(0, 30) + (args.text.length > 30 ? '...' : '') + '"';
+                        }
                         return 'Search for: "' + args.text.substring(0, 30) + (args.text.length > 30 ? '...' : '') + '"';
                     }
                     if (args.glob) {
@@ -2805,6 +2812,19 @@
                     return 'Suggest link: ' + (args.link_text || args.url || 'unknown');
                 case 'get_page_html':
                     return 'Get page HTML: ' + (args.selector || 'body');
+                case 'delegate':
+                    switch (args.task_type) {
+                        case 'codebase_investigation':
+                            return 'Delegate code investigation' + (args.target ? ': ' + args.target : '');
+                        case 'conversation_recall':
+                            return 'Delegate conversation recall' + (args.target ? ': ' + args.target : '');
+                        case 'page_inspection':
+                            return 'Delegate page inspection' + (args.target ? ': ' + args.target : '');
+                        default:
+                            return 'Delegate read-only task';
+                    }
+                case 'compact_context':
+                    return 'Compact older context for this request';
                 case 'environment_info':
                     return 'Get environment info';
                 case 'ability':

@@ -98,9 +98,25 @@ class Chat_UI {
         );
 
         wp_enqueue_script(
+            'ai-assistant-chat-context',
+            AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-context.js',
+            ['ai-assistant-chat-core', 'ai-assistant-chat-providers'],
+            AI_ASSISTANT_VERSION,
+            true
+        );
+
+        wp_enqueue_script(
             'ai-assistant-chat-execution',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-execution.js',
             ['ai-assistant-chat-core'],
+            AI_ASSISTANT_VERSION,
+            true
+        );
+
+        wp_enqueue_script(
+            'ai-assistant-chat-subagents',
+            AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-subagents.js',
+            ['ai-assistant-chat-core', 'ai-assistant-chat-tools', 'ai-assistant-chat-providers', 'ai-assistant-chat-execution'],
             AI_ASSISTANT_VERSION,
             true
         );
@@ -127,7 +143,9 @@ class Chat_UI {
             [
                 'ai-assistant-chat-conversations',
                 'ai-assistant-chat-tools',
+                'ai-assistant-chat-context',
                 'ai-assistant-chat-execution',
+                'ai-assistant-chat-subagents',
                 'ai-assistant-chat-providers',
             ],
             AI_ASSISTANT_VERSION,
@@ -263,8 +281,11 @@ class Chat_UI {
             'aiChangesUrl' => admin_url('tools.php?page=ai-changes'),
             'conversationExportUrl' => admin_url('admin-post.php?action=ai_assistant_export_conversation'),
             'conversationExportFormats' => ai_assistant()->conversations()->get_export_formats_for_config(),
+            'siteUrl' => get_site_url(),
             'adminUrl' => admin_url(),
             'homeUrl' => home_url(),
+            'currentPath' => $settings->get_current_prompt_path(),
+            'pageSelectorHints' => $settings->get_page_selector_hints(),
             'restApiUrl' => rest_url(),
             'defaultAutoApproveMode' => $this->should_default_auto_approve_mode(),
             'restApiNonce' => wp_create_nonce('wp_rest'),
@@ -385,6 +406,12 @@ class Chat_UI {
                  * @param int $rounds Maximum consecutive failed tool rounds. Default 3.
                  */
                 'consecutiveFailures' => (int) apply_filters('ai_assistant_tool_round_limit_consecutive_failures', 3),
+            ],
+            'contextCompaction' => [
+                'enabled' => (bool) apply_filters('ai_assistant_context_compaction_enabled', true),
+                'triggerTokens' => (int) apply_filters('ai_assistant_context_compaction_trigger_tokens', 24000),
+                'recentMessages' => (int) apply_filters('ai_assistant_context_compaction_recent_messages', 12),
+                'maxSummaryWords' => (int) apply_filters('ai_assistant_context_compaction_summary_words', 700),
             ],
             'systemPrompt' => $system_prompt,
             /**

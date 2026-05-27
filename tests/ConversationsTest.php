@@ -157,6 +157,53 @@ class ConversationsTest extends TestCase {
         $this->assertStringContainsString('secret file contents', $payload['content']);
     }
 
+    public function test_token_usage_builder_includes_subagent_usage_and_savings(): void {
+        $method = new \ReflectionMethod($this->conversations, 'build_token_usage_from_messages');
+        $method->setAccessible(true);
+
+        $usage = $method->invoke($this->conversations, [
+            [
+                'role' => 'assistant',
+                'content' => null,
+                '_usage' => [
+                    'source' => 'provider',
+                    'input_tokens' => 10,
+                    'output_tokens' => 2,
+                    'total_tokens' => 12,
+                ],
+                '_subagent_usage' => [
+                    'source' => 'provider',
+                    'input_tokens' => 30,
+                    'output_tokens' => 8,
+                    'total_tokens' => 38,
+                ],
+            ],
+            [
+                'role' => 'tool',
+                'content' => '{"summary":"short"}',
+            ],
+            [
+                'role' => 'assistant',
+                'content' => 'Done.',
+                '_usage' => [
+                    'source' => 'provider',
+                    'input_tokens' => 20,
+                    'output_tokens' => 4,
+                    'total_tokens' => 24,
+                ],
+            ],
+        ]);
+
+        $this->assertSame(60, $usage['input_tokens']);
+        $this->assertSame(14, $usage['output_tokens']);
+        $this->assertSame(74, $usage['total_tokens']);
+        $this->assertSame(30, $usage['subagent_input_tokens']);
+        $this->assertSame(8, $usage['subagent_output_tokens']);
+        $this->assertSame(38, $usage['subagent_total_tokens']);
+        $this->assertSame(38, $usage['subagent_saved_tokens']);
+        $this->assertSame('provider', $usage['subagent_source']);
+    }
+
     private function sampleConversation(): array {
         return [
             'id' => 123,
