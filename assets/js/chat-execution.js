@@ -674,6 +674,7 @@
 
             var importModule = this.getScriptModuleImporter();
             if (!importModule) {
+                // WP 6.9 COMPAT: Classic browsers without module import support use the PHP executor.
                 this.clientAbilitiesUnavailable = true;
                 return Promise.resolve(null);
             }
@@ -703,6 +704,7 @@
                     return abilities;
                 })
                 .catch(function(error) {
+                    // WP 6.9 COMPAT: Missing Core client ability modules fall back to admin-ajax.
                     self.clientAbilitiesUnavailable = true;
                     console.warn('[AI Assistant] Client Abilities API unavailable; using server fallback.', error);
                     return null;
@@ -715,15 +717,19 @@
             var self = this;
             var toolName = toolCall.name || toolCall.tool;
             var args = toolCall.arguments || {};
+            // WP 6.9 COMPAT: Keep true while the PHP registry can contain abilities
+            // that are not present in the client-side registry.
             var fallbackToServer = this.getClientAbilitiesConfig().fallbackToServer !== false;
 
             return this.getClientAbilitiesApi().then(function(api) {
                 if (!api) {
+                    // WP 6.9 COMPAT: No client ability package, so run the existing PHP path.
                     return self.executeServerToolAjax(toolCall);
                 }
 
                 return self.executeClientAbilityTool(toolCall, api).catch(function(error) {
                     if (fallbackToServer && error && error.aiAssistantFallbackToServer) {
+                        // WP 6.9 COMPAT: Ability exists only in PHP/non-REST registry.
                         return self.executeServerToolAjax(toolCall);
                     }
 
@@ -769,6 +775,7 @@
             if (!ability) {
                 var missing = new Error('Ability not found in client registry: ' + abilityId);
                 missing.code = 'ability_not_found';
+                // WP 6.9 COMPAT: Let the caller try the PHP ability executor.
                 missing.aiAssistantFallbackToServer = true;
                 return Promise.reject(missing);
             }

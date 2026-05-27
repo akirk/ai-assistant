@@ -141,6 +141,10 @@ class Chat_UI {
     /**
      * Enqueue the client-side Abilities API only when Core registered it.
      *
+     * WP 6.9 COMPAT: When the minimum supported WordPress version always
+     * includes @wordpress/abilities and @wordpress/core-abilities, drop the
+     * support check and enqueue the bridge module unconditionally.
+     *
      * WordPress 6.9 has the PHP/REST Abilities API but may not ship the
      * client packages. In that case the existing AJAX executor remains the
      * compatibility path.
@@ -245,6 +249,7 @@ class Chat_UI {
             'homeUrl' => home_url(),
             'restApiUrl' => rest_url(),
             'restApiNonce' => wp_create_nonce('wp_rest'),
+            // WP 6.9 COMPAT: Remove fallbackToServer once client abilities are required.
             'clientAbilities' => [
                 'enabled' => $this->has_client_abilities_support(),
                 'fallbackToServer' => true,
