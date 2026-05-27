@@ -639,31 +639,287 @@
             });
         },
 
-        executeSingleTool: function(toolCall) {
+        isAbilityToolName: function(toolName) {
+            return ['ability', 'list_abilities', 'get_ability', 'execute_ability'].indexOf(toolName) >= 0;
+        },
+
+        getClientAbilitiesConfig: function() {
+            return (window.aiAssistantConfig && window.aiAssistantConfig.clientAbilities) || {};
+        },
+
+        getScriptModuleImporter: function() {
+            if (this.scriptModuleImporter !== undefined) {
+                return this.scriptModuleImporter;
+            }
+
+            try {
+                this.scriptModuleImporter = new Function('specifier', 'return import(specifier);');
+            } catch (e) {
+                this.scriptModuleImporter = null;
+            }
+
+            return this.scriptModuleImporter;
+        },
+
+        getClientAbilitiesApi: function() {
+            var self = this;
+            var config = this.getClientAbilitiesConfig();
+            if (!config.enabled || this.clientAbilitiesUnavailable) {
+                return Promise.resolve(null);
+            }
+
+            if (this.clientAbilitiesPromise) {
+                return this.clientAbilitiesPromise;
+            }
+
+            var importModule = this.getScriptModuleImporter();
+            if (!importModule) {
+                this.clientAbilitiesUnavailable = true;
+                return Promise.resolve(null);
+            }
+
+            this.clientAbilitiesPromise = importModule('@wordpress/core-abilities')
+                .then(function(coreAbilities) {
+                    if (coreAbilities && typeof coreAbilities.initialize === 'function') {
+                        return coreAbilities.initialize();
+                    }
+                    if (coreAbilities && coreAbilities.ready && typeof coreAbilities.ready.then === 'function') {
+                        return coreAbilities.ready;
+                    }
+                    return null;
+                })
+                .then(function() {
+                    return importModule('@wordpress/abilities');
+                })
+                .then(function(abilities) {
+                    if (
+                        !abilities ||
+                        typeof abilities.getAbilities !== 'function' ||
+                        typeof abilities.getAbility !== 'function' ||
+                        typeof abilities.executeAbility !== 'function'
+                    ) {
+                        throw new Error('Client Abilities API is incomplete');
+                    }
+                    return abilities;
+                })
+                .catch(function(error) {
+                    self.clientAbilitiesUnavailable = true;
+                    console.warn('[AI Assistant] Client Abilities API unavailable; using server fallback.', error);
+                    return null;
+                });
+
+            return this.clientAbilitiesPromise;
+        },
+
+        executeAbilityTool: function(toolCall) {
+            var self = this;
+            var toolName = toolCall.name || toolCall.tool;
+            var args = toolCall.arguments || {};
+            var fallbackToServer = this.getClientAbilitiesConfig().fallbackToServer !== false;
+
+            return this.getClientAbilitiesApi().then(function(api) {
+                if (!api) {
+                    return self.executeServerToolAjax(toolCall);
+                }
+
+                return self.executeClientAbilityTool(toolCall, api).catch(function(error) {
+                    if (fallbackToServer && error && error.aiAssistantFallbackToServer) {
+                        return self.executeServerToolAjax(toolCall);
+                    }
+
+                    return {
+                        id: toolCall.id,
+                        name: toolName,
+                        input: args,
+                        result: {
+                            error: self.getErrorMessage(error),
+                            code: error && error.code ? error.code : 'client_ability_failed'
+                        },
+                        success: false
+                    };
+                });
+            });
+        },
+
+        executeClientAbilityTool: function(toolCall, api) {
+            var toolName = toolCall.name || toolCall.tool;
+            var args = toolCall.arguments || {};
+            var action = this.getNormalizedAbilityAction(toolName, args);
+            var abilityId = this.getNormalizedAbilityId(toolName, args);
+            var input = this.getNormalizedAbilityInput(toolName, args);
+
+            if (action === 'list') {
+                return Promise.resolve(this.createClientAbilityToolResult(
+                    toolCall,
+                    this.getClientAbilityList(api, args.category || '')
+                ));
+            }
+
+            if (!abilityId) {
+                return Promise.resolve({
+                    id: toolCall.id,
+                    name: toolName,
+                    input: args,
+                    result: { error: 'Ability ID is required', code: 'ability_missing' },
+                    success: false
+                });
+            }
+
+            var ability = api.getAbility(abilityId);
+            if (!ability) {
+                var missing = new Error('Ability not found in client registry: ' + abilityId);
+                missing.code = 'ability_not_found';
+                missing.aiAssistantFallbackToServer = true;
+                return Promise.reject(missing);
+            }
+
+            if (action === 'get') {
+                return Promise.resolve(this.createClientAbilityToolResult(
+                    toolCall,
+                    this.normalizeClientAbilityDetails(ability)
+                ));
+            }
+
+            if (action !== 'execute') {
+                return Promise.resolve({
+                    id: toolCall.id,
+                    name: toolName,
+                    input: args,
+                    result: { error: 'Unknown ability action: ' + action, code: 'unknown_ability_action' },
+                    success: false
+                });
+            }
+
+            var self = this;
+            return api.executeAbility(abilityId, input).then(function(result) {
+                return self.createClientAbilityToolResult(toolCall, {
+                    ability: abilityId,
+                    success: true,
+                    result: result
+                });
+            });
+        },
+
+        createClientAbilityToolResult: function(toolCall, result) {
+            return {
+                id: toolCall.id,
+                name: toolCall.name || toolCall.tool,
+                input: toolCall.arguments || {},
+                result: result,
+                success: true
+            };
+        },
+
+        getClientAbilityList: function(api, category) {
+            var abilities = api.getAbilities() || [];
+            if (!Array.isArray(abilities) && typeof abilities === 'object') {
+                abilities = Object.keys(abilities).map(function(key) {
+                    return abilities[key];
+                });
+            }
+
+            abilities = Array.isArray(abilities) ? abilities.filter(Boolean) : [];
+            if (category) {
+                abilities = this.filterClientAbilitiesByCategory(abilities, category);
+            }
+
+            return {
+                abilities: abilities.map(this.normalizeClientAbilitySummary.bind(this)),
+                count: abilities.length,
+                filter: category || null
+            };
+        },
+
+        filterClientAbilitiesByCategory: function(abilities, category) {
+            var exact = abilities.filter(function(ability) {
+                return (ability.category || '') === category;
+            });
+            if (exact.length > 0) {
+                return exact;
+            }
+
+            var query = String(category || '').toLowerCase();
+            var byCategory = abilities.filter(function(ability) {
+                var abilityCategory = String(ability.category || '').toLowerCase();
+                return abilityCategory &&
+                    (abilityCategory.indexOf(query) >= 0 || query.indexOf(abilityCategory) >= 0);
+            });
+            if (byCategory.length > 0) {
+                return byCategory;
+            }
+
+            return abilities.filter(function(ability) {
+                var id = String(ability.name || ability.id || '').toLowerCase();
+                var label = String(ability.label || ability.name || '').toLowerCase();
+                return id.indexOf(query) >= 0 || label.indexOf(query) >= 0;
+            });
+        },
+
+        getClientAbilityAnnotations: function(ability) {
+            var meta = ability && ability.meta ? ability.meta : {};
+            return meta.annotations || ability.annotations || {};
+        },
+
+        normalizeClientAbilitySummary: function(ability) {
+            ability = ability || {};
+            var annotations = this.getClientAbilityAnnotations(ability);
+            var id = ability.name || ability.id || '';
+            return {
+                id: id,
+                name: ability.label || id,
+                description: ability.description || '',
+                category: ability.category || 'uncategorized',
+                readonly: !!annotations.readonly,
+                destructive: !!annotations.destructive
+            };
+        },
+
+        normalizeClientAbilityDetails: function(ability) {
+            var summary = this.normalizeClientAbilitySummary(ability);
+            var annotations = this.getClientAbilityAnnotations(ability);
+            return {
+                id: summary.id,
+                name: summary.name,
+                description: summary.description,
+                category: summary.category,
+                input_schema: ability.input_schema || {},
+                output_schema: ability.output_schema || {},
+                annotations: {
+                    readonly: !!annotations.readonly,
+                    destructive: !!annotations.destructive
+                },
+                instructions: annotations.instructions || ability.instructions || ''
+            };
+        },
+
+        getNormalizedAbilityAction: function(toolName, args) {
+            if (toolName === 'list_abilities') return 'list';
+            if (toolName === 'get_ability') return 'get';
+            if (toolName === 'execute_ability') return 'execute';
+            return args.action || 'list';
+        },
+
+        getNormalizedAbilityId: function(toolName, args) {
+            return args.ability || '';
+        },
+
+        getNormalizedAbilityInput: function(toolName, args) {
+            if (toolName === 'execute_ability') {
+                return args.arguments || {};
+            }
+            return args.arguments || {};
+        },
+
+        getErrorMessage: function(error) {
+            if (!error) return 'Unknown error';
+            return error.message || String(error);
+        },
+
+        executeServerToolAjax: function(toolCall) {
             var self = this;
             var toolName = toolCall.name || toolCall.tool;
 
-            if (toolName === 'rest_api') {
-                return this.executeRestApi(toolCall);
-            }
-
-            if (toolName === 'get_page_html') {
-                return this.executeGetPageHtml(toolCall);
-            }
-
-            if (toolName === 'summarize_conversation') {
-                return this.executeSummarizeConversation(toolCall);
-            }
-
-            if (toolName === 'pick_image') {
-                return this.executePickImage(toolCall);
-            }
-
-            if (this.canUseFileToolEndpoint(toolName)) {
-                return this.executeFileToolEndpoint(toolCall);
-            }
-
-            return new Promise(function(resolve, reject) {
+            return new Promise(function(resolve) {
                 $.ajax({
                     url: aiAssistantConfig.ajaxUrl,
                     type: 'POST',
@@ -727,6 +983,36 @@
                     }
                 });
             });
+        },
+
+        executeSingleTool: function(toolCall) {
+            var toolName = toolCall.name || toolCall.tool;
+
+            if (toolName === 'rest_api') {
+                return this.executeRestApi(toolCall);
+            }
+
+            if (this.isAbilityToolName(toolName)) {
+                return this.executeAbilityTool(toolCall);
+            }
+
+            if (toolName === 'get_page_html') {
+                return this.executeGetPageHtml(toolCall);
+            }
+
+            if (toolName === 'summarize_conversation') {
+                return this.executeSummarizeConversation(toolCall);
+            }
+
+            if (toolName === 'pick_image') {
+                return this.executePickImage(toolCall);
+            }
+
+            if (this.canUseFileToolEndpoint(toolName)) {
+                return this.executeFileToolEndpoint(toolCall);
+            }
+
+            return this.executeServerToolAjax(toolCall);
         },
 
         isAbilityExecutionToolCall: function(toolCall) {

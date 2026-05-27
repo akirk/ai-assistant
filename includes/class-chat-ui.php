@@ -54,6 +54,7 @@ class Chat_UI {
         wp_enqueue_script('wp-codemirror');
 
         do_action('wp_ai_provider_browser_status_scripts');
+        $this->enqueue_client_abilities_assets();
 
         wp_enqueue_script(
             'ai-assistant-chat-core',
@@ -138,6 +139,49 @@ class Chat_UI {
     }
 
     /**
+     * Enqueue the client-side Abilities API only when Core registered it.
+     *
+     * WordPress 6.9 has the PHP/REST Abilities API but may not ship the
+     * client packages. In that case the existing AJAX executor remains the
+     * compatibility path.
+     */
+    private function enqueue_client_abilities_assets(): void {
+        if (!$this->has_client_abilities_support()) {
+            return;
+        }
+
+        wp_enqueue_script_module(
+            'ai-assistant-client-abilities',
+            AI_ASSISTANT_PLUGIN_URL . 'assets/js/client-abilities.js',
+            [
+                [
+                    'id'     => '@wordpress/core-abilities',
+                    'import' => 'dynamic',
+                ],
+                [
+                    'id'     => '@wordpress/abilities',
+                    'import' => 'dynamic',
+                ],
+            ],
+            AI_ASSISTANT_VERSION
+        );
+    }
+
+    private function has_client_abilities_support(): bool {
+        if (!function_exists('wp_enqueue_script_module') || !function_exists('wp_script_modules')) {
+            return false;
+        }
+
+        $script_modules = wp_script_modules();
+        if (!is_object($script_modules) || !method_exists($script_modules, 'get_registered')) {
+            return false;
+        }
+
+        return (bool) $script_modules->get_registered('@wordpress/abilities') &&
+            (bool) $script_modules->get_registered('@wordpress/core-abilities');
+    }
+
+    /**
      * AJAX: Return everything needed to display the assistant without a reload.
      */
     public function ajax_bootstrap() {
@@ -201,6 +245,10 @@ class Chat_UI {
             'homeUrl' => home_url(),
             'restApiUrl' => rest_url(),
             'restApiNonce' => wp_create_nonce('wp_rest'),
+            'clientAbilities' => [
+                'enabled' => $this->has_client_abilities_support(),
+                'fallbackToServer' => true,
+            ],
             'userDisplayName' => $current_user->display_name,
             'dateTime' => [
                 'dateFormat' => get_option('date_format'),
