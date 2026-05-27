@@ -1545,27 +1545,72 @@
         moveAiChangesSuggestionToEnd: function() {
             var $suggestion = $('#ai-assistant-ai-changes-suggestion');
             if ($suggestion.length) {
-                this.getAiChangesSuggestionContainer().append($suggestion);
-                this.updateAiChangesSuggestionPosition($suggestion);
+                var $container = this.getAiChangesSuggestionContainer();
+                var isMerged = $container.attr && $container.attr('id') === 'ai-assistant-area-suggestion';
+                if ($container.attr && $container.attr('id') === 'ai-assistant-area-suggestion') {
+                    $('#ai-assistant-messages').append($container);
+                }
+                $container.append($suggestion);
+                this.updateAiChangesSuggestionMergeState($suggestion, isMerged);
             }
         },
 
         getAiChangesSuggestionContainer: function() {
-            var $container = $('.ai-assistant-chat-container').last();
-            return $container.length ? $container : $('#ai-assistant-messages');
+            var $areaSuggestion = $('#ai-assistant-area-suggestion');
+            if ($areaSuggestion.length && (!$areaSuggestion.is || $areaSuggestion.is(':visible'))) {
+                return $areaSuggestion;
+            }
+
+            var $messages = $('#ai-assistant-messages');
+            return $messages.length ? $messages : $('.ai-assistant-chat-container').last();
         },
 
-        ensureAiChangesSuggestion: function() {
+        ensureAiChangesSuggestion: function($container) {
             var $suggestion = $('#ai-assistant-ai-changes-suggestion');
             if ($suggestion.length) {
-                this.updateAiChangesSuggestionPosition($suggestion);
                 return $suggestion;
             }
 
-            $suggestion = $('<div id="ai-assistant-ai-changes-suggestion" class="ai-assistant-area-suggestion ai-assistant-ai-changes-suggestion" role="status" aria-live="polite" hidden></div>');
-            this.getAiChangesSuggestionContainer().append($suggestion);
-            this.updateAiChangesSuggestionPosition($suggestion);
+            $container = $container && $container.length ? $container : this.getAiChangesSuggestionContainer();
+            $suggestion = $('<span id="ai-assistant-ai-changes-suggestion" class="ai-assistant-area-suggestion ai-assistant-ai-changes-suggestion" role="status" aria-live="polite" hidden></span>');
+            $container.append($suggestion);
             return $suggestion;
+        },
+
+        updateAiChangesSuggestionMergeState: function($suggestion, isMerged) {
+            if (!$suggestion || !$suggestion.length) {
+                return;
+            }
+
+            var $link = $suggestion.find('#ai-assistant-ai-changes-link');
+            if (!$link.length) {
+                return;
+            }
+
+            var href = $link.attr('href') || '';
+            var target = $link.attr('target') || '';
+            var rel = $link.attr('rel') || '';
+            var label = $link.text() || 'View changed files';
+
+            $suggestion.empty();
+            if (isMerged) {
+                $suggestion.text(' ');
+            }
+
+            $link = $('<a id="ai-assistant-ai-changes-link" class="ai-assistant-ai-changes-link"></a>')
+                .attr('href', href)
+                .text(label);
+            if (target) {
+                $link.attr('target', target);
+            }
+            if (rel) {
+                $link.attr('rel', rel);
+            }
+
+            $suggestion.append($link);
+            if (isMerged) {
+                $suggestion.append('.');
+            }
         },
 
         renderAiChangesSuggestion: function(metadata) {
@@ -1596,49 +1641,18 @@
                         .attr('rel', 'noopener noreferrer');
                 }
             };
-            var $suggestion = this.ensureAiChangesSuggestion();
+            var $container = this.getAiChangesSuggestionContainer();
+            var $suggestion = this.ensureAiChangesSuggestion($container);
             $suggestion.empty();
 
             var $link = $('<a id="ai-assistant-ai-changes-link" class="ai-assistant-ai-changes-link"></a>')
                 .attr('href', link.url)
-                .text('Review AI changes');
+                .text('View changed files');
             applyLinkTarget($link, link);
             $suggestion.append($link);
 
             $suggestion.prop('hidden', false);
             this.moveAiChangesSuggestionToEnd();
-        },
-
-        getElementOuterHeight: function($element) {
-            if (!$element || !$element.length) {
-                return 0;
-            }
-
-            if (typeof $element.outerHeight === 'function') {
-                var outerHeight = parseFloat($element.outerHeight(true));
-                if (outerHeight > 0) {
-                    return outerHeight;
-                }
-            }
-
-            var element = $element[0];
-            return element && element.offsetHeight ? element.offsetHeight : 0;
-        },
-
-        updateAiChangesSuggestionPosition: function($suggestion) {
-            $suggestion = $suggestion && $suggestion.length ? $suggestion : $('#ai-assistant-ai-changes-suggestion');
-            if (!$suggestion.length) {
-                return;
-            }
-
-            var $container = this.getAiChangesSuggestionContainer();
-            var bottom = 28 + this.getElementOuterHeight($container.find('.ai-assistant-input-area').last());
-            var $attachments = $container.find('#ai-assistant-attachments').last();
-            if ($attachments.length && (!$attachments.is || $attachments.is(':visible'))) {
-                bottom += this.getElementOuterHeight($attachments);
-            }
-
-            $suggestion.css('--ai-assistant-ai-changes-bottom', bottom + 'px');
         },
 
         showAiChangesSuggestion: function(toolName, input, output) {
@@ -1671,7 +1685,7 @@
             }
 
             this.renderAiChangesSuggestion($.extend({
-                link_text: 'Review AI changes',
+                link_text: 'View changed files',
                 open_in_current_window: true
             }, metadata));
         },
@@ -1767,6 +1781,7 @@
             }
 
             $messages.append($card);
+            this.moveAiChangesSuggestionToEnd();
         },
 
         toolGroupLabel: function(toolUses) {
@@ -1787,6 +1802,7 @@
                 self.addToolUseMessage(tu.name, tu.input, $details, tu.result);
             });
             $('#ai-assistant-messages').append($details);
+            this.moveAiChangesSuggestionToEnd();
         },
 
         formatContent: function(content) {
@@ -2334,6 +2350,9 @@
             // Show container and scroll to bottom
             var $messages = $('#ai-assistant-messages');
             $messages.css('visibility', 'visible');
+            if (this.showCurrentAiChangesSuggestion) {
+                this.showCurrentAiChangesSuggestion();
+            }
             this.scrollToBottom(true);
         },
 

@@ -1135,17 +1135,118 @@ describe('AI changes links', function() {
         const link = dom.getById('ai-assistant-ai-changes-link');
 
         assert.ok(suggestion);
-        assert.strictEqual(suggestion.parent, dom.chatContainer);
+        assert.strictEqual(suggestion.parent, dom.messages);
         assert.strictEqual(suggestion.classes.has('ai-assistant-ai-changes-suggestion'), true);
         assert.strictEqual(suggestion.hidden, false);
         assert.ok(link);
         assert.strictEqual(link.parent, suggestion);
-        assert.strictEqual(link.textContent, 'Review AI changes');
+        assert.strictEqual(link.textContent, 'View changed files');
         assert.strictEqual(
             link.attrs.href,
             'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fexample'
         );
         assert.strictEqual(link.attrs.target, '_blank');
+    });
+
+    it('keeps the AI Changes suggestion after restored tool cards', function() {
+        const dom = createToolCardsDom();
+        const assistant = loadUiMixin({
+            aiChangesUrl: 'http://example.test/wp-admin/tools.php?page=ai-changes'
+        }, { jQuery: dom.$ });
+
+        assistant.getActionDescription = function() { return 'Read file'; };
+        assistant.getActionContentPreview = function() { return null; };
+        assistant.escapeHtml = function(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        };
+        assistant.highlightCode = function() {};
+        assistant.addToolUseMessage(
+            'read_file',
+            { path: 'plugins/example/example.php' },
+            null,
+            {
+                path: 'plugins/example/example.php',
+                ai_changes: {
+                    root: 'plugins/example',
+                    type: 'plugin'
+                }
+            }
+        );
+
+        const suggestion = dom.getById('ai-assistant-ai-changes-suggestion');
+        const lastChild = dom.messages.children[dom.messages.children.length - 1];
+
+        assert.ok(suggestion);
+        assert.strictEqual(suggestion.parent, dom.messages);
+        assert.strictEqual(lastChild, suggestion);
+    });
+
+    it('merges the AI Changes suggestion into a visible area-change suggestion', function() {
+        const dom = createToolCardsDom();
+        const assistant = loadUiMixin({
+            aiChangesUrl: 'http://example.test/wp-admin/tools.php?page=ai-changes'
+        }, { jQuery: dom.$ });
+        const $areaSuggestion = dom.$('<div id="ai-assistant-area-suggestion" class="ai-assistant-area-suggestion" role="status" aria-live="polite"></div>');
+
+        dom.$('#ai-assistant-messages').append($areaSuggestion);
+        assistant.showAiChangesSuggestion(
+            'read_file',
+            { path: 'plugins/example/example.php' },
+            {
+                path: 'plugins/example/example.php',
+                ai_changes: {
+                    root: 'plugins/example',
+                    type: 'plugin'
+                }
+            }
+        );
+
+        const areaSuggestion = dom.getById('ai-assistant-area-suggestion');
+        const suggestion = dom.getById('ai-assistant-ai-changes-suggestion');
+        const link = dom.getById('ai-assistant-ai-changes-link');
+
+        assert.ok(suggestion);
+        assert.strictEqual(suggestion.parent, areaSuggestion);
+        assert.ok(link);
+        assert.strictEqual(link.parent, suggestion);
+        assert.strictEqual(link.textContent, 'View changed files');
+    });
+
+    it('adds separator spacing when an existing AI Changes suggestion is later merged', function() {
+        const dom = createToolCardsDom();
+        const assistant = loadUiMixin({
+            aiChangesUrl: 'http://example.test/wp-admin/tools.php?page=ai-changes'
+        }, { jQuery: dom.$ });
+
+        assistant.showAiChangesSuggestion(
+            'read_file',
+            { path: 'plugins/example/example.php' },
+            {
+                path: 'plugins/example/example.php',
+                ai_changes: {
+                    root: 'plugins/example',
+                    type: 'plugin'
+                }
+            }
+        );
+
+        const $areaSuggestion = dom.$('<div id="ai-assistant-area-suggestion" class="ai-assistant-area-suggestion" role="status" aria-live="polite"></div>');
+        dom.$('#ai-assistant-messages').append($areaSuggestion);
+        assistant.moveAiChangesSuggestionToEnd();
+
+        const areaSuggestion = dom.getById('ai-assistant-area-suggestion');
+        const suggestion = dom.getById('ai-assistant-ai-changes-suggestion');
+        const link = dom.getById('ai-assistant-ai-changes-link');
+
+        assert.strictEqual(suggestion.parent, areaSuggestion);
+        assert.ok(suggestion.textContent.startsWith(' '));
+        assert.ok(suggestion.textContent.endsWith('.'));
+        assert.strictEqual(link.parent, suggestion);
     });
 
     it('renders current page AI Changes suggestion in the current window', function() {
@@ -1213,7 +1314,7 @@ describe('AI changes links', function() {
         assert.strictEqual(current, undefined);
         assert.strictEqual(next, undefined);
         assert.strictEqual(overview, undefined);
-        assert.strictEqual(link.textContent, 'Review AI changes');
+        assert.strictEqual(link.textContent, 'View changed files');
         assert.strictEqual(
             link.attrs.href,
             'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fcurrent-app'

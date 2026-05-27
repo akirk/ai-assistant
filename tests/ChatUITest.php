@@ -98,7 +98,7 @@ class ChatUITest extends TestCase {
 
         $this->assertStringContainsString('CURRENT PAGE FILE CHANGES', $prompt);
         $this->assertStringContainsString('plugins/example', $prompt);
-        $this->assertStringContainsString('Review AI changes', $prompt);
+        $this->assertStringContainsString('View changed files', $prompt);
         $this->assertStringContainsString('current window', $prompt);
         $this->assertStringNotContainsString('Current-window version log rows', $prompt);
         $this->assertStringNotContainsString('Overview:', $prompt);

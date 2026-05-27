@@ -306,6 +306,9 @@
 
         hideAreaChangeSuggestion: function() {
             $('#ai-assistant-area-suggestion').prop('hidden', true);
+            if (this.moveAiChangesSuggestionToEnd) {
+                this.moveAiChangesSuggestionToEnd();
+            }
         },
 
         updateAreaChangeSuggestion: function() {
@@ -318,6 +321,9 @@
 
             var $suggestion = this.ensureAreaChangeSuggestion();
             $suggestion.prop('hidden', false);
+            if (this.moveAiChangesSuggestionToEnd) {
+                this.moveAiChangesSuggestionToEnd();
+            }
             this.scrollToBottom(true);
         },
 
@@ -479,6 +485,9 @@
                 // Clear and show new welcome with the model reserved for the next send.
                 $('#ai-assistant-messages').empty();
                 this.loadWelcomeMessage();
+                if (this.showCurrentAiChangesSuggestion) {
+                    this.showCurrentAiChangesSuggestion();
+                }
                 $('#ai-token-count').hide();
                 $('#ai-assistant-new-chat').text('Undo').attr('id', 'ai-assistant-undo-new-chat');
                 this.hideAreaChangeSuggestion();
@@ -527,6 +536,9 @@
             this.hideAreaChangeSuggestion();
             this.updateSidebarSelection();
             this.loadWelcomeMessage();
+            if (this.showCurrentAiChangesSuggestion) {
+                this.showCurrentAiChangesSuggestion();
+            }
             this.updateSummarizeButton();
             this.updateExportButton();
             if (options.updateHistory !== false) {
@@ -899,6 +911,9 @@
                         var $emptyMessages = $('#ai-assistant-messages');
                         $emptyMessages.empty();
                         self.loadWelcomeMessage();
+                        if (self.showCurrentAiChangesSuggestion) {
+                            self.showCurrentAiChangesSuggestion();
+                        }
                         $emptyMessages.css('visibility', 'visible');
                         self.updateExportButton();
                         self.hideAreaChangeSuggestion();
@@ -907,6 +922,9 @@
                         var $messages = $('#ai-assistant-messages');
                         $messages.empty();
                         self.loadWelcomeMessage();
+                        if (self.showCurrentAiChangesSuggestion) {
+                            self.showCurrentAiChangesSuggestion();
+                        }
                         $messages.css('visibility', 'visible');
                         self.updateExportButton();
                         self.hideAreaChangeSuggestion();
@@ -917,6 +935,9 @@
                     var $messages = $('#ai-assistant-messages');
                     $messages.empty();
                     self.loadWelcomeMessage();
+                    if (self.showCurrentAiChangesSuggestion) {
+                        self.showCurrentAiChangesSuggestion();
+                    }
                     $messages.css('visibility', 'visible');
                     self.updateExportButton();
                     self.hideAreaChangeSuggestion();
