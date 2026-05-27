@@ -200,6 +200,7 @@ class Chat_UI {
             'adminUrl' => admin_url(),
             'homeUrl' => home_url(),
             'restApiUrl' => rest_url(),
+            'defaultAutoApproveMode' => $this->should_default_auto_approve_mode(),
             'restApiNonce' => wp_create_nonce('wp_rest'),
             'userDisplayName' => $current_user->display_name,
             'dateTime' => [
@@ -543,10 +544,17 @@ class Chat_UI {
                 'stopGeneration' => __('Stop generation', 'ai-assistant'),
                 'resizePanel' => __('Resize AI Assistant', 'ai-assistant'),
                 'resizePanelTitle' => __('Drag to resize AI Assistant. Double-click to fit the window.', 'ai-assistant'),
-                'yoloMode' => __('YOLO Mode', 'ai-assistant'),
-                'yoloTitle' => __('Skip confirmation prompts for destructive actions', 'ai-assistant'),
+                'autoApproveMode' => __('Auto-approve', 'ai-assistant'),
+                'autoApproveTitle' => __('Automatically approve destructive actions without confirmation', 'ai-assistant'),
             ],
         ];
+    }
+
+    /**
+     * Whether destructive actions should be auto-approved by default.
+     */
+    private function should_default_auto_approve_mode(): bool {
+        return wp_parse_url(home_url(), PHP_URL_HOST) === 'my.wordpress.net';
     }
 
     /**

@@ -35,22 +35,91 @@
             }
         },
 
-        saveYoloMode: function() {
+        setAutoApproveMode: function(enabled) {
+            this.autoApproveMode = enabled === true;
+            this.yoloMode = this.autoApproveMode;
+            $('#ai-assistant-auto-approve, #ai-assistant-yolo').prop('checked', this.autoApproveMode);
+        },
+
+        isMyWordPressRuntime: function() {
+            var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+            var urls = [
+                config.homeUrl || '',
+                config.adminUrl || '',
+                config.restApiUrl || ''
+            ];
+
+            if (typeof window !== 'undefined' && window.location && window.location.href) {
+                urls.push(window.location.href);
+            }
+
+            return urls.some(function(url) {
+                if (!url) {
+                    return false;
+                }
+
+                try {
+                    return new URL(url, window.location && window.location.href ? window.location.href : undefined).hostname === 'my.wordpress.net';
+                } catch (e) {
+                    return false;
+                }
+            });
+        },
+
+        getDefaultAutoApproveMode: function() {
+            var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+
+            if (config.defaultAutoApproveMode === true) {
+                return true;
+            }
+
+            if (this.isMyWordPressSite) {
+                return this.isMyWordPressSite();
+            }
+
+            if (this.isMyWordPressRuntime()) {
+                return true;
+            }
+
+            return false;
+        },
+
+        saveAutoApproveMode: function() {
+            var storageKey = this.autoApproveStorageKey || 'aiAssistant_autoApproveMode';
+            var legacyStorageKey = this.yoloStorageKey || 'aiAssistant_yoloMode';
+
             try {
-                localStorage.setItem(this.yoloStorageKey, this.yoloMode ? '1' : '0');
+                localStorage.setItem(storageKey, this.autoApproveMode ? '1' : '0');
+                localStorage.removeItem(legacyStorageKey);
             } catch (e) {
-                console.warn('[AI Assistant] Could not save YOLO mode:', e);
+                console.warn('[AI Assistant] Could not save auto-approve mode:', e);
             }
         },
 
-        restoreYoloMode: function() {
+        saveYoloMode: function() {
+            this.saveAutoApproveMode();
+        },
+
+        restoreAutoApproveMode: function() {
+            var storageKey = this.autoApproveStorageKey || 'aiAssistant_autoApproveMode';
+            var legacyStorageKey = this.yoloStorageKey || 'aiAssistant_yoloMode';
+            var stored = null;
+
             try {
-                var stored = localStorage.getItem(this.yoloStorageKey);
-                this.yoloMode = stored === '1';
-                $('#ai-assistant-yolo').prop('checked', this.yoloMode);
+                stored = localStorage.getItem(storageKey);
+
+                if (stored === null) {
+                    stored = localStorage.getItem(legacyStorageKey);
+                }
             } catch (e) {
-                console.warn('[AI Assistant] Could not restore YOLO mode:', e);
+                console.warn('[AI Assistant] Could not restore auto-approve mode:', e);
             }
+
+            this.setAutoApproveMode(stored === null ? this.getDefaultAutoApproveMode() : stored === '1');
+        },
+
+        restoreYoloMode: function() {
+            this.restoreAutoApproveMode();
         },
 
         loadDraftHistory: function() {

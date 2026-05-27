@@ -62,8 +62,8 @@
                         '<div class="ai-assistant-header-actions">' +
                             '<div id="ai-token-count" class="ai-token-count" tabindex="0" aria-label="' + escapeAttr(text('tokenCountTitle', 'Token usage')) + '">0 tokens</div>' +
                             '<span class="ai-header-sep">|</span>' +
-                            '<label class="ai-yolo-label" title="' + escapeAttr(text('yoloTitle', 'Skip confirmation prompts for destructive actions')) + '">' +
-                                '<input type="checkbox" id="ai-assistant-yolo"> ' + escapeHtml(text('yoloMode', 'YOLO Mode')) +
+                            '<label class="ai-auto-approve-label" title="' + escapeAttr(text('autoApproveTitle', text('yoloTitle', 'Automatically approve destructive actions without confirmation'))) + '">' +
+                                '<input type="checkbox" id="ai-assistant-auto-approve"> ' + escapeHtml(text('autoApproveMode', text('yoloMode', 'Auto-approve'))) +
                             '</label>' +
                             '<span class="ai-header-sep">|</span>' +
                             '<a href="#" id="ai-assistant-new-chat" class="ai-header-link">' + escapeHtml(text('newChat', 'New Chat')) + '</a>' +

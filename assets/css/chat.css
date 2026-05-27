@@ -332,7 +332,7 @@ body.ai-assistant-panel-resizing {
     font-size: 12px;
 }
 
-.ai-yolo-label {
+.ai-auto-approve-label {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -341,7 +341,7 @@ body.ai-assistant-panel-resizing {
     user-select: none;
 }
 
-.ai-yolo-label input {
+.ai-auto-approve-label input {
     margin: 0;
 }
 
@@ -594,7 +594,7 @@ body.ai-assistant-panel-resizing {
     margin-left: auto;
 }
 
-.ai-chat-main-header .ai-header-right-actions .ai-yolo-label {
+.ai-chat-main-header .ai-header-right-actions .ai-auto-approve-label {
     margin-left: 0;
 }
 
@@ -3058,7 +3058,7 @@ body.wp-admin .ai-assistant-standalone-wrap {
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-link,
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-token-count,
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-sep,
-.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-yolo-label {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-auto-approve-label {
     height: auto !important;
     width: auto !important;
     margin: 0 !important;
@@ -3072,7 +3072,7 @@ body.wp-admin .ai-assistant-standalone-wrap {
     text-decoration: none !important;
 }
 
-.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-yolo-label {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-auto-approve-label {
     display: inline-flex !important;
     align-items: center !important;
     gap: 4px !important;
@@ -3080,7 +3080,7 @@ body.wp-admin .ai-assistant-standalone-wrap {
     cursor: pointer !important;
 }
 
-.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-yolo-label input {
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-auto-approve-label input {
     flex: 0 0 auto !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -4598,7 +4598,7 @@ body.ai-assistant-app-body {
         border-bottom: 1px solid #c3c4c7;
     }
 
-    .ai-chat-main-header .ai-yolo-label {
+    .ai-chat-main-header .ai-auto-approve-label {
         margin-left: auto;
     }
 
@@ -4993,7 +4993,7 @@ body.ai-assistant-app-body {
     body.wp-app-body.ai-assistant-app-body .ai-token-hover-row strong,
     body.wp-app-body.ai-assistant-app-body .ai-conv-context-action,
     body.wp-app-body.ai-assistant-app-body .ai-conv-context-option,
-    body.wp-app-body.ai-assistant-app-body .ai-yolo-label {
+    body.wp-app-body.ai-assistant-app-body .ai-auto-approve-label {
         color: var(--ai-shell-text) !important;
     }
 
@@ -5070,7 +5070,7 @@ body.ai-assistant-app-body {
     }
 
     body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-header h2,
-    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-yolo-label {
+    body:not(.wp-admin) .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-auto-approve-label {
         color: var(--ai-shell-text) !important;
     }
 

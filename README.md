@@ -72,9 +72,9 @@ When using a local LLM (Ollama, LM Studio), tools are tiered to avoid overwhelmi
 
 The model can call `enable_tools` to activate specific extended tools when it needs them. Cloud providers (Anthropic, OpenAI) receive all tools upfront.
 
-### YOLO Mode
+### Auto-approve
 
-Enable the YOLO checkbox to skip confirmation dialogs for tool execution. Use with caution.
+Enable Auto-approve to skip confirmation dialogs for tool execution. It starts enabled by default on `my.wordpress.net` and disabled elsewhere. Use with caution.
 
 ### Conversation Exports
 

@@ -139,10 +139,10 @@ class Settings {
         ]);
 
         $screen->add_help_tab([
-            'id'      => 'ai-assistant-yolo',
-            'title'   => __('YOLO Mode', 'ai-assistant'),
-            'content' => '<p>' . __('When YOLO Mode is enabled, the assistant will execute actions without asking for confirmation. Use with caution.', 'ai-assistant') . '</p>'
-                       . '<p>' . __('With YOLO Mode disabled (default), you will be prompted to approve any changes before they are made.', 'ai-assistant') . '</p>',
+            'id'      => 'ai-assistant-auto-approve',
+            'title'   => __('Auto-approve', 'ai-assistant'),
+            'content' => '<p>' . __('When Auto-approve is enabled, the assistant will execute actions without asking for confirmation. Use with caution.', 'ai-assistant') . '</p>'
+                       . '<p>' . __('On my.wordpress.net, Auto-approve starts enabled by default. Elsewhere, you will be prompted to approve changes unless you turn it on.', 'ai-assistant') . '</p>',
         ]);
 
         $system_prompt = $this->get_system_prompt();

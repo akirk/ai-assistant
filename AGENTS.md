@@ -141,7 +141,7 @@ The `ability` tool is a meta-tool: the LLM calls `ability: list` to discover reg
 4. `executeTools()` runs approved tools via `Promise.all` (parallel)
 5. Results sent back to LLM via `handleToolResults()`
 
-YOLO mode (`#ai-assistant-yolo` checkbox) skips confirmations for destructive tools.
+Auto-approve mode (`#ai-assistant-auto-approve` checkbox) skips confirmations for destructive tools.
 
 ### Tool Call Limit
 
