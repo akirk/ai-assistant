@@ -205,6 +205,62 @@ describe('draft history', function() {
     });
 });
 
+describe('auto-approve mode', function() {
+    it('defaults on for My WordPress when no saved preference exists', function() {
+        const { assistant } = loadConversationMixin(null, {
+            homeUrl: 'https://my.wordpress.net/scope:default'
+        });
+
+        assistant.restoreAutoApproveMode();
+
+        assert.strictEqual(assistant.autoApproveMode, true);
+        assert.strictEqual(assistant.yoloMode, true);
+    });
+
+    it('defaults on when the browser is running on My WordPress', function() {
+        const { assistant } = loadConversationMixin(null, {
+            defaultAutoApproveMode: false,
+            homeUrl: 'https://playground.wordpress.net/scope:default'
+        }, {
+            window: {
+                location: new URL('https://my.wordpress.net/scope:default/wp-admin/')
+            }
+        });
+
+        assistant.restoreAutoApproveMode();
+
+        assert.strictEqual(assistant.autoApproveMode, true);
+    });
+
+    it('keeps an explicit saved preference over the My WordPress default', function() {
+        const { assistant } = loadConversationMixin({
+            aiAssistant_autoApproveMode: '0'
+        }, {
+            homeUrl: 'https://my.wordpress.net/scope:default'
+        });
+
+        assistant.restoreAutoApproveMode();
+
+        assert.strictEqual(assistant.autoApproveMode, false);
+        assert.strictEqual(assistant.yoloMode, false);
+    });
+
+    it('restores the legacy YOLO preference and saves the new key', function() {
+        const { assistant, storage } = loadConversationMixin({
+            aiAssistant_yoloMode: '1'
+        }, {
+            homeUrl: 'http://example.test'
+        });
+
+        assistant.restoreAutoApproveMode();
+        assistant.saveAutoApproveMode();
+
+        assert.strictEqual(assistant.autoApproveMode, true);
+        assert.strictEqual(storage.getItem('aiAssistant_autoApproveMode'), '1');
+        assert.strictEqual(storage.getItem('aiAssistant_yoloMode'), null);
+    });
+});
+
 describe('conversation title generation', function() {
     it('uses the active Anthropic conversation model and endpoint', async function() {
         const fetchCalls = [];

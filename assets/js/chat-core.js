@@ -26,8 +26,10 @@
         urlComponentStorageKey: 'aiAssistant_lastUrlComponent',
         urlContextTimestampStorageKey: 'aiAssistant_lastUrlContextAt',
         newChatSuggestionMaxAgeMs: 60 * 60 * 1000,
+        autoApproveStorageKey: 'aiAssistant_autoApproveMode',
         yoloStorageKey: 'aiAssistant_yoloMode',
         conversationPreloaded: false,
+        autoApproveMode: false,
         yoloMode: false,
         conversationProvider: '',
         conversationModel: '',
@@ -103,7 +105,11 @@
             }
             this.buildSystemPrompt();
             this.restoreDraft();
-            this.restoreYoloMode();
+            if (this.restoreAutoApproveMode) {
+                this.restoreAutoApproveMode();
+            } else if (this.restoreYoloMode) {
+                this.restoreYoloMode();
+            }
             this.loadDraftHistory();
             if (this.restoreUrlComponentContext) {
                 this.restoreUrlComponentContext();
@@ -300,12 +306,21 @@
                 self.preloadMostRecentConversation();
             });
 
-            $(document).on('change', '#ai-assistant-yolo', function() {
-                self.yoloMode = $(this).is(':checked');
-                self.saveYoloMode();
-                self.addMessage('system', self.yoloMode
-                    ? 'YOLO Mode enabled - destructive actions will execute without confirmation.'
-                    : 'YOLO Mode disabled - destructive actions will require confirmation.');
+            $(document).on('change', '#ai-assistant-auto-approve, #ai-assistant-yolo', function() {
+                if (self.setAutoApproveMode) {
+                    self.setAutoApproveMode($(this).is(':checked'));
+                } else {
+                    self.autoApproveMode = $(this).is(':checked');
+                    self.yoloMode = self.autoApproveMode;
+                }
+                if (self.saveAutoApproveMode) {
+                    self.saveAutoApproveMode();
+                } else if (self.saveYoloMode) {
+                    self.saveYoloMode();
+                }
+                self.addMessage('system', self.autoApproveMode
+                    ? 'Auto-approve enabled - destructive actions will execute without confirmation.'
+                    : 'Auto-approve disabled - destructive actions will require confirmation.');
             });
 
             $(document).on('click', '#ai-assistant-scroll-bottom', function() {

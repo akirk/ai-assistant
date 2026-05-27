@@ -138,7 +138,7 @@ In short:
   material to the client than a server-side Connector model. Connector-backed
   Anthropic/OpenAI calls avoid that by keeping API keys in PHP, but
   pre-Connector WordPress installs still rely on the older client-side key path.
-- Safety depends heavily on the client loop and confirmation UX. The YOLO mode
+- Safety depends heavily on the client loop and confirmation UX. Auto-approve
   is useful for fast iteration but raises the blast radius if used carelessly.
 - File scope is broader: tools operate within `wp-content`, while Haydi limits
   access to plugins/themes and an optional scratch directory.

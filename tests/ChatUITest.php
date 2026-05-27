@@ -14,10 +14,12 @@ class ChatUITest extends TestCase {
 
     protected function setUp(): void {
         $GLOBALS['wp_test_filters'] = [];
+        $GLOBALS['wp_test_site_url'] = 'http://localhost';
         $_SERVER['REQUEST_URI'] = '/my-apps/?tab=one';
     }
 
     protected function tearDown(): void {
+        unset($GLOBALS['wp_test_site_url']);
         unset($_SERVER['REQUEST_URI']);
     }
 
@@ -102,10 +104,31 @@ class ChatUITest extends TestCase {
         $this->assertStringNotContainsString('Overview:', $prompt);
     }
 
+    public function test_auto_approve_defaults_on_for_my_wordpress(): void {
+        $GLOBALS['wp_test_site_url'] = 'https://my.wordpress.net/scope:default';
+
+        $this->assertTrue($this->should_default_auto_approve_mode());
+    }
+
+    public function test_auto_approve_defaults_off_outside_my_wordpress(): void {
+        $GLOBALS['wp_test_site_url'] = 'https://playground.wordpress.net/scope:default';
+
+        $this->assertFalse($this->should_default_auto_approve_mode());
+    }
+
     private function get_welcome_tips(): array {
         $chat_ui = new Chat_UI();
         $reflection = new ReflectionClass($chat_ui);
         $method = $reflection->getMethod('get_welcome_tips');
+        $method->setAccessible(true);
+
+        return $method->invoke($chat_ui);
+    }
+
+    private function should_default_auto_approve_mode(): bool {
+        $chat_ui = new Chat_UI();
+        $reflection = new ReflectionClass($chat_ui);
+        $method = $reflection->getMethod('should_default_auto_approve_mode');
         $method->setAccessible(true);
 
         return $method->invoke($chat_ui);

@@ -104,7 +104,7 @@ class Conversations_App {
                                 <span class="dashicons dashicons-media-text"></span>
                             </button>
                             <span class="ai-header-right-actions">
-                                <label class="ai-yolo-label" title="<?php esc_attr_e('Skip confirmation prompts for destructive actions', 'ai-assistant'); ?>"><input type="checkbox" id="ai-assistant-yolo"> YOLO Mode</label>
+                                <label class="ai-auto-approve-label" title="<?php esc_attr_e('Automatically approve destructive actions without confirmation', 'ai-assistant'); ?>"><input type="checkbox" id="ai-assistant-auto-approve"> <?php esc_html_e('Auto-approve', 'ai-assistant'); ?></label>
                                 <span class="ai-export-menu-wrap">
                                     <button type="button" id="ai-assistant-export" class="ai-header-btn ai-export-toggle" title="<?php esc_attr_e('Export conversation', 'ai-assistant'); ?>" aria-haspopup="true" aria-expanded="false">
                                         <span class="dashicons dashicons-download"></span>

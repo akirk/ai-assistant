@@ -101,7 +101,7 @@
                 // Ensure card exists with proper description
                 self.updateToolCardDescription(tc.id, tc.name, tc.arguments);
 
-                if (self.yoloMode || destructiveTools.indexOf(tc.name) < 0 ||
+                if (self.autoApproveMode || self.yoloMode || destructiveTools.indexOf(tc.name) < 0 ||
                            (tc.name === 'ability' && tc.arguments && tc.arguments.action !== 'execute') ||
                            self.isAbilityAutoApproved(tc) ||
                            self.isRestApiAutoApproved(tc)) {
@@ -1416,7 +1416,7 @@
             }
 
             // Determine if needs confirmation
-            var needsConfirm = !this.yoloMode && destructiveTools.indexOf(toolName) >= 0 &&
+            var needsConfirm = !this.autoApproveMode && !this.yoloMode && destructiveTools.indexOf(toolName) >= 0 &&
                  !(toolName === 'ability' && toolArgs && toolArgs.action !== 'execute') &&
                  !this.isAbilityAutoApproved({ name: toolName, arguments: toolArgs }) &&
                  !this.isRestApiAutoApproved({ name: toolName, arguments: toolArgs });

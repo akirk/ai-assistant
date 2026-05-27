@@ -73,7 +73,7 @@ function createAssistant(overrides) {
     delete overrides.useRealCheckAllToolsResolved;
 
     Object.assign(assistant, {
-        yoloMode: false,
+        autoApproveMode: false,
         pendingActions: [],
         pendingToolResults: [],
         pendingToolChecks: 0,
@@ -908,7 +908,7 @@ describe('plugin change recovery candidates', function() {
     it('normalizes a trailing invoke tag from edit_file edits before execution', async function() {
         let observedArgs = null;
         const assistant = createAssistant({
-            yoloMode: true,
+            autoApproveMode: true,
             executeSingleTool(toolCall) {
                 observedArgs = toolCall.arguments;
                 return Promise.resolve({
@@ -1136,7 +1136,7 @@ describe('plugin change recovery candidates', function() {
             resolveHandled = resolve;
         });
         const assistant = createAssistant({
-            yoloMode: true,
+            autoApproveMode: true,
             streamComplete: true,
             useRealCheckAllToolsResolved: true,
             verifyWpok() {
