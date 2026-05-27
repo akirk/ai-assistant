@@ -933,6 +933,32 @@ class ExecutorTest extends TestCase {
         $this->assertGreaterThanOrEqual(2, $result['count']);
     }
 
+    public function test_find_search_files_uses_path_as_glob_base(): void {
+        $templates_dir = $this->test_dir . '/plugins/test-plugin/templates';
+        mkdir($templates_dir, 0755, true);
+        file_put_contents($templates_dir . '/single.php', '<?php // Template');
+        file_put_contents($this->test_dir . '/plugins/another-plugin/single.php', '<?php // Other');
+
+        $result = $this->executor->execute_tool('find', [
+            'path' => 'plugins/test-plugin/templates',
+            'glob' => '*.php',
+        ]);
+
+        $this->assertSame('plugins/test-plugin/templates/*.php', $result['pattern']);
+        $this->assertSame('plugins/test-plugin/templates', $result['directory']);
+        $this->assertSame(1, $result['count']);
+        $this->assertSame('plugins/test-plugin/templates/single.php', $result['matches'][0]['path']);
+
+        $nested = $this->executor->execute_tool('find', [
+            'path' => 'plugins/test-plugin',
+            'glob' => 'templates/*.php',
+        ]);
+
+        $this->assertSame('plugins/test-plugin/templates/*.php', $nested['pattern']);
+        $this->assertSame(1, $nested['count']);
+        $this->assertSame('plugins/test-plugin/templates/single.php', $nested['matches'][0]['path']);
+    }
+
     public function test_find_search_content(): void {
         $result = $this->executor->execute_tool('find', [
             'text' => 'Plugin Name',
@@ -943,6 +969,64 @@ class ExecutorTest extends TestCase {
         $this->assertArrayHasKey('matches', $result);
         $this->assertArrayHasKey('count', $result);
         $this->assertEquals(1, $result['count']);
+    }
+
+    public function test_find_search_content_accepts_file_path(): void {
+        $result = $this->executor->execute_tool('find', [
+            'text' => 'Plugin Name',
+            'path' => 'plugins/test-plugin/test-plugin.php',
+        ]);
+
+        $this->assertSame('snippets', $result['mode']);
+        $this->assertSame(1, $result['count']);
+        $this->assertSame('plugins/test-plugin/test-plugin.php', $result['matches'][0]['path']);
+        $this->assertSame(1, $result['matches'][0]['matches'][0]['line']);
+
+        $paths = $this->executor->execute_tool('find', [
+            'text' => 'Plugin Name',
+            'path' => 'plugins/test-plugin/test-plugin.php',
+            'mode' => 'paths',
+        ]);
+
+        $this->assertSame('paths', $paths['mode']);
+        $this->assertSame(1, $paths['count']);
+        $this->assertSame('plugins/test-plugin/test-plugin.php', $paths['matches'][0]['path']);
+        $this->assertArrayNotHasKey('matches', $paths['matches'][0]);
+    }
+
+    public function test_find_search_content_paths_mode_returns_more_files_without_snippets(): void {
+        $dir = $this->test_dir . '/plugins/test-plugin/many';
+        mkdir($dir, 0755, true);
+
+        for ($i = 1; $i <= 60; $i++) {
+            file_put_contents(sprintf('%s/match-%02d.php', $dir, $i), "<?php\n// BroadNeedle\n");
+        }
+
+        $result = $this->executor->execute_tool('find', [
+            'text' => 'BroadNeedle',
+            'path' => 'plugins/test-plugin/many',
+            'file_pattern' => '*.php',
+            'mode' => 'paths',
+        ]);
+
+        $this->assertSame('paths', $result['mode']);
+        $this->assertSame(200, $result['max_results']);
+        $this->assertSame(60, $result['count']);
+        $this->assertFalse($result['truncated']);
+        $this->assertArrayHasKey('path', $result['matches'][0]);
+        $this->assertArrayNotHasKey('matches', $result['matches'][0]);
+
+        $limited = $this->executor->execute_tool('find', [
+            'text' => 'BroadNeedle',
+            'path' => 'plugins/test-plugin/many',
+            'file_pattern' => '*.php',
+            'mode' => 'paths',
+            'max_results' => 3,
+        ]);
+
+        $this->assertSame(3, $limited['max_results']);
+        $this->assertSame(3, $limited['count']);
+        $this->assertTrue($limited['truncated']);
     }
 
     public function test_find_defaults_to_list_directory(): void {

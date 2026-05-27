@@ -79,12 +79,17 @@ class File_Tool_Executor {
             case 'list_directory':
                 return $this->list_directory($this->get_string_arg($arguments, 'path', $tool_name));
             case 'search_files':
-                return $this->search_files($this->get_string_arg($arguments, 'pattern', $tool_name));
+                return $this->search_files(
+                    $this->get_string_arg($arguments, 'pattern', $tool_name),
+                    $this->get_string_arg($arguments, 'directory', $tool_name, '')
+                );
             case 'search_content':
                 return $this->search_content(
                     $this->get_string_arg($arguments, 'needle', $tool_name),
                     $this->get_string_arg($arguments, 'directory', $tool_name, ''),
-                    $this->get_string_arg($arguments, 'file_pattern', $tool_name, '*.php')
+                    $this->get_string_arg($arguments, 'file_pattern', $tool_name, '*.php'),
+                    $this->get_string_arg($arguments, 'mode', $tool_name, 'snippets'),
+                    $this->get_optional_int_arg($arguments, 'max_results')
                 );
             default:
                 throw new \Exception("File tool endpoint cannot execute tool: $tool_name");
@@ -110,11 +115,17 @@ class File_Tool_Executor {
         $path = isset($arguments['path']) ? (string) $arguments['path'] : '';
 
         if ($text !== '') {
-            return $this->search_content($text, $path, $arguments['file_pattern'] ?? '*.php');
+            return $this->search_content(
+                $text,
+                $path,
+                isset($arguments['file_pattern']) ? (string) $arguments['file_pattern'] : '*.php',
+                isset($arguments['mode']) ? (string) $arguments['mode'] : 'snippets',
+                $this->get_optional_int_arg($arguments, 'max_results')
+            );
         }
 
         if ($glob !== '') {
-            return $this->search_files($glob);
+            return $this->search_files($glob, $path);
         }
 
         return $this->list_directory($path !== '' ? $path : '.');
@@ -150,6 +161,18 @@ class File_Tool_Executor {
         }
 
         return $value;
+    }
+
+    private function get_optional_int_arg(array $args, string $name): ?int {
+        if (!isset($args[$name]) || $args[$name] === '') {
+            return null;
+        }
+
+        if (!is_numeric($args[$name])) {
+            return null;
+        }
+
+        return (int) $args[$name];
     }
 
     private function get_content_arg(array $args, string $name, string $tool): string {
@@ -716,8 +739,22 @@ class File_Tool_Executor {
         ];
     }
 
-    private function search_files(string $pattern): array {
+    private function normalize_search_files_directory(string $directory): string {
+        $directory = trim(str_replace('\\', '/', $directory));
+        $directory = trim($directory, '/');
+        return $directory === '.' ? '' : $directory;
+    }
+
+    private function search_files(string $pattern, string $directory = ''): array {
         $pattern = $this->validate_glob_pattern($pattern);
+        $directory = $this->normalize_search_files_directory($directory);
+        if ($directory !== '') {
+            $this->resolve_path($directory);
+            if ($pattern !== $directory && strpos($pattern, $directory . '/') !== 0) {
+                $pattern = $directory . '/' . $pattern;
+            }
+        }
+
         $files = glob($this->wp_content_path . '/' . $pattern);
         $results = [];
 
@@ -739,31 +776,97 @@ class File_Tool_Executor {
         }
 
         return [
-            'pattern' => $pattern,
-            'matches' => $results,
-            'count'   => count($results),
-        ];
-    }
-
-    private function search_content(string $needle, string $directory = '', string $file_pattern = '*.php'): array {
-        $this->validate_glob_pattern($file_pattern);
-        $search_path = $this->wp_content_path;
-        if ($directory !== '') {
-            $search_path = $this->resolve_path($directory);
-        }
-
-        $results = [];
-        $this->search_content_recursive($search_path, $needle, $file_pattern, $results);
-
-        return [
-            'needle'    => $needle,
+            'pattern'   => $pattern,
             'directory' => $directory !== '' ? $directory : 'wp-content',
             'matches'   => $results,
             'count'     => count($results),
         ];
     }
 
-    private function search_content_recursive(string $dir, string $needle, string $pattern, array &$results, int $limit = 50): void {
+    private function search_content(string $needle, string $directory = '', string $file_pattern = '*.php', string $mode = 'snippets', ?int $max_results = null): array {
+        $this->validate_glob_pattern($file_pattern);
+        $mode = $this->normalize_search_content_mode($mode);
+        $limit = $this->normalize_search_content_limit($mode, $max_results);
+        $search_path = $this->wp_content_path;
+        if ($directory !== '') {
+            $search_path = $this->resolve_path($directory);
+        }
+
+        $results = [];
+        if (is_file($search_path)) {
+            $this->search_content_file($search_path, $needle, $results, $limit + 1, $mode !== 'paths');
+        } else {
+            $this->search_content_recursive($search_path, $needle, $file_pattern, $results, $limit + 1, $mode !== 'paths');
+        }
+        $truncated = count($results) > $limit;
+        if ($truncated) {
+            $results = array_slice($results, 0, $limit);
+        }
+
+        return [
+            'needle'      => $needle,
+            'directory'   => $directory !== '' ? $directory : 'wp-content',
+            'mode'        => $mode,
+            'max_results' => $limit,
+            'matches'     => $results,
+            'count'       => count($results),
+            'truncated'   => $truncated,
+        ];
+    }
+
+    private function normalize_search_content_mode(string $mode): string {
+        $mode = strtolower(trim($mode));
+        return in_array($mode, ['snippets', 'paths'], true) ? $mode : 'snippets';
+    }
+
+    private function normalize_search_content_limit(string $mode, ?int $max_results): int {
+        $default = $mode === 'paths' ? 200 : 50;
+        $max = $mode === 'paths' ? 500 : 50;
+
+        if ($max_results === null) {
+            return $default;
+        }
+
+        return max(1, min($max, $max_results));
+    }
+
+    private function search_content_file(string $file, string $needle, array &$results, int $limit, bool $include_matches = true): void {
+        if (count($results) >= $limit || !is_file($file)) {
+            return;
+        }
+
+        if (File_Tool_Auth::is_secret_path($file)) {
+            return;
+        }
+
+        $content = file_get_contents($file);
+        if ($content === false || stripos($content, $needle) === false) {
+            return;
+        }
+
+        $result = [
+            'path' => str_replace($this->wp_content_path . '/', '', $file),
+        ];
+
+        if ($include_matches) {
+            $lines = explode("\n", $content);
+            $matching_lines = [];
+            foreach ($lines as $line_num => $line) {
+                if (stripos($line, $needle) !== false) {
+                    $matching_lines[] = [
+                        'line'    => $line_num + 1,
+                        'content' => trim(substr($line, 0, 200)),
+                    ];
+                }
+            }
+
+            $result['matches'] = array_slice($matching_lines, 0, 5);
+        }
+
+        $results[] = $result;
+    }
+
+    private function search_content_recursive(string $dir, string $needle, string $pattern, array &$results, int $limit = 50, bool $include_matches = true): void {
         if (count($results) >= $limit || !is_dir($dir)) {
             return;
         }
@@ -779,30 +882,7 @@ class File_Tool_Executor {
                     continue;
                 }
 
-                if (File_Tool_Auth::is_secret_path($file)) {
-                    continue;
-                }
-
-                $content = file_get_contents($file);
-                if ($content === false || stripos($content, $needle) === false) {
-                    continue;
-                }
-
-                $lines = explode("\n", $content);
-                $matching_lines = [];
-                foreach ($lines as $line_num => $line) {
-                    if (stripos($line, $needle) !== false) {
-                        $matching_lines[] = [
-                            'line'    => $line_num + 1,
-                            'content' => trim(substr($line, 0, 200)),
-                        ];
-                    }
-                }
-
-                $results[] = [
-                    'path'    => str_replace($this->wp_content_path . '/', '', $file),
-                    'matches' => array_slice($matching_lines, 0, 5),
-                ];
+                $this->search_content_file($file, $needle, $results, $limit, $include_matches);
             }
         }
 
@@ -821,7 +901,7 @@ class File_Tool_Executor {
                 continue;
             }
 
-            $this->search_content_recursive($subdir, $needle, $pattern, $results, $limit);
+            $this->search_content_recursive($subdir, $needle, $pattern, $results, $limit, $include_matches);
         }
     }
 }

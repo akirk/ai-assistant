@@ -252,7 +252,7 @@ class Settings {
             'read_file', 'list_directory', 'search_files', 'search_content', 'db_query',
             'rest_api', 'environment_info', 'get_plugins', 'get_themes',
             'list_abilities', 'get_ability', 'execute_ability', 'navigate', 'get_page_html',
-            'pick_image', 'summarize_conversation', 'inspect_tool_result', 'list_skills', 'get_skill',
+            'pick_image', 'summarize_conversation', 'inspect_tool_result', 'delegate', 'list_skills', 'get_skill',
         ];
 
         /**
@@ -268,25 +268,26 @@ class Settings {
 
     public function get_all_tools_with_meta() {
         $tools = [
-            'read_file'             => ['label' => 'Read File',             'group' => 'File Reading',    'dangerous' => false],
-            'list_directory'        => ['label' => 'List Directory',        'group' => 'File Reading',    'dangerous' => false],
-            'search_files'          => ['label' => 'Search Files',          'group' => 'File Reading',    'dangerous' => false],
-            'search_content'        => ['label' => 'Search Content',        'group' => 'File Reading',    'dangerous' => false],
-            'db_query'              => ['label' => 'DB Query',              'group' => 'Database',        'dangerous' => false],
-            'environment_info'      => ['label' => 'Environment Info',      'group' => 'WordPress',       'dangerous' => false],
-            'get_plugins'           => ['label' => 'Get Plugins',           'group' => 'WordPress',       'dangerous' => false],
-            'get_themes'            => ['label' => 'Get Themes',            'group' => 'WordPress',       'dangerous' => false],
-            'rest_api'              => ['label' => 'REST API',              'group' => 'WordPress',       'dangerous' => true],
-            'list_abilities'        => ['label' => 'List Abilities',        'group' => 'Abilities',       'dangerous' => false],
-            'get_ability'           => ['label' => 'Get Ability',           'group' => 'Abilities',       'dangerous' => false],
-            'execute_ability'       => ['label' => 'Execute Ability',       'group' => 'Abilities',       'dangerous' => true],
-            'navigate'              => ['label' => 'Navigate',              'group' => 'Navigation & UI', 'dangerous' => false],
-            'get_page_html'         => ['label' => 'Get Page HTML',         'group' => 'Navigation & UI', 'dangerous' => false],
-            'pick_image'            => ['label' => 'Pick Image',            'group' => 'Media',           'dangerous' => false],
-            'summarize_conversation'=> ['label' => 'Summarize Conversation','group' => 'Conversation',    'dangerous' => false],
-            'inspect_tool_result'   => ['label' => 'Inspect Tool Result',   'group' => 'Conversation',    'dangerous' => false],
-            'list_skills'           => ['label' => 'List Skills',           'group' => 'Conversation',    'dangerous' => false],
-            'get_skill'             => ['label' => 'Get Skill',             'group' => 'Conversation',    'dangerous' => false],
+            'read_file'              => ['label' => 'Read File',               'group' => 'File Reading',    'dangerous' => false],
+            'list_directory'         => ['label' => 'List Directory',          'group' => 'File Reading',    'dangerous' => false],
+            'search_files'           => ['label' => 'Search Files',            'group' => 'File Reading',    'dangerous' => false],
+            'search_content'         => ['label' => 'Search Content',          'group' => 'File Reading',    'dangerous' => false],
+            'db_query'               => ['label' => 'DB Query',                'group' => 'Database',        'dangerous' => false],
+            'environment_info'       => ['label' => 'Environment Info',        'group' => 'WordPress',       'dangerous' => false],
+            'get_plugins'            => ['label' => 'Get Plugins',             'group' => 'WordPress',       'dangerous' => false],
+            'get_themes'             => ['label' => 'Get Themes',              'group' => 'WordPress',       'dangerous' => false],
+            'rest_api'               => ['label' => 'REST API',                'group' => 'WordPress',       'dangerous' => true],
+            'list_abilities'         => ['label' => 'List Abilities',          'group' => 'Abilities',       'dangerous' => false],
+            'get_ability'            => ['label' => 'Get Ability',             'group' => 'Abilities',       'dangerous' => false],
+            'execute_ability'        => ['label' => 'Execute Ability',         'group' => 'Abilities',       'dangerous' => true],
+            'navigate'               => ['label' => 'Navigate',                'group' => 'Navigation & UI', 'dangerous' => false],
+            'get_page_html'          => ['label' => 'Get Page HTML',           'group' => 'Navigation & UI', 'dangerous' => false],
+            'pick_image'             => ['label' => 'Pick Image',              'group' => 'Media',           'dangerous' => false],
+            'summarize_conversation' => ['label' => 'Summarize Conversation',  'group' => 'Conversation',    'dangerous' => false],
+            'inspect_tool_result'    => ['label' => 'Inspect Tool Result',     'group' => 'Conversation',    'dangerous' => false],
+            'delegate'               => ['label' => 'Delegate Read-only Task', 'group' => 'Conversation',    'dangerous' => false],
+            'list_skills'            => ['label' => 'List Skills',             'group' => 'Conversation',    'dangerous' => false],
+            'get_skill'              => ['label' => 'Get Skill',               'group' => 'Conversation',    'dangerous' => false],
         ];
 
         /**
@@ -3098,7 +3099,18 @@ class Settings {
     /**
      * Get page-specific CSS selector hints for the current admin screen
      */
-    private function get_page_selector_hints(): string {
+    public function get_current_prompt_path(): string {
+        $current_path = $_SERVER['REQUEST_URI'] ?? '/';
+        // Strip the site's base path (e.g., /scope:default) from the URI.
+        $site_path = wp_parse_url(home_url(), PHP_URL_PATH);
+        if ($site_path && $site_path !== '/' && strpos($current_path, $site_path) === 0) {
+            $current_path = substr($current_path, strlen($site_path)) ?: '/';
+        }
+
+        return $current_path;
+    }
+
+    public function get_page_selector_hints(): string {
         global $pagenow;
         $pagenow = is_string($pagenow) ? $pagenow : '';
         $hints = [];
@@ -3347,12 +3359,7 @@ class Settings {
      * Get the system prompt for the AI assistant
      */
     public function get_system_prompt() {
-        $current_path = $_SERVER['REQUEST_URI'] ?? '/';
-        // Strip the site's base path (e.g., /scope:default) from the URI
-        $site_path = wp_parse_url(home_url(), PHP_URL_PATH);
-        if ($site_path && $site_path !== '/' && strpos($current_path, $site_path) === 0) {
-            $current_path = substr($current_path, strlen($site_path)) ?: '/';
-        }
+        $current_path = $this->get_current_prompt_path();
         $page_hints = $this->get_page_selector_hints();
         $current_user = wp_get_current_user();
         $enabled_tools = $this->get_user_enabled_tools();

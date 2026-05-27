@@ -75,7 +75,7 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'read_file',
-                    description: 'Read a file in wp-content. Use search with before_lines/after_lines for targeted snippets, or offset/max_length for byte chunks.',
+                    description: 'Read one file in wp-content. Use search with before_lines/after_lines for targeted snippets, or offset/max_length for byte chunks. For multi-file or large-file analysis, call delegate with task_type=codebase_investigation.',
                     input_schema: {
                         type: 'object',
                         properties: {
@@ -92,14 +92,16 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'find',
-                    description: 'Find files or content in wp-content. Omit all params to list root. Use path to list a directory, glob to match filenames, text to search file contents.',
+                    description: 'Find files/content in wp-content. Broad text search: mode=paths returns paths only. Broad analysis: call delegate with task_type=codebase_investigation. Narrow with path, glob, text, or file_pattern.',
                     input_schema: {
                         type: 'object',
                         properties: {
-                            path: { type: 'string', description: 'Directory (relative to wp-content)' },
-                            glob: { type: 'string', description: 'Filename glob pattern' },
+                            path: { type: 'string', description: 'Directory or file (relative to wp-content)' },
+                            glob: { type: 'string', description: 'Filename glob pattern; relative to path when path is supplied' },
                             text: { type: 'string', description: 'Search string' },
-                            file_pattern: { type: 'string', description: 'File filter for text search' }
+                            file_pattern: { type: 'string', description: 'File filter for text search' },
+                            mode: { type: 'string', enum: ['snippets', 'paths'], description: 'Text search output: snippets returns matching lines; paths returns file paths only.' },
+                            max_results: { type: 'number', description: 'Text search result cap. paths mode allows larger caps.' }
                         }
                     }
                 },
@@ -152,7 +154,7 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'get_page_html',
-                    description: 'Get HTML of elements on the current page.',
+                    description: 'Get HTML of current page elements. For broad page checks, call delegate with task_type=page_inspection.',
                     input_schema: {
                         type: 'object',
                         properties: {
@@ -176,7 +178,7 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'summarize_conversation',
-                    description: 'Summarize a conversation and store it.',
+                    description: 'Summarize and store a conversation. To recall past work, call delegate with task_type=conversation_recall.',
                     input_schema: {
                         type: 'object',
                         properties: {
@@ -200,6 +202,33 @@ var aiAssistantToolsMixin = (function() {
                             max_length: { type: 'number', description: 'Maximum characters to return.' }
                         },
                         required: ['tool_use_id']
+                    }
+                },
+                {
+                    name: 'delegate',
+                    description: 'Read-only subagent for broad context gathering: codebase_investigation, conversation_recall, page_inspection. Returns a concise report; no writes.',
+                    input_schema: {
+                        type: 'object',
+                        properties: {
+                            task_type: {
+                                type: 'string',
+                                enum: ['codebase_investigation', 'conversation_recall', 'page_inspection'],
+                                description: 'The kind of read-only investigation to run.'
+                            },
+                            request: {
+                                type: 'string',
+                                description: 'Specific question or investigation brief for the subagent.'
+                            },
+                            target: {
+                                type: 'string',
+                                description: 'Optional path, search phrase, conversation hint, or CSS selector to focus the task.'
+                            },
+                            max_results: {
+                                type: 'number',
+                                description: 'Optional result limit; the assistant may clamp this.'
+                            }
+                        },
+                        required: ['task_type', 'request']
                     }
                 },
                 {

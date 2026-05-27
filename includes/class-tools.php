@@ -49,6 +49,7 @@ class Tools {
             $this->tool_list_abilities(),
             $this->tool_get_ability(),
             $this->tool_pick_image(),
+            $this->tool_delegate(),
             $this->tool_list_skills(),
             $this->tool_get_skill(),
         ];
@@ -93,6 +94,7 @@ class Tools {
             $this->tool_navigate(),
             $this->tool_get_page_html(),
             $this->tool_pick_image(),
+            $this->tool_delegate(),
         ];
     }
 
@@ -118,7 +120,7 @@ class Tools {
     private function tool_read_file(): array {
         return [
             'name' => 'read_file',
-            'description' => 'Read the contents of a file within wp-content directory. Use search with before_lines/after_lines for targeted snippets, or offset/max_length for byte chunks.',
+            'description' => 'Read one file in wp-content. Use search with before_lines/after_lines for targeted snippets, or offset/max_length for byte chunks. For multi-file or large-file analysis, call delegate with task_type=codebase_investigation.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
@@ -184,6 +186,10 @@ class Tools {
                         'type' => 'string',
                         'description' => 'Glob pattern (e.g., "plugins/*/*.php" or "themes/**/*.css")',
                     ],
+                    'directory' => [
+                        'type' => 'string',
+                        'description' => 'Optional base directory for the glob, relative to wp-content',
+                    ],
                 ],
                 'required' => ['pattern'],
             ],
@@ -193,7 +199,7 @@ class Tools {
     private function tool_search_content(): array {
         return [
             'name' => 'search_content',
-            'description' => 'Search for text content within files in wp-content',
+            'description' => 'Search for text content within files in wp-content. Use mode=paths for broad searches that only need matching file paths.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
@@ -203,11 +209,20 @@ class Tools {
                     ],
                     'directory' => [
                         'type' => 'string',
-                        'description' => 'Directory to search in (relative to wp-content), default is entire wp-content',
+                        'description' => 'Directory or file to search in (relative to wp-content), default is entire wp-content',
                     ],
                     'file_pattern' => [
                         'type' => 'string',
                         'description' => 'File extension filter (e.g., "*.php")',
+                    ],
+                    'mode' => [
+                        'type' => 'string',
+                        'enum' => ['snippets', 'paths'],
+                        'description' => 'Output mode. snippets returns matching lines; paths returns file paths only.',
+                    ],
+                    'max_results' => [
+                        'type' => 'number',
+                        'description' => 'Maximum returned file matches.',
                     ],
                 ],
                 'required' => ['needle'],
@@ -282,7 +297,7 @@ class Tools {
     private function tool_get_page_html(): array {
         return [
             'name' => 'get_page_html',
-            'description' => 'Get the HTML content of elements on the current page the user is viewing. Use this to understand what the user is seeing, inspect page structure, or help debug frontend issues. Returns the outer HTML of matched elements.',
+            'description' => 'Get HTML of current page elements. For broad page checks, call delegate with task_type=page_inspection. Returns the outer HTML of matched elements.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
@@ -317,6 +332,36 @@ class Tools {
                     ],
                 ],
                 'required' => ['query'],
+            ],
+        ];
+    }
+
+    private function tool_delegate(): array {
+        return [
+            'name' => 'delegate',
+            'description' => 'Read-only subagent for broad context gathering: codebase_investigation, conversation_recall, page_inspection. Returns a concise report; no writes.',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'task_type' => [
+                        'type' => 'string',
+                        'enum' => ['codebase_investigation', 'conversation_recall', 'page_inspection'],
+                        'description' => 'The kind of read-only investigation to run.',
+                    ],
+                    'request' => [
+                        'type' => 'string',
+                        'description' => 'Specific question or investigation brief for the subagent.',
+                    ],
+                    'target' => [
+                        'type' => 'string',
+                        'description' => 'Optional path, search phrase, conversation hint, or CSS selector to focus the task.',
+                    ],
+                    'max_results' => [
+                        'type' => 'number',
+                        'description' => 'Optional result limit.',
+                    ],
+                ],
+                'required' => ['task_type', 'request'],
             ],
         ];
     }
