@@ -469,7 +469,7 @@ class Settings {
             'sanitize_callback' => function($value) {
                 return $value ? '1' : '';
             },
-            'default' => '',
+            'default' => '1',
         ]);
 
         // Provider section (localStorage-based, rendered via callback)
@@ -2390,7 +2390,7 @@ class Settings {
      * In-page AI Changes display checkbox field.
      */
     public function in_page_ai_changes_field_callback() {
-        $show_in_page_ai_changes = get_option(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, '');
+        $show_in_page_ai_changes = get_option(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, '1');
         ?>
         <label>
             <input type="checkbox"
