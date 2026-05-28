@@ -156,6 +156,12 @@
                 }
             });
 
+            $(document).on('click', '.ai-use-previous-commit-message', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                self.usePreviousCommitMessage($(this));
+            });
+
             $(document).on('click', '.ai-lint-files', function(e) {
                 e.preventDefault();
                 self.checkPhpSyntax($(this));
@@ -233,6 +239,60 @@
             });
         },
 
+        usePreviousCommitMessage: function($button) {
+            var $rowTop = $button.closest('.ai-commit-row-top');
+            var $input = $rowTop.find('.ai-commit-message-input');
+            var message = $button.data('message');
+
+            if (!$input.length || typeof message !== 'string') {
+                return;
+            }
+
+            $input
+                .val(message)
+                .removeClass('ai-commit-message-input-error')
+                .trigger('focus');
+            $rowTop.find('.ai-combine-commit-checkbox').prop('checked', true);
+        },
+
+        combineCommit: function(sha, message, $rowTop) {
+            var pluginPath = this.getPluginPath($rowTop);
+            var $input = $rowTop.find('.ai-commit-message-input');
+            var $save = $rowTop.find('.ai-save-commit-message');
+            var originalSaveText = $save.text();
+
+            if ($input.length && !message) {
+                $input.addClass('ai-commit-message-input-error').trigger('focus');
+                return;
+            }
+
+            $input.prop('disabled', true);
+            $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message, .ai-edit-commit-message, .ai-combine-commit-checkbox').prop('disabled', true);
+            $save.text(aiChanges.strings.combiningCommit || 'Combining...');
+
+            $.post(aiChanges.ajaxUrl, {
+                action: 'ai_assistant_combine_commit',
+                nonce: aiChanges.nonce,
+                plugin_path: pluginPath,
+                sha: sha,
+                message: message
+            }, function(response) {
+                if (response.success) {
+                    location.reload();
+                } else {
+                    alert((response.data && response.data.message) || aiChanges.strings.combineCommitError || 'Failed to combine commits.');
+                    $input.prop('disabled', false).trigger('focus');
+                    $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message, .ai-edit-commit-message, .ai-combine-commit-checkbox').prop('disabled', false);
+                    $save.text(originalSaveText);
+                }
+            }).fail(function() {
+                alert(aiChanges.strings.combineCommitError || 'Failed to combine commits.');
+                $input.prop('disabled', false).trigger('focus');
+                $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message, .ai-edit-commit-message, .ai-combine-commit-checkbox').prop('disabled', false);
+                $save.text(originalSaveText);
+            });
+        },
+
         beginCommitMessageEdit: function($trigger) {
             var self = this;
             var $rowTop = $trigger.closest('.ai-commit-row-top');
@@ -259,8 +319,9 @@
             $message.attr('aria-hidden', 'true');
             $rowTop.find('.ai-edit-commit-message').attr('aria-hidden', 'true');
             $input.val(currentMessage).removeClass('ai-commit-message-input-error').prop('disabled', false);
+            $rowTop.find('.ai-combine-commit-checkbox').prop('checked', false);
             $editor.prop('hidden', false);
-            $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message').prop('disabled', false);
+            $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message, .ai-combine-commit-checkbox').prop('disabled', false);
 
             window.setTimeout(function() {
                 $input.trigger('focus');
@@ -276,6 +337,7 @@
             var originalMessage = $rowTop.data('original-message') || $.trim($rowTop.find('.ai-commit-message').text());
             var nextMessage = $.trim($input.val());
             var sha = $rowTop.closest('.ai-commit-entry').data('sha');
+            var shouldCombine = $rowTop.find('.ai-combine-commit-checkbox').is(':checked');
 
             if (!nextMessage) {
                 $input.addClass('ai-commit-message-input-error').trigger('focus');
@@ -283,6 +345,11 @@
             }
 
             $input.removeClass('ai-commit-message-input-error');
+
+            if (shouldCombine) {
+                this.combineCommit(sha, nextMessage, $rowTop);
+                return;
+            }
 
             if (nextMessage === originalMessage) {
                 this.cancelCommitMessageEdit($rowTop);
@@ -303,6 +370,7 @@
                 .val(originalMessage)
                 .removeClass('ai-commit-message-input-error')
                 .prop('disabled', false);
+            $rowTop.find('.ai-combine-commit-checkbox').prop('checked', false).prop('disabled', false);
             $rowTop.find('.ai-commit-message-editor').prop('hidden', true);
             $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message').prop('disabled', false);
             $rowTop.find('.ai-save-commit-message').text(aiChanges.strings.saveCommitMessage || 'Save');
@@ -315,7 +383,7 @@
             var originalSaveText = $save.text();
 
             $input.prop('disabled', true);
-            $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message, .ai-edit-commit-message').prop('disabled', true);
+            $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message, .ai-edit-commit-message, .ai-combine-commit-checkbox').prop('disabled', true);
             $save.text(aiChanges.strings.updatingCommitMessage || 'Saving...');
 
             $.post(aiChanges.ajaxUrl, {
@@ -330,13 +398,13 @@
                 } else {
                     alert((response.data && response.data.message) || aiChanges.strings.updateCommitMessageError || 'Failed to update commit message.');
                     $input.prop('disabled', false).trigger('focus');
-                    $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message, .ai-edit-commit-message').prop('disabled', false);
+                    $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message, .ai-edit-commit-message, .ai-combine-commit-checkbox').prop('disabled', false);
                     $save.text(originalSaveText);
                 }
             }).fail(function() {
                 alert(aiChanges.strings.updateCommitMessageError || 'Failed to update commit message.');
                 $input.prop('disabled', false).trigger('focus');
-                $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message, .ai-edit-commit-message').prop('disabled', false);
+                $rowTop.find('.ai-save-commit-message, .ai-cancel-commit-message, .ai-edit-commit-message, .ai-combine-commit-checkbox').prop('disabled', false);
                 $save.text(originalSaveText);
             });
         },

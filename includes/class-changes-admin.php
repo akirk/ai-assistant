@@ -28,6 +28,7 @@ class Changes_Admin {
         add_action('wp_ajax_ai_assistant_get_commit_log', [$this, 'ajax_get_commit_log']);
         add_action('wp_ajax_ai_assistant_get_commit_diff', [$this, 'ajax_get_commit_diff']);
         add_action('wp_ajax_ai_assistant_update_commit_message', [$this, 'ajax_update_commit_message']);
+        add_action('wp_ajax_ai_assistant_combine_commit', [$this, 'ajax_combine_commit']);
         add_action('wp_ajax_ai_assistant_checkout_commit', [$this, 'ajax_checkout_commit']);
         add_action('wp_ajax_ai_assistant_revert_to_commit', [$this, 'ajax_checkout_commit']);
         add_action('admin_action_ai_assistant_checkout_version', [$this, 'handle_checkout_version']);
@@ -126,6 +127,10 @@ class Changes_Admin {
                 'cancelCommitMessage' => __('Cancel', 'ai-assistant'),
                 'updatingCommitMessage' => __('Saving...', 'ai-assistant'),
                 'updateCommitMessageError' => __('Failed to update commit message.', 'ai-assistant'),
+                'combineCommit' => __('Combine', 'ai-assistant'),
+                'combineCommitTitle' => __('Combine this commit with the commit below it', 'ai-assistant'),
+                'combiningCommit' => __('Combining...', 'ai-assistant'),
+                'combineCommitError' => __('Failed to combine commits.', 'ai-assistant'),
                 'justNow' => __('just now', 'ai-assistant'),
                 'noCommits' => __('No commits yet', 'ai-assistant'),
                 'viewConversation' => __('View conversation', 'ai-assistant'),
@@ -153,6 +158,7 @@ class Changes_Admin {
                        . '<li><strong>' . __('Import Patch', 'ai-assistant') . '</strong> - ' . __('Upload a .patch, .diff, or .txt file to apply changes to your files.', 'ai-assistant') . '</li>'
                        . '<li><strong>' . __('Download ZIP', 'ai-assistant') . '</strong> - ' . __('Download the plugin or theme with its git history.', 'ai-assistant') . '</li>'
                        . '<li><strong>' . __('Checkout Commit', 'ai-assistant') . '</strong> - ' . __('Check out all tracked files from a previous commit state.', 'ai-assistant') . '</li>'
+                       . '<li><strong>' . __('Combine Commit', 'ai-assistant') . '</strong> - ' . __('Combine adjacent AI commits into one commit while preserving the final file state.', 'ai-assistant') . '</li>'
                        . '</ul>',
         ]);
 
@@ -302,6 +308,12 @@ class Changes_Admin {
 
         $has_checked_out_commit = !empty($plugin['checked_out_sha']);
         $commit_count = count($plugin['commits']);
+        $commit_messages_by_sha = [];
+        foreach ($plugin['commits'] as $listed_commit) {
+            if (!empty($listed_commit['sha']) && isset($listed_commit['message'])) {
+                $commit_messages_by_sha[(string) $listed_commit['sha']] = (string) $listed_commit['message'];
+            }
+        }
         ?>
         <section class="ai-plugin-commits ai-changes-panel">
             <div class="ai-changes-panel-header">
@@ -331,12 +343,41 @@ class Changes_Admin {
                                    class="regular-text ai-commit-message-input"
                                    value="<?php echo esc_attr($commit['message']); ?>"
                                    aria-label="<?php esc_attr_e('Commit message', 'ai-assistant'); ?>">
-                            <button type="button" class="button button-primary button-small ai-save-commit-message">
+                            <button type="button" class="button button-primary ai-save-commit-message">
                                 <?php esc_html_e('Save', 'ai-assistant'); ?>
                             </button>
-                            <button type="button" class="button button-small ai-cancel-commit-message">
+                            <button type="button" class="button ai-cancel-commit-message">
                                 <?php esc_html_e('Cancel', 'ai-assistant'); ?>
                             </button>
+                            <?php if (!empty($commit['can_combine_with_parent'])): ?>
+                            <?php $parent_short_sha = !empty($commit['parent']) ? substr((string) $commit['parent'], 0, 7) : ''; ?>
+                            <label class="ai-combine-commit-option" title="<?php esc_attr_e('Combine this commit with the commit below it when saving', 'ai-assistant'); ?>">
+                                <input type="checkbox"
+                                       class="ai-combine-commit-checkbox"
+                                       data-sha="<?php echo esc_attr($commit['sha']); ?>">
+                                <span>
+                                    <?php
+                                    echo esc_html(
+                                        $parent_short_sha !== ''
+                                            ? sprintf(__('Combine this commit with the previous commit (%s) and use this message as the new commit message.', 'ai-assistant'), $parent_short_sha)
+                                            : __('Combine this commit with the previous commit and use this message as the new commit message.', 'ai-assistant')
+                                    );
+                                    ?>
+                                </span>
+                                <?php
+                                $parent_message = $parent_short_sha !== '' && !empty($commit_messages_by_sha[(string) $commit['parent']])
+                                    ? $commit_messages_by_sha[(string) $commit['parent']]
+                                    : '';
+                                ?>
+                                <?php if ($parent_message !== ''): ?>
+                                <button type="button"
+                                        class="button-link ai-use-previous-commit-message"
+                                        data-message="<?php echo esc_attr($parent_message); ?>">
+                                    <?php esc_html_e('Use previous message', 'ai-assistant'); ?>
+                                </button>
+                                <?php endif; ?>
+                            </label>
+                            <?php endif; ?>
                         </span>
                         <button type="button"
                                 class="button-link ai-edit-commit-message"
@@ -851,6 +892,46 @@ class Changes_Admin {
 
         wp_send_json_error([
             'message' => !empty($result['errors']) ? implode(', ', $result['errors']) : __('Failed to update commit message.', 'ai-assistant'),
+        ]);
+    }
+
+    public function ajax_combine_commit(): void {
+        check_ajax_referer('ai_assistant_changes', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => 'Permission denied']);
+        }
+
+        $plugin_path = isset($_POST['plugin_path']) ? sanitize_text_field(wp_unslash($_POST['plugin_path'])) : '';
+        $sha = isset($_POST['sha']) ? sanitize_text_field(wp_unslash($_POST['sha'])) : '';
+        $message = isset($_POST['message']) ? trim(sanitize_text_field(wp_unslash($_POST['message']))) : null;
+
+        if (empty($plugin_path)) {
+            wp_send_json_error(['message' => 'No plugin path specified']);
+        }
+
+        if (empty($sha)) {
+            wp_send_json_error(['message' => 'No commit SHA specified']);
+        }
+
+        if ($message !== null && $message === '') {
+            wp_send_json_error(['message' => 'Commit message cannot be empty']);
+        }
+
+        $result = $this->git_tracker_manager->combine_commit_with_parent($plugin_path, $sha, $message);
+
+        if (!empty($result['success'])) {
+            wp_send_json_success([
+                'old_sha' => $result['old_sha'] ?? $sha,
+                'parent_sha' => $result['parent_sha'] ?? null,
+                'new_sha' => $result['new_sha'] ?? null,
+                'head_sha' => $result['head_sha'] ?? null,
+                'message' => __('Commits combined successfully.', 'ai-assistant'),
+            ]);
+        }
+
+        wp_send_json_error([
+            'message' => !empty($result['errors']) ? implode(', ', $result['errors']) : __('Failed to combine commits.', 'ai-assistant'),
         ]);
     }
 

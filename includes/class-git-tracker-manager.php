@@ -437,6 +437,24 @@ class Git_Tracker_Manager {
     }
 
     /**
+     * Combine a commit with its adjacent parent in a specific plugin/theme.
+     *
+     * @param string $plugin_path Path like "plugins/my-plugin"
+     * @param string $sha Commit SHA
+     * @param string|null $message Optional combined commit message
+     * @return array
+     */
+    public function combine_commit_with_parent(string $plugin_path, string $sha, ?string $message = null): array {
+        $root = $this->get_root_for_path($plugin_path . '/dummy');
+        if ($root === null) {
+            return ['success' => false, 'errors' => ['Invalid plugin path']];
+        }
+
+        $tracker = $this->get_or_create_tracker($root);
+        return $tracker->combine_commit_with_parent($sha, $message);
+    }
+
+    /**
      * Check out all tracked files to a specific commit.
      *
      * @param string $plugin_path Path like "plugins/my-plugin"

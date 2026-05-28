@@ -96,6 +96,51 @@ class ChangesAdminRenderTest extends TestCase {
         $this->assertStringContainsString('Edit commit message', $html);
     }
 
+    public function test_plugin_detail_renders_combine_button_inside_commit_message_editor(): void {
+        $_GET = ['plugin' => 'plugins/alpha'];
+
+        $fixture = $this->plugin_fixture();
+        $fixture['plugins/alpha']['commits'] = [
+            [
+                'sha' => '2222222222222222222222222222222222222222',
+                'short_sha' => '2222222',
+                'parent' => '1111111111111111111111111111111111111111',
+                'message' => 'Second commit',
+                'conversation_id' => null,
+                'timestamp' => time(),
+                'date' => date('Y-m-d H:i:s'),
+                'is_latest' => true,
+                'is_checked_out' => false,
+                'can_combine_with_parent' => true,
+            ],
+            [
+                'sha' => '1111111111111111111111111111111111111111',
+                'short_sha' => '1111111',
+                'parent' => null,
+                'message' => 'First commit',
+                'conversation_id' => null,
+                'timestamp' => time(),
+                'date' => date('Y-m-d H:i:s'),
+                'is_latest' => false,
+                'is_checked_out' => false,
+                'can_combine_with_parent' => false,
+            ],
+        ];
+
+        $html = $this->render_admin($fixture);
+
+        $this->assertStringContainsString('class="ai-combine-commit-option"', $html);
+        $this->assertStringContainsString('class="ai-combine-commit-checkbox"', $html);
+        $this->assertStringContainsString('type="checkbox"', $html);
+        $this->assertStringContainsString('data-sha="2222222222222222222222222222222222222222"', $html);
+        $this->assertStringContainsString('Combine this commit with the commit below it when saving', $html);
+        $this->assertStringContainsString('Combine this commit with the previous commit (1111111) and use this message as the new commit message.', $html);
+        $this->assertStringContainsString('class="button-link ai-use-previous-commit-message"', $html);
+        $this->assertStringContainsString('data-message="First commit"', $html);
+        $this->assertStringContainsString('Use previous message', $html);
+        $this->assertStringNotContainsString('dashicons-arrow-down-alt', $html);
+    }
+
     public function test_plugin_detail_renders_commits_before_files_in_separate_panels(): void {
         $_GET = ['plugin' => 'plugins/alpha'];
 
@@ -205,6 +250,49 @@ class ChangesAdminRenderTest extends TestCase {
         $this->assertSame('content', $GLOBALS['wp_test_json_response']['data']['type']);
         $this->assertSame('{"ok":true}', $GLOBALS['wp_test_json_response']['data']['content']);
         $this->assertSame('plugins/alpha/new.json', $GLOBALS['wp_test_json_response']['data']['path']);
+    }
+
+    public function test_ajax_combine_commit_passes_edited_message(): void {
+        $_POST = [
+            'plugin_path' => 'plugins/alpha',
+            'sha' => '2222222222222222222222222222222222222222',
+            'message' => 'Edited combined message',
+        ];
+
+        $manager = new class extends Git_Tracker_Manager {
+            public ?string $plugin_path = null;
+            public ?string $sha = null;
+            public ?string $message = null;
+
+            public function combine_commit_with_parent(string $plugin_path, string $sha, ?string $message = null): array {
+                $this->plugin_path = $plugin_path;
+                $this->sha = $sha;
+                $this->message = $message;
+
+                return [
+                    'success' => true,
+                    'old_sha' => $sha,
+                    'parent_sha' => '1111111111111111111111111111111111111111',
+                    'new_sha' => '3333333333333333333333333333333333333333',
+                    'head_sha' => '3333333333333333333333333333333333333333',
+                    'errors' => [],
+                ];
+            }
+        };
+
+        $admin = new Changes_Admin($manager);
+
+        try {
+            $admin->ajax_combine_commit();
+            $this->fail('Expected wp_send_json_success to stop execution');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('wp_send_json_success', $e->getMessage());
+        }
+
+        $this->assertTrue($GLOBALS['wp_test_json_response']['success']);
+        $this->assertSame('plugins/alpha', $manager->plugin_path);
+        $this->assertSame('2222222222222222222222222222222222222222', $manager->sha);
+        $this->assertSame('Edited combined message', $manager->message);
     }
 
     private function render_admin(array $plugins): string {
