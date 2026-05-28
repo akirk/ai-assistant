@@ -34,6 +34,7 @@ $GLOBALS['wp_test_capabilities'] = [];
 $GLOBALS['wp_test_is_playground'] = false;
 $GLOBALS['wp_test_abilities'] = [];
 $GLOBALS['wp_test_filters'] = [];
+$GLOBALS['wp_test_current_screen'] = null;
 
 if (!function_exists('get_option')) {
     function get_option($option, $default = false) {
@@ -346,6 +347,8 @@ if (!function_exists('admin_url'))           { function admin_url($path = '') { 
 if (!function_exists('wp_nonce_url'))        { function wp_nonce_url($url, $action = -1) { return $url . (strpos($url, '?') === false ? '?' : '&') . '_wpnonce=test'; } }
 if (!function_exists('is_wp_error'))         { function is_wp_error($thing) { return $thing instanceof WP_Error; } }
 if (!function_exists('date_i18n'))           { function date_i18n($format, $timestamp = false) { return date($format, $timestamp ?: time()); } }
+if (!function_exists('number_format_i18n'))  { function number_format_i18n($number, $decimals = 0) { return number_format((float) $number, $decimals); } }
+if (!function_exists('get_current_screen'))  { function get_current_screen() { return $GLOBALS['wp_test_current_screen'] ?? null; } }
 
 if (!function_exists('activate_plugin')) {
     function activate_plugin($plugin, $redirect = '', $network_wide = false, $silent = false) {

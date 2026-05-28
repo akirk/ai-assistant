@@ -146,10 +146,20 @@ class Settings {
         ]);
 
         $system_prompt = $this->get_system_prompt();
+        $system_prompt_tokens = $this->estimate_text_tokens($system_prompt);
+        $system_prompt_intro = sprintf(
+            _n(
+                'The following system prompt is sent to the AI with each conversation (approximately %s token):',
+                'The following system prompt is sent to the AI with each conversation (approximately %s tokens):',
+                $system_prompt_tokens,
+                'ai-assistant'
+            ),
+            number_format_i18n($system_prompt_tokens)
+        );
         $screen->add_help_tab([
             'id'      => 'ai-assistant-system-prompt',
             'title'   => __('System Prompt', 'ai-assistant'),
-            'content' => '<p>' . __('The following system prompt is sent to the AI with each conversation:', 'ai-assistant') . '</p>'
+            'content' => '<p>' . esc_html($system_prompt_intro) . '</p>'
                        . '<pre style="white-space: pre-wrap; background: #f6f7f7; padding: 10px; border-radius: 4px; max-height: 400px; overflow-y: auto;">' . esc_html($system_prompt) . '</pre>',
         ]);
 
@@ -3375,6 +3385,7 @@ IMAGE PICKING: Call pick_image for one image at a time only. Do not issue multip
 PROMPT;
 
         if (!empty($ability_domains)) {
+            $prompt .= "ABILITY ROUTING: Plugin abilities are higher-level WordPress actions exposed by plugins. When a user request matches a known ability topic, use the ability workflow first because it preserves the plugin's own validation, permissions, and domain logic. Generic tools like db_query and find are fallback tools only after ability discovery shows no suitable capability.\n\n";
             $prompt .= "The following topics are handled by plugin abilities. For these, ALWAYS use the ability tool — never db_query or find:\n";
             foreach ($ability_domains as $slug => $keywords) {
                 $prompt .= "- $slug: $keywords\n";
@@ -3416,6 +3427,10 @@ PROMPT;
         $prompt .= $this->get_skills_prompt_summary($enabled_tools);
 
         return $prompt;
+    }
+
+    private function estimate_text_tokens(string $text): int {
+        return (int) ceil(max(0, strlen($text)) / 4);
     }
 
     public function get_auto_approved_abilities(): array {
