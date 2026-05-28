@@ -54,6 +54,7 @@ class Chat_UI {
         wp_enqueue_script('wp-codemirror');
 
         do_action('wp_ai_provider_browser_status_scripts');
+        $this->enqueue_client_abilities_assets();
 
         wp_enqueue_script(
             'ai-assistant-chat-core',
@@ -138,6 +139,53 @@ class Chat_UI {
     }
 
     /**
+     * Enqueue the client-side Abilities API only when Core registered it.
+     *
+     * WP 6.9 COMPAT: When the minimum supported WordPress version always
+     * includes @wordpress/abilities and @wordpress/core-abilities, drop the
+     * support check and enqueue the bridge module unconditionally.
+     *
+     * WordPress 6.9 has the PHP/REST Abilities API but may not ship the
+     * client packages. In that case the existing AJAX executor remains the
+     * compatibility path.
+     */
+    private function enqueue_client_abilities_assets(): void {
+        if (!$this->has_client_abilities_support()) {
+            return;
+        }
+
+        wp_enqueue_script_module(
+            'ai-assistant-client-abilities',
+            AI_ASSISTANT_PLUGIN_URL . 'assets/js/client-abilities.js',
+            [
+                [
+                    'id'     => '@wordpress/core-abilities',
+                    'import' => 'dynamic',
+                ],
+                [
+                    'id'     => '@wordpress/abilities',
+                    'import' => 'dynamic',
+                ],
+            ],
+            AI_ASSISTANT_VERSION
+        );
+    }
+
+    private function has_client_abilities_support(): bool {
+        if (!function_exists('wp_enqueue_script_module') || !function_exists('wp_script_modules')) {
+            return false;
+        }
+
+        $script_modules = wp_script_modules();
+        if (!is_object($script_modules) || !method_exists($script_modules, 'get_registered')) {
+            return false;
+        }
+
+        return (bool) $script_modules->get_registered('@wordpress/abilities') &&
+            (bool) $script_modules->get_registered('@wordpress/core-abilities');
+    }
+
+    /**
      * AJAX: Return everything needed to display the assistant without a reload.
      */
     public function ajax_bootstrap() {
@@ -202,6 +250,11 @@ class Chat_UI {
             'restApiUrl' => rest_url(),
             'defaultAutoApproveMode' => $this->should_default_auto_approve_mode(),
             'restApiNonce' => wp_create_nonce('wp_rest'),
+            // WP 6.9 COMPAT: Remove fallbackToServer once client abilities are required.
+            'clientAbilities' => [
+                'enabled' => $this->has_client_abilities_support(),
+                'fallbackToServer' => true,
+            ],
             'userDisplayName' => $current_user->display_name,
             'dateTime' => [
                 'dateFormat' => get_option('date_format'),
