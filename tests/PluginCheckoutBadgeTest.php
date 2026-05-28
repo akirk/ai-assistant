@@ -43,10 +43,11 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertTrue($metadata['open_in_current_window']);
         $this->assertSame('http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fbadge-demo', $metadata['url']);
         $this->assertSame(['overview'], array_column($metadata['links'], 'key'));
-        $this->assertSame(['next', 'current', 'previous'], array_column($metadata['version_log'], 'key'));
+        $this->assertSame(['commit-1', 'commit-2', 'commit-3', 'commit-4', 'commit-5', 'commit-6'], array_column($metadata['version_log'], 'key'));
+        $this->assertCount(6, $metadata['version_log']);
         $this->assertStringContainsString('action=ai_assistant_checkout_version', $metadata['version_log'][0]['url']);
-        $this->assertArrayNotHasKey('url', $metadata['version_log'][1]);
-        $this->assertStringContainsString('action=ai_assistant_checkout_version', $metadata['version_log'][2]['url']);
+        $this->assertArrayNotHasKey('url', $metadata['version_log'][3]);
+        $this->assertStringContainsString('action=ai_assistant_checkout_version', $metadata['version_log'][5]['url']);
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
         $this->assertStringContainsString('class="ai-assistant-checkout-badge is-old-version"', $html);
         $this->assertStringContainsString('Old Version:', $html);
@@ -54,13 +55,24 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertStringContainsString('just now', $html);
         $this->assertStringContainsString('Badge Demo', $html);
         $this->assertStringContainsString('Middle checked out change message with more words', $html);
+        $this->assertStringNotContainsString('ai-assistant-checkout-badge-plugin', $html);
+        $this->assertStringNotContainsString('ai-assistant-checkout-badge-full-message', $html);
+        $this->assertStringNotContainsString('Committed just now', $html);
         $this->assertStringContainsString('ai-assistant-checkout-badge-log', $html);
-        $this->assertStringContainsString('Next', $html);
-        $this->assertStringContainsString('Current', $html);
-        $this->assertStringContainsString('Previous', $html);
-        $this->assertStringContainsString('Latest change message with more...', $html);
-        $this->assertStringContainsString('First older change message with...', $html);
-        $this->assertStringContainsString('Overview', $html);
+        $this->assertSame(6, substr_count($html, 'data-version-row="commit-'));
+        $this->assertSame(6, substr_count($html, '<span class="ai-assistant-checkout-badge-log-node"'));
+        $this->assertSame(6, substr_count($html, '<span class="ai-assistant-checkout-badge-log-time"'));
+        $this->assertStringContainsString('class="ai-assistant-checkout-badge-log-row is-current"', $html);
+        $this->assertStringContainsString('class="ai-assistant-checkout-badge-log-row is-latest"', $html);
+        $this->assertStringNotContainsString('ai-assistant-checkout-badge-log-marker', $html);
+        $this->assertStringContainsString('Latest change message with more words', $html);
+        $this->assertStringContainsString('Almost latest change message with more words', $html);
+        $this->assertStringContainsString('Next newer change message with more words', $html);
+        $this->assertStringContainsString('Second older change message with more words', $html);
+        $this->assertStringContainsString('First older change message with more words', $html);
+        $this->assertStringNotContainsString('Earliest change message with more words', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-summary-link', $html);
+        $this->assertStringContainsString('AI Changes', $html);
         $this->assertStringContainsString('action=ai_assistant_checkout_version', $html);
         $this->assertStringContainsString('tools.php?page=ai-changes&plugin=plugins%2Fbadge-demo', $html);
         $this->assertStringNotContainsString('Not current', $html);
@@ -100,8 +112,11 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertSame(1, substr_count($html, '>Current version<'));
         $this->assertStringNotContainsString('AI Changes:', $html);
         $this->assertStringNotContainsString('ai-assistant-checkout-badge-message">Current</span>', $html);
-        $this->assertStringContainsString('No newer version', $html);
-        $this->assertStringContainsString('Original state before AI modifications', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-log-node', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-log-time', $html);
+        $this->assertStringNotContainsString('ai-assistant-checkout-badge-log-marker', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-log-message">Current</span>', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-summary-link', $html);
         $this->assertStringContainsString('ai-assistant-checkout-badge-close', $html);
         $this->assertStringNotContainsString('Old Version:', $html);
     }
@@ -132,16 +147,21 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertSame('plugins/badge-admin', $metadata['root']);
         $this->assertSame('http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fbadge-admin', $metadata['url']);
         $this->assertSame(['overview'], array_column($metadata['links'], 'key'));
-        $this->assertSame(['next', 'current', 'previous'], array_column($metadata['version_log'], 'key'));
+        $this->assertSame(['commit-1', 'commit-2', 'commit-3', 'commit-4', 'commit-5', 'commit-6'], array_column($metadata['version_log'], 'key'));
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
         $this->assertStringContainsString('Badge Admin', $html);
         $this->assertStringContainsString('Old Version:', $html);
         $this->assertStringContainsString('Middle checked out change message with more words', $html);
+        $this->assertStringNotContainsString('ai-assistant-checkout-badge-plugin', $html);
+        $this->assertStringNotContainsString('ai-assistant-checkout-badge-full-message', $html);
         $this->assertStringContainsString('ai-assistant-checkout-badge-log', $html);
-        $this->assertStringContainsString('Next', $html);
-        $this->assertStringContainsString('Current', $html);
-        $this->assertStringContainsString('Previous', $html);
-        $this->assertStringContainsString('Overview', $html);
+        $this->assertSame(6, substr_count($html, 'data-version-row="commit-'));
+        $this->assertSame(6, substr_count($html, '<span class="ai-assistant-checkout-badge-log-node"'));
+        $this->assertStringNotContainsString('ai-assistant-checkout-badge-log-marker', $html);
+        $this->assertStringContainsString('Latest change message with more words', $html);
+        $this->assertStringContainsString('First older change message with more words', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-summary-link', $html);
+        $this->assertStringContainsString('AI Changes', $html);
         $this->assertStringContainsString('tools.php?page=ai-changes&plugin=plugins%2Fbadge-admin', $html);
         $this->assertStringNotContainsString('Not current', $html);
         $this->assertStringNotContainsString(' title=', $html);
@@ -187,13 +207,25 @@ class PluginCheckoutBadgeTest extends TestCase {
         $original = $this->pluginHeader($slug) . "\n// original\n";
 
         file_put_contents($main_file, $this->pluginHeader($slug) . "\n// version 2\n");
-        $tracker->track_change($relative_main_file, 'modified', $original, 'First older change message with more words');
+        $tracker->track_change($relative_main_file, 'modified', $original, 'Earliest change message with more words');
 
         file_put_contents($main_file, $this->pluginHeader($slug) . "\n// version 3\n");
+        $tracker->track_change($relative_main_file, 'modified', $original, 'First older change message with more words');
+
+        file_put_contents($main_file, $this->pluginHeader($slug) . "\n// version 4\n");
+        $tracker->track_change($relative_main_file, 'modified', $original, 'Second older change message with more words');
+
+        file_put_contents($main_file, $this->pluginHeader($slug) . "\n// version 5\n");
         $tracker->track_change($relative_main_file, 'modified', $original, 'Middle checked out change message with more words');
         $checked_out_sha = $tracker->get_recent_commits()[0]['sha'];
 
-        file_put_contents($main_file, $this->pluginHeader($slug) . "\n// version 4\n");
+        file_put_contents($main_file, $this->pluginHeader($slug) . "\n// version 6\n");
+        $tracker->track_change($relative_main_file, 'modified', $original, 'Next newer change message with more words');
+
+        file_put_contents($main_file, $this->pluginHeader($slug) . "\n// version 7\n");
+        $tracker->track_change($relative_main_file, 'modified', $original, 'Almost latest change message with more words');
+
+        file_put_contents($main_file, $this->pluginHeader($slug) . "\n// version 8\n");
         $tracker->track_change($relative_main_file, 'modified', $original, 'Latest change message with more words');
         $tracker->checkout_commit($checked_out_sha);
 
