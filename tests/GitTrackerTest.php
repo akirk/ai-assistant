@@ -561,6 +561,135 @@ class GitTrackerTest extends TestCase {
         $this->assertTrue($commits[1]['is_checked_out']);
     }
 
+    public function test_combine_commit_with_parent_squashes_latest_commit(): void {
+        $test_file = $this->plugin_dir . '/test.txt';
+
+        file_put_contents($test_file, 'version 1');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'First');
+        $first_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        file_put_contents($test_file, 'version 2');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Second');
+
+        file_put_contents($test_file, 'version 3');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Third');
+        $third_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        $result = $this->tracker->combine_commit_with_parent($third_sha);
+
+        $this->assertTrue($result['success']);
+        $commits = $this->tracker->get_recent_commits();
+        $this->assertSame('Second + Third', $commits[0]['message']);
+        $this->assertSame($first_sha, $commits[0]['parent']);
+        $this->assertNotContains('Second', array_column($commits, 'message'));
+        $this->assertNotContains('Third', array_column($commits, 'message'));
+        $this->assertNotEmpty($result['backup_ref']);
+        $this->assertFileExists($this->git_dir . '/refs/heads/' . $result['backup_ref']);
+        $this->assertSame($third_sha . "\n", file_get_contents($this->git_dir . '/refs/heads/' . $result['backup_ref']));
+
+        $diff = $this->tracker->get_commit_diff($commits[0]['sha']);
+        $this->assertStringContainsString('-version 1', $diff);
+        $this->assertStringContainsString('+version 3', $diff);
+    }
+
+    public function test_combine_commit_with_parent_uses_custom_message(): void {
+        $test_file = $this->plugin_dir . '/test.txt';
+
+        file_put_contents($test_file, 'version 1');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'First');
+
+        file_put_contents($test_file, 'version 2');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Second');
+
+        $second_sha = $this->tracker->get_recent_commits()[0]['sha'];
+        $result = $this->tracker->combine_commit_with_parent($second_sha, 'Edited combined message');
+
+        $this->assertTrue($result['success']);
+
+        $commits = $this->tracker->get_recent_commits();
+        $this->assertSame('Edited combined message', $commits[0]['message']);
+    }
+
+    public function test_combine_commit_with_parent_rewrites_descendant_commits(): void {
+        $test_file = $this->plugin_dir . '/test.txt';
+
+        file_put_contents($test_file, 'version 1');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'First');
+
+        file_put_contents($test_file, 'version 2');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Second');
+        $second_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        file_put_contents($test_file, 'version 3');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Third');
+        $old_latest_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        $result = $this->tracker->combine_commit_with_parent($second_sha);
+
+        $this->assertTrue($result['success']);
+        $commits = $this->tracker->get_recent_commits();
+        $this->assertSame('Third', $commits[0]['message']);
+        $this->assertSame('First + Second', $commits[1]['message']);
+        $this->assertNotSame($old_latest_sha, $commits[0]['sha']);
+        $this->assertSame($commits[1]['sha'], $commits[0]['parent']);
+        $this->assertSame($result['new_sha'], $commits[1]['sha']);
+    }
+
+    public function test_combine_commit_with_parent_refuses_original_state_parent(): void {
+        $test_file = $this->plugin_dir . '/test.txt';
+        file_put_contents($test_file, 'version 1');
+
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'First');
+        $first_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        $result = $this->tracker->combine_commit_with_parent($first_sha);
+
+        $this->assertFalse($result['success']);
+        $this->assertContains('Cannot combine an AI commit with the original state', $result['errors']);
+    }
+
+    public function test_combine_commit_with_parent_remaps_checked_out_target(): void {
+        $test_file = $this->plugin_dir . '/test.txt';
+
+        file_put_contents($test_file, 'version 1');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'First');
+
+        file_put_contents($test_file, 'version 2');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Second');
+        $second_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        file_put_contents($test_file, 'version 3');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Third');
+
+        $this->tracker->checkout_commit($second_sha);
+        $result = $this->tracker->combine_commit_with_parent($second_sha);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame($result['new_sha'], $this->tracker->get_checked_out_commit());
+        $this->assertSame('version 2', file_get_contents($test_file));
+
+        $commits = $this->tracker->get_recent_commits();
+        $this->assertTrue($commits[1]['is_checked_out']);
+    }
+
+    public function test_combine_commit_with_parent_refuses_checked_out_parent(): void {
+        $test_file = $this->plugin_dir . '/test.txt';
+
+        file_put_contents($test_file, 'version 1');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'First');
+        $first_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        file_put_contents($test_file, 'version 2');
+        $this->tracker->track_change('test.txt', 'modified', 'original', 'Second');
+        $second_sha = $this->tracker->get_recent_commits()[0]['sha'];
+
+        $this->tracker->checkout_commit($first_sha);
+        $result = $this->tracker->combine_commit_with_parent($second_sha);
+
+        $this->assertFalse($result['success']);
+        $this->assertContains('Cannot combine while the parent commit is checked out', $result['errors']);
+    }
+
     // -------------------------------------------------------------------------
     // get_commit_diff tests
     // -------------------------------------------------------------------------

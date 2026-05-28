@@ -989,6 +989,7 @@
     align-items: center;
     display: flex;
     flex: 1;
+    flex-wrap: wrap;
     gap: 6px;
     min-width: 240px;
 }
@@ -1049,6 +1050,28 @@
     font-size: 11px !important;
     min-height: 0 !important;
     line-height: 1.4 !important;
+}
+
+.ai-combine-commit-option {
+    align-items: center;
+    color: #50575e;
+    display: inline-flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    font-size: 12px;
+    gap: 6px;
+    line-height: 1.4;
+    margin-top: 2px;
+}
+
+.ai-combine-commit-checkbox {
+    flex: 0 0 auto;
+    margin: 0 !important;
+}
+
+.ai-use-previous-commit-message {
+    font-size: 12px;
+    text-align: left;
 }
 
 .ai-commit-diff-toggle {

@@ -110,6 +110,7 @@ Find this under **Tools > AI Changes**. Every file the AI creates or modifies is
 
 - **View diffs**: Click any file to see exactly what changed
 - **Commit history**: Browse individual commits with expandable diffs
+- **Combine commits**: Squash adjacent AI commits into one history entry
 - **Checkout**: Check out a previous commit to test that state; new AI changes continue from the checked-out commit
 - **Revert**: Restore any file to its original state
 - **Reapply**: Re-apply previously reverted changes

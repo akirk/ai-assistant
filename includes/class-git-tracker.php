@@ -341,6 +341,7 @@ class Git_Tracker {
         $commits = [];
         $head_sha = trim(file_get_contents($ref_path));
         $checked_out_sha = $this->get_checked_out_commit();
+        $base_commits = $this->get_main_branch_commits();
         $sha = $head_sha;
 
         while ($sha && count($commits) < $limit) {
@@ -386,6 +387,7 @@ class Git_Tracker {
                 'date' => $timestamp ? date('Y-m-d H:i:s', $timestamp) : null,
                 'is_latest' => $sha === $head_sha,
                 'is_checked_out' => $checked_out_sha !== null && $sha === $checked_out_sha,
+                'can_combine_with_parent' => $parent !== null && !isset($base_commits[$sha]) && !isset($base_commits[$parent]) && $checked_out_sha !== $parent,
             ];
 
             $sha = $parent;
@@ -1246,6 +1248,8 @@ class Git_Tracker {
             $new_parent = $new_sha;
         }
 
+        $backup_ref = $this->save_ai_changes_backup_ref($head_sha, 'ai-changes-before-rewrite');
+
         file_put_contents($ref_path, $new_parent . "\n");
         file_put_contents($this->git_dir . '/HEAD', "ref: refs/heads/ai-changes\n");
 
@@ -1264,6 +1268,142 @@ class Git_Tracker {
             'old_sha' => $target_sha,
             'new_sha' => $new_target_sha,
             'head_sha' => $new_parent,
+            'backup_ref' => $backup_ref,
+            'rewritten' => $sha_map,
+            'errors' => [],
+        ];
+    }
+
+    /**
+     * Combine a commit with its parent in the current ai-changes history.
+     *
+     * The combined commit keeps the target commit's final tree, skips the
+     * parent commit, and rewrites any descendants so the branch remains linear.
+     */
+    public function combine_commit_with_parent(string $target_sha, ?string $message = null): array {
+        if (!$this->is_active()) {
+            return ['success' => false, 'errors' => ['Tracking not active']];
+        }
+
+        $target_sha = strtolower(trim($target_sha));
+        if (!preg_match('/^[a-f0-9]{40}$/', $target_sha)) {
+            return ['success' => false, 'errors' => ['Invalid commit SHA']];
+        }
+
+        $ref_path = $this->git_dir . '/refs/heads/ai-changes';
+        if (!file_exists($ref_path)) {
+            return ['success' => false, 'errors' => ['No AI changes branch found']];
+        }
+
+        $head_sha = trim((string) file_get_contents($ref_path));
+        if (!$this->is_valid_commit($head_sha)) {
+            return ['success' => false, 'errors' => ['Invalid AI changes branch']];
+        }
+
+        $chain = [];
+        $seen = [];
+        $sha = $head_sha;
+        $target_commit = null;
+
+        while ($sha) {
+            if (isset($seen[$sha])) {
+                return ['success' => false, 'errors' => ['Commit history contains a cycle']];
+            }
+            $seen[$sha] = true;
+
+            $commit = $this->parse_commit_parts($sha);
+            if ($commit === null) {
+                return ['success' => false, 'errors' => ['Could not read commit history']];
+            }
+
+            $chain[] = $commit;
+
+            if ($sha === $target_sha) {
+                $target_commit = $commit;
+                break;
+            }
+
+            $sha = $commit['parent'];
+        }
+
+        if ($target_commit === null) {
+            return ['success' => false, 'errors' => ['Commit is not in the current AI changes history']];
+        }
+
+        $parent_sha = $target_commit['parent'];
+        if (!$parent_sha) {
+            return ['success' => false, 'errors' => ['Commit has no adjacent parent to combine']];
+        }
+
+        $parent_commit = $this->parse_commit_parts($parent_sha);
+        if ($parent_commit === null) {
+            return ['success' => false, 'errors' => ['Could not read adjacent parent commit']];
+        }
+
+        $base_commits = $this->get_main_branch_commits();
+        if (isset($base_commits[$target_sha]) || isset($base_commits[$parent_sha])) {
+            return ['success' => false, 'errors' => ['Cannot combine an AI commit with the original state']];
+        }
+
+        if ($this->get_checked_out_commit() === $parent_sha) {
+            return ['success' => false, 'errors' => ['Cannot combine while the parent commit is checked out']];
+        }
+
+        $message = $message === null ? null : $this->normalize_commit_message($message);
+        if ($message !== null && $message === '') {
+            return ['success' => false, 'errors' => ['Commit message cannot be empty']];
+        }
+
+        $combined_message = $this->build_combined_commit_message($parent_commit, $target_commit, $message);
+        if ($combined_message === '') {
+            return ['success' => false, 'errors' => ['Combined commit message cannot be empty']];
+        }
+
+        $sha_map = [
+            $parent_sha => null,
+        ];
+        $new_target_sha = null;
+        $new_parent = $parent_commit['parent'];
+
+        foreach (array_reverse($chain) as $commit) {
+            $commit_message = $commit['message'];
+            $tree = $commit['tree'];
+
+            if ($commit['sha'] === $target_sha) {
+                $commit_message = $combined_message;
+                $tree = $target_commit['tree'];
+            }
+
+            $new_sha = $this->write_commit_with_headers(
+                $tree,
+                $new_parent,
+                $commit_message,
+                $commit['headers']
+            );
+
+            $sha_map[$commit['sha']] = $new_sha;
+            if ($commit['sha'] === $target_sha) {
+                $new_target_sha = $new_sha;
+            }
+            $new_parent = $new_sha;
+        }
+
+        $sha_map[$parent_sha] = $new_target_sha;
+
+        $backup_ref = $this->save_ai_changes_backup_ref($head_sha, 'ai-changes-before-rewrite');
+
+        file_put_contents($ref_path, $new_parent . "\n");
+        file_put_contents($this->git_dir . '/HEAD', "ref: refs/heads/ai-changes\n");
+
+        $this->remap_checkout_state(array_filter($sha_map, 'is_string'));
+
+        return [
+            'success' => true,
+            'old_sha' => $target_sha,
+            'parent_sha' => $parent_sha,
+            'new_sha' => $new_target_sha,
+            'head_sha' => $new_parent,
+            'backup_ref' => $backup_ref,
             'rewritten' => $sha_map,
             'errors' => [],
         ];
@@ -1285,6 +1425,7 @@ class Git_Tracker {
         $commits = [];
         $head_sha = trim(file_get_contents($ref_path));
         $checked_out_sha = $this->get_checked_out_commit();
+        $base_commits = $this->get_main_branch_commits();
         $sha = $head_sha;
         $skipped = 0;
 
@@ -1338,6 +1479,7 @@ class Git_Tracker {
                 'date' => $timestamp ? date('Y-m-d H:i:s', $timestamp) : null,
                 'is_latest' => $sha === $head_sha,
                 'is_checked_out' => $checked_out_sha !== null && $sha === $checked_out_sha,
+                'can_combine_with_parent' => $parent !== null && !isset($base_commits[$sha]) && !isset($base_commits[$parent]) && $checked_out_sha !== $parent,
             ];
 
             $sha = $parent;
@@ -1627,11 +1769,20 @@ class Git_Tracker {
     }
 
     private function save_previous_ai_changes_head(?string $sha): ?string {
+        return $this->save_ai_changes_backup_ref($sha, 'ai-changes-before-checkout');
+    }
+
+    private function save_ai_changes_backup_ref(?string $sha, string $namespace): ?string {
         if (!$this->is_valid_commit($sha)) {
             return null;
         }
 
-        $refs_dir = $this->git_dir . '/refs/heads/ai-changes-before-checkout';
+        $namespace = trim($namespace, '/');
+        if ($namespace === '' || preg_match('/[^A-Za-z0-9._\/-]/', $namespace)) {
+            return null;
+        }
+
+        $refs_dir = $this->git_dir . '/refs/heads/' . $namespace;
         if (!is_dir($refs_dir)) {
             mkdir($refs_dir, 0755, true);
         }
@@ -1645,7 +1796,7 @@ class Git_Tracker {
         }
 
         file_put_contents($refs_dir . '/' . $name, $sha . "\n");
-        return 'ai-changes-before-checkout/' . $name;
+        return $namespace . '/' . $name;
     }
 
     // -------------------------------------------------------------------------
@@ -2261,6 +2412,63 @@ class Git_Tracker {
         }
 
         return $message;
+    }
+
+    private function build_combined_commit_message(array $parent_commit, array $target_commit, ?string $message = null): string {
+        $parent_metadata = $this->parse_commit_metadata(trim((string) ($parent_commit['message'] ?? '')));
+        $target_metadata = $this->parse_commit_metadata(trim((string) ($target_commit['message'] ?? '')));
+
+        if ($message !== null) {
+            return $this->build_commit_message($message, $this->get_combined_conversation_id($parent_metadata, $target_metadata));
+        }
+
+        $messages = array_values(array_filter([
+            $parent_metadata['reason'] ?? '',
+            $target_metadata['reason'] ?? '',
+        ], static fn($message) => is_string($message) && trim($message) !== ''));
+
+        $reason = implode(' + ', array_map([$this, 'normalize_commit_message'], $messages));
+
+        return $this->build_commit_message($reason ?: 'Combined AI changes', $this->get_combined_conversation_id($parent_metadata, $target_metadata));
+    }
+
+    private function get_combined_conversation_id(array $parent_metadata, array $target_metadata): ?int {
+        $parent_conversation_id = $parent_metadata['conversation_id'] ?? null;
+        $target_conversation_id = $target_metadata['conversation_id'] ?? null;
+
+        if ($parent_conversation_id && $target_conversation_id && $parent_conversation_id === $target_conversation_id) {
+            return $target_conversation_id;
+        }
+        if ($target_conversation_id && !$parent_conversation_id) {
+            return $target_conversation_id;
+        }
+        if ($parent_conversation_id && !$target_conversation_id) {
+            return $parent_conversation_id;
+        }
+
+        return null;
+    }
+
+    private function get_main_branch_commits(): array {
+        $ref_path = $this->git_dir . '/refs/heads/main';
+        if (!file_exists($ref_path)) {
+            return [];
+        }
+
+        $commits = [];
+        $sha = trim((string) file_get_contents($ref_path));
+
+        while ($sha && !isset($commits[$sha])) {
+            $commit = $this->parse_commit_parts($sha);
+            if ($commit === null) {
+                break;
+            }
+
+            $commits[$sha] = true;
+            $sha = $commit['parent'];
+        }
+
+        return $commits;
     }
 
     private function parse_commit_parts(string $sha): ?array {
