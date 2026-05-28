@@ -19,6 +19,7 @@ class SettingsTest extends TestCase {
         $GLOBALS['wp_test_abilities'] = [];
         $GLOBALS['wp_test_json_response'] = null;
         $GLOBALS['wp_test_site_url'] = 'http://localhost';
+        $GLOBALS['wp_test_current_screen'] = null;
         $_POST = [];
         unset($_SERVER['HTTP_HOST'], $_SERVER['SERVER_NAME'], $_SERVER['REQUEST_URI']);
 
@@ -288,10 +289,41 @@ class SettingsTest extends TestCase {
 
         $prompt = $this->settings->get_system_prompt();
 
+        $this->assertStringContainsString('ABILITY ROUTING: Plugin abilities are higher-level WordPress actions exposed by plugins.', $prompt);
+        $this->assertLessThan(
+            strpos($prompt, 'The following topics are handled by plugin abilities.'),
+            strpos($prompt, 'ABILITY ROUTING:')
+        );
         $this->assertStringContainsString('- create-wp-app: wp app, app plugin', $prompt);
         $this->assertStringContainsString('These slugs are ability categories/domains, not executable ability IDs.', $prompt);
         $this->assertStringContainsString('First call ability with action "list" and the matching category', $prompt);
         $this->assertStringContainsString('then action "get" for the exact ability ID before executing', $prompt);
+    }
+
+    public function test_system_prompt_help_tab_includes_estimated_token_count(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
+        $GLOBALS['wp_test_current_screen'] = new class {
+            public string $id = 'settings_page_ai-assistant-settings';
+            public array $tabs = [];
+            public string $sidebar = '';
+
+            public function add_help_tab(array $tab): void {
+                $this->tabs[$tab['id']] = $tab;
+            }
+
+            public function set_help_sidebar(string $content): void {
+                $this->sidebar = $content;
+            }
+        };
+
+        $this->settings->add_help_tabs();
+
+        $content = $GLOBALS['wp_test_current_screen']->tabs['ai-assistant-system-prompt']['content'] ?? '';
+        $system_prompt = $this->settings->get_system_prompt();
+        $expected_tokens = number_format_i18n((int) ceil(strlen($system_prompt) / 4));
+
+        $this->assertStringContainsString('The following system prompt is sent to the AI with each conversation', $content);
+        $this->assertStringContainsString('approximately ' . $expected_tokens . ' tokens', $content);
     }
 
     public function test_system_prompt_routes_plugin_creation_to_skills(): void {
