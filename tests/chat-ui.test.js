@@ -574,11 +574,15 @@ describe('token usage accounting', function() {
 
         assistant.updateTokenCount();
 
+        assert.match(dom.counter.htmlContent, /18 fresh tokens/);
+        assert.match(dom.counter.htmlContent, /Fresh sent and received/);
+        assert.match(dom.counter.htmlContent, /Total processed/);
         assert.match(dom.counter.htmlContent, /Sent to AI \(input\)/);
         assert.match(dom.counter.htmlContent, /Read from cache/);
         assert.match(dom.counter.htmlContent, /Written to cache/);
         assert.match(dom.counter.htmlContent, /Received from AI \(output\)/);
-        assert.match(dom.counter.attrs['aria-label'], /Sent to AI 17, received from AI 4/);
+        assert.match(dom.counter.attrs['aria-label'], /18 fresh tokens/);
+        assert.match(dom.counter.attrs['aria-label'], /Sent to AI 17, received from AI 4, read from cache 3/);
     });
 });
 

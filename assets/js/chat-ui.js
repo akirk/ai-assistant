@@ -2656,14 +2656,26 @@
         updateTokenCount: function() {
             var usage = this.getTokenUsageSummary();
             var totalTokens = usage.total_tokens || usage.input_tokens + usage.output_tokens;
-            var visibleTotal = totalTokens;
+            var cacheReadTokens = usage.cache_read_input_tokens || 0;
+            var freshTotal = Math.max(0, totalTokens - cacheReadTokens);
+            var visibleTotal = cacheReadTokens > 0 ? freshTotal : totalTokens;
             var usageEstimated = usage.source !== 'provider';
             var visibleEstimated = visibleTotal > 0 && usageEstimated;
-            var display = this.formatTokenValue(visibleTotal, visibleEstimated, true) + ' tokens';
+            var display = this.formatTokenValue(visibleTotal, visibleEstimated, true) + (cacheReadTokens > 0 ? ' fresh tokens' : ' tokens');
             var totalEstimated = totalTokens > 0 && usageEstimated;
             var inputEstimated = usage.input_tokens > 0 && usageEstimated;
             var outputEstimated = usage.output_tokens > 0 && usageEstimated;
-            var hasEstimatedValues = totalEstimated || inputEstimated || outputEstimated;
+            var freshEstimated = freshTotal > 0 && usageEstimated;
+            var hasEstimatedValues = totalEstimated || freshEstimated || inputEstimated || outputEstimated;
+            var freshTotalRow = cacheReadTokens > 0 ? (
+                '<div class="ai-token-hover-row ai-token-explained-row">' +
+                    '<span class="ai-token-context-label">Fresh sent and received' +
+                        '<span class="ai-token-info" tabindex="0" aria-label="Fresh sent and received excludes input the provider reported as read from prompt cache.">i</span>' +
+                    '</span>' +
+                    '<strong>' + this.formatTokenValue(freshTotal, freshEstimated, false) + '</strong>' +
+                '</div>' +
+                '<div class="ai-token-help">Total usage excluding prompt-cache reads. Cache reads are still context, but this separates reused input from fresh input and output.</div>'
+            ) : '';
             var cacheReadRow = usage.cache_read_input_tokens > 0 ? (
                 '<div class="ai-token-hover-row ai-token-explained-row">' +
                     '<span class="ai-token-context-label">Read from cache' +
@@ -2689,7 +2701,8 @@
                 '<span class="ai-token-count-main">' + display + '</span>' +
                 '<div class="ai-token-hover" role="tooltip">' +
                     '<div class="ai-token-hover-title">AI token usage</div>' +
-                    '<div class="ai-token-hover-row"><span>Total sent and received</span><strong>' + this.formatTokenValue(totalTokens, totalEstimated, false) + '</strong></div>' +
+                    freshTotalRow +
+                    '<div class="ai-token-hover-row"><span>' + (cacheReadTokens > 0 ? 'Total processed' : 'Total sent and received') + '</span><strong>' + this.formatTokenValue(totalTokens, totalEstimated, false) + '</strong></div>' +
                     '<div class="ai-token-hover-row ai-token-explained-row">' +
                         '<span class="ai-token-context-label">Sent to AI (input)' +
                             '<span class="ai-token-info" tabindex="0" aria-label="Input tokens are what this chat sent to the AI model: instructions, conversation context, user messages, tool results, and metadata.">i</span>' +
@@ -2713,7 +2726,12 @@
             $counter.html(tooltip);
             $counter.removeAttr('title');
             $counter.attr('tabindex', '0');
-            $counter.attr('aria-label', display + '. Sent to AI ' + this.formatTokenDetail(usage.input_tokens) + ', received from AI ' + this.formatTokenDetail(usage.output_tokens) + '.');
+            $counter.attr(
+                'aria-label',
+                display + '. Sent to AI ' + this.formatTokenDetail(usage.input_tokens) +
+                    ', received from AI ' + this.formatTokenDetail(usage.output_tokens) +
+                    (cacheReadTokens > 0 ? ', read from cache ' + this.formatTokenDetail(cacheReadTokens) : '') + '.'
+            );
             $counter.removeClass('ai-tokens-warning ai-tokens-danger');
 
             if (visibleTotal > 100000) {
