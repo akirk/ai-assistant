@@ -504,8 +504,33 @@ describe('token usage accounting', function() {
         assert.strictEqual(usage.output_tokens, 20);
         assert.strictEqual(usage.total_tokens, 120);
         assert.strictEqual(usage.cached_input_tokens, 40);
+        assert.strictEqual(usage.cache_creation_input_tokens, 0);
+        assert.strictEqual(usage.cache_read_input_tokens, 40);
         assert.strictEqual(usage.reasoning_output_tokens, 7);
         assert.strictEqual(usage.source, 'provider');
+    });
+
+    it('normalizes Anthropic cache read and cache creation usage separately', function() {
+        const assistant = loadUiMixin();
+
+        const usage = assistant.normalizeTokenUsage({
+            input_tokens: 50,
+            cache_creation_input_tokens: 1000,
+            cache_read_input_tokens: 90000,
+            output_tokens: 25,
+            output_tokens_details: {
+                thinking_tokens: 5
+            }
+        }, 'anthropic', 'claude-test', 'provider');
+
+        assert.strictEqual(usage.input_tokens, 91050);
+        assert.strictEqual(usage.output_tokens, 25);
+        assert.strictEqual(usage.total_tokens, 91075);
+        assert.strictEqual(usage.cached_input_tokens, 91000);
+        assert.strictEqual(usage.cache_creation_input_tokens, 1000);
+        assert.strictEqual(usage.cache_read_input_tokens, 90000);
+        assert.strictEqual(usage.reasoning_output_tokens, 5);
+        assert.strictEqual(usage.raw_usage.cache_read_input_tokens, 90000);
     });
 
     it('creates fallback input estimates when provider usage is unavailable', function() {
@@ -537,9 +562,12 @@ describe('token usage accounting', function() {
                 _usage: {
                     version: 1,
                     source: 'provider',
-                    input_tokens: 12,
+                    input_tokens: 17,
                     output_tokens: 4,
-                    total_tokens: 16
+                    total_tokens: 21,
+                    cache_creation_input_tokens: 2,
+                    cache_read_input_tokens: 3,
+                    cached_input_tokens: 5
                 }
             }
         ];
@@ -547,8 +575,10 @@ describe('token usage accounting', function() {
         assistant.updateTokenCount();
 
         assert.match(dom.counter.htmlContent, /Sent to AI \(input\)/);
+        assert.match(dom.counter.htmlContent, /Read from cache/);
+        assert.match(dom.counter.htmlContent, /Written to cache/);
         assert.match(dom.counter.htmlContent, /Received from AI \(output\)/);
-        assert.match(dom.counter.attrs['aria-label'], /Sent to AI 12, received from AI 4/);
+        assert.match(dom.counter.attrs['aria-label'], /Sent to AI 17, received from AI 4/);
     });
 });
 

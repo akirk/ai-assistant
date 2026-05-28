@@ -1000,6 +1000,74 @@ describe('provider context recovery', function() {
 });
 
 describe('provider token usage capture', function() {
+    it('enables Anthropic prompt caching on chat requests', async function() {
+        let payload = null;
+        let attached = null;
+        const assistant = Object.assign(loadProvidersMixin(), {
+            messages: [{ role: 'user', content: 'Hello' }],
+            systemPrompt: 'System',
+            conversationModel: 'claude-test',
+            abortController: null,
+            getModel() {
+                return 'fallback-model';
+            },
+            getApiKey() {
+                return 'test-key';
+            },
+            getProviderEndpoint() {
+                return 'https://example.test/v1/messages';
+            },
+            getTools() {
+                return [];
+            },
+            fetchLLMProvider(provider, endpoint, headers, requestPayload) {
+                payload = requestPayload;
+                return Promise.resolve({ ok: true });
+            },
+            async *readSSEStream() {
+                yield {
+                    type: 'message_start',
+                    message: {
+                        usage: {
+                            input_tokens: 4,
+                            cache_creation_input_tokens: 10,
+                            cache_read_input_tokens: 20,
+                            output_tokens: 0
+                        }
+                    }
+                };
+                yield { type: 'content_block_start', content_block: { type: 'text', text: '' } };
+                yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hi' } };
+                yield { type: 'content_block_stop' };
+                yield { type: 'message_stop' };
+            },
+            startReply() {
+                return { remove() {} };
+            },
+            updateReply() {},
+            finalizeReply() {},
+            updateTokenCount() {},
+            autoSaveConversation() {},
+            processToolCalls() {},
+            sendQueuedMessagesIfAvailable() {
+                return false;
+            },
+            setLoading() {},
+            attachTokenUsageToAssistantMessage(message, provider, model, usage) {
+                attached = { message, provider, model, usage };
+                message._usage = usage;
+            }
+        });
+
+        await assistant.callAnthropic();
+
+        assert.strictEqual(payload.cache_control.type, 'ephemeral');
+        assert.strictEqual(attached.provider, 'anthropic');
+        assert.strictEqual(attached.model, 'claude-test');
+        assert.strictEqual(attached.usage.cache_creation_input_tokens, 10);
+        assert.strictEqual(attached.usage.cache_read_input_tokens, 20);
+    });
+
     it('requests and stores OpenAI streaming usage on assistant messages', async function() {
         let payload = null;
         let attached = null;
@@ -1007,6 +1075,7 @@ describe('provider token usage capture', function() {
             messages: [{ role: 'user', content: 'Hello' }],
             systemPrompt: 'System',
             conversationModel: 'gpt-test',
+            conversationId: 123,
             abortController: null,
             getModel() {
                 return 'fallback-model';
@@ -1056,6 +1125,7 @@ describe('provider token usage capture', function() {
         await assistant.callOpenAI();
 
         assert.strictEqual(payload.stream_options.include_usage, true);
+        assert.strictEqual(payload.prompt_cache_key, 'ai-assistant-openai-conversation-123');
         assert.strictEqual(attached.provider, 'openai');
         assert.strictEqual(attached.model, 'gpt-test');
         assert.strictEqual(attached.usage.prompt_tokens, 11);

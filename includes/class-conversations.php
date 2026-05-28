@@ -472,6 +472,7 @@ class Conversations {
             'message_count' => count($messages),
             'provider' => get_post_meta($conversation_id, '_ai_provider', true) ?: '',
             'model' => get_post_meta($conversation_id, '_ai_model', true) ?: '',
+            'token_usage' => $this->get_conversation_token_usage($conversation_id, $messages),
             'system_prompt' => get_post_meta($conversation_id, '_ai_system_prompt', true) ?: '',
             'created' => $post->post_date_gmt ?: $post->post_date,
             'modified' => $post->post_modified_gmt ?: $post->post_modified,
@@ -1290,15 +1291,40 @@ class Conversations {
     }
 
     private function sanitize_token_usage_array(array $usage): array {
+        $cache_creation_input_tokens = $this->sanitize_token_count($usage['cache_creation_input_tokens'] ?? 0);
+        $cache_read_input_tokens = $this->sanitize_token_count($usage['cache_read_input_tokens'] ?? 0);
+        $cached_input_tokens = $this->sanitize_token_count($usage['cached_input_tokens'] ?? 0);
+
+        if ($cached_input_tokens > 0 && $cache_creation_input_tokens === 0 && $cache_read_input_tokens === 0) {
+            $cache_read_input_tokens = $cached_input_tokens;
+        } elseif ($cached_input_tokens === 0) {
+            $cached_input_tokens = $cache_creation_input_tokens + $cache_read_input_tokens;
+        }
+
         return [
             'version' => 1,
             'input_tokens' => $this->sanitize_token_count($usage['input_tokens'] ?? 0),
             'output_tokens' => $this->sanitize_token_count($usage['output_tokens'] ?? 0),
             'total_tokens' => $this->sanitize_token_count($usage['total_tokens'] ?? 0),
-            'cached_input_tokens' => $this->sanitize_token_count($usage['cached_input_tokens'] ?? 0),
+            'cached_input_tokens' => $cached_input_tokens,
+            'cache_creation_input_tokens' => $cache_creation_input_tokens,
+            'cache_read_input_tokens' => $cache_read_input_tokens,
             'reasoning_output_tokens' => $this->sanitize_token_count($usage['reasoning_output_tokens'] ?? 0),
             'source' => sanitize_key((string) ($usage['source'] ?? 'none')) ?: 'none',
         ];
+    }
+
+    private function get_conversation_token_usage(int $conversation_id, array $messages = []): array {
+        $token_usage = get_post_meta($conversation_id, '_ai_token_usage', true);
+        $decoded = is_string($token_usage) && $token_usage !== ''
+            ? json_decode($token_usage, true)
+            : null;
+
+        if (is_array($decoded)) {
+            return $this->sanitize_token_usage_array($decoded);
+        }
+
+        return $this->build_token_usage_from_messages($messages);
     }
 
     private function build_token_usage_from_messages(array $messages): array {
@@ -1308,6 +1334,8 @@ class Conversations {
             'output_tokens' => 0,
             'total_tokens' => 0,
             'cached_input_tokens' => 0,
+            'cache_creation_input_tokens' => 0,
+            'cache_read_input_tokens' => 0,
             'reasoning_output_tokens' => 0,
             'source' => 'none',
         ];
@@ -1324,6 +1352,8 @@ class Conversations {
             $usage['output_tokens'] += $message_usage['output_tokens'];
             $usage['total_tokens'] += $message_usage['total_tokens'] ?: $message_usage['input_tokens'] + $message_usage['output_tokens'];
             $usage['cached_input_tokens'] += $message_usage['cached_input_tokens'];
+            $usage['cache_creation_input_tokens'] += $message_usage['cache_creation_input_tokens'];
+            $usage['cache_read_input_tokens'] += $message_usage['cache_read_input_tokens'];
             $usage['reasoning_output_tokens'] += $message_usage['reasoning_output_tokens'];
 
             if (($message_usage['source'] ?? '') === 'provider') {

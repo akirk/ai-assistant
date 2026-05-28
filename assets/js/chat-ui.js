@@ -2386,6 +2386,18 @@
             return Number.isFinite(number) && number > 0 ? number : 0;
         },
 
+        cloneTokenUsagePayload: function(usage) {
+            if (!usage || typeof usage !== 'object') {
+                return null;
+            }
+
+            try {
+                return JSON.parse(JSON.stringify(usage));
+            } catch (e) {
+                return null;
+            }
+        },
+
         estimateCharsForMessage: function(msg) {
             var totalChars = 0;
 
@@ -2438,16 +2450,29 @@
 
         normalizeTokenUsage: function(usage, provider, model, source) {
             usage = usage || {};
+            source = source || 'provider';
 
             var cacheCreationInput = this.getTokenNumber(usage.cache_creation_input_tokens);
-            var cacheReadInput = this.getTokenNumber(usage.cache_read_input_tokens);
-            var cachedInput = this.getTokenNumber(usage.cached_input_tokens) +
-                cacheCreationInput +
-                cacheReadInput;
+            var rawCacheReadInput = this.getTokenNumber(usage.cache_read_input_tokens);
+            var cacheReadInput = rawCacheReadInput;
+            var openAiCachedInput = 0;
 
             if (usage.prompt_tokens_details && usage.prompt_tokens_details.cached_tokens) {
-                cachedInput += this.getTokenNumber(usage.prompt_tokens_details.cached_tokens);
+                openAiCachedInput += this.getTokenNumber(usage.prompt_tokens_details.cached_tokens);
             }
+            if (usage.input_tokens_details && usage.input_tokens_details.cached_tokens) {
+                openAiCachedInput += this.getTokenNumber(usage.input_tokens_details.cached_tokens);
+            }
+            openAiCachedInput += this.getTokenNumber(usage.input_cached_tokens);
+
+            cacheReadInput += openAiCachedInput;
+
+            var legacyCachedInput = this.getTokenNumber(usage.cached_input_tokens);
+            if (!cacheCreationInput && !cacheReadInput && legacyCachedInput) {
+                cacheReadInput = legacyCachedInput;
+            }
+
+            var cachedInput = cacheCreationInput + cacheReadInput;
 
             var inputTokens = this.getTokenNumber(usage.input_tokens);
             if (!inputTokens) {
@@ -2456,7 +2481,12 @@
             if (!inputTokens) {
                 inputTokens = this.getTokenNumber(usage.prompt_eval_count);
             }
-            inputTokens += cacheCreationInput + cacheReadInput;
+
+            var alreadyNormalized = this.getTokenNumber(usage.version) > 0 &&
+                Object.prototype.hasOwnProperty.call(usage, 'cached_input_tokens');
+            if (!alreadyNormalized) {
+                inputTokens += cacheCreationInput + rawCacheReadInput;
+            }
 
             var outputTokens = this.getTokenNumber(usage.output_tokens);
             if (!outputTokens) {
@@ -2470,23 +2500,41 @@
             if (usage.completion_tokens_details && usage.completion_tokens_details.reasoning_tokens) {
                 reasoningOutput += this.getTokenNumber(usage.completion_tokens_details.reasoning_tokens);
             }
+            if (usage.output_tokens_details) {
+                reasoningOutput += this.getTokenNumber(usage.output_tokens_details.reasoning_tokens);
+                reasoningOutput += this.getTokenNumber(usage.output_tokens_details.thinking_tokens);
+            }
 
             var totalTokens = this.getTokenNumber(usage.total_tokens);
-            if (!totalTokens) {
+            if (!totalTokens || (!alreadyNormalized && (cacheCreationInput || rawCacheReadInput) && totalTokens < inputTokens + outputTokens)) {
                 totalTokens = inputTokens + outputTokens;
             }
 
-            return {
+            var normalized = {
                 version: 1,
-                source: source || 'provider',
+                source: source,
                 provider: provider || '',
                 model: model || '',
                 input_tokens: inputTokens,
                 output_tokens: outputTokens,
                 total_tokens: totalTokens,
                 cached_input_tokens: cachedInput,
+                cache_creation_input_tokens: cacheCreationInput,
+                cache_read_input_tokens: cacheReadInput,
                 reasoning_output_tokens: reasoningOutput
             };
+
+            if (source === 'provider') {
+                var rawUsage = usage.raw_usage
+                    ? this.cloneTokenUsagePayload(usage.raw_usage)
+                    : this.cloneTokenUsagePayload(usage);
+
+                if (rawUsage) {
+                    normalized.raw_usage = rawUsage;
+                }
+            }
+
+            return normalized;
         },
 
         mergeTokenUsage: function(current, next) {
@@ -2553,6 +2601,8 @@
                 output_tokens: 0,
                 total_tokens: 0,
                 cached_input_tokens: 0,
+                cache_creation_input_tokens: 0,
+                cache_read_input_tokens: 0,
                 reasoning_output_tokens: 0,
                 source: 'none'
             };
@@ -2567,6 +2617,8 @@
                     summary.output_tokens += usage.output_tokens;
                     summary.total_tokens += usage.total_tokens || usage.input_tokens + usage.output_tokens;
                     summary.cached_input_tokens += usage.cached_input_tokens || 0;
+                    summary.cache_creation_input_tokens += usage.cache_creation_input_tokens || 0;
+                    summary.cache_read_input_tokens += usage.cache_read_input_tokens || 0;
                     summary.reasoning_output_tokens += usage.reasoning_output_tokens || 0;
                     if (usage.source === 'provider') {
                         hasProvider = true;
@@ -2612,14 +2664,23 @@
             var inputEstimated = usage.input_tokens > 0 && usageEstimated;
             var outputEstimated = usage.output_tokens > 0 && usageEstimated;
             var hasEstimatedValues = totalEstimated || inputEstimated || outputEstimated;
-            var cachedInputRow = usage.cached_input_tokens > 0 ? (
+            var cacheReadRow = usage.cache_read_input_tokens > 0 ? (
                 '<div class="ai-token-hover-row ai-token-explained-row">' +
-                    '<span class="ai-token-context-label">Sent from cache' +
-                        '<span class="ai-token-info" tabindex="0" aria-label="Sent from cache is input the provider reported as reused from cache.">i</span>' +
+                    '<span class="ai-token-context-label">Read from cache' +
+                        '<span class="ai-token-info" tabindex="0" aria-label="Read from cache is input the provider reported as retrieved from prompt cache.">i</span>' +
                     '</span>' +
-                    '<strong>' + this.formatTokenValue(usage.cached_input_tokens, false, false) + '</strong>' +
+                    '<strong>' + this.formatTokenValue(usage.cache_read_input_tokens, false, false) + '</strong>' +
                 '</div>' +
-                '<div class="ai-token-help">Input tokens sent to the AI that the provider reported as cache hits. They are still context, but may be billed differently.</div>'
+                '<div class="ai-token-help">Input tokens reused from prompt cache. They are still context, but providers typically bill them at cached-input rates.</div>'
+            ) : '';
+            var cacheCreationRow = usage.cache_creation_input_tokens > 0 ? (
+                '<div class="ai-token-hover-row ai-token-explained-row">' +
+                    '<span class="ai-token-context-label">Written to cache' +
+                        '<span class="ai-token-info" tabindex="0" aria-label="Written to cache is input the provider reported as stored in prompt cache for later reuse.">i</span>' +
+                    '</span>' +
+                    '<strong>' + this.formatTokenValue(usage.cache_creation_input_tokens, false, false) + '</strong>' +
+                '</div>' +
+                '<div class="ai-token-help">Input tokens stored in prompt cache. Some providers bill cache writes differently from normal input and cache reads.</div>'
             ) : '';
             var estimatedLegend = hasEstimatedValues
                 ? '<div class="ai-token-hover-legend">* Estimated</div>'
@@ -2636,7 +2697,8 @@
                         '<strong>' + this.formatTokenValue(usage.input_tokens, inputEstimated, false) + '</strong>' +
                     '</div>' +
                     '<div class="ai-token-help">Cumulative tokens sent to the AI across requests. Each request resends the needed context, so this can be higher than the visible conversation.</div>' +
-                    cachedInputRow +
+                    cacheReadRow +
+                    cacheCreationRow +
                     '<div class="ai-token-hover-row ai-token-explained-row">' +
                         '<span class="ai-token-context-label">Received from AI (output)' +
                             '<span class="ai-token-info" tabindex="0" aria-label="Output tokens are what the AI model returned: assistant text, tool calls, and reported reasoning tokens when available.">i</span>' +

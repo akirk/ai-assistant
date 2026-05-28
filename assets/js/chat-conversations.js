@@ -514,6 +514,7 @@
             this.conversationTitle = '';
             this.conversationProvider = this.getProvider();
             this.conversationModel = this.getModel();
+            this.promptCacheKey = '';
             this.titleGenerationInProgress = false;
             this.titleGenerationAttempted = false;
             this.titleGenerationToken++;
@@ -847,6 +848,7 @@
                         // Use saved provider/model, fall back to current only for API calls
                         self.conversationProvider = response.data.provider || self.getProvider();
                         self.conversationModel = response.data.model || self.getModel();
+                        self.promptCacheKey = '';
                         self.conversationTokenUsage = response.data.token_usage || null;
                         self.updateSendButton();
                         self.updateTokenCount();
