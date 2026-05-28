@@ -51,7 +51,7 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertStringContainsString('ai-assistant-checkout-badge', $html);
         $this->assertStringContainsString('class="ai-assistant-checkout-badge is-old-version"', $html);
         $this->assertStringContainsString('Old Version:', $html);
-        $this->assertStringContainsString('ai-assistant-checkout-badge-message">Middle checked out change message...', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-message" title="Middle checked out change message with more words">Middle checked out change message...', $html);
         $this->assertStringContainsString('just now', $html);
         $this->assertStringContainsString('Badge Demo', $html);
         $this->assertStringContainsString('Middle checked out change message with more words', $html);
@@ -76,14 +76,18 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertStringContainsString('action=ai_assistant_checkout_version', $html);
         $this->assertStringContainsString('tools.php?page=ai-changes&plugin=plugins%2Fbadge-demo', $html);
         $this->assertStringNotContainsString('Not current', $html);
-        $this->assertStringNotContainsString(' title=', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-log-message" title="Latest change message with more words"', $html);
         $this->assertStringNotContainsString(substr($checked_out_sha, 0, 7), $html);
         $this->assertStringContainsString('data-ai-plugin="plugins/badge-demo"', $html);
-        $this->assertStringContainsString('ai-assistant-checkout-badge-close', $html);
-        $this->assertSame('1', get_option(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, ''));
+        $this->assertStringNotContainsString('ai-assistant-checkout-badge-close', $html);
+        $this->assertStringContainsString('width: min(320px, calc(100vw - 32px));', $html);
+        $this->assertStringContainsString('.ai-assistant-checkout-badge-log-message', $html);
+        $this->assertStringContainsString('text-overflow: ellipsis;', $html);
+        $this->assertSame('1', get_option(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, '1'));
     }
 
-    public function test_wp_app_template_does_not_render_badge_for_current_plugin(): void {
+    public function test_wp_app_template_does_not_render_badge_for_current_plugin_when_in_page_ai_changes_disabled(): void {
+        update_option(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, '');
         [$manager, $template_path] = $this->createCurrentPlugin('badge-current');
 
         $badge = new Plugin_Checkout_Badge($manager);
@@ -96,8 +100,7 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertSame('', trim($html));
     }
 
-    public function test_wp_app_template_renders_current_plugin_when_in_page_ai_changes_enabled(): void {
-        update_option(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, '1');
+    public function test_wp_app_template_renders_current_plugin_by_default(): void {
         [$manager, $template_path] = $this->createCurrentPlugin('badge-current-enabled');
 
         $badge = new Plugin_Checkout_Badge($manager);
@@ -115,9 +118,9 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertStringContainsString('ai-assistant-checkout-badge-log-node', $html);
         $this->assertStringContainsString('ai-assistant-checkout-badge-log-time', $html);
         $this->assertStringNotContainsString('ai-assistant-checkout-badge-log-marker', $html);
-        $this->assertStringContainsString('ai-assistant-checkout-badge-log-message">Current</span>', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-log-message" title="Current">Current</span>', $html);
         $this->assertStringContainsString('ai-assistant-checkout-badge-summary-link', $html);
-        $this->assertStringContainsString('ai-assistant-checkout-badge-close', $html);
+        $this->assertStringNotContainsString('ai-assistant-checkout-badge-close', $html);
         $this->assertStringNotContainsString('Old Version:', $html);
     }
 
@@ -164,7 +167,7 @@ class PluginCheckoutBadgeTest extends TestCase {
         $this->assertStringContainsString('AI Changes', $html);
         $this->assertStringContainsString('tools.php?page=ai-changes&plugin=plugins%2Fbadge-admin', $html);
         $this->assertStringNotContainsString('Not current', $html);
-        $this->assertStringNotContainsString(' title=', $html);
+        $this->assertStringContainsString('ai-assistant-checkout-badge-message" title="Middle checked out change message with more words">Middle checked out change message...', $html);
         $this->assertStringNotContainsString(substr($checked_out_sha, 0, 7), $html);
     }
 
