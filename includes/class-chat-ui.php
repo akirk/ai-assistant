@@ -263,7 +263,7 @@ class Chat_UI {
 
         $prompt = $system_prompt . "\n\nCURRENT PAGE FILE CHANGES:\n"
             . "- The plugin/theme rendering the current window has tracked AI file changes: {$root}.\n"
-            . "- When it is useful to review those changes, you may call navigate with url \"{$url}\" and link_text \"Review AI changes\". The link should be offered for this current window.\n";
+            . "- When it is useful to review those changes, you may call navigate with url \"{$url}\" and link_text \"View changed files\". The link should be offered for this current window.\n";
 
         return $prompt;
     }
