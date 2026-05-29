@@ -134,11 +134,24 @@
             return;
         }
 
-        if (typeof window.aiAssistant.preloadMostRecentConversation === 'function') {
-            window.aiAssistant.preloadMostRecentConversation();
-        } else if ($('#ai-assistant-messages').children().length === 0 && typeof window.aiAssistant.loadMostRecentConversation === 'function') {
-            window.aiAssistant.loadMostRecentConversation();
+        var preload = function() {
+            if (window.aiAssistant && typeof window.aiAssistant.preloadMostRecentConversation === 'function') {
+                window.aiAssistant.preloadMostRecentConversation();
+            } else if (
+                window.aiAssistant &&
+                $('#ai-assistant-messages').children().length === 0 &&
+                typeof window.aiAssistant.loadMostRecentConversation === 'function'
+            ) {
+                window.aiAssistant.loadMostRecentConversation();
+            }
+        };
+
+        if (typeof window.aiAssistant.ensureProviderConfigLoaded === 'function') {
+            window.aiAssistant.ensureProviderConfigLoaded().then(preload, preload);
+            return;
         }
+
+        preload();
     }
 
     function getScreenMetaPanel($button) {

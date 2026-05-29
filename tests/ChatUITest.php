@@ -116,6 +116,18 @@ class ChatUITest extends TestCase {
         $this->assertFalse($this->should_default_auto_approve_mode());
     }
 
+    public function test_provider_config_is_deferred_outside_full_page_conversations(): void {
+        $_SERVER['REQUEST_URI'] = '/my-apps/';
+
+        $this->assertTrue($this->should_defer_initial_provider_config());
+    }
+
+    public function test_provider_config_is_not_deferred_on_full_page_conversations(): void {
+        $_SERVER['REQUEST_URI'] = '/ai-assistant/conversations/?conversation=123';
+
+        $this->assertFalse($this->should_defer_initial_provider_config());
+    }
+
     private function get_welcome_tips(): array {
         $chat_ui = new Chat_UI();
         $reflection = new ReflectionClass($chat_ui);
@@ -129,6 +141,15 @@ class ChatUITest extends TestCase {
         $chat_ui = new Chat_UI();
         $reflection = new ReflectionClass($chat_ui);
         $method = $reflection->getMethod('should_default_auto_approve_mode');
+        $method->setAccessible(true);
+
+        return $method->invoke($chat_ui);
+    }
+
+    private function should_defer_initial_provider_config(): bool {
+        $chat_ui = new Chat_UI();
+        $reflection = new ReflectionClass($chat_ui);
+        $method = $reflection->getMethod('should_defer_initial_provider_config');
         $method->setAccessible(true);
 
         return $method->invoke($chat_ui);

@@ -50,8 +50,12 @@ class Connectors_Bridge {
      *   - source: 'connectors'
      *   - available: keyed by provider ID, each with name, type, endpoint, models
      *   - hasLocal: whether a server-type provider (e.g. Ollama) is configured
+     *
+     * Model discovery can call provider APIs (for example Anthropic /v1/models or
+     * local model endpoints). Pass false when bootstrapping a closed latch; the
+     * client can request the full config once the assistant is opened.
      */
-    public function get_providers_config(): array {
+    public function get_providers_config(bool $resolve_models = true): array {
         if (!self::is_available()) {
             return ['source' => 'legacy'];
         }
@@ -80,9 +84,6 @@ class Connectors_Bridge {
 
         foreach ($provider_ids as $id) {
             $provider_debug = ['id' => $id];
-
-            $is_configured = $registry->isProviderConfigured($id);
-            $provider_debug['isConfigured'] = $is_configured;
 
             try {
                 $class_name = $registry->getProviderClassName($id);
@@ -128,12 +129,26 @@ class Connectors_Bridge {
             ) ? 'server' : $type;
             $provider_debug['effectiveType'] = $effective_type;
 
-            // Local/server-type providers don't need an API key — skip the isConfigured check
-            // for them since WordPress returns false when no key is set even for key-free providers.
-            if (!$is_configured && $effective_type !== 'server') {
-                $provider_debug['skipped'] = 'isProviderConfigured() returned false';
-                $debug['providers'][] = $provider_debug;
-                continue;
+            if ($resolve_models) {
+                $is_configured = $registry->isProviderConfigured($id);
+                $provider_debug['isConfigured'] = $is_configured;
+
+                // Local/server-type providers don't need an API key — skip the isConfigured check
+                // for them since WordPress returns false when no key is set even for key-free providers.
+                if (!$is_configured && $effective_type !== 'server') {
+                    $provider_debug['skipped'] = 'isProviderConfigured() returned false';
+                    $debug['providers'][] = $provider_debug;
+                    continue;
+                }
+            } else {
+                $provider_debug['isConfigured'] = null;
+                $provider_debug['configurationDeferred'] = true;
+
+                if (!$has_api_key_value && $effective_type !== 'server') {
+                    $provider_debug['skipped'] = 'no API key; configuration check deferred';
+                    $debug['providers'][] = $provider_debug;
+                    continue;
+                }
             }
 
             if ($effective_type === 'server') {
@@ -142,22 +157,26 @@ class Connectors_Bridge {
 
             // Build model list
             $models = [];
-            try {
-                $directory = $class_name::modelMetadataDirectory();
-                foreach ($directory->listModelMetadata() as $model_meta) {
-                    $capabilities = array_map('strval', $model_meta->getSupportedCapabilities());
-                    // Only include models that support text generation
-                    if (!in_array('text_generation', $capabilities, true)) {
-                        continue;
+            if ($resolve_models) {
+                try {
+                    $directory = $class_name::modelMetadataDirectory();
+                    foreach ($directory->listModelMetadata() as $model_meta) {
+                        $capabilities = array_map('strval', $model_meta->getSupportedCapabilities());
+                        // Only include models that support text generation
+                        if (!in_array('text_generation', $capabilities, true)) {
+                            continue;
+                        }
+                        $models[] = [
+                            'id'           => $model_meta->getId(),
+                            'name'         => $model_meta->getName() ?: $model_meta->getId(),
+                            'capabilities' => $capabilities,
+                        ];
                     }
-                    $models[] = [
-                        'id'           => $model_meta->getId(),
-                        'name'         => $model_meta->getName() ?: $model_meta->getId(),
-                        'capabilities' => $capabilities,
-                    ];
+                } catch (\Throwable $e) {
+                    // Model listing may fail if provider is misconfigured
                 }
-            } catch (\Throwable $e) {
-                // Model listing may fail if provider is misconfigured
+            } else {
+                $provider_debug['modelsDeferred'] = true;
             }
 
             // Get endpoint URL
@@ -200,6 +219,7 @@ class Connectors_Bridge {
                 'proxySupported' => $server_side_auth,
                 'models'   => $models,
                 'browserSupported' => $browser_supported,
+                'modelsDeferred' => !$resolve_models,
             ];
         }
 
@@ -207,6 +227,7 @@ class Connectors_Bridge {
             'source'    => 'connectors',
             'available' => $available,
             'hasLocal'  => $has_local,
+            'deferred'  => !$resolve_models,
             'debug'     => $debug,
         ];
     }
