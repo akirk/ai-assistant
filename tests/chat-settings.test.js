@@ -28,15 +28,24 @@ function loadSettingsMixin(options) {
     if (options.browserStatusRegistry) {
         windowObject.wpAiProviderBrowserStatus = options.browserStatusRegistry;
     }
+    const jQuery = {
+        extend(target, source) {
+            return Object.assign(target, source);
+        }
+    };
+    if (options.ajax) {
+        jQuery.ajax = options.ajax;
+    }
+
     const context = {
         window: windowObject,
         aiAssistantProviders: providers,
-        localStorage: createStorage(options.storage),
-        jQuery: {
-            extend(target, source) {
-                return Object.assign(target, source);
-            }
+        aiAssistantConfig: options.config || {
+            ajaxUrl: 'http://example.test/wp-admin/admin-ajax.php',
+            nonce: 'test'
         },
+        localStorage: createStorage(options.storage),
+        jQuery,
         console
     };
 
@@ -428,5 +437,121 @@ describe('chat settings model lifecycle', function() {
 
         assert.strictEqual(assistant.getProvider(), 'lmstudio');
         assert.strictEqual(assistant.getModel(), 'google/gemma-4-26b-a4b');
+    });
+
+    it('treats deferred authenticated Connector providers as available without models', function() {
+        const assistant = loadSettingsMixin({
+            providers: {
+                source: 'connectors',
+                deferred: true,
+                available: {
+                    anthropic: {
+                        name: 'Anthropic',
+                        type: 'cloud',
+                        serverSideAuth: true,
+                        models: [],
+                        modelsDeferred: true
+                    }
+                }
+            }
+        });
+
+        assert.strictEqual(assistant.isConfigured(), true);
+        assert.strictEqual(assistant.getProvider(), 'anthropic');
+        assert.strictEqual(assistant.getModel(), 'claude-sonnet-4-6');
+    });
+
+    it('loads deferred provider config through AJAX once', async function() {
+        let ajaxCalls = 0;
+        const assistant = loadSettingsMixin({
+            providers: {
+                source: 'connectors',
+                deferred: true,
+                available: {
+                    anthropic: {
+                        name: 'Anthropic',
+                        type: 'cloud',
+                        serverSideAuth: true,
+                        models: [],
+                        modelsDeferred: true
+                    }
+                }
+            },
+            ajax(settings) {
+                ajaxCalls++;
+                assert.strictEqual(settings.data.action, 'ai_assistant_get_providers_config');
+                settings.success({
+                    success: true,
+                    data: {
+                        providers: {
+                            source: 'connectors',
+                            deferred: false,
+                            available: {
+                                anthropic: {
+                                    name: 'Anthropic',
+                                    type: 'cloud',
+                                    serverSideAuth: true,
+                                    models: [
+                                        { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                });
+                settings.complete();
+            }
+        });
+
+        assert.strictEqual(assistant.hasDeferredProviderConfig(), true);
+
+        await assistant.ensureProviderConfigLoaded();
+
+        assert.strictEqual(ajaxCalls, 1);
+        assert.strictEqual(assistant.hasDeferredProviderConfig(), false);
+        assert.strictEqual(assistant.getAvailableModels('anthropic').length, 1);
+
+        await assistant.ensureProviderConfigLoaded();
+
+        assert.strictEqual(ajaxCalls, 1);
+    });
+
+    it('does not check browser providers while the panel defers status checks', async function() {
+        let checks = 0;
+        const assistant = loadSettingsMixin({
+            providers: {
+                source: 'connectors',
+                available: {
+                    lmstudio: {
+                        name: 'LM Studio',
+                        type: 'server',
+                        browserSupported: true,
+                        models: []
+                    }
+                }
+            },
+            browserStatusRegistry: {
+                check() {
+                    checks++;
+                    return Promise.resolve({
+                        providerId: 'lmstudio',
+                        reachable: true,
+                        status: 'ready',
+                        models: [
+                            { id: 'loaded-model', name: 'Loaded Model' }
+                        ]
+                    });
+                }
+            }
+        });
+        assistant.shouldDeferBrowserProviderStatusChecks = function() {
+            return true;
+        };
+
+        assert.strictEqual(assistant.hasUncheckedBrowserProviderStatuses(), false);
+        await assistant.ensureBrowserProviderStatuses();
+
+        assert.strictEqual(checks, 0);
+        assert.strictEqual(assistant.getAvailableModels('lmstudio').length, 0);
     });
 });

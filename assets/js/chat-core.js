@@ -798,6 +798,15 @@
             return false;
         },
 
+        shouldDeferBrowserProviderStatusChecks: function() {
+            if (this.isFullPage) {
+                return false;
+            }
+
+            var $standaloneButton = $('#ai-assistant-standalone-trigger button');
+            return $standaloneButton.length > 0 && $standaloneButton.attr('aria-expanded') !== 'true';
+        },
+
         isNearBottom: function(threshold) {
             var $messages = $('#ai-assistant-messages');
             if ($messages.length === 0) return true;

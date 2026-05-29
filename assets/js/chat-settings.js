@@ -296,6 +296,85 @@
                 && Object.keys(aiAssistantProviders.available).length > 0;
         },
 
+        hasDeferredProviderConfig: function() {
+            return this.isConnectorsMode() && !!aiAssistantProviders.deferred;
+        },
+
+        applyProviderConfig: function(providersConfig) {
+            if (!providersConfig || !providersConfig.available) {
+                return false;
+            }
+
+            window.aiAssistantProviders = providersConfig;
+            if (typeof aiAssistantProviders !== 'undefined') {
+                aiAssistantProviders = providersConfig;
+            }
+
+            return true;
+        },
+
+        ensureProviderConfigLoaded: function() {
+            if (!this.hasDeferredProviderConfig()) {
+                return Promise.resolve(typeof aiAssistantProviders !== 'undefined' ? aiAssistantProviders : null);
+            }
+
+            if (this.providerConfigLoadPromise) {
+                return this.providerConfigLoadPromise;
+            }
+
+            if (
+                typeof aiAssistantConfig === 'undefined' ||
+                !aiAssistantConfig.ajaxUrl ||
+                !aiAssistantConfig.nonce ||
+                !$.ajax
+            ) {
+                return Promise.resolve(typeof aiAssistantProviders !== 'undefined' ? aiAssistantProviders : null);
+            }
+
+            var self = this;
+            this.providerConfigLoadPromise = new Promise(function(resolve) {
+                $.ajax({
+                    url: aiAssistantConfig.ajaxUrl,
+                    type: 'POST',
+                    data: {
+                        action: 'ai_assistant_get_providers_config',
+                        _wpnonce: aiAssistantConfig.nonce
+                    },
+                    success: function(response) {
+                        if (response && response.success && response.data && self.applyProviderConfig(response.data.providers)) {
+                            self.syncConversationProviderFromSettings();
+                        }
+                        resolve(typeof aiAssistantProviders !== 'undefined' ? aiAssistantProviders : null);
+                    },
+                    error: function() {
+                        resolve(typeof aiAssistantProviders !== 'undefined' ? aiAssistantProviders : null);
+                    },
+                    complete: function() {
+                        self.providerConfigLoadPromise = null;
+                    }
+                });
+            });
+
+            return this.providerConfigLoadPromise;
+        },
+
+        syncConversationProviderFromSettings: function() {
+            if (!this.isConnectorsMode()) {
+                return;
+            }
+
+            if (this.pendingNewChat) {
+                this.pendingNewChatProvider = this.getProvider();
+                this.pendingNewChatModel = this.getModel();
+            } else if (!this.conversationId && (!this.messages || this.messages.length === 0)) {
+                this.conversationProvider = this.getProvider();
+                this.conversationModel = this.getModel();
+            }
+
+            if (this.updateSendButton) {
+                this.updateSendButton();
+            }
+        },
 
         /**
          * Get the provider priority list.
@@ -333,6 +412,9 @@
 
         hasUncheckedBrowserProviderStatuses: function() {
             if (!this.isConnectorsMode()) return false;
+            if (this.shouldDeferBrowserProviderStatusChecks && this.shouldDeferBrowserProviderStatusChecks()) {
+                return false;
+            }
 
             var ids = Object.keys(aiAssistantProviders.available || {});
             for (var i = 0; i < ids.length; i++) {
@@ -372,6 +454,9 @@
 
         ensureBrowserProviderStatus: function(id) {
             if (!this._providerNeedsBrowserStatus(id)) {
+                return Promise.resolve(aiAssistantProviders.available[id] || null);
+            }
+            if (this.shouldDeferBrowserProviderStatusChecks && this.shouldDeferBrowserProviderStatusChecks()) {
                 return Promise.resolve(aiAssistantProviders.available[id] || null);
             }
 
@@ -419,6 +504,9 @@
             if (!this.isConnectorsMode()) {
                 return Promise.resolve();
             }
+            if (this.shouldDeferBrowserProviderStatusChecks && this.shouldDeferBrowserProviderStatusChecks()) {
+                return Promise.resolve();
+            }
 
             var ids = Object.keys(aiAssistantProviders.available || {});
             var checks = [];
@@ -446,6 +534,10 @@
             }
             var config = aiAssistantProviders.available[id];
             if (!config) return false;
+            if (config.modelsDeferred) {
+                if (config.type === 'server') return true;
+                return !!(config.serverSideAuth || config.apiKey);
+            }
             if (config.type === 'server') {
                 if (config.browserSupported) {
                     if (!config.browserStatusChecked) return true;

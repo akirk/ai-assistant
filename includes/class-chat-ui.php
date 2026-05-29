@@ -14,6 +14,7 @@ class Chat_UI {
         // Admin hooks
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
         add_action('wp_ajax_ai_assistant_bootstrap', [$this, 'ajax_bootstrap']);
+        add_action('wp_ajax_ai_assistant_get_providers_config', [$this, 'ajax_get_providers_config']);
 
         // Frontend hooks (only if enabled in settings).
         // Priority 1000 runs after frameworks like wp-app that dequeue
@@ -202,12 +203,29 @@ class Chat_UI {
         wp_send_json_success([
             'globals' => [
                 'aiAssistantConfig' => $this->get_chat_config(),
-                'aiAssistantProviders' => $this->get_providers_config(),
+                'aiAssistantProviders' => $this->get_providers_config(true),
                 'aiAssistantBootstrap' => $this->get_bootstrap_config(true),
             ],
             'styles' => $assets['styles'],
             'inlineStyles' => $assets['inlineStyles'],
             'scripts' => $assets['scripts'],
+        ]);
+    }
+
+    /**
+     * AJAX: Return the full provider config after the assistant is opened.
+     */
+    public function ajax_get_providers_config() {
+        check_ajax_referer('ai_assistant_chat', '_wpnonce');
+
+        if (!$this->user_has_access()) {
+            wp_send_json_error([
+                'errorMessage' => __('Sorry, you are not allowed to use AI Assistant.', 'ai-assistant'),
+            ], 403);
+        }
+
+        wp_send_json_success([
+            'providers' => $this->get_providers_config(true),
         ]);
     }
 
@@ -551,15 +569,41 @@ class Chat_UI {
     /**
      * Get provider config for the chat runtime.
      */
-    private function get_providers_config() {
+    private function get_providers_config(?bool $resolve_models = null) {
         $bridge = ai_assistant()->connectors_bridge();
         if (!$bridge) {
             return ['source' => 'legacy'];
         }
 
-        $providers_config = $bridge->get_providers_config();
+        if ($resolve_models === null) {
+            $resolve_models = !$this->should_defer_initial_provider_config();
+        }
+
+        $providers_config = $bridge->get_providers_config($resolve_models);
         $providers_config['connectorsUrl'] = admin_url('options-connectors.php');
         return $providers_config;
+    }
+
+    /**
+     * Closed latch panels should not enumerate remote/local models during page render.
+     */
+    private function should_defer_initial_provider_config(): bool {
+        return !$this->is_full_page_conversation_request();
+    }
+
+    /**
+     * Full-page conversation views are already open and need complete provider data.
+     */
+    private function is_full_page_conversation_request(): bool {
+        if (is_admin() && function_exists('get_current_screen')) {
+            $screen = get_current_screen();
+            if ($screen && $screen->id === 'tools_page_ai-conversations') {
+                return true;
+            }
+        }
+
+        $path = trim($this->normalize_welcome_tip_path($_SERVER['REQUEST_URI'] ?? '/'), '/');
+        return $path === Conversations_App::URL_PATH || strpos($path, Conversations_App::URL_PATH . '/') === 0;
     }
 
     /**
