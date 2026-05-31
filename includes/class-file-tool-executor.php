@@ -10,6 +10,9 @@ if (!defined('ABSPATH') && !defined('AI_ASSISTANT_FILE_TOOLS_ENDPOINT')) {
  */
 class File_Tool_Executor {
 
+    private const DEFAULT_READ_FILE_BYTES = 262144;
+    private const MAX_READ_FILE_BYTES = 524288;
+
     private string $wp_content_path;
     private ?Git_Tracker_Manager $git_tracker_manager;
 
@@ -32,7 +35,11 @@ class File_Tool_Executor {
         switch ($tool_name) {
             case 'read_file':
                 $path = $this->get_string_arg($arguments, 'path', $tool_name);
-                return $this->with_ai_changes_metadata($this->read_file($path), $path);
+                return $this->with_ai_changes_metadata($this->read_file(
+                    $path,
+                    $this->get_int_arg($arguments, 'offset', 0, 0, PHP_INT_MAX),
+                    $this->get_int_arg($arguments, 'max_length', self::DEFAULT_READ_FILE_BYTES, 1, self::MAX_READ_FILE_BYTES)
+                ), $path);
             case 'write_file':
                 $path = $this->get_string_arg($arguments, 'path', $tool_name);
                 return $this->with_ai_changes_metadata($this->write_file(
@@ -122,6 +129,22 @@ class File_Tool_Executor {
         }
 
         return (string) $value;
+    }
+
+    private function get_int_arg(array $args, string $name, int $default, int $min, int $max): int {
+        if (!isset($args[$name]) || $args[$name] === '') {
+            return $default;
+        }
+
+        $value = (int) $args[$name];
+        if ($value < $min) {
+            return $min;
+        }
+        if ($value > $max) {
+            return $max;
+        }
+
+        return $value;
     }
 
     private function get_content_arg(array $args, string $name, string $tool): string {
@@ -245,7 +268,7 @@ class File_Tool_Executor {
         }
     }
 
-    private function read_file(string $path): array {
+    private function read_file(string $path, int $offset = 0, int $max_length = self::DEFAULT_READ_FILE_BYTES): array {
         $full_path = $this->resolve_path($path);
 
         if (File_Tool_Auth::is_secret_path($full_path)) {
@@ -260,16 +283,32 @@ class File_Tool_Executor {
             throw new \Exception("File not readable: $path");
         }
 
-        $content = file_get_contents($full_path);
+        $size = filesize($full_path);
+        $offset = max(0, min($offset, $size === false ? 0 : (int) $size));
+        $max_length = max(1, min($max_length, self::MAX_READ_FILE_BYTES));
+
+        $content = file_get_contents($full_path, false, null, $offset, $max_length);
         if ($content === false) {
             throw new \Exception("Failed to read file: $path");
         }
 
+        $returned_bytes = strlen($content);
+        $file_size = $size === false ? $returned_bytes : (int) $size;
+        $next_offset = $offset + $returned_bytes;
+        $truncated = $next_offset < $file_size;
+
         return [
-            'path'     => $path,
-            'content'  => $content,
-            'size'     => filesize($full_path),
-            'modified' => date('Y-m-d H:i:s', filemtime($full_path)),
+            'path'           => $path,
+            'content'        => $content,
+            'size'           => $file_size,
+            'modified'       => date('Y-m-d H:i:s', filemtime($full_path)),
+            'offset'         => $offset,
+            'returned_bytes' => $returned_bytes,
+            'truncated'      => $truncated,
+            'next_offset'    => $truncated ? $next_offset : null,
+            'instruction'    => $truncated
+                ? 'File content was truncated. Call read_file again with offset set to next_offset to continue.'
+                : null,
         ];
     }
 

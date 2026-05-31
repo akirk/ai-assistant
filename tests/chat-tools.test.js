@@ -85,6 +85,15 @@ describe('getAllToolDefinitions', function() {
         assert.ok(!Object.hasOwn(def.input_schema.properties, 'allow_external_fallback'));
     });
 
+    it('defines read_file chunk controls for large files', function() {
+        const def = toolsMixin.getAllToolDefinitions().find(d => d.name === 'read_file');
+
+        assert.ok(def);
+        assert.deepStrictEqual(def.input_schema.required, ['path']);
+        assert.ok(Object.hasOwn(def.input_schema.properties, 'offset'));
+        assert.ok(Object.hasOwn(def.input_schema.properties, 'max_length'));
+    });
+
     it('guides native post drafts toward rest_api', function() {
         withToolDefinitions(DEV_TOOL_DEFINITIONS, function() {
             const defs = toolsMixin.getAllToolDefinitions();

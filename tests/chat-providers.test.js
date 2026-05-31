@@ -17,8 +17,8 @@ function loadProvidersMixin(extraContext) {
             callback();
         },
         jQuery: {
-            extend(target, source) {
-                return Object.assign(target, source);
+            extend(target, ...sources) {
+                return Object.assign(target, ...sources);
             }
         },
         console
@@ -511,6 +511,194 @@ describe('provider request message sanitization', function() {
         assert.strictEqual(message.content, 'Hello');
         assert.strictEqual(typeof message._ts, 'number');
         assert.ok(message._ts > 0);
+    });
+
+    it('compacts oversized tool result content before provider requests', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 4096,
+                maxToolResultStringChars: 1024,
+                maxToolResultArrayItems: 5
+            }
+        });
+        const originalContent = 'x'.repeat(12000);
+
+        const content = assistant.stringifyToolResultForProvider({
+            path: 'plugins/example/large.php',
+            content: originalContent,
+            size: originalContent.length
+        });
+        const parsed = JSON.parse(content);
+
+        assert.ok(content.length < originalContent.length);
+        assert.match(parsed.content, /truncated/);
+        assert.equal(parsed.path, 'plugins/example/large.php');
+        assert.equal(parsed.size, originalContent.length);
+    });
+
+    it('omits duplicate large strings before truncating tool results', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 32768,
+                maxToolResultStringChars: 8192,
+                maxToolResultArrayItems: 5
+            }
+        });
+        const html = '<div>' + 'Vienna '.repeat(4000) + '</div>';
+
+        const content = assistant.stringifyToolResultForProvider({
+            ability: 'wordopedia/get-saved-article',
+            success: true,
+            result: {
+                article: {
+                    summary: 'Wien is the capital of Austria.',
+                    content: html,
+                    html: html
+                }
+            }
+        });
+        const parsed = JSON.parse(content);
+
+        assert.match(parsed.result.article.content, /truncated|file content truncated/);
+        assert.match(parsed.result.article.html, /Duplicate of result.result.article.content omitted/);
+        assert.ok(content.length < html.length);
+    });
+
+    it('compacts oversized stored tool results without stripping private metadata', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 4096,
+                maxToolResultStringChars: 1024
+            }
+        });
+        const message = {
+            role: 'user',
+            _ts: 1790000000000,
+            content: [
+                {
+                    type: 'tool_result',
+                    tool_use_id: 'toolu_large',
+                    content: JSON.stringify({
+                        content: 'x'.repeat(50000),
+                        size: 50000
+                    })
+                }
+            ]
+        };
+        const originalLength = message.content[0].content.length;
+
+        const compacted = assistant.compactProviderMessageForStorage(message);
+        const parsed = JSON.parse(compacted.content[0].content);
+
+        assert.equal(compacted._ts, 1790000000000);
+        assert.ok(compacted.content[0].content.length < originalLength);
+        assert.match(parsed.content, /truncated/);
+    });
+
+    it('drops stale failed Anthropic tool call pairs from future provider context', function() {
+        const assistant = loadProvidersMixin();
+        const messages = [
+            { role: 'user', content: 'Try the operation.' },
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'tool_use', id: 'toolu_failed', name: 'ability', input: { action: 'execute' } }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'toolu_failed', content: '{"error":"No article found"}' }
+                ]
+            },
+            { role: 'assistant', content: 'That article was not available.' },
+            { role: 'user', content: 'Try something else.' }
+        ];
+
+        const compacted = assistant.compactProviderMessagesForRequest(messages, 'anthropic');
+        const serialized = JSON.stringify(compacted);
+
+        assert.ok(!serialized.includes('toolu_failed'));
+        assert.ok(!serialized.includes('No article found'));
+        assert.equal(compacted[compacted.length - 1].content, 'Try something else.');
+    });
+
+    it('keeps the latest failed Anthropic tool result so the model can react once', function() {
+        const assistant = loadProvidersMixin();
+        const messages = [
+            { role: 'user', content: 'Try the operation.' },
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'tool_use', id: 'toolu_current', name: 'ability', input: { action: 'execute' } }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'toolu_current', is_error: true, content: '{"error":"No article found"}' }
+                ]
+            }
+        ];
+
+        const compacted = assistant.compactProviderMessagesForRequest(messages, 'anthropic');
+        const serialized = JSON.stringify(compacted);
+
+        assert.ok(serialized.includes('toolu_current'));
+        assert.ok(serialized.includes('No article found'));
+    });
+
+    it('drops stale failed OpenAI tool calls from future provider context', function() {
+        const assistant = loadProvidersMixin();
+        const messages = [
+            { role: 'user', content: 'Try the operation.' },
+            {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                    {
+                        id: 'call_failed',
+                        type: 'function',
+                        function: { name: 'ability', arguments: '{"action":"execute"}' }
+                    }
+                ]
+            },
+            { role: 'tool', tool_call_id: 'call_failed', content: '{"error":"No article found"}' },
+            { role: 'assistant', content: 'That article was not available.' },
+            { role: 'user', content: 'Try something else.' }
+        ];
+
+        const compacted = assistant.compactProviderMessagesForRequest(messages, 'openai');
+        const serialized = JSON.stringify(compacted);
+
+        assert.ok(!serialized.includes('call_failed'));
+        assert.ok(!serialized.includes('No article found'));
+        assert.equal(compacted[compacted.length - 1].content, 'Try something else.');
+    });
+
+    it('trims oldest request messages when compacted history still exceeds the provider budget', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 4096,
+                maxToolResultStringChars: 1024,
+                maxProviderRequestChars: 32768
+            }
+        });
+        assistant.systemPrompt = 'System';
+
+        const messages = [];
+        for (let i = 0; i < 30; i++) {
+            messages.push({ role: 'user', content: 'message ' + i + ' ' + 'x'.repeat(5000) });
+            messages.push({ role: 'assistant', content: 'response ' + i });
+        }
+        messages.push({ role: 'user', content: 'latest request' });
+
+        const compacted = assistant.compactProviderMessagesForRequest(messages, 'anthropic');
+
+        assert.equal(compacted[0].role, 'user');
+        assert.match(compacted[0].content, /Earlier conversation messages were omitted/);
+        assert.equal(compacted[compacted.length - 1].content, 'latest request');
+        assert.ok(assistant.estimateProviderRequestChars(compacted) <= 32768);
     });
 });
 

@@ -284,6 +284,10 @@ class Chat_UI {
             'currentAiChanges' => $current_ai_changes,
             'maxClientFileBytes' => (int) apply_filters('ai_assistant_client_file_context_bytes', 128 * 1024),
             'compactClientFileBytes' => (int) apply_filters('ai_assistant_client_file_compact_bytes', 32 * 1024),
+            'maxToolResultChars' => (int) apply_filters('ai_assistant_tool_result_max_chars', 32 * 1024),
+            'maxToolResultStringChars' => (int) apply_filters('ai_assistant_tool_result_string_max_chars', 8 * 1024),
+            'maxToolResultArrayItems' => (int) apply_filters('ai_assistant_tool_result_array_max_items', 40),
+            'maxProviderRequestChars' => (int) apply_filters('ai_assistant_provider_request_max_chars', 160 * 1024),
             'maxMediaUploadBytes' => (int) wp_max_upload_size(),
             'toolRoundLimits' => [
                 'default' => (int) apply_filters('ai_assistant_tool_round_limit_default', 25),
