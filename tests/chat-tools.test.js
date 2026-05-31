@@ -92,6 +92,10 @@ describe('getAllToolDefinitions', function() {
         assert.deepStrictEqual(def.input_schema.required, ['path']);
         assert.ok(Object.hasOwn(def.input_schema.properties, 'offset'));
         assert.ok(Object.hasOwn(def.input_schema.properties, 'max_length'));
+        assert.ok(Object.hasOwn(def.input_schema.properties, 'search'));
+        assert.ok(Object.hasOwn(def.input_schema.properties, 'before_lines'));
+        assert.ok(Object.hasOwn(def.input_schema.properties, 'after_lines'));
+        assert.ok(Object.hasOwn(def.input_schema.properties, 'occurrence'));
     });
 
     it('guides native post drafts toward rest_api', function() {

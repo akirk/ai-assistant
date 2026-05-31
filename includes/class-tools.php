@@ -118,7 +118,7 @@ class Tools {
     private function tool_read_file(): array {
         return [
             'name' => 'read_file',
-            'description' => 'Read the contents of a file within wp-content directory. Large files may be returned in chunks.',
+            'description' => 'Read the contents of a file within wp-content directory. Use search with before_lines/after_lines for targeted snippets, or offset/max_length for byte chunks.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
@@ -133,6 +133,22 @@ class Tools {
                     'max_length' => [
                         'type' => 'number',
                         'description' => 'Maximum bytes to return. Use smaller chunks for large files.',
+                    ],
+                    'search' => [
+                        'type' => 'string',
+                        'description' => 'Exact text to locate before returning a line window, e.g. a function name.',
+                    ],
+                    'before_lines' => [
+                        'type' => 'number',
+                        'description' => 'Lines to include before the search match.',
+                    ],
+                    'after_lines' => [
+                        'type' => 'number',
+                        'description' => 'Lines to include after the search match.',
+                    ],
+                    'occurrence' => [
+                        'type' => 'number',
+                        'description' => '1-based match occurrence when search appears multiple times.',
                     ],
                 ],
                 'required' => ['path'],
