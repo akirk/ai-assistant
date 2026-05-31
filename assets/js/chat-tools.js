@@ -185,6 +185,24 @@ var aiAssistantToolsMixin = (function() {
                     }
                 },
                 {
+                    name: 'inspect_tool_result',
+                    description: 'Inspect a cached full result from a previous tool call when its provider context was compacted. Use path plus search/before_lines/after_lines or offset/max_length to retrieve a narrow piece without rerunning the original tool.',
+                    input_schema: {
+                        type: 'object',
+                        properties: {
+                            tool_use_id: { type: 'string', description: 'The previous tool call/result ID to inspect.' },
+                            path: { type: 'string', description: 'Dot path inside the cached result, e.g. result.article.content.' },
+                            search: { type: 'string', description: 'Exact text to locate inside a string value.' },
+                            before_lines: { type: 'number', description: 'Lines to include before the search match.' },
+                            after_lines: { type: 'number', description: 'Lines to include after the search match.' },
+                            occurrence: { type: 'number', description: '1-based match occurrence when search appears multiple times.' },
+                            offset: { type: 'number', description: 'Character offset for string chunks.' },
+                            max_length: { type: 'number', description: 'Maximum characters to return.' }
+                        },
+                        required: ['tool_use_id']
+                    }
+                },
+                {
                     name: 'skill',
                     description: 'Load skill documents with specialized knowledge.',
                     input_schema: {
@@ -236,6 +254,8 @@ var aiAssistantToolsMixin = (function() {
                     return enabled.indexOf('environment_info') >= 0 ||
                            enabled.indexOf('get_plugins') >= 0 ||
                            enabled.indexOf('get_themes') >= 0;
+                case 'inspect_tool_result':
+                    return enabled.indexOf('inspect_tool_result') >= 0;
                 default:
                     return enabled.indexOf(toolName) >= 0;
             }

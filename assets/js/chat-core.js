@@ -65,6 +65,8 @@
         isUploadingFiles: false,
         toolCallSubscriptions: existingAiAssistant.toolCallSubscriptions || [],
         nextToolCallSubscriptionId: existingAiAssistant.nextToolCallSubscriptionId || 1,
+        toolResultCache: existingAiAssistant.toolResultCache || {},
+        toolResultCacheOrder: existingAiAssistant.toolResultCacheOrder || [],
         shouldFollowStreamingScroll: true,
         streamingScrollThreshold: 24,
         streamingScrollResumeThreshold: 4,

@@ -242,7 +242,7 @@ class Settings {
             'read_file', 'list_directory', 'search_files', 'search_content', 'db_query',
             'rest_api', 'environment_info', 'get_plugins', 'get_themes',
             'list_abilities', 'get_ability', 'execute_ability', 'navigate', 'get_page_html',
-            'pick_image', 'summarize_conversation', 'list_skills', 'get_skill',
+            'pick_image', 'summarize_conversation', 'inspect_tool_result', 'list_skills', 'get_skill',
         ];
 
         /**
@@ -274,6 +274,7 @@ class Settings {
             'get_page_html'         => ['label' => 'Get Page HTML',         'group' => 'Navigation & UI', 'dangerous' => false],
             'pick_image'            => ['label' => 'Pick Image',            'group' => 'Media',           'dangerous' => false],
             'summarize_conversation'=> ['label' => 'Summarize Conversation','group' => 'Conversation',    'dangerous' => false],
+            'inspect_tool_result'   => ['label' => 'Inspect Tool Result',   'group' => 'Conversation',    'dangerous' => false],
             'list_skills'           => ['label' => 'List Skills',           'group' => 'Conversation',    'dangerous' => false],
             'get_skill'             => ['label' => 'Get Skill',             'group' => 'Conversation',    'dangerous' => false],
         ];
@@ -3371,6 +3372,8 @@ If the user describes something they are seeing on the page, references UI eleme
 NAVIGATION SUGGESTIONS: When you have finished creating or updating something that has a useful WordPress admin or frontend URL, offer the user a direct link by calling navigate with the final URL and concise link_text. Call navigate only after all requested creation, editing, and checking is complete; do not use it as a progress step or before the destination exists. The tool shows a clickable suggestion to the user instead of opening the page automatically.
 
 IMAGE PICKING: Call pick_image for one image at a time only. Do not issue multiple pick_image tool calls in the same assistant response because each call asks the user to make an interactive choice and parallel pickers are confusing. Wait for the selected image result, then decide whether another image is actually needed.
+
+LARGE TOOL RESULTS: Tool results may be compacted before they are sent back to you. If a compacted result omits the needed detail, call inspect_tool_result with the prior tool_use_id and a narrow path/search/window instead of rerunning a broad tool call.
 
 PROMPT;
 
