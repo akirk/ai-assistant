@@ -1220,6 +1220,129 @@
             return false;
         },
 
+        getStaleReadFileResultKeepLimit: function() {
+            var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+            var value = parseInt(config.staleReadFileResultKeepLimit, 10);
+            return Number.isFinite(value) && value >= 0 ? value : 8;
+        },
+
+        getReadFileRequestIntegerForProvider: function(value) {
+            var number = parseInt(value, 10);
+            return Number.isFinite(number) ? number : null;
+        },
+
+        getReadFileRequestKeyForProvider: function(input, fallbackPath) {
+            input = input || {};
+            var path = input.path || fallbackPath || '';
+            var key = {
+                path: String(path || '').replace(/^\/+|\/+$/g, '')
+            };
+            var value;
+
+            if (!key.path) {
+                return '';
+            }
+
+            if (input.search) {
+                key.search = String(input.search);
+                value = this.getReadFileRequestIntegerForProvider(input.occurrence);
+                if (value !== null && value > 1) {
+                    key.occurrence = value;
+                }
+                value = this.getReadFileRequestIntegerForProvider(input.before_lines);
+                if (value !== null && value > 0) {
+                    key.before_lines = value;
+                }
+                value = this.getReadFileRequestIntegerForProvider(input.after_lines);
+                if (value !== null && value !== 80) {
+                    key.after_lines = value;
+                }
+            } else if (input.offset !== undefined) {
+                value = this.getReadFileRequestIntegerForProvider(input.offset);
+                if (value !== null && value > 0) {
+                    key.offset = value;
+                }
+            }
+
+            value = this.getReadFileRequestIntegerForProvider(input.max_length);
+            if (value !== null && value !== 65536) {
+                key.max_length = value;
+            }
+
+            return JSON.stringify(key);
+        },
+
+        collectRecentReadFileResultIdsToKeep: function(messages, provider, toolCalls) {
+            var limit = this.getStaleReadFileResultKeepLimit();
+            var keepIds = {};
+            var seenRequestKeys = {};
+            var kept = 0;
+            var self = this;
+
+            if (limit <= 0) {
+                return keepIds;
+            }
+
+            function keepToolResultId(toolUseId) {
+                var toolCall = toolCalls && toolCalls[toolUseId];
+                var input = toolCall && toolCall.input ? toolCall.input : {};
+                var requestKey;
+
+                if (!toolCall || toolCall.name !== 'read_file') {
+                    return false;
+                }
+
+                requestKey = self.getReadFileRequestKeyForProvider(input, input.path);
+                if (!requestKey || seenRequestKeys[requestKey]) {
+                    return false;
+                }
+
+                seenRequestKeys[requestKey] = true;
+                keepIds[toolUseId] = true;
+                kept++;
+                return kept >= limit;
+            }
+
+            for (var i = (messages || []).length - 1; i >= 0; i--) {
+                var message = messages[i];
+                var content;
+                var j;
+
+                if (!message || typeof message !== 'object') {
+                    continue;
+                }
+
+                if (provider === 'anthropic') {
+                    if (message.role !== 'user' || !Array.isArray(message.content)) {
+                        continue;
+                    }
+
+                    content = message.content;
+                    for (j = content.length - 1; j >= 0; j--) {
+                        if (
+                            content[j] &&
+                            content[j].type === 'tool_result' &&
+                            content[j].tool_use_id &&
+                            keepToolResultId(content[j].tool_use_id)
+                        ) {
+                            return keepIds;
+                        }
+                    }
+                    continue;
+                }
+
+                if (
+                    message.role === 'tool' &&
+                    message.tool_call_id &&
+                    keepToolResultId(message.tool_call_id)
+                ) {
+                    return keepIds;
+                }
+            }
+
+            return keepIds;
+        },
+
         shouldPruneStaleToolResultContent: function(content, toolCall) {
             if (this.shouldKeepStaleToolResult(toolCall)) {
                 return false;
@@ -1292,6 +1415,7 @@
         collectStaleToolIds: function(messages, provider) {
             var staleIds = {};
             var toolCalls = this.collectToolCallsById(messages, provider);
+            var readFileIdsToKeep = this.collectRecentReadFileResultIdsToKeep(messages, provider, toolCalls);
 
             (messages || []).forEach(function(message, index) {
                 if (provider === 'anthropic') {
@@ -1303,6 +1427,7 @@
                 }
 
                 if (
+                    !readFileIdsToKeep[message.tool_call_id] &&
                     this.hasAssistantAfterMessage(messages, index) &&
                     this.shouldPruneStaleToolResultContent(message.content, toolCalls[message.tool_call_id])
                 ) {
@@ -1326,6 +1451,10 @@
 
                 message.content.forEach(function(block) {
                     if (!block || block.type !== 'tool_result' || !block.tool_use_id) {
+                        return;
+                    }
+
+                    if (readFileIdsToKeep[block.tool_use_id]) {
                         return;
                     }
 
