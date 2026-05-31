@@ -140,6 +140,22 @@ describe('configured tool routing', function() {
 });
 
 describe('inspect_tool_result', function() {
+    it('describes inspections without exposing the tool call id', function() {
+        const assistant = loadExecutionMixin();
+
+        const description = assistant.getActionDescription('inspect_tool_result', {
+            tool_use_id: 'toolu_secret_123',
+            path: 'result.article.content',
+            search: 'Gemeindebezirke'
+        });
+
+        assert.strictEqual(
+            description,
+            'Inspect cached result: result.article.content around "Gemeindebezirke"'
+        );
+        assert.doesNotMatch(description, /toolu_secret_123/);
+    });
+
     it('returns a targeted search window from a cached tool result string path', function() {
         const assistant = createAssistant();
         const article = [

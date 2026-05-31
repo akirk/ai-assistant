@@ -1403,6 +1403,31 @@
                 };
             }
 
+            if (toolName === 'inspect_tool_result') {
+                if (typeof output.content === 'string') {
+                    var inspectedText = output.content || output.instruction || 'No content returned.';
+                    return {
+                        text: inspectedText,
+                        language: output.content && this.inferToolResultLanguage ? this.inferToolResultLanguage(toolName, output, inspectedText) : null,
+                        label: output.match_found === false ? 'Inspection result' : (output.search ? 'Inspected match' : 'Inspected content')
+                    };
+                }
+                if (output.value !== undefined) {
+                    return {
+                        text: typeof output.value === 'string' ? output.value : JSON.stringify(output.value, null, 2),
+                        language: typeof output.value === 'string' ? null : 'json',
+                        label: 'Inspected value'
+                    };
+                }
+                if (output.error || output.instruction) {
+                    return {
+                        text: output.error || output.instruction,
+                        language: null,
+                        label: 'Inspection result'
+                    };
+                }
+            }
+
             if (toolName === 'navigate') return;
 
             var outputText = '';
@@ -2894,6 +2919,18 @@
                         return this.describeSql(match[1].replace(/\\n/g, ' ').replace(/\\t/g, ' '));
                     }
                     break;
+                case 'inspect_tool_result':
+                    var inspectDesc = 'Inspect cached result';
+                    pathMatch = partialJson.match(/"path"\s*:\s*"([^"]+)"/);
+                    if (pathMatch) {
+                        inspectDesc += ': ' + pathMatch[1];
+                    }
+                    match = partialJson.match(/"search"\s*:\s*"([^"]+)"/);
+                    if (match) {
+                        var inspectSearch = match[1].substring(0, 40);
+                        inspectDesc += ' around "' + inspectSearch + (match[1].length > 40 ? '...' : '') + '"';
+                    }
+                    return inspectDesc;
                 case 'ability':
                 case 'execute_ability':
                     match = partialJson.match(/"ability"\s*:\s*"([^"]+)"/);

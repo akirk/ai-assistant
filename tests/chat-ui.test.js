@@ -914,6 +914,21 @@ describe('REST API tool card descriptions', function() {
             null
         );
     });
+
+    it('extracts inspect_tool_result descriptions without exposing the tool call id', function() {
+        const assistant = loadUiMixin();
+
+        const description = assistant.extractPartialDescription(
+            'inspect_tool_result',
+            '{"tool_use_id":"toolu_secret_123","path":"result.article.content","search":"Gemeindebezirke"'
+        );
+
+        assert.strictEqual(
+            description,
+            'Inspect cached result: result.article.content around "Gemeindebezirke"'
+        );
+        assert.doesNotMatch(description, /toolu_secret_123/);
+    });
 });
 
 describe('tool result display', function() {
@@ -932,6 +947,40 @@ describe('tool result display', function() {
         assert.strictEqual(display.text, "<?php\necho 'Hello';\n");
         assert.strictEqual(display.language, 'php');
         assert.strictEqual(display.label, 'Content');
+    });
+
+    it('renders inspected tool result content without exposing the tool call id', function() {
+        const assistant = loadUiMixin();
+
+        const display = assistant.getToolResultDisplay('inspect_tool_result', {
+            tool_use_id: 'toolu_secret_123',
+            tool: 'ability',
+            path: 'result.article.content',
+            search: 'Gemeindebezirke',
+            match_found: true,
+            content: '<h2>Gemeindebezirke</h2>\n<p>Bezirk 1</p>'
+        });
+
+        assert.strictEqual(display.text, '<h2>Gemeindebezirke</h2>\n<p>Bezirk 1</p>');
+        assert.strictEqual(display.label, 'Inspected match');
+        assert.doesNotMatch(display.text, /toolu_secret_123/);
+    });
+
+    it('renders inspected structured values as the value only', function() {
+        const assistant = loadUiMixin();
+
+        const display = assistant.getToolResultDisplay('inspect_tool_result', {
+            tool_use_id: 'toolu_secret_123',
+            tool: 'ability',
+            path: 'result.meta',
+            type: 'object',
+            value: { title: 'Wien', sections: 12 }
+        });
+
+        assert.strictEqual(display.language, 'json');
+        assert.match(display.text, /"title": "Wien"/);
+        assert.doesNotMatch(display.text, /toolu_secret_123/);
+        assert.strictEqual(display.label, 'Inspected value');
     });
 
     it('marks structured tool results as JSON', function() {
