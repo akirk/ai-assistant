@@ -556,6 +556,16 @@ class Settings {
                     <span class="ai-connection-status"></span>
                 </td>
             </tr>
+            <tr class="ai-provider-row" data-provider="anthropic">
+                <th scope="row"><?php esc_html_e('Prompt Caching', 'ai-assistant'); ?></th>
+                <td>
+                    <label for="ai_anthropic_prompt_cache">
+                        <input type="checkbox" id="ai_anthropic_prompt_cache" class="ai-localstorage-setting" data-setting="anthropicPromptCache" value="1">
+                        <?php esc_html_e('Enable Anthropic prompt caching', 'ai-assistant'); ?>
+                    </label>
+                    <p class="description"><?php esc_html_e('May reduce latency and cost when you frequently use Anthropic with long prompts. Off by default because cache writes can cost more.', 'ai-assistant'); ?></p>
+                </td>
+            </tr>
             <tr class="ai-provider-row" data-provider="openai">
                 <th scope="row"><label for="ai_openai_key"><?php esc_html_e('OpenAI API Key', 'ai-assistant'); ?></label></th>
                 <td>
@@ -768,7 +778,9 @@ class Settings {
                     var $el = $(this);
                     var key = $el.data('setting');
                     var value = getSetting(key);
-                    if (value) {
+                    if ($el.is(':checkbox')) {
+                        $el.prop('checked', value === '1');
+                    } else if (value) {
                         if (isApiKeyInput($el)) {
                             setApiKeyInputValue($el, value);
                         } else {
@@ -1127,6 +1139,15 @@ class Settings {
                     <?php esc_html_e('Local providers connect directly from your browser.', 'ai-assistant'); ?>
                 <?php endif; ?>
                 </p>
+                <?php if (isset($config['available']['anthropic'])) : ?>
+                    <div class="ai-anthropic-prompt-cache-option">
+                        <label for="ai_anthropic_prompt_cache">
+                            <input type="checkbox" id="ai_anthropic_prompt_cache" class="ai-localstorage-setting" data-setting="anthropicPromptCache" value="1">
+                            <?php esc_html_e('Enable Anthropic prompt caching', 'ai-assistant'); ?>
+                        </label>
+                        <p class="description"><?php esc_html_e('May reduce latency and cost when you frequently use Anthropic with long prompts. Off by default because cache writes can cost more.', 'ai-assistant'); ?></p>
+                    </div>
+                <?php endif; ?>
                 <style>
                     .ai-provider-priority { max-width: 760px; margin: 10px 0; padding: 0; list-style: none; }
                     .ai-provider-priority li {
@@ -1154,6 +1175,8 @@ class Settings {
                         font-size: 12px; padding: 1px 6px;
                         border-radius: 3px;
                     }
+                    .ai-anthropic-prompt-cache-option { margin: 12px 0; }
+                    .ai-anthropic-prompt-cache-option .description { margin-top: 4px; }
                     .ai-priority-status.available { color: #00a32a; background: #edfaef; }
                     .ai-priority-status.unavailable { color: #996800; background: #fcf0e3; }
                 </style>
@@ -1464,6 +1487,12 @@ class Settings {
 
                     render();
                     checkBrowserProviders();
+
+                    $('#ai_anthropic_prompt_cache')
+                        .prop('checked', getSetting('anthropicPromptCache') === '1')
+                        .on('change', function() {
+                            setSetting('anthropicPromptCache', $(this).is(':checked') ? '1' : '');
+                        });
 
                     $list.on('change', '.ai-priority-model-select', function() {
                         persistModelSelection($(this).data('provider'), $(this).val());
@@ -2906,7 +2935,9 @@ class Settings {
                     var $el = $(this);
                     var key = $el.data('setting');
                     var value;
-                    if ($el.hasClass('ai-api-key-input')) {
+                    if ($el.is(':checkbox')) {
+                        value = $el.is(':checked') ? ($el.val() || '1') : '';
+                    } else if ($el.hasClass('ai-api-key-input')) {
                         var actualValue = $el.data('actualValue');
                         value = typeof actualValue === 'undefined' ? $el.val() : actualValue;
                     } else {

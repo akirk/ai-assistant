@@ -6,6 +6,24 @@
             return Date.now ? Date.now() : new Date().getTime();
         },
 
+        getPromptCacheKey: function(provider) {
+            provider = String(provider || this.conversationProvider || this.getProvider?.() || 'default')
+                .toLowerCase()
+                .replace(/[^a-z0-9_-]+/g, '-')
+                .replace(/^-+|-+$/g, '') || 'default';
+
+            if (!this.promptCacheKey) {
+                var conversationId = parseInt(this.conversationId, 10) || 0;
+                var suffix = conversationId > 0
+                    ? 'conversation-' + conversationId
+                    : 'draft-' + this.getMessageTimestamp().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+
+                this.promptCacheKey = 'ai-assistant-' + provider + '-' + suffix;
+            }
+
+            return this.promptCacheKey;
+        },
+
         createStoredMessage: function(role, content, extra) {
             var message = $.extend({
                 role: role,
@@ -1843,7 +1861,7 @@
                     'anthropic-dangerous-direct-browser-access': 'true'
                 };
                 var buildPayload = function(messages) {
-                    return {
+                    var payload = {
                         model: model,
                         max_tokens: 16384,
                         stream: true,
@@ -1851,6 +1869,12 @@
                         messages: messages,
                         tools: this.getTools()
                     };
+
+                    if (this.isAnthropicPromptCacheEnabled && this.isAnthropicPromptCacheEnabled()) {
+                        payload.cache_control = { type: 'ephemeral' };
+                    }
+
+                    return payload;
                 }.bind(this);
                 var response = await this.fetchLLMProvider(
                     'anthropic',
@@ -2061,6 +2085,7 @@
                         model: model,
                         stream: true,
                         stream_options: { include_usage: true },
+                        prompt_cache_key: this.getPromptCacheKey('openai'),
                         messages: messages,
                         tools: this.getToolsOpenAI()
                     };

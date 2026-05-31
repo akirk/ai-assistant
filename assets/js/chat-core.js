@@ -33,6 +33,7 @@
         yoloMode: false,
         conversationProvider: '',
         conversationModel: '',
+        promptCacheKey: '',
         draftHistory: [],
         draftHistoryIndex: -1,
         draftHistoryDraft: '',
