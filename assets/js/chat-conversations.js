@@ -586,6 +586,10 @@
                 }
             }, this);
 
+            if (this.compactMessagesForStorage) {
+                messages = this.compactMessagesForStorage(messages);
+            }
+
             return messages;
         },
 

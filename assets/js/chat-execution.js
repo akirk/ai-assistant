@@ -1979,13 +1979,19 @@
                     return {
                         type: 'tool_result',
                         tool_use_id: r.id,
-                        content: JSON.stringify(r.result)
+                        is_error: r.success === false ? true : undefined,
+                        content: self.stringifyToolResultForProvider
+                            ? self.stringifyToolResultForProvider(r.result, provider)
+                            : JSON.stringify(r.result)
                     };
                 });
                 this.messages.push(this.createStoredMessage('user', toolResults));
             } else {
                 allResults.forEach(function(r) {
-                    self.messages.push(self.createStoredMessage('tool', JSON.stringify(r.result), {
+                    var content = self.stringifyToolResultForProvider
+                        ? self.stringifyToolResultForProvider(r.result, provider)
+                        : JSON.stringify(r.result);
+                    self.messages.push(self.createStoredMessage('tool', content, {
                         tool_call_id: r.id
                     }));
                 });

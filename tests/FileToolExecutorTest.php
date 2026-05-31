@@ -13,6 +13,7 @@ class FileToolExecutorTest extends TestCase {
         $this->deleteIfExists($this->secretPath());
         $this->deleteIfExists(WP_CONTENT_DIR . '/secret-link.php');
         $this->deleteIfExists(WP_CONTENT_DIR . '/visible-secret-test.php');
+        $this->deleteIfExists(WP_CONTENT_DIR . '/large-read-test.txt');
         $this->deleteDirectoryIfExists(WP_PLUGIN_DIR . '/ai-changes-meta-test');
     }
 
@@ -20,6 +21,7 @@ class FileToolExecutorTest extends TestCase {
         $this->deleteIfExists($this->secretPath());
         $this->deleteIfExists(WP_CONTENT_DIR . '/secret-link.php');
         $this->deleteIfExists(WP_CONTENT_DIR . '/visible-secret-test.php');
+        $this->deleteIfExists(WP_CONTENT_DIR . '/large-read-test.txt');
         $this->deleteDirectoryIfExists(WP_PLUGIN_DIR . '/ai-changes-meta-test');
     }
 
@@ -114,6 +116,24 @@ class FileToolExecutorTest extends TestCase {
         ]);
 
         $this->assertArrayNotHasKey('ai_changes', $result);
+    }
+
+    public function test_read_file_can_return_requested_chunk(): void {
+        $content = '0123456789abcdefghijklmnopqrstuvwxyz';
+        file_put_contents(WP_CONTENT_DIR . '/large-read-test.txt', $content);
+
+        $result = $this->executor->execute('read_file', [
+            'path'       => 'large-read-test.txt',
+            'offset'     => 10,
+            'max_length' => 8,
+        ]);
+
+        $this->assertSame('abcdefgh', $result['content']);
+        $this->assertSame(strlen($content), $result['size']);
+        $this->assertSame(10, $result['offset']);
+        $this->assertSame(8, $result['returned_bytes']);
+        $this->assertTrue($result['truncated']);
+        $this->assertSame(18, $result['next_offset']);
     }
 
     private function createSecretFile(): void {

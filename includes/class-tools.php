@@ -118,13 +118,21 @@ class Tools {
     private function tool_read_file(): array {
         return [
             'name' => 'read_file',
-            'description' => 'Read the contents of a file within wp-content directory',
+            'description' => 'Read the contents of a file within wp-content directory. Large files may be returned in chunks.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
                     'path' => [
                         'type' => 'string',
                         'description' => 'Relative path from wp-content (e.g., "plugins/my-plugin/file.php")',
+                    ],
+                    'offset' => [
+                        'type' => 'number',
+                        'description' => 'Byte offset to start reading from. Omit for the beginning.',
+                    ],
+                    'max_length' => [
+                        'type' => 'number',
+                        'description' => 'Maximum bytes to return. Use smaller chunks for large files.',
                     ],
                 ],
                 'required' => ['path'],
