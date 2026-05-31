@@ -9,6 +9,11 @@ if (!defined('ABSPATH')) {
  * Settings page and option management
  */
 class Settings {
+    private const ALWAYS_ENABLED_TOOLS = [
+        'inspect_tool_result',
+    ];
+
+    private const DEFAULT_TOOL_BACKFILL_OPTION = 'ai_assistant_enabled_tools_default_backfill_1';
 
     public function __construct() {
         add_action('admin_menu', [$this, 'add_settings_page']);
@@ -222,7 +227,9 @@ class Settings {
         }
 
         $tool_name = substr($cap, strlen('ai_assistant_tool_'));
-        $enabled = get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools());
+        $enabled = $this->get_effective_enabled_tools(
+            get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools())
+        );
 
         if (!in_array($tool_name, (array) $enabled, true)) {
             return ['do_not_allow'];
@@ -264,6 +271,40 @@ class Settings {
          * @param array<int,string> $tools Default enabled tool names.
          */
         return array_values(array_unique(array_filter((array) apply_filters('ai_assistant_default_enabled_tools', $tools))));
+    }
+
+    private function get_effective_enabled_tools($tools): array {
+        $all = array_keys($this->get_all_tools_with_meta());
+        $enabled = array_values(array_intersect((array) $tools, $all));
+        $always_enabled = array_values(array_intersect(self::ALWAYS_ENABLED_TOOLS, $all));
+
+        return array_values(array_unique(array_merge($enabled, $always_enabled)));
+    }
+
+    private function maybe_backfill_default_enabled_tools(): void {
+        if (get_option(self::DEFAULT_TOOL_BACKFILL_OPTION, '') === '1') {
+            return;
+        }
+
+        $stored = get_option('ai_assistant_enabled_tools', null);
+        if ($stored !== null && $stored !== false) {
+            $enabled = $this->get_effective_enabled_tools((array) $stored);
+            $legacy_defaults = array_values(array_diff(
+                $this->get_default_enabled_tools(),
+                ['inspect_tool_result', 'delegate', 'list_skills', 'get_skill']
+            ));
+
+            if (empty(array_diff($legacy_defaults, $enabled))) {
+                $enabled[] = 'delegate';
+            }
+
+            update_option(
+                'ai_assistant_enabled_tools',
+                $this->get_effective_enabled_tools($enabled)
+            );
+        }
+
+        update_option(self::DEFAULT_TOOL_BACKFILL_OPTION, '1');
     }
 
     public function get_all_tools_with_meta() {
@@ -467,6 +508,8 @@ class Settings {
      * Register settings
      */
     public function register_settings() {
+        $this->maybe_backfill_default_enabled_tools();
+
         // Display settings (only server-side setting now)
         register_setting('ai_assistant_settings', 'ai_assistant_show_on_frontend', [
             'type' => 'string',
@@ -504,7 +547,7 @@ class Settings {
             'type' => 'array',
             'sanitize_callback' => function($value) {
                 $all = array_keys($this->get_all_tools_with_meta());
-                return array_values(array_intersect((array) $value, $all));
+                return $this->get_effective_enabled_tools(array_intersect((array) $value, $all));
             },
             'default' => $this->get_default_enabled_tools(),
         ]);
@@ -1596,7 +1639,8 @@ class Settings {
         $is_playground = ai_assistant_is_playground();
 
         $all_tools = $this->get_all_tools_with_meta();
-        $stored_enabled = (array) get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools());
+        $always_enabled = self::ALWAYS_ENABLED_TOOLS;
+        $stored_enabled = $this->get_effective_enabled_tools(get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools()));
         $enabled = $is_playground
             ? array_keys($all_tools)
             : $stored_enabled;
@@ -1668,13 +1712,21 @@ class Settings {
                     </div>
                     <div class="ai-tool-group-items">
                         <?php foreach ($tools as $name => $meta) : ?>
+                        <?php $is_always_enabled = in_array($name, $always_enabled, true); ?>
+                        <?php if ($is_always_enabled && !$is_playground) : ?>
+                            <input type="hidden" name="ai_assistant_enabled_tools[]" value="<?php echo esc_attr($name); ?>">
+                        <?php endif; ?>
                         <label class="ai-tool-item">
                             <input type="checkbox"
                                    name="ai_assistant_enabled_tools[]"
                                    value="<?php echo esc_attr($name); ?>"
                                    <?php checked(in_array($name, $enabled, true)); ?>
-                                   <?php disabled($is_playground); ?>>
+                                   <?php disabled($is_playground || $is_always_enabled); ?>
+                                   <?php if ($is_always_enabled) echo 'data-always-enabled="1"'; ?>>
                             <code><?php echo esc_html($name); ?></code>
+                            <?php if ($is_always_enabled && !$is_playground) : ?>
+                                <span class="description"><?php esc_html_e('Always allowed', 'ai-assistant'); ?></span>
+                            <?php endif; ?>
                             <?php if ($meta['dangerous']) : ?>
                                 <span title="<?php esc_attr_e('Dangerous: can modify data or execute code', 'ai-assistant'); ?>">⚠</span>
                             <?php endif; ?>
@@ -1843,7 +1895,9 @@ class Settings {
             $('.ai-group-toggle').on('change', function() {
                 var checked = this.checked;
                 var $group = $(this).closest('.ai-tool-group');
-                $group.find('.ai-tool-group-items > label > input[type=checkbox]').prop('checked', checked);
+                $group.find('.ai-tool-group-items > label > input[type=checkbox]')
+                    .not('[data-always-enabled="1"]')
+                    .prop('checked', checked);
                 syncToolSubItems($group);
                 this.indeterminate = false;
             });

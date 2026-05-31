@@ -163,6 +163,15 @@ class SettingsTest extends TestCase {
         $this->assertEquals(['do_not_allow'], $result);
     }
 
+    public function test_map_tool_cap_always_allows_inspect_tool_result_for_tool_users(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
+        $GLOBALS['wp_test_options']['ai_assistant_enabled_tools'] = ['read_file'];
+
+        $result = $this->settings->map_tool_cap([], 'ai_assistant_tool_inspect_tool_result', 1);
+
+        $this->assertEquals(['exist'], $result);
+    }
+
     public function test_map_tool_cap_uses_defaults_when_option_not_set(): void {
         $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
         // No ai_assistant_enabled_tools option set → falls back to defaults
@@ -231,6 +240,22 @@ class SettingsTest extends TestCase {
         foreach ($all as $tool) {
             $this->assertContains($tool, $tools, "Expected '$tool' enabled in Playground");
         }
+    }
+
+    public function test_register_settings_backfills_delegate_for_legacy_default_tool_options(): void {
+        $legacy_defaults = [
+            'read_file', 'list_directory', 'search_files', 'search_content', 'db_query',
+            'rest_api', 'environment_info', 'get_plugins', 'get_themes',
+            'list_abilities', 'get_ability', 'execute_ability', 'navigate', 'get_page_html',
+            'pick_image', 'summarize_conversation',
+        ];
+        $GLOBALS['wp_test_options']['ai_assistant_enabled_tools'] = $legacy_defaults;
+
+        $this->settings->register_settings();
+
+        $enabled = $GLOBALS['wp_test_options']['ai_assistant_enabled_tools'];
+        $this->assertContains('inspect_tool_result', $enabled);
+        $this->assertContains('delegate', $enabled);
     }
 
     public function test_system_prompt_guides_post_draft_creation(): void {
