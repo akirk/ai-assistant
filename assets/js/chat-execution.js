@@ -2779,6 +2779,18 @@
                     return 'Search for: "' + (args.needle || '').substring(0, 30) + (args.needle && args.needle.length > 30 ? '...' : '') + '"';
                 case 'db_query':
                     return this.describeSql(args.sql || '');
+                case 'inspect_tool_result':
+                    var inspectDescription = 'Inspect cached result';
+                    if (args.path) {
+                        inspectDescription += ': ' + args.path;
+                    }
+                    if (args.search) {
+                        var inspectSearch = String(args.search);
+                        inspectDescription += ' around "' + inspectSearch.substring(0, 40) + (inspectSearch.length > 40 ? '...' : '') + '"';
+                    } else if (args.offset !== undefined || args.max_length !== undefined) {
+                        inspectDescription += ' at offset ' + (parseInt(args.offset, 10) || 0);
+                    }
+                    return inspectDescription;
                 case 'install_plugin':
                     return 'Install plugin: ' + (args.slug || 'unknown') + (args.activate ? ' (+ activate)' : '');
                 case 'run_php':
