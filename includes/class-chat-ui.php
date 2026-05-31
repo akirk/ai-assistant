@@ -338,13 +338,14 @@ class Chat_UI {
              */
             'maxProviderRequestChars' => (int) apply_filters('ai_assistant_provider_request_max_chars', 160 * 1024),
             /**
-             * Filters whether resolved older tool calls and tool results are pruned
-             * from future provider requests.
+             * Filters whether resolved older compacted or oversized tool results
+             * are pruned from future provider requests.
              *
-             * The latest unconsumed tool result is kept so the model can react to
-             * it once; stale pairs are removed to prevent long-session token growth.
+             * Small full results, such as loaded skills, ability schemas, and
+             * concise errors, are retained as working context. The latest unconsumed
+             * tool result is always kept so the model can react to it once.
              *
-             * @param bool $prune Whether to prune stale resolved tool results. Default true.
+             * @param bool $prune Whether to prune stale large tool results. Default true.
              */
             'pruneStaleToolResults' => (bool) apply_filters('ai_assistant_prune_stale_tool_results', true),
             /**

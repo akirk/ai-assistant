@@ -1142,8 +1142,137 @@
             return false;
         },
 
+        isCompactedToolResultValue: function(value, depth) {
+            depth = depth || 0;
+            if (!value || typeof value !== 'object' || depth > 8) {
+                return false;
+            }
+
+            if (
+                value._truncated === true ||
+                value.content_truncated_for_context === true ||
+                (
+                    value.truncated === true &&
+                    (
+                        Object.prototype.hasOwnProperty.call(value, 'next_offset') ||
+                        Object.prototype.hasOwnProperty.call(value, 'returned_bytes') ||
+                        Object.prototype.hasOwnProperty.call(value, 'returned_chars')
+                    )
+                ) ||
+                Object.prototype.hasOwnProperty.call(value, '_truncated_items') ||
+                Object.prototype.hasOwnProperty.call(value, '_truncated_keys') ||
+                Object.prototype.hasOwnProperty.call(value, 'content_original_chars')
+            ) {
+                return true;
+            }
+
+            if (typeof value.content === 'string' && value.content.indexOf('[... truncated ') !== -1) {
+                return true;
+            }
+
+            if (Array.isArray(value)) {
+                return value.some(function(item) {
+                    return this.isCompactedToolResultValue(item, depth + 1);
+                }, this);
+            }
+
+            return Object.keys(value).some(function(key) {
+                return this.isCompactedToolResultValue(value[key], depth + 1);
+            }, this);
+        },
+
+        shouldKeepStaleToolResult: function(toolCall) {
+            if (!toolCall || !toolCall.name) {
+                return false;
+            }
+
+            if (toolCall.name === 'skill' || toolCall.name === 'inspect_tool_result') {
+                return true;
+            }
+
+            if (
+                toolCall.name === 'ability' &&
+                toolCall.input &&
+                (toolCall.input.action === 'list' || toolCall.input.action === 'get')
+            ) {
+                return true;
+            }
+
+            return false;
+        },
+
+        shouldPruneStaleToolResultContent: function(content, toolCall) {
+            if (this.shouldKeepStaleToolResult(toolCall)) {
+                return false;
+            }
+
+            content = String(content || '');
+            if (content.length > this.getToolResultCompactLimits().maxResultChars) {
+                return true;
+            }
+
+            try {
+                return this.isCompactedToolResultValue(JSON.parse(content), 0);
+            } catch (e) {
+                return content.indexOf('[... truncated ') !== -1;
+            }
+        },
+
+        collectToolCallsById: function(messages, provider) {
+            var toolCalls = {};
+
+            (messages || []).forEach(function(message) {
+                if (!message || typeof message !== 'object') {
+                    return;
+                }
+
+                if (provider === 'anthropic' && Array.isArray(message.content)) {
+                    message.content.forEach(function(block) {
+                        if (!block || block.type !== 'tool_use' || !block.id) {
+                            return;
+                        }
+
+                        toolCalls[block.id] = {
+                            id: block.id,
+                            name: block.name || '',
+                            input: block.input || {}
+                        };
+                    });
+                }
+
+                if (provider !== 'anthropic' && Array.isArray(message.tool_calls)) {
+                    message.tool_calls.forEach(function(toolCall) {
+                        if (!toolCall || !toolCall.id) {
+                            return;
+                        }
+
+                        var args = toolCall.function ? toolCall.function.arguments : toolCall.arguments;
+                        var input = {};
+                        if (typeof args === 'string' && args) {
+                            try {
+                                input = JSON.parse(args);
+                            } catch (e) {
+                                input = {};
+                            }
+                        } else if (args && typeof args === 'object') {
+                            input = args;
+                        }
+
+                        toolCalls[toolCall.id] = {
+                            id: toolCall.id,
+                            name: toolCall.function ? toolCall.function.name : (toolCall.name || ''),
+                            input: input
+                        };
+                    });
+                }
+            });
+
+            return toolCalls;
+        },
+
         collectStaleToolIds: function(messages, provider) {
             var staleIds = {};
+            var toolCalls = this.collectToolCallsById(messages, provider);
 
             (messages || []).forEach(function(message, index) {
                 if (provider === 'anthropic') {
@@ -1154,7 +1283,10 @@
                     return;
                 }
 
-                if (this.hasAssistantAfterMessage(messages, index)) {
+                if (
+                    this.hasAssistantAfterMessage(messages, index) &&
+                    this.shouldPruneStaleToolResultContent(message.content, toolCalls[message.tool_call_id])
+                ) {
                     staleIds[message.tool_call_id] = true;
                 }
             }, this);
@@ -1178,8 +1310,12 @@
                         return;
                     }
 
+                    if (!this.shouldPruneStaleToolResultContent(block.content, toolCalls[block.tool_use_id])) {
+                        return;
+                    }
+
                     staleIds[block.tool_use_id] = true;
-                });
+                }, this);
             }, this);
 
             return staleIds;

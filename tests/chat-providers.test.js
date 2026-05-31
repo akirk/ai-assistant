@@ -595,7 +595,7 @@ describe('provider request message sanitization', function() {
         assert.match(parsed.content, /truncated/);
     });
 
-    it('drops stale failed Anthropic tool call pairs from future provider context', function() {
+    it('keeps stale small failed Anthropic tool call pairs as useful context', function() {
         const assistant = loadProvidersMixin();
         const messages = [
             { role: 'user', content: 'Try the operation.' },
@@ -618,12 +618,12 @@ describe('provider request message sanitization', function() {
         const compacted = assistant.compactProviderMessagesForRequest(messages, 'anthropic');
         const serialized = JSON.stringify(compacted);
 
-        assert.ok(!serialized.includes('toolu_failed'));
-        assert.ok(!serialized.includes('No article found'));
+        assert.ok(serialized.includes('toolu_failed'));
+        assert.ok(serialized.includes('No article found'));
         assert.equal(compacted[compacted.length - 1].content, 'Try something else.');
     });
 
-    it('drops stale successful Anthropic tool call pairs from future provider context', function() {
+    it('drops stale compacted Anthropic tool call pairs from future provider context', function() {
         const assistant = loadProvidersMixin();
         const messages = [
             { role: 'user', content: 'Read this data.' },
@@ -637,7 +637,7 @@ describe('provider request message sanitization', function() {
             {
                 role: 'user',
                 content: [
-                    { type: 'tool_result', tool_use_id: 'toolu_success', content: '{"result":{"value":"large payload"}}' }
+                    { type: 'tool_result', tool_use_id: 'toolu_success', content: '{"_truncated":true,"preview":"large payload"}' }
                 ]
             },
             { role: 'assistant', content: 'The data says the value is large payload.' },
@@ -651,6 +651,67 @@ describe('provider request message sanitization', function() {
         assert.ok(!serialized.includes('"large payload"'));
         assert.ok(serialized.includes('I will inspect it.'));
         assert.ok(serialized.includes('The data says the value is large payload.'));
+    });
+
+    it('keeps stale skill results so the model does not reload the same skill each turn', function() {
+        const assistant = loadProvidersMixin();
+        const skillContent = JSON.stringify({
+            id: 'wp-app',
+            title: 'Create a WordPress App Plugin',
+            content: 'Use WpApp for app-like plugins. '.repeat(120) +
+                '\n\n[... truncated 1580 chars ...]\n\n' +
+                'Use ai_assistant_ability_instructions for follow-up context.'
+        });
+        const messages = [
+            { role: 'user', content: 'Build an app.' },
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'tool_use', id: 'toolu_skill', name: 'skill', input: { action: 'get', skill: 'wp-app' } }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'toolu_skill', content: skillContent }
+                ]
+            },
+            { role: 'assistant', content: 'I will use the wp-app pattern.' },
+            { role: 'user', content: 'Continue.' }
+        ];
+
+        const compacted = assistant.compactProviderMessagesForRequest(messages, 'anthropic');
+        const serialized = JSON.stringify(compacted);
+
+        assert.ok(serialized.includes('toolu_skill'));
+        assert.ok(serialized.includes('Create a WordPress App Plugin'));
+    });
+
+    it('keeps stale ability discovery results so schemas are not repeatedly requested', function() {
+        const assistant = loadProvidersMixin();
+        const messages = [
+            { role: 'user', content: 'Create an app.' },
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'tool_use', id: 'toolu_ability_get', name: 'ability', input: { action: 'get', ability: 'ai/create-wp-app' } }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'toolu_ability_get', content: '{"id":"ai/create-wp-app","parameters":{"slug":{"type":"string"}}}' }
+                ]
+            },
+            { role: 'assistant', content: 'I have the schema.' },
+            { role: 'user', content: 'Continue.' }
+        ];
+
+        const compacted = assistant.compactProviderMessagesForRequest(messages, 'anthropic');
+        const serialized = JSON.stringify(compacted);
+
+        assert.ok(serialized.includes('toolu_ability_get'));
+        assert.ok(serialized.includes('ai/create-wp-app'));
     });
 
     it('keeps the latest failed Anthropic tool result so the model can react once', function() {
@@ -703,7 +764,7 @@ describe('provider request message sanitization', function() {
         assert.ok(serialized.includes('fresh payload'));
     });
 
-    it('drops stale failed OpenAI tool calls from future provider context', function() {
+    it('keeps stale small failed OpenAI tool calls as useful context', function() {
         const assistant = loadProvidersMixin();
         const messages = [
             { role: 'user', content: 'Try the operation.' },
@@ -726,12 +787,12 @@ describe('provider request message sanitization', function() {
         const compacted = assistant.compactProviderMessagesForRequest(messages, 'openai');
         const serialized = JSON.stringify(compacted);
 
-        assert.ok(!serialized.includes('call_failed'));
-        assert.ok(!serialized.includes('No article found'));
+        assert.ok(serialized.includes('call_failed'));
+        assert.ok(serialized.includes('No article found'));
         assert.equal(compacted[compacted.length - 1].content, 'Try something else.');
     });
 
-    it('drops stale successful OpenAI tool calls from future provider context', function() {
+    it('drops stale compacted OpenAI tool calls from future provider context', function() {
         const assistant = loadProvidersMixin();
         const messages = [
             { role: 'user', content: 'Read this data.' },
@@ -746,7 +807,7 @@ describe('provider request message sanitization', function() {
                     }
                 ]
             },
-            { role: 'tool', tool_call_id: 'call_success', content: '{"result":{"value":"large payload"}}' },
+            { role: 'tool', tool_call_id: 'call_success', content: '{"_truncated":true,"preview":"large payload"}' },
             { role: 'assistant', content: 'The data says the value is large payload.' },
             { role: 'user', content: 'Continue.' }
         ];
