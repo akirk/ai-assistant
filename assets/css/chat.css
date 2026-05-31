@@ -2672,6 +2672,9 @@ body.wp-app-body .ai-message-user .ai-message-content *::selection,
 #ai-assistant-area-suggestion a,
 #ai-assistant-area-suggestion a:visited,
 #ai-assistant-area-suggestion a:active,
+#ai-assistant-continuation-reference a,
+#ai-assistant-continuation-reference a:visited,
+#ai-assistant-continuation-reference a:active,
 #ai-assistant-ai-changes-suggestion a,
 #ai-assistant-ai-changes-suggestion a:visited,
 #ai-assistant-ai-changes-suggestion a:active {
@@ -2681,9 +2684,42 @@ body.wp-app-body .ai-message-user .ai-message-content *::selection,
 
 #ai-assistant-area-suggestion a:hover,
 #ai-assistant-area-suggestion a:focus,
+#ai-assistant-continuation-reference a:hover,
+#ai-assistant-continuation-reference a:focus,
 #ai-assistant-ai-changes-suggestion a:hover,
 #ai-assistant-ai-changes-suggestion a:focus {
     color: var(--ai-assistant-accent-hover) !important;
+}
+
+.ai-assistant-continuation-details {
+    margin-top: 6px;
+}
+
+.ai-assistant-continuation-details summary {
+    color: var(--ai-assistant-accent);
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.ai-assistant-continuation-context {
+    margin-top: 6px;
+    max-width: 720px;
+    max-height: 220px;
+    overflow: auto;
+    padding: 8px 10px;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    color: #1d2327;
+    font-size: 12px;
+}
+
+.ai-assistant-continuation-context p {
+    margin: 0 0 0.6em;
+}
+
+.ai-assistant-continuation-context p:last-child {
+    margin-bottom: 0;
 }
 
 /* Input area */

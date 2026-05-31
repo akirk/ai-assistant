@@ -45,6 +45,8 @@
         previousUrlComponent: '',
         previousUrlContextAt: 0,
         conversationInteracted: false,
+        standaloneContinuationOfferConversationId: 0,
+        isCompactingStandaloneContinuation: false,
         saveInProgress: false,
         savePending: false,
         savePendingSilent: true,
@@ -231,6 +233,11 @@
             $(document).on('click', '#ai-assistant-area-new-chat', function(e) {
                 e.preventDefault();
                 self.newChat();
+            });
+
+            $(document).on('click', '#ai-assistant-area-compact-new-chat', function(e) {
+                e.preventDefault();
+                self.compactCurrentConversationAndStartNewChat();
             });
 
             $(document).on('click', '#ai-confirm-all', function(e) {
@@ -563,7 +570,11 @@
             }
 
             this.conversationPreloaded = true;
-            this.loadMostRecentConversation();
+            this.loadMostRecentConversation({
+                offerStandaloneContinuation: this.isStandaloneConversationPanel
+                    ? this.isStandaloneConversationPanel()
+                    : false
+            });
         },
 
         open: function() {
@@ -607,7 +618,7 @@
             $btn
                 .text(isQueueing ? 'Queue' : $btn.data('default-text'))
                 .attr('title', isQueueing ? 'Queue message' : '')
-                .prop('disabled', !this.isProviderConfigured() || this.isUploadingFiles);
+                .prop('disabled', !this.isProviderConfigured() || this.isUploadingFiles || this.isCompactingStandaloneContinuation);
             this.updateModelSelectLockState();
         },
 
@@ -739,6 +750,7 @@
                 this.conversationDirty ||
                 this.saveInProgress ||
                 this.isLoading ||
+                this.isCompactingStandaloneContinuation ||
                 hasPendingActions ||
                 this.getQueuedMessageCount() > 0
             );
