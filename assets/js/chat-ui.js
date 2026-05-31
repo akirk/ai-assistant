@@ -1884,13 +1884,7 @@
         },
 
         toolGroupLabel: function(toolUses) {
-            var count = toolUses.length;
-            var seen = {};
-            var names = [];
-            toolUses.forEach(function(tu) {
-                if (!seen[tu.name]) { seen[tu.name] = true; names.push(tu.name); }
-            });
-            return (count === 1 ? '1 tool' : count + ' tools') + ': ' + names.join(', ');
+            return this.toolGroupLabelFromEntries(toolUses || []);
         },
 
         addToolUseGroup: function(toolUses) {
@@ -3070,6 +3064,38 @@
             return $container;
         },
 
+        toolGroupLabelFromEntries: function(entries) {
+            entries = entries || [];
+            var count = entries.length;
+            var counts = {};
+            var order = [];
+
+            entries.forEach(function(entry) {
+                var name = entry && entry.name ? entry.name : '';
+                if (!name) {
+                    return;
+                }
+                if (!counts[name]) {
+                    counts[name] = 0;
+                    order.push(name);
+                }
+                counts[name]++;
+            });
+
+            var label = count === 1 ? '1 tool' : count + ' tools';
+            if (!order.length) {
+                return label;
+            }
+
+            if (count === 1) {
+                return label + ': ' + order[0];
+            }
+
+            return label + ': ' + order.map(function(name) {
+                return counts[name] > 1 ? name + ' x' + counts[name] : name;
+            }).join(', ');
+        },
+
         updateToolCardsSummary: function() {
             var $container = $('#ai-assistant-tool-cards');
             if (!$container.length) return;
@@ -3080,10 +3106,9 @@
                 var s = state[id].state;
                 return s === 'completed' || s === 'error' || s === 'skipped';
             }).length;
-            var seen = {};
-            var names = [];
-            ids.forEach(function(id) { var n = state[id].name; if (n && !seen[n]) { seen[n] = true; names.push(n); } });
-            var base = (total === 1 ? '1 tool' : total + ' tools') + (names.length ? ': ' + names.join(', ') : '');
+            var base = this.toolGroupLabelFromEntries(ids.map(function(id) {
+                return state[id];
+            }));
             $container.toggleClass('ai-tool-cards-complete', done === total && total > 0);
             var $summary = $container.find('> .ai-tool-cards-summary');
             if (!$summary.length) {
@@ -3126,19 +3151,78 @@
             }
         },
 
+        escapeRegExp: function(value) {
+            return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        },
+
+        extractPartialJsonString: function(partialJson, key) {
+            var re = new RegExp('"' + this.escapeRegExp(key) + '"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"', 'i');
+            var match = String(partialJson || '').match(re);
+            if (!match) {
+                return '';
+            }
+            return match[1]
+                .replace(/\\"/g, '"')
+                .replace(/\\\\/g, '\\');
+        },
+
+        extractPartialJsonNumber: function(partialJson, key) {
+            var re = new RegExp('"' + this.escapeRegExp(key) + '"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)', 'i');
+            var match = String(partialJson || '').match(re);
+            return match ? Number(match[1]) : undefined;
+        },
+
+        extractPartialToolArgs: function(partialJson, stringKeys, numberKeys) {
+            var args = {};
+            (stringKeys || []).forEach(function(key) {
+                var value = this.extractPartialJsonString(partialJson, key);
+                if (value !== '') {
+                    args[key] = value;
+                }
+            }, this);
+            (numberKeys || []).forEach(function(key) {
+                var value = this.extractPartialJsonNumber(partialJson, key);
+                if (value !== undefined) {
+                    args[key] = value;
+                }
+            }, this);
+            return args;
+        },
+
         extractPartialDescription: function(toolName, partialJson) {
-            var pathMatch, match;
+            var pathMatch, match, args;
             switch (toolName) {
-                case 'write_file':
                 case 'read_file':
+                    args = this.extractPartialToolArgs(
+                        partialJson,
+                        ['path', 'search'],
+                        ['offset', 'max_length', 'before_lines', 'after_lines', 'occurrence']
+                    );
+                    if (args.path && typeof this.getActionDescription === 'function') {
+                        return this.getActionDescription(toolName, args);
+                    }
+                    break;
+                case 'write_file':
                 case 'delete_file':
                 case 'edit_file':
                     pathMatch = partialJson.match(/"path"\s*:\s*"([^"]+)"/);
                     if (pathMatch) {
                         var verb = toolName === 'write_file' ? 'Write' :
-                                   toolName === 'read_file' ? 'Read' :
                                    toolName === 'delete_file' ? 'Delete' : 'Edit';
                         return verb + ': ' + pathMatch[1];
+                    }
+                    break;
+                case 'find':
+                    args = this.extractPartialToolArgs(
+                        partialJson,
+                        ['path', 'glob', 'text', 'file_pattern', 'mode'],
+                        ['max_results']
+                    );
+                    if (
+                        typeof this.getActionDescription === 'function' &&
+                        (args.path || args.glob || args.text || args.file_pattern || args.mode || args.max_results !== undefined)
+                    ) {
+                        return this.getActionDescription(toolName, args);
                     }
                     break;
                 case 'run_php':
@@ -3499,25 +3583,22 @@
             var $container = $('#ai-assistant-tool-cards');
             var $finished = $container.find('.ai-tool-card-completed, .ai-tool-card-error, .ai-tool-card-skipped');
             if ($finished.length > 0) {
-                var seen = {}, names = [];
+                var entries = [];
                 Object.keys(previousState).forEach(function(id) {
                     var n = previousState[id].name;
-                    if (n && !seen[n]) {
-                        seen[n] = true;
-                        names.push(n);
+                    if (n) {
+                        entries.push({ name: n });
                     }
                 });
-                if (names.length === 0) {
+                if (entries.length === 0) {
                     $finished.find('.ai-tool-card-name').each(function() {
                         var n = $(this).text();
-                        if (n && !seen[n]) {
-                            seen[n] = true;
-                            names.push(n);
+                        if (n) {
+                            entries.push({ name: n });
                         }
                     });
                 }
-                var count = $finished.length;
-                var label = (count === 1 ? '1 tool' : count + ' tools') + (names.length ? ': ' + names.join(', ') : '');
+                var label = this.toolGroupLabelFromEntries(entries.length ? entries : new Array($finished.length));
                 var $group = $('<details class="ai-tool-cards-group"><summary class="ai-tool-cards-summary">' + this.escapeHtml(label) + '</summary></details>');
                 $finished.appendTo($group);
                 $group.insertBefore($container);
@@ -3536,24 +3617,69 @@
             });
         },
 
+        getReadFileInteger: function(value) {
+            var number = parseInt(value, 10);
+            return Number.isFinite(number) ? number : null;
+        },
+
+        getReadFileRequestKey: function(input, fallbackPath) {
+            input = input || {};
+            var path = input.path || fallbackPath || '';
+            var key = {
+                path: String(path || '').replace(/^\/+|\/+$/g, '')
+            };
+            var value;
+
+            if (input.search) {
+                key.search = String(input.search);
+                value = this.getReadFileInteger(input.occurrence);
+                if (value !== null && value > 1) {
+                    key.occurrence = value;
+                }
+                value = this.getReadFileInteger(input.before_lines);
+                if (value !== null && value > 0) {
+                    key.before_lines = value;
+                }
+                value = this.getReadFileInteger(input.after_lines);
+                if (value !== null && value !== 80) {
+                    key.after_lines = value;
+                }
+            } else if (input.offset !== undefined) {
+                value = this.getReadFileInteger(input.offset);
+                if (value !== null && value > 0) {
+                    key.offset = value;
+                }
+            }
+
+            value = this.getReadFileInteger(input.max_length);
+            if (value !== null && value !== 65536) {
+                key.max_length = value;
+            }
+
+            return JSON.stringify(key);
+        },
+
         deduplicateFileReads: function(newResults) {
-            var newReadPaths = {};
+            var self = this;
+            var newReadKeys = {};
             newResults.forEach(function(r) {
                 if (r.name === 'read_file' && r.success && r.result && r.result.path) {
-                    newReadPaths[r.result.path] = r.id;
+                    newReadKeys[self.getReadFileRequestKey(r.input || r.result || {}, r.result.path)] = r.id;
                 }
             });
 
-            if (Object.keys(newReadPaths).length === 0) return;
+            if (Object.keys(newReadKeys).length === 0) return;
 
             var oldToolIds = new Set();
 
             this.messages.forEach(function(msg) {
                 if (msg.role === 'assistant' && Array.isArray(msg.content)) {
                     msg.content.forEach(function(block) {
+                        var input = block.input || block.arguments || {};
+                        var key = self.getReadFileRequestKey(input, input.path);
                         if (block.type === 'tool_use' && block.name === 'read_file' &&
-                            block.input && block.input.path && newReadPaths[block.input.path] &&
-                            block.id !== newReadPaths[block.input.path]) {
+                            input.path && newReadKeys[key] &&
+                            block.id !== newReadKeys[key]) {
                             oldToolIds.add(block.id);
                         }
                     });

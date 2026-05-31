@@ -2755,10 +2755,109 @@
             return table ? verb + ' from ' + table : verb;
         },
 
+        truncateToolDescriptionText: function(value, maxLength) {
+            var text = String(value || '');
+            maxLength = maxLength || 40;
+            return text.substring(0, maxLength) + (text.length > maxLength ? '...' : '');
+        },
+
+        formatToolByteCount: function(value) {
+            var bytes = parseInt(value, 10);
+            if (!Number.isFinite(bytes) || bytes < 0) {
+                return '';
+            }
+            if (typeof this.formatBytes === 'function') {
+                return this.formatBytes(bytes);
+            }
+            return bytes + ' bytes';
+        },
+
+        formatToolInteger: function(value) {
+            var number = parseInt(value, 10);
+            return Number.isFinite(number) ? number : null;
+        },
+
+        getFindScopeLabel: function(args) {
+            var path = args && args.path ? String(args.path) : '';
+            path = path.replace(/^\/+|\/+$/g, '');
+            return path && path !== '.' ? path : 'wp-content';
+        },
+
+        getReadFileDescription: function(args) {
+            args = args || {};
+            var description = 'Read: ' + (args.path || 'unknown');
+            var details = [];
+            var search = args.search ? String(args.search) : '';
+
+            if (search) {
+                description += ' around "' + this.truncateToolDescriptionText(search, 40) + '"';
+
+                var occurrence = this.formatToolInteger(args.occurrence);
+                if (occurrence && occurrence > 1) {
+                    details.push('match ' + occurrence);
+                }
+
+                var beforeLines = this.formatToolInteger(args.before_lines);
+                if (beforeLines && beforeLines > 0) {
+                    details.push(beforeLines + ' before');
+                }
+
+                var afterLines = this.formatToolInteger(args.after_lines);
+                if (afterLines !== null && afterLines >= 0) {
+                    details.push(afterLines + ' after');
+                }
+            } else {
+                var offset = this.formatToolInteger(args.offset);
+                if (offset && offset > 0) {
+                    details.push('offset ' + offset);
+                } else if (args.offset !== undefined) {
+                    details.push('offset 0');
+                }
+            }
+
+            if (args.max_length !== undefined) {
+                var maxLength = this.formatToolByteCount(args.max_length);
+                if (maxLength) {
+                    details.push('max ' + maxLength);
+                }
+            }
+
+            return details.length ? description + ' (' + details.join(', ') + ')' : description;
+        },
+
+        getFindDescription: function(args) {
+            args = args || {};
+            var scope = this.getFindScopeLabel(args);
+
+            if (args.text) {
+                var text = this.truncateToolDescriptionText(args.text, 30);
+                var details = [];
+                if (args.file_pattern) {
+                    details.push(args.file_pattern);
+                }
+                if (args.mode && args.mode !== 'snippets') {
+                    details.push(args.mode);
+                }
+                if (args.max_results !== undefined) {
+                    details.push('max ' + args.max_results);
+                }
+
+                var prefix = args.mode === 'paths' ? 'Find matching files in ' : 'Search in ';
+                var description = prefix + scope + ' for: "' + text + '"';
+                return details.length ? description + ' (' + details.join(', ') + ')' : description;
+            }
+
+            if (args.glob) {
+                return 'Find files in ' + scope + ': ' + args.glob;
+            }
+
+            return 'List: ' + scope;
+        },
+
         getActionDescription: function(toolName, args) {
             switch (toolName) {
                 case 'read_file':
-                    return 'Read: ' + (args.path || 'unknown');
+                    return this.getReadFileDescription(args);
                 case 'write_file':
                     return 'Write: ' + (args.path || 'unknown');
                 case 'edit_file':
@@ -2767,16 +2866,7 @@
                 case 'delete_file':
                     return 'Delete: ' + (args.path || 'unknown');
                 case 'find':
-                    if (args.text) {
-                        if (args.mode === 'paths') {
-                            return 'Find matching files for: "' + args.text.substring(0, 30) + (args.text.length > 30 ? '...' : '') + '"';
-                        }
-                        return 'Search for: "' + args.text.substring(0, 30) + (args.text.length > 30 ? '...' : '') + '"';
-                    }
-                    if (args.glob) {
-                        return 'Search files: ' + args.glob;
-                    }
-                    return 'List: ' + (args.path || 'wp-content');
+                    return this.getFindDescription(args);
                 // Legacy tool names (backward compat with saved conversations)
                 case 'list_directory':
                     return 'List: ' + (args.path || 'wp-content');
