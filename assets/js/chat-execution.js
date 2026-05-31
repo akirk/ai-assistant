@@ -43,7 +43,11 @@
             });
             // Remove tool cards for dropped duplicates silently
             Object.keys(duplicateIds).forEach(function(id) {
-                $('[data-tool-id="' + id + '"]').remove();
+                if (self.getToolCardElement) {
+                    self.getToolCardElement(id).remove();
+                } else {
+                    $('[data-tool-id="' + id + '"]').remove();
+                }
                 if (self.toolCardsState) delete self.toolCardsState[id];
             });
 
