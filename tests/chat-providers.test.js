@@ -784,6 +784,158 @@ describe('provider request message sanitization', function() {
         assert.equal(compacted[compacted.length - 1].content, 'latest request');
         assert.ok(assistant.estimateProviderRequestChars(compacted) <= 32768);
     });
+
+    it('uses stricter compaction limits for provider recovery requests', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 32768,
+                maxToolResultStringChars: 8192,
+                maxProviderRequestChars: 65536
+            }
+        });
+        assistant.systemPrompt = 'System';
+        const largeResult = JSON.stringify({
+            result: {
+                article: {
+                    content: 'x'.repeat(50000)
+                }
+            }
+        });
+        const messages = [
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'tool_use', id: 'toolu_large', name: 'ability', input: { action: 'execute' } }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'toolu_large', content: largeResult }
+                ]
+            }
+        ];
+
+        const normal = assistant.compactProviderMessagesForRequest(messages, 'anthropic');
+        const recovery = assistant.compactProviderMessagesForRequest(messages, 'anthropic', 'recovery');
+        const normalLength = JSON.stringify(normal).length;
+        const recoveryLength = JSON.stringify(recovery).length;
+        const normalResult = JSON.parse(normal[1].content[0].content);
+        const recoveryResult = JSON.parse(recovery[1].content[0].content);
+
+        assert.ok(recoveryLength < normalLength);
+        assert.ok(recoveryResult.result.article.content.length < normalResult.result.article.content.length);
+    });
+});
+
+describe('provider context recovery', function() {
+    function errorResponse(status, message) {
+        return {
+            ok: false,
+            status,
+            json() {
+                return Promise.resolve({ error: { message } });
+            }
+        };
+    }
+
+    it('classifies provider context and auth errors conservatively', function() {
+        const assistant = loadProvidersMixin();
+
+        assert.strictEqual(
+            assistant.isProviderContextRecoverableError(
+                'anthropic',
+                429,
+                "This request would exceed your organization's rate limit of 2,000,000 input tokens per minute. Reduce the prompt length."
+            ),
+            true
+        );
+        assert.strictEqual(
+            assistant.isProviderContextRecoverableError('openai', 400, 'This model has a maximum context length of 128000 tokens.'),
+            true
+        );
+        assert.strictEqual(
+            assistant.isProviderContextRecoverableError('openai', 401, 'Incorrect API key provided.'),
+            false
+        );
+    });
+
+    it('retries Anthropic once with stricter local compaction after an input-token rate limit', async function() {
+        const payloads = [];
+        const assistant = Object.assign(loadProvidersMixin(), {
+            messages: [
+                {
+                    role: 'assistant',
+                    content: [
+                        { type: 'tool_use', id: 'toolu_large', name: 'ability', input: { action: 'execute' } }
+                    ]
+                },
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'tool_result',
+                            tool_use_id: 'toolu_large',
+                            content: JSON.stringify({ result: { article: { content: 'x'.repeat(50000) } } })
+                        }
+                    ]
+                }
+            ],
+            systemPrompt: 'System',
+            conversationModel: 'claude-test',
+            abortController: null,
+            getModel() {
+                return 'fallback-model';
+            },
+            getApiKey() {
+                return 'test-key';
+            },
+            getProviderEndpoint() {
+                return 'https://example.test/anthropic';
+            },
+            getTools() {
+                return [];
+            },
+            fetchLLMProvider(provider, endpoint, headers, requestPayload) {
+                payloads.push(requestPayload);
+                if (payloads.length === 1) {
+                    return Promise.resolve(errorResponse(
+                        429,
+                        "This request would exceed your organization's rate limit of 2,000,000 input tokens per minute. Reduce the prompt length."
+                    ));
+                }
+                return Promise.resolve({ ok: true });
+            },
+            async *readSSEStream() {
+                yield { type: 'content_block_start', content_block: { type: 'text' } };
+                yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Recovered.' } };
+                yield { type: 'content_block_stop' };
+                yield { type: 'message_delta', delta: { stop_reason: 'end_turn' } };
+            },
+            startReply() {
+                return { remove() {} };
+            },
+            updateReply() {},
+            finalizeReply() {},
+            updateTokenCount() {},
+            autoSaveConversation() {},
+            hideToolProgress() {},
+            sendQueuedMessagesIfAvailable() {
+                return false;
+            },
+            setLoading(value) {
+                this.loadingState = value;
+            },
+            addMessage() {}
+        });
+
+        await assistant.callAnthropic();
+
+        assert.strictEqual(payloads.length, 2);
+        assert.ok(JSON.stringify(payloads[1].messages).length < JSON.stringify(payloads[0].messages).length);
+        assert.strictEqual(assistant.messages[assistant.messages.length - 1].content[0].text, 'Recovered.');
+        assert.strictEqual(assistant.loadingState, false);
+    });
 });
 
 describe('provider token usage capture', function() {

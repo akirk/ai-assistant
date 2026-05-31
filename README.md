@@ -12,7 +12,7 @@ An AI-powered chat interface for WordPress. Bring your own API key or connect to
 - **Revert & Reapply**: Undo any AI change and optionally reapply it later
 - **Patch Export/Import**: Download changes as `.patch` files or apply patches from elsewhere
 - **Portable History**: Download your Playground zip with full git history intact for local git operations
-- **Conversation History**: Persistent storage with automatic summarization
+- **Conversation History**: Persistent storage with automatic summarization and context budgeting
 - **Streaming Responses**: Real-time output as the AI generates responses
 - **Settings Persistence**: Configuration stored in localStorage, surviving Playground restarts
 
@@ -45,7 +45,7 @@ The AI Assistant panel appears in the WordPress admin screen meta area (alongsid
 
 | Tool | Description |
 |------|-------------|
-| `read_file` | Read file contents from wp-content |
+| `read_file` | Read file contents from wp-content, with offset chunks and targeted search windows |
 | `write_file` | Create new files (use `edit_file` for modifications) |
 | `edit_file` | Edit existing files via search/replace operations |
 | `delete_file` | Delete files |
@@ -60,17 +60,27 @@ The AI Assistant panel appears in the WordPress admin screen meta area (alongsid
 | `pick_image` | Ask the user to choose or upload an image |
 | `skill` | Load skill documents with specialized WordPress knowledge |
 | `summarize_conversation` | Generate a summary of the current conversation |
+| `inspect_tool_result` | Inspect a narrow slice of a cached large tool result |
 
 Filesystem tools (`read_file`, `write_file`, `edit_file`, `delete_file`, and `find`) use a direct plugin endpoint with a signed token, so they can still run if a previous file edit causes WordPress to fatal during bootstrap. WordPress-backed tools still use AJAX because they need a loaded WordPress environment.
 
-### Tool Tiering for Local LLMs
+### Context and Token Management
 
-When using a local LLM (Ollama, LM Studio), tools are tiered to avoid overwhelming smaller models:
+The assistant keeps long sessions usable by controlling what gets sent to the LLM provider. These safeguards run locally in the browser and WordPress install; the plugin does not send telemetry or diagnostics to a central service.
 
-- **Core tools** (always available): `read_file`, `write_file`, `edit_file`, `find`, `run_php`, `environment_info`
-- **Extended tools** (enabled on demand): `delete_file`, `db_query`, `install_plugin`, `ability`, `navigate`, `get_page_html`, `pick_image`, `summarize_conversation`, `skill`
+- **Tool result compaction**: Oversized tool results are compacted before provider requests and before conversation saves. Large strings are truncated with metadata that tells the model what was omitted.
+- **Duplicate string removal**: If a tool result repeats the same large payload in multiple fields, such as both `content` and `html`, later duplicates are replaced with a short pointer to the first copy.
+- **Stale tool result pruning**: Once the assistant has already responded to a tool result, older resolved tool-call/result pairs are omitted from future provider requests. The latest unresolved or just-returned tool result is kept so the model can react to it once.
+- **Inspectable large results**: Raw tool results are cached in the active browser session. If the provider-safe result was compacted, the model can call `inspect_tool_result` with the previous `tool_use_id`, a JSON path, and either a search window or offset chunk. This lets it recover exact details without putting the entire payload back into the prompt.
+- **Targeted file reads**: `read_file` supports `offset`/`max_length` for chunks and `search` with `before_lines`/`after_lines`/`occurrence` for function-sized inspection. The file-editing prompt tells the model to re-read the exact current range before editing when the current content is not already in the active turn.
+- **Request budgeting**: Before each provider call, messages are compacted and older history can be trimmed if the serialized request still exceeds the configured local budget.
+- **One-shot stricter retry**: If a provider rejects a request with a context, prompt-length, input-token, or input-token rate-limit error, the assistant rebuilds the same request with stricter local compaction and retries once.
 
-The model can call `enable_tools` to activate specific extended tools when it needs them. Cloud providers (Anthropic, OpenAI) receive all tools upfront.
+The raw inspect cache is intentionally not part of the saved conversation payload. It is available for the active browser runtime and disappears after reload, which keeps very large private tool output out of long-term conversation storage and out of future provider prompts.
+
+### Tool Permissions for Local LLMs
+
+Local LLMs (Ollama, LM Studio) and cloud providers receive the same enabled tool set. Use **Settings → AI Assistant → Tool Permissions** to choose which tools are available. Smaller local models usually behave best with a narrower enabled set, especially fewer write/code-execution tools.
 
 ### Auto-approve
 
