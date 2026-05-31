@@ -648,7 +648,7 @@
         },
 
         getToolResultCompactLimits: function(mode) {
-            var aggressive = mode === 'aggressive';
+            var aggressive = mode === 'aggressive' || mode === 'recovery';
             var maxResultChars = this.getProviderLimit('maxToolResultChars', 32 * 1024, 4096);
             var maxStringChars = this.getProviderLimit('maxToolResultStringChars', 8 * 1024, 1024);
             var maxArrayItems = this.getProviderLimit('maxToolResultArrayItems', 40, 1);
@@ -662,8 +662,12 @@
             };
         },
 
-        getProviderRequestCharLimit: function() {
-            return this.getProviderLimit('maxProviderRequestChars', 160 * 1024, 32 * 1024);
+        getProviderRequestCharLimit: function(mode) {
+            var limit = this.getProviderLimit('maxProviderRequestChars', 160 * 1024, 32 * 1024);
+            if (mode === 'recovery') {
+                return Math.max(16 * 1024, Math.floor(limit / 2));
+            }
+            return limit;
         },
 
         truncateProviderString: function(text, maxChars) {
@@ -927,8 +931,19 @@
             return summary;
         },
 
-        stringifyToolResultForProvider: function(result) {
-            var limits = this.getToolResultCompactLimits();
+        getToolResultStringifyMode: function(providerOrMode, mode) {
+            if (mode) {
+                return mode;
+            }
+            if (providerOrMode === 'aggressive' || providerOrMode === 'recovery') {
+                return providerOrMode;
+            }
+            return undefined;
+        },
+
+        stringifyToolResultForProvider: function(result, providerOrMode, mode) {
+            mode = this.getToolResultStringifyMode(providerOrMode, mode);
+            var limits = this.getToolResultCompactLimits(mode);
             result = this.dedupeLargeProviderStrings(result);
             var compacted = this.compactProviderValue(result, limits, 0);
             var json = this.safeJsonStringify(compacted);
@@ -958,26 +973,26 @@
             });
         },
 
-        compactExistingToolResultContent: function(content) {
+        compactExistingToolResultContent: function(content, mode) {
             content = String(content || '');
-            if (content.length <= this.getToolResultCompactLimits().maxResultChars) {
+            if (content.length <= this.getToolResultCompactLimits(mode).maxResultChars) {
                 return content;
             }
 
             try {
-                return this.stringifyToolResultForProvider(JSON.parse(content));
+                return this.stringifyToolResultForProvider(JSON.parse(content), mode);
             } catch (e) {
-                return this.truncateProviderString(content, this.getToolResultCompactLimits().maxResultChars);
+                return this.truncateProviderString(content, this.getToolResultCompactLimits(mode).maxResultChars);
             }
         },
 
-        compactProviderMessageForRequest: function(message, provider) {
+        compactProviderMessageForRequest: function(message, provider, mode) {
             message = this.stripMessageMetadata(message);
             if (!message || typeof message !== 'object') {
                 return message;
             }
 
-            var limits = this.getToolResultCompactLimits();
+            var limits = this.getToolResultCompactLimits(mode);
             var requestTextLimit = Math.max(limits.maxStringChars, Math.floor(limits.maxResultChars / 2));
             var compacted = null;
 
@@ -993,7 +1008,7 @@
                     }
 
                     if (block.type === 'tool_result' && block.content) {
-                        var nextContent = this.compactExistingToolResultContent(block.content);
+                        var nextContent = this.compactExistingToolResultContent(block.content, mode);
                         if (nextContent !== block.content) {
                             changed = true;
                             return $.extend({}, block, { content: nextContent });
@@ -1026,7 +1041,7 @@
             var output = compacted || message;
 
             if (output.role === 'tool' && typeof output.content === 'string') {
-                var toolContent = this.compactExistingToolResultContent(output.content);
+                var toolContent = this.compactExistingToolResultContent(output.content, mode);
                 if (toolContent !== output.content) {
                     output = $.extend({}, output, { content: toolContent });
                 }
@@ -1047,7 +1062,7 @@
                     toolCallsChanged = true;
                     var nextArgs = args;
                     try {
-                        nextArgs = this.stringifyToolResultForProvider(JSON.parse(args));
+                        nextArgs = this.stringifyToolResultForProvider(JSON.parse(args), mode);
                     } catch (e) {
                         nextArgs = this.truncateProviderString(args, requestTextLimit);
                     }
@@ -1313,12 +1328,12 @@
             return result;
         },
 
-        compactProviderMessagesForRequest: function(messages, provider) {
+        compactProviderMessagesForRequest: function(messages, provider, mode) {
             var compacted = (messages || []).map(function(message) {
-                return this.compactProviderMessageForRequest(message, provider);
+                return this.compactProviderMessageForRequest(message, provider, mode);
             }, this);
             compacted = this.pruneStaleToolCallsForRequest(compacted, provider);
-            var budget = this.getProviderRequestCharLimit();
+            var budget = this.getProviderRequestCharLimit(mode);
 
             if (this.estimateProviderRequestChars(compacted) <= budget) {
                 return compacted;
@@ -1327,17 +1342,84 @@
             return this.trimProviderMessagesToBudget(compacted, provider, budget);
         },
 
-        getProviderErrorMessage: async function(response, fallback) {
+        getProviderErrorDetails: async function(response, fallback) {
+            var details = {
+                status: response && response.status ? response.status : 0,
+                message: fallback
+            };
+
             try {
                 var error = await response.json();
-                return error.error?.message ||
+                details.message = error.error?.message ||
                     error.data?.error?.message ||
                     error.data?.message ||
                     error.message ||
+                    JSON.stringify(error) ||
                     fallback;
             } catch (e) {
-                return fallback;
+                details.message = fallback;
             }
+
+            return details;
+        },
+
+        getProviderErrorMessage: async function(response, fallback) {
+            var details = await this.getProviderErrorDetails(response, fallback);
+            return details.message;
+        },
+
+        isProviderContextRecoverableError: function(provider, status, message) {
+            message = String(message || '').toLowerCase();
+
+            if (status === 401 || status === 403) {
+                return false;
+            }
+
+            if (status === 413) {
+                return true;
+            }
+
+            var contextPatterns = [
+                'context length',
+                'context window',
+                'context limit',
+                'maximum context',
+                'prompt is too long',
+                'prompt too long',
+                'too many tokens',
+                'input tokens',
+                'exceed',
+                'reduce the prompt',
+                'request too large',
+                'rate limit'
+            ];
+
+            var hasContextPattern = contextPatterns.some(function(pattern) {
+                return message.indexOf(pattern) !== -1;
+            });
+
+            if (!hasContextPattern) {
+                return false;
+            }
+
+            if (status === 400 || status === 413 || status === 429 || status === 500) {
+                return true;
+            }
+
+            return message.indexOf('input tokens') !== -1 ||
+                message.indexOf('reduce the prompt') !== -1 ||
+                (message.indexOf('prompt') !== -1 && message.indexOf('token') !== -1);
+        },
+
+        buildContextRetryErrorMessage: function(retryMessage, originalMessage) {
+            retryMessage = retryMessage || 'API request failed';
+            originalMessage = originalMessage || retryMessage;
+
+            if (retryMessage === originalMessage) {
+                return retryMessage + ' Retried once with stricter local context compaction, but the provider still rejected the request.';
+            }
+
+            return retryMessage + ' Retried once with stricter local context compaction after: ' + originalMessage;
         },
 
         readSSEStream: async function*(response) {
@@ -1580,7 +1662,7 @@
             };
         },
 
-        prepareAnthropicMessages: function() {
+        prepareAnthropicMessages: function(mode) {
             var prepared = this.repairAnthropicMessages(this.messages);
 
             if (prepared.repaired) {
@@ -1593,7 +1675,7 @@
                 return this.stripMessageMetadata(message);
             }, this);
 
-            return this.compactProviderMessagesForRequest(requestMessages, 'anthropic');
+            return this.compactProviderMessagesForRequest(requestMessages, 'anthropic', mode);
         },
 
         canSendAnthropicMessages: function(messages) {
@@ -1610,35 +1692,63 @@
             var apiKey = this.getApiKey('anthropic');
 
             try {
-                var requestMessages = this.prepareAnthropicMessages();
+                var requestMode = 'normal';
+                var requestMessages = this.prepareAnthropicMessages(requestMode);
                 if (!this.canSendAnthropicMessages(requestMessages)) {
                     console.warn('[AI Assistant] Skipped Anthropic request because the message history does not end with a user message.');
                     this.setLoading(false);
                     return;
                 }
                 var endpoint = this.getProviderEndpoint('anthropic') || 'https://api.anthropic.com/v1/messages';
-                var response = await this.fetchLLMProvider(
-                    'anthropic',
-                    endpoint,
-                    {
-                        'Content-Type': 'application/json',
-                        'x-api-key': apiKey,
-                        'anthropic-version': '2023-06-01',
-                        'anthropic-dangerous-direct-browser-access': 'true'
-                    },
-                    {
+                var headers = {
+                    'Content-Type': 'application/json',
+                    'x-api-key': apiKey,
+                    'anthropic-version': '2023-06-01',
+                    'anthropic-dangerous-direct-browser-access': 'true'
+                };
+                var buildPayload = function(messages) {
+                    return {
                         model: model,
                         max_tokens: 16384,
                         stream: true,
                         system: this.systemPrompt,
-                        messages: requestMessages,
+                        messages: messages,
                         tools: this.getTools()
-                    },
+                    };
+                }.bind(this);
+                var response = await this.fetchLLMProvider(
+                    'anthropic',
+                    endpoint,
+                    headers,
+                    buildPayload(requestMessages),
                     this.abortController ? this.abortController.signal : undefined
                 );
 
                 if (!response.ok) {
-                    throw new Error(await this.getProviderErrorMessage(response, 'API request failed'));
+                    var errorDetails = await this.getProviderErrorDetails(response, 'API request failed');
+                    if (this.isProviderContextRecoverableError('anthropic', errorDetails.status, errorDetails.message)) {
+                        requestMode = 'recovery';
+                        requestMessages = this.prepareAnthropicMessages(requestMode);
+                        if (!this.canSendAnthropicMessages(requestMessages)) {
+                            console.warn('[AI Assistant] Skipped Anthropic recovery request because the message history does not end with a user message.');
+                            this.setLoading(false);
+                            return;
+                        }
+                        response = await this.fetchLLMProvider(
+                            'anthropic',
+                            endpoint,
+                            headers,
+                            buildPayload(requestMessages),
+                            this.abortController ? this.abortController.signal : undefined
+                        );
+
+                        if (!response.ok) {
+                            var retryDetails = await this.getProviderErrorDetails(response, 'API request failed');
+                            throw new Error(this.buildContextRetryErrorMessage(retryDetails.message, errorDetails.message));
+                        }
+                    } else {
+                        throw new Error(errorDetails.message);
+                    }
                 }
 
                 var $reply = this.startReply();
@@ -1796,31 +1906,57 @@
             var apiKey = this.getApiKey('openai');
 
             try {
-                var requestMessages = [
-                    { role: 'system', content: this.systemPrompt },
-                    ...this.compactProviderMessagesForRequest(this.sanitizeMessages(this.messages), 'openai')
-                ];
+                var requestMode = 'normal';
+                var buildRequestMessages = function(mode) {
+                    return [
+                        { role: 'system', content: this.systemPrompt },
+                        ...this.compactProviderMessagesForRequest(this.sanitizeMessages(this.messages), 'openai', mode)
+                    ];
+                }.bind(this);
+                var requestMessages = buildRequestMessages(requestMode);
 
                 var endpoint = this.getProviderEndpoint('openai') || 'https://api.openai.com/v1/chat/completions';
-                var response = await this.fetchLLMProvider(
-                    'openai',
-                    endpoint,
-                    {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + apiKey
-                    },
-                    {
+                var headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + apiKey
+                };
+                var buildPayload = function(messages) {
+                    return {
                         model: model,
                         stream: true,
                         stream_options: { include_usage: true },
-                        messages: requestMessages,
+                        messages: messages,
                         tools: this.getToolsOpenAI()
-                    },
+                    };
+                }.bind(this);
+                var response = await this.fetchLLMProvider(
+                    'openai',
+                    endpoint,
+                    headers,
+                    buildPayload(requestMessages),
                     this.abortController ? this.abortController.signal : undefined
                 );
 
                 if (!response.ok) {
-                    throw new Error(await this.getProviderErrorMessage(response, 'API request failed'));
+                    var errorDetails = await this.getProviderErrorDetails(response, 'API request failed');
+                    if (this.isProviderContextRecoverableError('openai', errorDetails.status, errorDetails.message)) {
+                        requestMode = 'recovery';
+                        requestMessages = buildRequestMessages(requestMode);
+                        response = await this.fetchLLMProvider(
+                            'openai',
+                            endpoint,
+                            headers,
+                            buildPayload(requestMessages),
+                            this.abortController ? this.abortController.signal : undefined
+                        );
+
+                        if (!response.ok) {
+                            var retryDetails = await this.getProviderErrorDetails(response, 'API request failed');
+                            throw new Error(this.buildContextRetryErrorMessage(retryDetails.message, errorDetails.message));
+                        }
+                    } else {
+                        throw new Error(errorDetails.message);
+                    }
                 }
 
                 var streamState = this.createStreamingResponseState(this.startReply());
@@ -2019,26 +2155,33 @@
             }
 
             try {
-                var requestMessages = [
-                    { role: 'system', content: this.systemPrompt },
-                    ...this.compactProviderMessagesForRequest(this.sanitizeMessages(this.messages), 'local')
-                ];
+                var requestMode = 'normal';
+                var buildRequestMessages = function(mode) {
+                    return [
+                        { role: 'system', content: this.systemPrompt },
+                        ...this.compactProviderMessagesForRequest(this.sanitizeMessages(this.messages), 'local', mode)
+                    ];
+                }.bind(this);
+                var requestMessages = buildRequestMessages(requestMode);
 
                 var useOllamaApi = false;
 
                 var abortSignal = this.abortController ? this.abortController.signal : undefined;
+                var buildPayload = function(messages) {
+                    return {
+                        model: model,
+                        stream: true,
+                        messages: messages,
+                        tools: this.getToolsOpenAI()
+                    };
+                }.bind(this);
 
                 var response = await fetch(endpoint + '/v1/chat/completions', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        model: model,
-                        stream: true,
-                        messages: requestMessages,
-                        tools: this.getToolsOpenAI()
-                    }),
+                    body: JSON.stringify(buildPayload(requestMessages)),
                     signal: abortSignal
                 });
 
@@ -2049,12 +2192,7 @@
                         headers: {
                             'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify({
-                            model: model,
-                            messages: requestMessages,
-                            tools: this.getToolsOpenAI(),
-                            stream: true
-                        }),
+                        body: JSON.stringify(buildPayload(requestMessages)),
                         signal: abortSignal
                     });
                 }
@@ -2063,18 +2201,37 @@
                     var errBody = '';
                     try { var errJson = await response.clone().json(); errBody = errJson.error?.message || JSON.stringify(errJson); } catch(e) {}
 
-                    // On 500 with no useful error message, assume context overflow and retry with trimmed messages
-                    if (response.status === 500 && !errBody) {
-                        var trimmed = self.trimMessagesForContext(requestMessages.slice(1)); // exclude system prompt
-                        if (trimmed.length < requestMessages.length - 1) {
-                            requestMessages = [requestMessages[0], ...trimmed];
-                            self.addMessage('system', 'Context trimmed: dropped ' + (self.messages.filter(function(m){ return !m.content && !m.tool_calls; }).length === 0 ? 'older' : 'empty') + ' messages to fit context window.');
-                            response = await fetch(endpoint + (useOllamaApi ? '/api/chat' : '/v1/chat/completions'), {
+                    if (
+                        (response.status === 500 && !errBody) ||
+                        this.isProviderContextRecoverableError('local', response.status, errBody)
+                    ) {
+                        var originalError = errBody || 'Local LLM rejected the request, likely because the context was too large.';
+                        requestMode = 'recovery';
+                        requestMessages = buildRequestMessages(requestMode);
+                        response = await fetch(endpoint + (useOllamaApi ? '/api/chat' : '/v1/chat/completions'), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(buildPayload(requestMessages)),
+                            signal: abortSignal
+                        });
+
+                        if (!response.ok && !useOllamaApi && (response.status === 404 || response.status === 405)) {
+                            useOllamaApi = true;
+                            response = await fetch(endpoint + '/api/chat', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ model: model, stream: true, messages: requestMessages, tools: this.getToolsOpenAI() }),
+                                body: JSON.stringify(buildPayload(requestMessages)),
                                 signal: abortSignal
                             });
+                        }
+
+                        if (!response.ok) {
+                            var retryErrBody = '';
+                            try { var retryErrJson = await response.clone().json(); retryErrBody = retryErrJson.error?.message || JSON.stringify(retryErrJson); } catch(e) {}
+                            throw new Error(this.buildContextRetryErrorMessage(
+                                'Local LLM error ' + response.status + (retryErrBody ? ': ' + retryErrBody : '. Make sure Ollama or LM Studio is running.'),
+                                originalError
+                            ));
                         }
                     }
 
@@ -2271,7 +2428,7 @@
                 var expectedAbort = this.isExpectedGenerationAbort
                     ? this.isExpectedGenerationAbort(error)
                     : error.name === 'AbortError';
-                if ($reply) $reply.remove();
+                if (streamState && streamState.$reply) streamState.$reply.remove();
                 this.hideToolProgress();
                 this.pendingToolResults = [];
                 this.pendingActions = [];
