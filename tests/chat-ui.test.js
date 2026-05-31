@@ -395,6 +395,199 @@ describe('live tool card behavior', function() {
         assert.strictEqual(assistant.getToolCardsContainer().elements[0], first);
         assert.strictEqual(dom.summary, undefined);
     });
+
+    it('counts repeated tool names in group labels', function() {
+        const assistant = loadUiMixin();
+
+        assert.strictEqual(
+            assistant.toolGroupLabel([
+                { name: 'read_file' },
+                { name: 'read_file' },
+                { name: 'find' }
+            ]),
+            '3 tools: read_file x2, find'
+        );
+    });
+});
+
+describe('file read context pruning', function() {
+    function collectReadIds(messages) {
+        const ids = [];
+        messages.forEach(message => {
+            if (!Array.isArray(message.content)) return;
+            message.content.forEach(block => {
+                if (block.type === 'tool_use' && block.name === 'read_file') {
+                    ids.push(block.id);
+                }
+            });
+        });
+        return ids;
+    }
+
+    it('keeps different read_file chunks for the same path', function() {
+        const assistant = loadUiMixin();
+        assistant.messages = [
+            {
+                role: 'assistant',
+                content: [
+                    {
+                        type: 'tool_use',
+                        id: 'old-start',
+                        name: 'read_file',
+                        input: { path: 'plugins/demo/demo.php' }
+                    }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'old-start', content: '{}' }
+                ]
+            },
+            {
+                role: 'assistant',
+                content: [
+                    {
+                        type: 'tool_use',
+                        id: 'old-offset',
+                        name: 'read_file',
+                        input: { path: 'plugins/demo/demo.php', offset: 65536 }
+                    }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'old-offset', content: '{}' }
+                ]
+            }
+        ];
+
+        assistant.deduplicateFileReads([
+            {
+                id: 'new-offset',
+                name: 'read_file',
+                input: { path: 'plugins/demo/demo.php', offset: 131072 },
+                result: { path: 'plugins/demo/demo.php' },
+                success: true
+            }
+        ]);
+
+        assert.deepStrictEqual(
+            collectReadIds(assistant.messages),
+            ['old-start', 'old-offset']
+        );
+    });
+
+    it('deduplicates only matching read_file request windows', function() {
+        const assistant = loadUiMixin();
+        assistant.messages = [
+            {
+                role: 'assistant',
+                content: [
+                    {
+                        type: 'tool_use',
+                        id: 'old-start',
+                        name: 'read_file',
+                        input: { path: 'plugins/demo/demo.php' }
+                    }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'old-start', content: '{}' }
+                ]
+            },
+            {
+                role: 'assistant',
+                content: [
+                    {
+                        type: 'tool_use',
+                        id: 'old-offset',
+                        name: 'read_file',
+                        input: { path: 'plugins/demo/demo.php', offset: 65536 }
+                    }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'old-offset', content: '{}' }
+                ]
+            }
+        ];
+
+        assistant.deduplicateFileReads([
+            {
+                id: 'new-offset',
+                name: 'read_file',
+                input: { path: 'plugins/demo/demo.php', offset: 65536 },
+                result: { path: 'plugins/demo/demo.php' },
+                success: true
+            }
+        ]);
+
+        assert.deepStrictEqual(
+            collectReadIds(assistant.messages),
+            ['old-start']
+        );
+        assert.strictEqual(
+            assistant.messages.some(message => Array.isArray(message.content) && message.content.some(block => block.tool_use_id === 'old-offset')),
+            false
+        );
+    });
+});
+
+describe('partial tool descriptions', function() {
+    it('passes read_file range parameters from partial JSON into the description formatter', function() {
+        const assistant = loadUiMixin();
+        let captured = null;
+        assistant.getActionDescription = function(toolName, args) {
+            captured = { toolName, args };
+            return 'formatted read';
+        };
+
+        assert.strictEqual(
+            assistant.extractPartialDescription(
+                'read_file',
+                '{"path":"plugins/demo/demo.php","offset":65536,"max_length":8192'
+            ),
+            'formatted read'
+        );
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(captured)), {
+            toolName: 'read_file',
+            args: {
+                path: 'plugins/demo/demo.php',
+                offset: 65536,
+                max_length: 8192
+            }
+        });
+    });
+
+    it('passes find path and glob from partial JSON into the description formatter', function() {
+        const assistant = loadUiMixin();
+        let captured = null;
+        assistant.getActionDescription = function(toolName, args) {
+            captured = { toolName, args };
+            return 'formatted find';
+        };
+
+        assert.strictEqual(
+            assistant.extractPartialDescription(
+                'find',
+                '{"glob":"*","path":"plugins/two"'
+            ),
+            'formatted find'
+        );
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(captured)), {
+            toolName: 'find',
+            args: {
+                path: 'plugins/two',
+                glob: '*'
+            }
+        });
+    });
 });
 
 describe('welcome message', function() {

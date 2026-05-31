@@ -1329,6 +1329,71 @@ describe('plugin change recovery candidates', function() {
     });
 });
 
+describe('file tool descriptions', function() {
+    it('includes read_file chunk parameters in the visible description', function() {
+        const assistant = loadExecutionMixin();
+
+        assert.strictEqual(
+            assistant.getActionDescription('read_file', {
+                path: 'plugins/demo/demo.php',
+                offset: 65536,
+                max_length: 8192
+            }),
+            'Read: plugins/demo/demo.php (offset 65536, max 8192 bytes)'
+        );
+    });
+
+    it('includes read_file search window parameters in the visible description', function() {
+        const assistant = loadExecutionMixin();
+
+        assert.strictEqual(
+            assistant.getActionDescription('read_file', {
+                path: 'plugins/demo/demo.php',
+                search: 'function render_settings_page',
+                occurrence: 2,
+                before_lines: 4,
+                after_lines: 12,
+                max_length: 4096
+            }),
+            'Read: plugins/demo/demo.php around "function render_settings_page" (match 2, 4 before, 12 after, max 4096 bytes)'
+        );
+    });
+
+    it('includes find path scope for glob searches', function() {
+        const assistant = loadExecutionMixin();
+
+        assert.strictEqual(
+            assistant.getActionDescription('find', {
+                path: 'plugins/one',
+                glob: '*'
+            }),
+            'Find files in plugins/one: *'
+        );
+        assert.strictEqual(
+            assistant.getActionDescription('find', {
+                path: 'plugins/two',
+                glob: '*'
+            }),
+            'Find files in plugins/two: *'
+        );
+    });
+
+    it('includes find filters for text searches', function() {
+        const assistant = loadExecutionMixin();
+
+        assert.strictEqual(
+            assistant.getActionDescription('find', {
+                path: 'plugins/demo',
+                text: 'getActionDescription',
+                file_pattern: '*.js',
+                mode: 'paths',
+                max_results: 50
+            }),
+            'Find matching files in plugins/demo for: "getActionDescription" (*.js, paths, max 50)'
+        );
+    });
+});
+
 describe('executePickImage', function() {
     it('preserves picker failure status when upload cannot complete', async function() {
         const assistant = loadExecutionMixin();
