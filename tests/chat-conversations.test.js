@@ -139,10 +139,11 @@ function loadConversationMixin(initialStorage, config, options) {
     }, options.window || {});
     windowObject.aiAssistant = aiAssistant;
 
+    const jQuery = createJQuery(input, options);
     const context = {
         window: windowObject,
         URL,
-        jQuery: createJQuery(input, options),
+        jQuery,
         aiAssistantConfig: config || {},
         localStorage: storage,
         fetch: options.fetch,
@@ -159,7 +160,7 @@ function loadConversationMixin(initialStorage, config, options) {
     );
     vm.runInContext(source, context);
 
-    return { assistant: aiAssistant, input, storage };
+    return { assistant: aiAssistant, input, storage, jQuery };
 }
 
 describe('draft history', function() {
@@ -700,6 +701,40 @@ describe('conversation page history', function() {
 });
 
 describe('loading recent conversations', function() {
+    it('keeps the message pane visible while loading a saved conversation', function() {
+        let request = null;
+        const { assistant, jQuery } = loadConversationMixin(null, {
+            ajaxUrl: '/admin-ajax.php',
+            nonce: 'nonce'
+        }, {
+            ajax(settings) {
+                request = settings;
+            }
+        });
+
+        assistant.loadConversation(42);
+
+        assert.strictEqual(request.data.action, 'ai_assistant_load_conversation');
+        assert.notStrictEqual(jQuery('#ai-assistant-messages').css('visibility'), 'hidden');
+    });
+
+    it('keeps the message pane visible while looking up the most recent conversation', function() {
+        let request = null;
+        const { assistant, jQuery } = loadConversationMixin(null, {
+            ajaxUrl: '/admin-ajax.php',
+            nonce: 'nonce'
+        }, {
+            ajax(settings) {
+                request = settings;
+            }
+        });
+
+        assistant.loadMostRecentConversation();
+
+        assert.strictEqual(request.data.action, 'ai_assistant_list_conversations');
+        assert.notStrictEqual(jQuery('#ai-assistant-messages').css('visibility'), 'hidden');
+    });
+
     it('loads the newest conversation that has saved messages', function() {
         let loadedConversationId = 0;
         let welcomeLoaded = false;

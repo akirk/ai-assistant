@@ -798,9 +798,6 @@
             var self = this;
             options = options || {};
 
-            // Hide immediately to avoid showing stale content during load
-            $('#ai-assistant-messages').css('visibility', 'hidden');
-
             $.ajax({
                 url: aiAssistantConfig.ajaxUrl,
                 type: 'POST',
@@ -843,7 +840,7 @@
                         }
 
                         var $messages = $('#ai-assistant-messages');
-                        $messages.css('visibility', 'hidden').empty();
+                        $messages.css('visibility', 'visible').empty();
 
                         // Use saved provider/model, fall back to current only for API calls
                         self.conversationProvider = response.data.provider || self.getProvider();
@@ -884,9 +881,6 @@
         loadMostRecentConversation: function(options) {
             var self = this;
             options = options || {};
-
-            // Hide immediately to avoid showing stale content during load
-            $('#ai-assistant-messages').css('visibility', 'hidden');
 
             $.ajax({
                 url: aiAssistantConfig.ajaxUrl,
