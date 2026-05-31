@@ -1272,7 +1272,141 @@
             return JSON.stringify(key);
         },
 
-        collectRecentReadFileResultIdsToKeep: function(messages, provider, toolCalls) {
+        getReadFilePathKeyForProvider: function(path) {
+            return String(path || '').replace(/^\/+|\/+$/g, '');
+        },
+
+        parseProviderToolResultContent: function(content) {
+            if (!content || typeof content !== 'string') {
+                return {};
+            }
+
+            try {
+                return JSON.parse(content);
+            } catch (e) {
+                return {};
+            }
+        },
+
+        getFileMutationPathFromProviderResult: function(toolCall, content, isError) {
+            var toolName = toolCall && toolCall.name;
+            var input = toolCall && toolCall.input ? toolCall.input : {};
+            var result = this.parseProviderToolResultContent(content);
+            var path = this.getReadFilePathKeyForProvider((result && result.path) || input.path || '');
+
+            if (!path || isError || !toolName || ['write_file', 'edit_file', 'delete_file'].indexOf(toolName) < 0) {
+                return '';
+            }
+
+            if (result && result.error) {
+                return '';
+            }
+
+            if (toolName === 'edit_file') {
+                return parseInt(result.edits_applied, 10) > 0 ? path : '';
+            }
+
+            if (toolName === 'delete_file') {
+                return result.action === 'deleted' ? path : '';
+            }
+
+            return (result.action === 'created' || result.action === 'updated') ? path : '';
+        },
+
+        collectInvalidatedReadFileIds: function(messages, provider, toolCalls) {
+            var invalidatedIds = {};
+            var mutationPathsByLaterMessage = {};
+            var self = this;
+
+            function markReadIfInvalidated(toolUseId) {
+                var toolCall = toolCalls && toolCalls[toolUseId];
+                var input = toolCall && toolCall.input ? toolCall.input : {};
+                var path = self.getReadFilePathKeyForProvider(input.path || '');
+
+                if (toolCall && toolCall.name === 'read_file' && path && mutationPathsByLaterMessage[path]) {
+                    invalidatedIds[toolUseId] = true;
+                }
+            }
+
+            function collectMessageMutationPaths(message) {
+                var paths = {};
+
+                if (provider === 'anthropic') {
+                    if (!message || message.role !== 'user' || !Array.isArray(message.content)) {
+                        return paths;
+                    }
+
+                    message.content.forEach(function(block) {
+                        var path;
+                        if (!block || block.type !== 'tool_result' || !block.tool_use_id) {
+                            return;
+                        }
+
+                        path = self.getFileMutationPathFromProviderResult(
+                            toolCalls[block.tool_use_id],
+                            block.content,
+                            block.is_error === true
+                        );
+                        if (path) {
+                            paths[path] = true;
+                        }
+                    });
+                    return paths;
+                }
+
+                if (!message || message.role !== 'tool' || !message.tool_call_id) {
+                    return paths;
+                }
+
+                var path = self.getFileMutationPathFromProviderResult(
+                    toolCalls[message.tool_call_id],
+                    message.content,
+                    false
+                );
+                if (path) {
+                    paths[path] = true;
+                }
+                return paths;
+            }
+
+            for (var i = (messages || []).length - 1; i >= 0; i--) {
+                var message = messages[i];
+                var sameMessageMutationPaths = collectMessageMutationPaths(message);
+                var content;
+                var j;
+
+                if (provider === 'anthropic') {
+                    if (message && message.role === 'user' && Array.isArray(message.content)) {
+                        content = message.content;
+                        for (j = content.length - 1; j >= 0; j--) {
+                            if (
+                                content[j] &&
+                                content[j].type === 'tool_result' &&
+                                content[j].tool_use_id
+                            ) {
+                                Object.keys(sameMessageMutationPaths).forEach(function(path) {
+                                    mutationPathsByLaterMessage[path] = true;
+                                });
+                                markReadIfInvalidated(content[j].tool_use_id);
+                            }
+                        }
+                    }
+                } else if (message && message.role === 'tool' && message.tool_call_id) {
+                    Object.keys(sameMessageMutationPaths).forEach(function(path) {
+                        mutationPathsByLaterMessage[path] = true;
+                    });
+                    markReadIfInvalidated(message.tool_call_id);
+                }
+
+                Object.keys(sameMessageMutationPaths).forEach(function(path) {
+                    mutationPathsByLaterMessage[path] = true;
+                });
+            }
+
+            return invalidatedIds;
+        },
+
+        collectRecentReadFileResultIdsToKeep: function(messages, provider, toolCalls, invalidatedIds) {
             var limit = this.getStaleReadFileResultKeepLimit();
             var keepIds = {};
             var seenRequestKeys = {};
@@ -1287,6 +1421,10 @@
                 var toolCall = toolCalls && toolCalls[toolUseId];
                 var input = toolCall && toolCall.input ? toolCall.input : {};
                 var requestKey;
+
+                if (invalidatedIds && invalidatedIds[toolUseId]) {
+                    return false;
+                }
 
                 if (!toolCall || toolCall.name !== 'read_file') {
                     return false;
@@ -1415,7 +1553,8 @@
         collectStaleToolIds: function(messages, provider) {
             var staleIds = {};
             var toolCalls = this.collectToolCallsById(messages, provider);
-            var readFileIdsToKeep = this.collectRecentReadFileResultIdsToKeep(messages, provider, toolCalls);
+            var invalidatedReadFileIds = this.collectInvalidatedReadFileIds(messages, provider, toolCalls);
+            var readFileIdsToKeep = this.collectRecentReadFileResultIdsToKeep(messages, provider, toolCalls, invalidatedReadFileIds);
 
             (messages || []).forEach(function(message, index) {
                 if (provider === 'anthropic') {
@@ -1427,9 +1566,12 @@
                 }
 
                 if (
-                    !readFileIdsToKeep[message.tool_call_id] &&
+                    invalidatedReadFileIds[message.tool_call_id] ||
+                    (
+                        !readFileIdsToKeep[message.tool_call_id] &&
                     this.hasAssistantAfterMessage(messages, index) &&
                     this.shouldPruneStaleToolResultContent(message.content, toolCalls[message.tool_call_id])
+                    )
                 ) {
                     staleIds[message.tool_call_id] = true;
                 }
@@ -1451,6 +1593,11 @@
 
                 message.content.forEach(function(block) {
                     if (!block || block.type !== 'tool_result' || !block.tool_use_id) {
+                        return;
+                    }
+
+                    if (invalidatedReadFileIds[block.tool_use_id]) {
+                        staleIds[block.tool_use_id] = true;
                         return;
                     }
 

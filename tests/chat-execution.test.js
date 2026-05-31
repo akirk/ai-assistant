@@ -258,6 +258,71 @@ describe('inspect_tool_result', function() {
         assert.strictEqual(inspected.result.available_tool_use_ids.length, 1);
         assert.strictEqual(inspected.result.available_tool_use_ids[0], 'new_tool');
     });
+
+    it('evicts cached read_file results after successful same-path edits', function() {
+        const assistant = createAssistant();
+
+        assistant.rememberToolResultForInspection({
+            id: 'toolu_read',
+            name: 'read_file',
+            input: { path: 'plugins/demo/demo.php' },
+            result: { path: 'plugins/demo/demo.php', content: 'old file payload' },
+            success: true
+        });
+
+        assistant.invalidateReadFileInspectionCacheForPaths(
+            assistant.getSuccessfulFileMutationPaths([
+                {
+                    id: 'toolu_edit',
+                    name: 'edit_file',
+                    input: { path: 'plugins/demo/demo.php' },
+                    result: { path: 'plugins/demo/demo.php', edits_applied: 1 },
+                    success: true
+                }
+            ])
+        );
+
+        const inspected = assistant.executeInspectToolResult({
+            id: 'inspect_read',
+            arguments: { tool_use_id: 'toolu_read' }
+        });
+
+        assert.strictEqual(inspected.success, false);
+        assert.match(inspected.result.error, /no longer available/);
+        assert.strictEqual(assistant.toolResultCacheOrder.length, 0);
+    });
+
+    it('keeps cached read_file results after no-op edits', function() {
+        const assistant = createAssistant();
+
+        assistant.rememberToolResultForInspection({
+            id: 'toolu_read',
+            name: 'read_file',
+            input: { path: 'plugins/demo/demo.php' },
+            result: { path: 'plugins/demo/demo.php', content: 'old file payload' },
+            success: true
+        });
+
+        assistant.invalidateReadFileInspectionCacheForPaths(
+            assistant.getSuccessfulFileMutationPaths([
+                {
+                    id: 'toolu_edit',
+                    name: 'edit_file',
+                    input: { path: 'plugins/demo/demo.php' },
+                    result: { path: 'plugins/demo/demo.php', edits_applied: 0 },
+                    success: true
+                }
+            ])
+        );
+
+        const inspected = assistant.executeInspectToolResult({
+            id: 'inspect_read',
+            arguments: { tool_use_id: 'toolu_read', path: 'content' }
+        });
+
+        assert.strictEqual(inspected.success, true);
+        assert.strictEqual(inspected.result.content, 'old file payload');
+    });
 });
 
 describe('processToolCallImmediate', function() {

@@ -490,6 +490,25 @@ describe('provider request message sanitization', function() {
         });
     }
 
+    function editFileResult(editsApplied) {
+        return JSON.stringify({
+            path: 'plugins/demo/demo.php',
+            edits_applied: editsApplied,
+            edits_failed: editsApplied > 0 ? 0 : 1,
+            original_size: 100,
+            new_size: editsApplied > 0 ? 120 : 100
+        });
+    }
+
+    function writeFileResult() {
+        return JSON.stringify({
+            path: 'plugins/demo/demo.php',
+            action: 'updated',
+            size: 120,
+            previous_size: 100
+        });
+    }
+
     it('strips private underscore metadata before sending messages to providers', function() {
         const assistant = loadProvidersMixin();
 
@@ -729,6 +748,86 @@ describe('provider request message sanitization', function() {
         assert.ok(!serialized.includes('old start payload'));
     });
 
+    it('prunes stale Anthropic read_file results after successful same-path edits', function() {
+        const assistant = loadProvidersMixin();
+        const messages = [
+            { role: 'user', content: 'Inspect and edit the file.' },
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'tool_use', id: 'toolu_read', name: 'read_file', input: { path: 'plugins/demo/demo.php', max_length: 8000 } }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'toolu_read', content: readFileResult('old file payload', 0) }
+                ]
+            },
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'tool_use', id: 'toolu_edit', name: 'edit_file', input: { path: 'plugins/demo/demo.php', edits: [{ search: 'old', replace: 'new' }] } }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'toolu_edit', content: editFileResult(1) }
+                ]
+            },
+            { role: 'assistant', content: 'Updated the file.' },
+            { role: 'user', content: 'Continue.' }
+        ];
+
+        const compacted = assistant.compactProviderMessagesForRequest(messages, 'anthropic');
+        const serialized = JSON.stringify(compacted);
+
+        assert.ok(!serialized.includes('toolu_read'));
+        assert.ok(!serialized.includes('old file payload'));
+        assert.ok(serialized.includes('toolu_edit'));
+        assert.ok(serialized.includes('Updated the file.'));
+    });
+
+    it('keeps stale Anthropic read_file results after no-op edits', function() {
+        const assistant = loadProvidersMixin();
+        const messages = [
+            { role: 'user', content: 'Inspect and edit the file.' },
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'tool_use', id: 'toolu_read', name: 'read_file', input: { path: 'plugins/demo/demo.php', max_length: 8000 } }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'toolu_read', content: readFileResult('old file payload', 0) }
+                ]
+            },
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'tool_use', id: 'toolu_edit', name: 'edit_file', input: { path: 'plugins/demo/demo.php', edits: [{ search: 'missing', replace: 'new' }] } }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'toolu_edit', content: editFileResult(0) }
+                ]
+            },
+            { role: 'assistant', content: 'The edit did not apply.' },
+            { role: 'user', content: 'Continue.' }
+        ];
+
+        const compacted = assistant.compactProviderMessagesForRequest(messages, 'anthropic');
+        const serialized = JSON.stringify(compacted);
+
+        assert.ok(serialized.includes('toolu_read'));
+        assert.ok(serialized.includes('old file payload'));
+    });
+
     it('keeps stale skill results so the model does not reload the same skill each turn', function() {
         const assistant = loadProvidersMixin();
         const skillContent = JSON.stringify({
@@ -950,6 +1049,47 @@ describe('provider request message sanitization', function() {
         assert.ok(serialized.includes('new start payload'));
         assert.ok(!serialized.includes('call_old_start'));
         assert.ok(!serialized.includes('old start payload'));
+    });
+
+    it('prunes stale OpenAI read_file results after successful same-path writes', function() {
+        const assistant = loadProvidersMixin();
+        const messages = [
+            { role: 'user', content: 'Inspect and rewrite the file.' },
+            {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                    {
+                        id: 'call_read',
+                        type: 'function',
+                        function: { name: 'read_file', arguments: '{"path":"plugins/demo/demo.php","max_length":8000}' }
+                    }
+                ]
+            },
+            { role: 'tool', tool_call_id: 'call_read', content: readFileResult('old file payload', 0) },
+            {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                    {
+                        id: 'call_write',
+                        type: 'function',
+                        function: { name: 'write_file', arguments: '{"path":"plugins/demo/demo.php","content":"new"}' }
+                    }
+                ]
+            },
+            { role: 'tool', tool_call_id: 'call_write', content: writeFileResult() },
+            { role: 'assistant', content: 'Updated the file.' },
+            { role: 'user', content: 'Continue.' }
+        ];
+
+        const compacted = assistant.compactProviderMessagesForRequest(messages, 'openai');
+        const serialized = JSON.stringify(compacted);
+
+        assert.ok(!serialized.includes('call_read'));
+        assert.ok(!serialized.includes('old file payload'));
+        assert.ok(serialized.includes('call_write'));
+        assert.ok(serialized.includes('Updated the file.'));
     });
 
     it('trims oldest request messages when compacted history still exceeds the provider budget', function() {
