@@ -563,7 +563,7 @@ class Settings {
                         <input type="checkbox" id="ai_anthropic_prompt_cache" class="ai-localstorage-setting" data-setting="anthropicPromptCache" value="1">
                         <?php esc_html_e('Enable Anthropic prompt caching', 'ai-assistant'); ?>
                     </label>
-                    <p class="description"><?php esc_html_e('May reduce latency and cost for repeated long prompts, but cache writes can cost more than normal input. Off by default.', 'ai-assistant'); ?></p>
+                    <p class="description"><?php esc_html_e('May reduce latency and cost when you frequently use Anthropic with long prompts. Off by default because cache writes can cost more.', 'ai-assistant'); ?></p>
                 </td>
             </tr>
             <tr class="ai-provider-row" data-provider="openai">
@@ -1145,7 +1145,7 @@ class Settings {
                             <input type="checkbox" id="ai_anthropic_prompt_cache" class="ai-localstorage-setting" data-setting="anthropicPromptCache" value="1">
                             <?php esc_html_e('Enable Anthropic prompt caching', 'ai-assistant'); ?>
                         </label>
-                        <p class="description"><?php esc_html_e('May reduce latency and cost for repeated long prompts, but cache writes can cost more than normal input. Off by default.', 'ai-assistant'); ?></p>
+                        <p class="description"><?php esc_html_e('May reduce latency and cost when you frequently use Anthropic with long prompts. Off by default because cache writes can cost more.', 'ai-assistant'); ?></p>
                     </div>
                 <?php endif; ?>
                 <style>

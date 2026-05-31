@@ -35,7 +35,7 @@ Go to **Settings > AI Assistant** to configure:
 - **Provider**: Choose between Anthropic, OpenAI, or Local (Ollama/LM Studio)
 - **Model**: Select which model to use
 - **API Keys**: Enter your provider API keys
-- **Anthropic Prompt Caching**: Optionally enable Anthropic prompt caching for repeated long prompts. It is off by default because cache writes can cost more than normal input.
+- **Anthropic Prompt Caching**: Optionally enable Anthropic prompt caching when you frequently use Anthropic with long prompts. It is off by default because cache writes can cost more.
 - **Local Endpoint**: Configure Ollama/LM Studio endpoint (default: `http://localhost:11434`)
 
 ## Usage
