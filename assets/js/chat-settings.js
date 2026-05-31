@@ -699,6 +699,10 @@
             return this.setSetting('summarizationModel', model);
         },
 
+        isAnthropicPromptCacheEnabled: function() {
+            return this.getSetting('anthropicPromptCache') === '1';
+        },
+
         getApiKey: function(provider) {
             provider = provider || this.getProvider();
 

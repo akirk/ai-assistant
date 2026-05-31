@@ -1861,15 +1861,20 @@
                     'anthropic-dangerous-direct-browser-access': 'true'
                 };
                 var buildPayload = function(messages) {
-                    return {
+                    var payload = {
                         model: model,
                         max_tokens: 16384,
                         stream: true,
-                        cache_control: { type: 'ephemeral' },
                         system: this.systemPrompt,
                         messages: messages,
                         tools: this.getTools()
                     };
+
+                    if (this.isAnthropicPromptCacheEnabled && this.isAnthropicPromptCacheEnabled()) {
+                        payload.cache_control = { type: 'ephemeral' };
+                    }
+
+                    return payload;
                 }.bind(this);
                 var response = await this.fetchLLMProvider(
                     'anthropic',

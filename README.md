@@ -35,6 +35,7 @@ Go to **Settings > AI Assistant** to configure:
 - **Provider**: Choose between Anthropic, OpenAI, or Local (Ollama/LM Studio)
 - **Model**: Select which model to use
 - **API Keys**: Enter your provider API keys
+- **Anthropic Prompt Caching**: Optionally enable Anthropic prompt caching for repeated long prompts. It is off by default because cache writes can cost more than normal input.
 - **Local Endpoint**: Configure Ollama/LM Studio endpoint (default: `http://localhost:11434`)
 
 ## Usage
@@ -75,6 +76,7 @@ The assistant keeps long sessions usable by controlling what gets sent to the LL
 - **Targeted file reads**: `read_file` supports `offset`/`max_length` for chunks and `search` with `before_lines`/`after_lines`/`occurrence` for function-sized inspection. The file-editing prompt tells the model to re-read the exact current range before editing when the current content is not already in the active turn.
 - **Request budgeting**: Before each provider call, messages are compacted and older history can be trimmed if the serialized request still exceeds the configured local budget.
 - **One-shot stricter retry**: If a provider rejects a request with a context, prompt-length, input-token, or input-token rate-limit error, the assistant rebuilds the same request with stricter local compaction and retries once.
+- **Prompt cache accounting**: Provider-reported cache reads and cache writes are shown separately when available. OpenAI prompt cache routing is used automatically; Anthropic prompt caching must be enabled in settings.
 
 The raw inspect cache is intentionally not part of the saved conversation payload. It is available for the active browser runtime and disappears after reload, which keeps very large private tool output out of long-term conversation storage and out of future provider prompts.
 

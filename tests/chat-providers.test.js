@@ -1000,7 +1000,55 @@ describe('provider context recovery', function() {
 });
 
 describe('provider token usage capture', function() {
-    it('enables Anthropic prompt caching on chat requests', async function() {
+    it('omits Anthropic prompt caching by default', async function() {
+        let payload = null;
+        const assistant = Object.assign(loadProvidersMixin(), {
+            messages: [{ role: 'user', content: 'Hello' }],
+            systemPrompt: 'System',
+            conversationModel: 'claude-test',
+            abortController: null,
+            getModel() {
+                return 'fallback-model';
+            },
+            getApiKey() {
+                return 'test-key';
+            },
+            getProviderEndpoint() {
+                return 'https://example.test/v1/messages';
+            },
+            getTools() {
+                return [];
+            },
+            fetchLLMProvider(provider, endpoint, headers, requestPayload) {
+                payload = requestPayload;
+                return Promise.resolve({ ok: true });
+            },
+            async *readSSEStream() {
+                yield { type: 'content_block_start', content_block: { type: 'text', text: '' } };
+                yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hi' } };
+                yield { type: 'content_block_stop' };
+                yield { type: 'message_stop' };
+            },
+            startReply() {
+                return { remove() {} };
+            },
+            updateReply() {},
+            finalizeReply() {},
+            updateTokenCount() {},
+            autoSaveConversation() {},
+            processToolCalls() {},
+            sendQueuedMessagesIfAvailable() {
+                return false;
+            },
+            setLoading() {}
+        });
+
+        await assistant.callAnthropic();
+
+        assert.strictEqual(payload.cache_control, undefined);
+    });
+
+    it('enables Anthropic prompt caching when configured', async function() {
         let payload = null;
         let attached = null;
         const assistant = Object.assign(loadProvidersMixin(), {
@@ -1016,6 +1064,9 @@ describe('provider token usage capture', function() {
             },
             getProviderEndpoint() {
                 return 'https://example.test/v1/messages';
+            },
+            isAnthropicPromptCacheEnabled() {
+                return true;
             },
             getTools() {
                 return [];

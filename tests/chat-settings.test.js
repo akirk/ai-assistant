@@ -121,6 +121,18 @@ describe('chat settings model lifecycle', function() {
         assert.strictEqual(assistant.getModel(), 'claude-sonnet-4-6');
     });
 
+    it('keeps Anthropic prompt caching off unless enabled', function() {
+        const disabled = loadSettingsMixin();
+        const enabled = loadSettingsMixin({
+            storage: {
+                aiAssistant_anthropicPromptCache: '1'
+            }
+        });
+
+        assert.strictEqual(disabled.isAnthropicPromptCacheEnabled(), false);
+        assert.strictEqual(enabled.isAnthropicPromptCacheEnabled(), true);
+    });
+
     it('does not return a Claude fallback for local providers', function() {
         const assistant = loadSettingsMixin({
             storage: {
