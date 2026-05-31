@@ -373,7 +373,8 @@ class Chat_UI {
              * Filters how many distinct recent read_file result windows are kept
              * in provider requests even after a later assistant message consumes
              * them. Keeping a small working set prevents chunked file reads from
-             * alternating between already-read offsets.
+             * alternating between already-read offsets. Same-path file mutations
+             * still invalidate old read windows.
              *
              * @param int $count Distinct read_file windows to keep. Default 8.
              */

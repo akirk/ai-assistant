@@ -1221,6 +1221,89 @@
             return Number.isFinite(limit) && limit > 0 ? limit : 20;
         },
 
+        getReadFileCachePathKey: function(path) {
+            return String(path || '').replace(/^\/+|\/+$/g, '');
+        },
+
+        getSuccessfulFileMutationPath: function(result) {
+            if (!result || result.success === false) {
+                return '';
+            }
+
+            var toolName = result.name || result.tool || '';
+            if (['write_file', 'edit_file', 'delete_file'].indexOf(toolName) < 0) {
+                return '';
+            }
+
+            var output = result.result || {};
+            if (output.error) {
+                return '';
+            }
+
+            var input = result.input || {};
+            var path = this.getReadFileCachePathKey(output.path || input.path || '');
+            if (!path) {
+                return '';
+            }
+
+            if (toolName === 'edit_file') {
+                return parseInt(output.edits_applied, 10) > 0 ? path : '';
+            }
+
+            if (toolName === 'delete_file') {
+                return output.action === 'deleted' ? path : '';
+            }
+
+            return (output.action === 'created' || output.action === 'updated') ? path : '';
+        },
+
+        getReadFileResultPath: function(result) {
+            if (!result || (result.name || result.tool) !== 'read_file') {
+                return '';
+            }
+
+            var input = result.input || {};
+            var output = result.result || {};
+            return this.getReadFileCachePathKey(input.path || output.path || '');
+        },
+
+        getSuccessfulFileMutationPaths: function(results) {
+            var paths = {};
+
+            (results || []).forEach(function(result) {
+                var path = this.getSuccessfulFileMutationPath(result);
+                if (path) {
+                    paths[path] = true;
+                }
+            }, this);
+
+            return paths;
+        },
+
+        invalidateReadFileInspectionCacheForPaths: function(paths) {
+            paths = paths || {};
+            if (!this.toolResultCache || typeof this.toolResultCache !== 'object') {
+                return;
+            }
+
+            Object.keys(this.toolResultCache).forEach(function(id) {
+                var record = this.toolResultCache[id];
+                var input = record && record.input ? record.input : {};
+                var output = record && record.result ? record.result : {};
+                var path = this.getReadFileCachePathKey(input.path || output.path || '');
+
+                if (record && record.name === 'read_file' && path && paths[path]) {
+                    delete this.toolResultCache[id];
+                }
+            }, this);
+
+            if (Array.isArray(this.toolResultCacheOrder)) {
+                this.toolResultCacheOrder = this.toolResultCacheOrder.filter(function(id) {
+                    return !!this.toolResultCache[id];
+                }, this);
+            }
+        },
+
         rememberToolResultForInspection: function(result) {
             if (!result || !result.id) {
                 return;
@@ -2247,7 +2330,19 @@
             var allResults = this.pendingToolResults;
             this.pendingToolResults = [];
             if (this.rememberToolResultForInspection) {
+                var mutatedFilePaths = this.getSuccessfulFileMutationPaths
+                    ? this.getSuccessfulFileMutationPaths(allResults)
+                    : {};
+                if (this.invalidateReadFileInspectionCacheForPaths) {
+                    this.invalidateReadFileInspectionCacheForPaths(mutatedFilePaths);
+                }
                 allResults.forEach(function(result) {
+                    var readFilePath = self.getReadFileResultPath
+                        ? self.getReadFileResultPath(result)
+                        : '';
+                    if (readFilePath && mutatedFilePaths[readFilePath]) {
+                        return;
+                    }
                     self.rememberToolResultForInspection(result);
                 });
             }
