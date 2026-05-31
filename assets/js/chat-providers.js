@@ -1111,110 +1111,73 @@
             }, this);
         },
 
-        getToolResultFailureInfo: function(content, metadata) {
-            if (metadata && metadata.is_error) {
-                return { failed: true, reason: 'is_error' };
-            }
-
-            var value = content;
-            if (typeof content === 'string') {
-                try {
-                    value = JSON.parse(content);
-                } catch (e) {
-                    return { failed: false };
-                }
-            }
-
-            if (!value || typeof value !== 'object') {
-                return { failed: false };
-            }
-
-            if (value.error || value.skipped || value.success === false || value.ok === false) {
-                return {
-                    failed: true,
-                    reason: value.error ? 'error' : (value.skipped ? 'skipped' : 'failed')
-                };
-            }
-
-            if (value.result && typeof value.result === 'object') {
-                if (value.result.error || value.result.skipped || value.result.success === false || value.result.ok === false) {
-                    return {
-                        failed: true,
-                        reason: value.result.error ? 'error' : (value.result.skipped ? 'skipped' : 'failed')
-                    };
-                }
-            }
-
-            return { failed: false };
+        shouldPruneStaleToolResults: function() {
+            var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+            return config.pruneStaleToolResults !== false;
         },
 
-        getCurrentToolResultIds: function(messages, provider) {
-            var ids = {};
+        hasAssistantAfterMessage: function(messages, index) {
             messages = messages || [];
-
-            if (provider === 'anthropic') {
-                var last = messages[messages.length - 1];
-                if (last && last.role === 'user' && Array.isArray(last.content)) {
-                    last.content.forEach(function(block) {
-                        if (block && block.type === 'tool_result' && block.tool_use_id) {
-                            ids[block.tool_use_id] = true;
-                        }
-                    });
-                }
-                return ids;
-            }
-
-            for (var i = messages.length - 1; i >= 0; i--) {
-                var message = messages[i];
-                if (!message || message.role !== 'tool') {
-                    break;
-                }
-                if (message.tool_call_id) {
-                    ids[message.tool_call_id] = true;
+            for (var i = index + 1; i < messages.length; i++) {
+                if (messages[i] && messages[i].role === 'assistant') {
+                    return true;
                 }
             }
 
-            return ids;
+            return false;
         },
 
-        collectStaleFailedToolIds: function(messages, provider) {
-            var currentIds = this.getCurrentToolResultIds(messages, provider);
-            var failedIds = {};
+        collectStaleToolIds: function(messages, provider) {
+            var staleIds = {};
 
-            (messages || []).forEach(function(message) {
+            (messages || []).forEach(function(message, index) {
                 if (provider === 'anthropic') {
-                    if (!message || message.role !== 'user' || !Array.isArray(message.content)) {
-                        return;
-                    }
-
-                    message.content.forEach(function(block) {
-                        if (!block || block.type !== 'tool_result' || !block.tool_use_id || currentIds[block.tool_use_id]) {
-                            return;
-                        }
-
-                        if (this.getToolResultFailureInfo(block.content, block).failed) {
-                            failedIds[block.tool_use_id] = true;
-                        }
-                    }, this);
                     return;
                 }
 
-                if (!message || message.role !== 'tool' || !message.tool_call_id || currentIds[message.tool_call_id]) {
+                if (!message || message.role !== 'tool' || !message.tool_call_id) {
                     return;
                 }
 
-                if (this.getToolResultFailureInfo(message.content, message).failed) {
-                    failedIds[message.tool_call_id] = true;
+                if (this.hasAssistantAfterMessage(messages, index)) {
+                    staleIds[message.tool_call_id] = true;
                 }
             }, this);
 
-            return failedIds;
+            if (provider !== 'anthropic') {
+                return staleIds;
+            }
+
+            (messages || []).forEach(function(message, index) {
+                if (!message || message.role !== 'user' || !Array.isArray(message.content)) {
+                    return;
+                }
+
+                var stale = this.hasAssistantAfterMessage(messages, index);
+                if (!stale) {
+                    return;
+                }
+
+                message.content.forEach(function(block) {
+                    if (!block || block.type !== 'tool_result' || !block.tool_use_id) {
+                        return;
+                    }
+
+                    staleIds[block.tool_use_id] = true;
+                });
+            }, this);
+
+            return staleIds;
         },
 
-        pruneFailedToolCallsForRequest: function(messages, provider) {
+        pruneStaleToolCallsForRequest: function(messages, provider) {
             messages = messages || [];
-            var failedIds = this.collectStaleFailedToolIds(messages, provider);
-            if (Object.keys(failedIds).length === 0) {
+            if (!this.shouldPruneStaleToolResults()) {
+                return messages;
+            }
+
+            var staleIds = this.collectStaleToolIds(messages, provider);
+            if (Object.keys(staleIds).length === 0) {
                 return messages;
             }
 
@@ -1226,7 +1189,7 @@
                 if (provider === 'anthropic') {
                     if (message.role === 'assistant' && Array.isArray(message.content)) {
                         var assistantContent = message.content.filter(function(block) {
-                            return !(block && block.type === 'tool_use' && failedIds[block.id]);
+                            return !(block && block.type === 'tool_use' && staleIds[block.id]);
                         });
                         if (assistantContent.length === 0) {
                             return null;
@@ -1238,7 +1201,7 @@
 
                     if (message.role === 'user' && Array.isArray(message.content)) {
                         var userContent = message.content.filter(function(block) {
-                            return !(block && block.type === 'tool_result' && failedIds[block.tool_use_id]);
+                            return !(block && block.type === 'tool_result' && staleIds[block.tool_use_id]);
                         });
                         if (userContent.length === 0) {
                             return null;
@@ -1253,7 +1216,7 @@
 
                 if (message.role === 'assistant' && Array.isArray(message.tool_calls)) {
                     var toolCalls = message.tool_calls.filter(function(toolCall) {
-                        return !(toolCall && failedIds[toolCall.id]);
+                        return !(toolCall && staleIds[toolCall.id]);
                     });
                     if (toolCalls.length !== message.tool_calls.length) {
                         if (!message.content && toolCalls.length === 0) {
@@ -1263,7 +1226,7 @@
                     }
                 }
 
-                if (message.role === 'tool' && failedIds[message.tool_call_id]) {
+                if (message.role === 'tool' && staleIds[message.tool_call_id]) {
                     return null;
                 }
 
@@ -1354,7 +1317,7 @@
             var compacted = (messages || []).map(function(message) {
                 return this.compactProviderMessageForRequest(message, provider);
             }, this);
-            compacted = this.pruneFailedToolCallsForRequest(compacted, provider);
+            compacted = this.pruneStaleToolCallsForRequest(compacted, provider);
             var budget = this.getProviderRequestCharLimit();
 
             if (this.estimateProviderRequestChars(compacted) <= budget) {

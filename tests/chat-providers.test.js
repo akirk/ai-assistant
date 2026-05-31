@@ -623,6 +623,36 @@ describe('provider request message sanitization', function() {
         assert.equal(compacted[compacted.length - 1].content, 'Try something else.');
     });
 
+    it('drops stale successful Anthropic tool call pairs from future provider context', function() {
+        const assistant = loadProvidersMixin();
+        const messages = [
+            { role: 'user', content: 'Read this data.' },
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'text', text: 'I will inspect it.' },
+                    { type: 'tool_use', id: 'toolu_success', name: 'ability', input: { action: 'execute' } }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'toolu_success', content: '{"result":{"value":"large payload"}}' }
+                ]
+            },
+            { role: 'assistant', content: 'The data says the value is large payload.' },
+            { role: 'user', content: 'Continue.' }
+        ];
+
+        const compacted = assistant.compactProviderMessagesForRequest(messages, 'anthropic');
+        const serialized = JSON.stringify(compacted);
+
+        assert.ok(!serialized.includes('toolu_success'));
+        assert.ok(!serialized.includes('"large payload"'));
+        assert.ok(serialized.includes('I will inspect it.'));
+        assert.ok(serialized.includes('The data says the value is large payload.'));
+    });
+
     it('keeps the latest failed Anthropic tool result so the model can react once', function() {
         const assistant = loadProvidersMixin();
         const messages = [
@@ -646,6 +676,31 @@ describe('provider request message sanitization', function() {
 
         assert.ok(serialized.includes('toolu_current'));
         assert.ok(serialized.includes('No article found'));
+    });
+
+    it('keeps the latest successful Anthropic tool result until it has been consumed', function() {
+        const assistant = loadProvidersMixin();
+        const messages = [
+            { role: 'user', content: 'Read this data.' },
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'tool_use', id: 'toolu_current_success', name: 'ability', input: { action: 'execute' } }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'toolu_current_success', content: '{"result":{"value":"fresh payload"}}' }
+                ]
+            }
+        ];
+
+        const compacted = assistant.compactProviderMessagesForRequest(messages, 'anthropic');
+        const serialized = JSON.stringify(compacted);
+
+        assert.ok(serialized.includes('toolu_current_success'));
+        assert.ok(serialized.includes('fresh payload'));
     });
 
     it('drops stale failed OpenAI tool calls from future provider context', function() {
@@ -674,6 +729,35 @@ describe('provider request message sanitization', function() {
         assert.ok(!serialized.includes('call_failed'));
         assert.ok(!serialized.includes('No article found'));
         assert.equal(compacted[compacted.length - 1].content, 'Try something else.');
+    });
+
+    it('drops stale successful OpenAI tool calls from future provider context', function() {
+        const assistant = loadProvidersMixin();
+        const messages = [
+            { role: 'user', content: 'Read this data.' },
+            {
+                role: 'assistant',
+                content: 'I will inspect it.',
+                tool_calls: [
+                    {
+                        id: 'call_success',
+                        type: 'function',
+                        function: { name: 'ability', arguments: '{"action":"execute"}' }
+                    }
+                ]
+            },
+            { role: 'tool', tool_call_id: 'call_success', content: '{"result":{"value":"large payload"}}' },
+            { role: 'assistant', content: 'The data says the value is large payload.' },
+            { role: 'user', content: 'Continue.' }
+        ];
+
+        const compacted = assistant.compactProviderMessagesForRequest(messages, 'openai');
+        const serialized = JSON.stringify(compacted);
+
+        assert.ok(!serialized.includes('call_success'));
+        assert.ok(!serialized.includes('"large payload"'));
+        assert.ok(serialized.includes('I will inspect it.'));
+        assert.ok(serialized.includes('The data says the value is large payload.'));
     });
 
     it('trims oldest request messages when compacted history still exceeds the provider budget', function() {
