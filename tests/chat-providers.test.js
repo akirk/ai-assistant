@@ -477,6 +477,19 @@ describe('provider proxy requests', function() {
 });
 
 describe('provider request message sanitization', function() {
+    function readFileResult(content, offset) {
+        return JSON.stringify({
+            path: 'plugins/demo/demo.php',
+            content,
+            size: 24000,
+            modified: '2026-05-31 12:00:00',
+            offset,
+            returned_bytes: content.length,
+            truncated: true,
+            next_offset: offset + content.length
+        });
+    }
+
     it('strips private underscore metadata before sending messages to providers', function() {
         const assistant = loadProvidersMixin();
 
@@ -659,6 +672,63 @@ describe('provider request message sanitization', function() {
         assert.ok(serialized.includes('The data says the value is large payload.'));
     });
 
+    it('keeps recent stale Anthropic read_file chunks as a working set', function() {
+        const assistant = loadProvidersMixin();
+        const messages = [
+            { role: 'user', content: 'Inspect the file.' },
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'tool_use', id: 'toolu_old_start', name: 'read_file', input: { path: 'plugins/demo/demo.php', offset: 0, max_length: 8000 } }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'toolu_old_start', content: readFileResult('old start payload', 0) }
+                ]
+            },
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'text', text: 'I need the next chunk too.' },
+                    { type: 'tool_use', id: 'toolu_next', name: 'read_file', input: { path: 'plugins/demo/demo.php', offset: 8000, max_length: 8000 } }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'toolu_next', content: readFileResult('next chunk payload', 8000) }
+                ]
+            },
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'text', text: 'I will re-check the first chunk.' },
+                    { type: 'tool_use', id: 'toolu_new_start', name: 'read_file', input: { path: 'plugins/demo/demo.php', offset: 0, max_length: 8000 } }
+                ]
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'tool_result', tool_use_id: 'toolu_new_start', content: readFileResult('new start payload', 0) }
+                ]
+            },
+            { role: 'assistant', content: 'I have both chunks now.' },
+            { role: 'user', content: 'Continue.' }
+        ];
+
+        const compacted = assistant.compactProviderMessagesForRequest(messages, 'anthropic');
+        const serialized = JSON.stringify(compacted);
+
+        assert.ok(serialized.includes('toolu_next'));
+        assert.ok(serialized.includes('next chunk payload'));
+        assert.ok(serialized.includes('toolu_new_start'));
+        assert.ok(serialized.includes('new start payload'));
+        assert.ok(!serialized.includes('toolu_old_start'));
+        assert.ok(!serialized.includes('old start payload'));
+    });
+
     it('keeps stale skill results so the model does not reload the same skill each turn', function() {
         const assistant = loadProvidersMixin();
         const skillContent = JSON.stringify({
@@ -825,6 +895,61 @@ describe('provider request message sanitization', function() {
         assert.ok(!serialized.includes('"large payload"'));
         assert.ok(serialized.includes('I will inspect it.'));
         assert.ok(serialized.includes('The data says the value is large payload.'));
+    });
+
+    it('keeps recent stale OpenAI read_file chunks as a working set', function() {
+        const assistant = loadProvidersMixin();
+        const messages = [
+            { role: 'user', content: 'Inspect the file.' },
+            {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                    {
+                        id: 'call_old_start',
+                        type: 'function',
+                        function: { name: 'read_file', arguments: '{"path":"plugins/demo/demo.php","offset":0,"max_length":8000}' }
+                    }
+                ]
+            },
+            { role: 'tool', tool_call_id: 'call_old_start', content: readFileResult('old start payload', 0) },
+            {
+                role: 'assistant',
+                content: 'I need the next chunk too.',
+                tool_calls: [
+                    {
+                        id: 'call_next',
+                        type: 'function',
+                        function: { name: 'read_file', arguments: '{"path":"plugins/demo/demo.php","offset":8000,"max_length":8000}' }
+                    }
+                ]
+            },
+            { role: 'tool', tool_call_id: 'call_next', content: readFileResult('next chunk payload', 8000) },
+            {
+                role: 'assistant',
+                content: 'I will re-check the first chunk.',
+                tool_calls: [
+                    {
+                        id: 'call_new_start',
+                        type: 'function',
+                        function: { name: 'read_file', arguments: '{"path":"plugins/demo/demo.php","offset":0,"max_length":8000}' }
+                    }
+                ]
+            },
+            { role: 'tool', tool_call_id: 'call_new_start', content: readFileResult('new start payload', 0) },
+            { role: 'assistant', content: 'I have both chunks now.' },
+            { role: 'user', content: 'Continue.' }
+        ];
+
+        const compacted = assistant.compactProviderMessagesForRequest(messages, 'openai');
+        const serialized = JSON.stringify(compacted);
+
+        assert.ok(serialized.includes('call_next'));
+        assert.ok(serialized.includes('next chunk payload'));
+        assert.ok(serialized.includes('call_new_start'));
+        assert.ok(serialized.includes('new start payload'));
+        assert.ok(!serialized.includes('call_old_start'));
+        assert.ok(!serialized.includes('old start payload'));
     });
 
     it('trims oldest request messages when compacted history still exceeds the provider budget', function() {

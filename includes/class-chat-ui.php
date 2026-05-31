@@ -370,6 +370,15 @@ class Chat_UI {
              */
             'pruneStaleToolResults' => (bool) apply_filters('ai_assistant_prune_stale_tool_results', true),
             /**
+             * Filters how many distinct recent read_file result windows are kept
+             * in provider requests even after a later assistant message consumes
+             * them. Keeping a small working set prevents chunked file reads from
+             * alternating between already-read offsets.
+             *
+             * @param int $count Distinct read_file windows to keep. Default 8.
+             */
+            'staleReadFileResultKeepLimit' => (int) apply_filters('ai_assistant_stale_read_file_result_keep_limit', 8),
+            /**
              * Filters how many raw tool results are kept in the active browser
              * session for inspect_tool_result.
              *
