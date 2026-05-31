@@ -2363,6 +2363,18 @@
 
             // Second pass: render messages
             this.messages.forEach(function(msg) {
+                if (msg && msg._hidden) {
+                    if (msg._contextReference && self.showConversationContinuationReference) {
+                        flushToolUseGroup();
+                        self.showConversationContinuationReference({
+                            id: msg._contextReference.conversation_id || msg._contextReference.id,
+                            title: msg._contextReference.title || '',
+                            url: msg._contextReference.url || ''
+                        }, msg.content);
+                    }
+                    return;
+                }
+
                 if (msg.role === 'user') {
                     // Real user text flushes accumulated tool uses first
                     var hasText = typeof msg.content === 'string'

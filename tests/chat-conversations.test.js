@@ -79,8 +79,31 @@ function createJQuery(input, options) {
                 state.html = value;
                 return this;
             },
+            text(value) {
+                if (arguments.length === 0) {
+                    return state.html;
+                }
+                state.html = value;
+                return this;
+            },
             empty() {
                 state.html = '';
+                return this;
+            },
+            append(value) {
+                state.html += value && value.html ? value.html() : String(value || '');
+                return this;
+            },
+            detach() {
+                return this;
+            },
+            addClass() {
+                return this;
+            },
+            removeClass() {
+                return this;
+            },
+            focus() {
                 return this;
             },
             css(name, value) {
@@ -263,6 +286,29 @@ describe('auto-approve mode', function() {
 });
 
 describe('conversation title generation', function() {
+    it('ignores hidden continuation context when building titles', function() {
+        const { assistant } = loadConversationMixin();
+
+        assistant.messages = [
+            {
+                role: 'user',
+                content: 'Previous conversation context. This is background only.',
+                _hidden: true
+            },
+            { role: 'user', content: 'Help me finish the checkout badge.' },
+            { role: 'assistant', content: 'I will inspect the badge code.' }
+        ];
+
+        assert.strictEqual(
+            assistant.getFirstUserTextForTitle(),
+            'Help me finish the checkout badge.'
+        );
+        assert.match(
+            assistant.buildConversationTitleContext(),
+            /^User: Help me finish the checkout badge\.\nAssistant: I will inspect the badge code\.$/
+        );
+    });
+
     it('uses the active Anthropic conversation model and endpoint', async function() {
         const fetchCalls = [];
         let savedTitle = '';
@@ -452,6 +498,22 @@ describe('conversation exports', function() {
 });
 
 describe('conversation area suggestions', function() {
+    it('offers standalone continuation for the auto-loaded conversation until interaction', function() {
+        const { assistant } = loadConversationMixin();
+
+        assistant.isFullPage = false;
+        assistant.conversationId = 42;
+        assistant.standaloneContinuationOfferConversationId = 42;
+        assistant.messages = [{ role: 'user', content: 'Previous chat' }];
+        assistant.pendingNewChat = false;
+        assistant.conversationInteracted = false;
+
+        assert.strictEqual(assistant.shouldOfferStandaloneContinuation(), true);
+
+        assistant.markConversationInteracted();
+        assert.strictEqual(assistant.shouldOfferStandaloneContinuation(), false);
+    });
+
     it('does not update the stored URL component until interaction', function() {
         const { assistant, storage } = loadConversationMixin({
             aiAssistant_lastUrlComponent: 'my-apps'
@@ -737,6 +799,7 @@ describe('loading recent conversations', function() {
 
     it('loads the newest conversation that has saved messages', function() {
         let loadedConversationId = 0;
+        let loadOptions = null;
         let welcomeLoaded = false;
         const { assistant } = loadConversationMixin(null, {
             ajaxUrl: '/admin-ajax.php',
@@ -757,17 +820,23 @@ describe('loading recent conversations', function() {
             }
         });
 
-        assistant.loadConversation = function(conversationId) {
+        assistant.loadConversation = function(conversationId, options) {
             loadedConversationId = conversationId;
+            loadOptions = options;
         };
         assistant.loadWelcomeMessage = function() {
             welcomeLoaded = true;
         };
         assistant.updateExportButton = function() {};
 
-        assistant.loadMostRecentConversation();
+        assistant.loadMostRecentConversation({
+            updateHistory: false,
+            offerStandaloneContinuation: true
+        });
 
         assert.strictEqual(loadedConversationId, 12);
+        assert.strictEqual(loadOptions.updateHistory, false);
+        assert.strictEqual(loadOptions.offerStandaloneContinuation, true);
         assert.strictEqual(welcomeLoaded, false);
     });
 

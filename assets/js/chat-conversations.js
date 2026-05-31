@@ -252,6 +252,7 @@
 
         markConversationInteracted: function() {
             this.conversationInteracted = true;
+            this.standaloneContinuationOfferConversationId = 0;
             this.storeCurrentUrlComponent();
             this.hideAreaChangeSuggestion();
         },
@@ -290,15 +291,52 @@
             );
         },
 
+        isStandaloneConversationPanel: function() {
+            return !!(
+                !this.isFullPage &&
+                $('#ai-assistant-standalone-wrap').length > 0
+            );
+        },
+
+        shouldOfferStandaloneContinuation: function() {
+            var offeredConversationId = parseInt(this.standaloneContinuationOfferConversationId, 10) || 0;
+            var currentConversationId = parseInt(this.conversationId, 10) || 0;
+
+            return !!(
+                offeredConversationId > 0 &&
+                offeredConversationId === currentConversationId &&
+                this.isStandaloneConversationPanel() &&
+                this.messages &&
+                this.messages.length > 0 &&
+                !this.pendingNewChat &&
+                !this.conversationInteracted
+            );
+        },
+
+        getAreaChangeSuggestionHtml: function(isContinuationOffer) {
+            if (isContinuationOffer) {
+                return 'This previous conversation was loaded from your last page. ' +
+                    '<a href="#" id="ai-assistant-area-compact-new-chat">Compact it and start a new chat</a>, or continue here.';
+            }
+
+            return 'Click to <a href="#" id="ai-assistant-area-new-chat">start a new chat</a> or just continue the conversation.';
+        },
+
+        setAreaChangeSuggestionHtml: function($suggestion, html) {
+            var $aiChangesSuggestion = $('#ai-assistant-ai-changes-suggestion').detach();
+            $suggestion.html(html);
+            if ($aiChangesSuggestion.length) {
+                $suggestion.append($aiChangesSuggestion);
+            }
+        },
+
         ensureAreaChangeSuggestion: function() {
             var $suggestion = $('#ai-assistant-area-suggestion');
             if ($suggestion.length) {
                 return $suggestion;
             }
 
-            $suggestion = $('<div id="ai-assistant-area-suggestion" class="ai-assistant-area-suggestion" role="status" aria-live="polite" hidden>' +
-                'Click to <a href="#" id="ai-assistant-area-new-chat">start a new chat</a> or just continue the conversation.' +
-            '</div>');
+            $suggestion = $('<div id="ai-assistant-area-suggestion" class="ai-assistant-area-suggestion" role="status" aria-live="polite" hidden></div>');
 
             $('#ai-assistant-messages').append($suggestion);
             return $suggestion;
@@ -313,13 +351,15 @@
 
         updateAreaChangeSuggestion: function() {
             var current = this.getCurrentUrlComponent();
+            var isContinuationOffer = this.shouldOfferStandaloneContinuation();
 
-            if (!this.shouldSuggestNewChatForCurrentArea(current)) {
+            if (!isContinuationOffer && !this.shouldSuggestNewChatForCurrentArea(current)) {
                 this.hideAreaChangeSuggestion();
                 return;
             }
 
             var $suggestion = this.ensureAreaChangeSuggestion();
+            this.setAreaChangeSuggestionHtml($suggestion, this.getAreaChangeSuggestionHtml(isContinuationOffer));
             $suggestion.prop('hidden', false);
             if (this.moveAiChangesSuggestionToEnd) {
                 this.moveAiChangesSuggestionToEnd();
@@ -815,6 +855,11 @@
                         self.titleGenerationToken++;
                         self.conversationId = response.data.conversation_id;
                         self.conversationTitle = response.data.title;
+                        self.standaloneContinuationOfferConversationId = (
+                            options.offerStandaloneContinuation &&
+                            self.isStandaloneConversationPanel &&
+                            self.isStandaloneConversationPanel()
+                        ) ? self.conversationId : 0;
                         self.pendingActions = [];
                         self.pendingToolResults = [];
                         self.pendingToolChecks = 0;
@@ -902,7 +947,8 @@
 
                         if (mostRecent) {
                             self.loadConversation(mostRecent.id, {
-                                updateHistory: options.updateHistory !== false
+                                updateHistory: options.updateHistory !== false,
+                                offerStandaloneContinuation: !!options.offerStandaloneContinuation
                             });
                             return;
                         }
@@ -1651,7 +1697,7 @@
             messages = Array.isArray(messages) ? messages : this.messages;
 
             for (var i = 0; i < messages.length; i++) {
-                if (messages[i] && messages[i].role === 'user') {
+                if (messages[i] && messages[i].role === 'user' && !messages[i]._hidden) {
                     var text = this.getMessageTextForTitle(messages[i]);
                     if (text) {
                         return text;
@@ -1669,7 +1715,7 @@
 
             for (var i = 0; i < messages.length && lines.join('\n').length < maxLength; i++) {
                 var message = messages[i];
-                if (!message || (message.role !== 'user' && message.role !== 'assistant')) {
+                if (!message || message._hidden || (message.role !== 'user' && message.role !== 'assistant')) {
                     continue;
                 }
 
@@ -1911,6 +1957,239 @@
         },
 
         // Summarization
+        loadConversationSummarySource: function(conversationId) {
+            return new Promise(function(resolve, reject) {
+                $.ajax({
+                    url: aiAssistantConfig.ajaxUrl,
+                    type: 'POST',
+                    data: {
+                        action: 'ai_assistant_get_conversation_for_summary',
+                        _wpnonce: aiAssistantConfig.nonce,
+                        conversation_id: conversationId
+                    },
+                    success: function(response) {
+                        if (!response.success) {
+                            reject(new Error(response.data?.message || 'Failed to load conversation.'));
+                            return;
+                        }
+
+                        resolve(response.data);
+                    },
+                    error: function(xhr, status, error) {
+                        reject(new Error(error || 'Failed to load conversation data.'));
+                    }
+                });
+            });
+        },
+
+        saveConversationSummaryValue: function(conversationId, summary) {
+            return new Promise(function(resolve, reject) {
+                $.ajax({
+                    url: aiAssistantConfig.ajaxUrl,
+                    type: 'POST',
+                    data: {
+                        action: 'ai_assistant_save_summary',
+                        _wpnonce: aiAssistantConfig.nonce,
+                        conversation_id: conversationId,
+                        summary: summary
+                    },
+                    success: function(response) {
+                        if (!response.success) {
+                            reject(new Error(response.data?.message || 'Failed to save summary.'));
+                            return;
+                        }
+
+                        resolve(response.data);
+                    },
+                    error: function(xhr, status, error) {
+                        reject(new Error(error || 'Failed to save summary.'));
+                    }
+                });
+            });
+        },
+
+        getOrGenerateConversationSummary: function(conversationId) {
+            var self = this;
+
+            return this.loadConversationSummarySource(conversationId).then(function(convData) {
+                if (convData.existing_summary) {
+                    return {
+                        convData: convData,
+                        summary: convData.existing_summary,
+                        generated: false,
+                        saved: true
+                    };
+                }
+
+                return self.generateConversationSummary(convData).then(function(summary) {
+                    return self.saveConversationSummaryValue(conversationId, summary).then(function() {
+                        return {
+                            convData: convData,
+                            summary: summary,
+                            generated: true,
+                            saved: true
+                        };
+                    }).catch(function() {
+                        return {
+                            convData: convData,
+                            summary: summary,
+                            generated: true,
+                            saved: false
+                        };
+                    });
+                });
+            });
+        },
+
+        getConversationReferenceUrl: function(conversationId) {
+            conversationId = parseInt(conversationId, 10) || 0;
+            if (!conversationId) {
+                return '';
+            }
+
+            var baseUrl = '';
+            if (typeof aiAssistantBootstrap !== 'undefined' && aiAssistantBootstrap.urls) {
+                baseUrl = aiAssistantBootstrap.urls.history || '';
+            }
+
+            if ((!baseUrl || baseUrl === '#') && typeof aiAssistantConfig !== 'undefined' && aiAssistantConfig.adminUrl) {
+                baseUrl = String(aiAssistantConfig.adminUrl).replace(/\/$/, '') + '/tools.php?page=ai-conversations';
+            }
+
+            if (!baseUrl || baseUrl === '#') {
+                return '';
+            }
+
+            var UrlConstructor = this.getConversationRouteUrlConstructor();
+            if (UrlConstructor) {
+                try {
+                    var url = new UrlConstructor(baseUrl, window.location && window.location.href ? window.location.href : undefined);
+                    url.searchParams.set('conversation', String(conversationId));
+                    return url.href;
+                } catch (e) {}
+            }
+
+            return baseUrl + (baseUrl.indexOf('?') === -1 ? '?' : '&') + 'conversation=' + encodeURIComponent(conversationId);
+        },
+
+        createConversationContinuationContext: function(previous, summary) {
+            previous = previous || {};
+
+            var title = previous.title || ('Conversation ' + previous.id);
+            var lines = [
+                'Previous conversation context. This is background only, not a new user request.',
+                '',
+                'Previous conversation: ' + title
+            ];
+
+            if (previous.id) {
+                lines.push('Previous conversation ID: ' + previous.id);
+            }
+            if (previous.url) {
+                lines.push('Previous conversation link: ' + previous.url);
+            }
+
+            lines.push('', 'Summary:', summary);
+            return lines.join('\n');
+        },
+
+        showConversationContinuationReference: function(previous, compactedContext) {
+            previous = previous || {};
+            compactedContext = String(compactedContext || '');
+
+            var title = previous.title || ('Conversation ' + previous.id);
+            var html = 'Started a new chat with compacted context from ';
+            if (previous.url) {
+                html += '<a href="' + this.escapeAttribute(previous.url) + '" title="' + this.escapeAttribute(title) + '">previous conversation</a>.';
+            } else {
+                html += 'the previous conversation.';
+            }
+
+            if (compactedContext) {
+                html += '<details class="ai-assistant-continuation-details">' +
+                    '<summary>View compacted context</summary>' +
+                    '<div class="ai-assistant-continuation-context">' + this.formatContent(compactedContext) + '</div>' +
+                '</details>';
+            }
+
+            $('#ai-assistant-continuation-reference').remove();
+            $('#ai-assistant-messages').append(
+                '<div id="ai-assistant-continuation-reference" class="ai-assistant-area-suggestion ai-assistant-continuation-reference" role="status" aria-live="polite">' +
+                    html +
+                '</div>'
+            );
+            this.scrollToBottom(true);
+        },
+
+        startNewChatWithConversationReference: function(previous, summary) {
+            previous = previous || {};
+            previous.id = parseInt(previous.id, 10) || 0;
+            previous.title = previous.title || ('Conversation ' + previous.id);
+            previous.url = previous.url || this.getConversationReferenceUrl(previous.id);
+
+            this.startNewChat();
+
+            var contextMessage = this.createStoredMessage('user', this.createConversationContinuationContext(previous, summary), {
+                _hidden: true,
+                _contextReference: {
+                    conversation_id: previous.id,
+                    title: previous.title,
+                    url: previous.url
+                }
+            });
+
+            this.messages.push(contextMessage);
+            this.updateTokenCount();
+            if (this.updateExportButton) {
+                this.updateExportButton();
+            }
+            this.showConversationContinuationReference(previous, contextMessage.content);
+            $('#ai-assistant-input').focus();
+        },
+
+        compactCurrentConversationAndStartNewChat: function() {
+            var self = this;
+            var conversationId = parseInt(this.conversationId, 10) || 0;
+
+            if (!conversationId || this.isCompactingStandaloneContinuation) {
+                return;
+            }
+
+            var previous = {
+                id: conversationId,
+                title: this.conversationTitle || ('Conversation ' + conversationId),
+                url: this.getConversationReferenceUrl(conversationId)
+            };
+            var $suggestion = $('#ai-assistant-area-suggestion');
+
+            this.isCompactingStandaloneContinuation = true;
+            this.updateSendButton();
+            $suggestion.addClass('is-loading').text('Compacting previous conversation...');
+
+            this.getOrGenerateConversationSummary(conversationId).then(function(result) {
+                previous.title = result.convData.title || previous.title;
+                previous.url = self.getConversationReferenceUrl(previous.id);
+                self.conversationInteracted = true;
+                self.standaloneContinuationOfferConversationId = 0;
+                self.storeCurrentUrlComponent();
+                self.startNewChatWithConversationReference(previous, result.summary);
+            }).catch(function(error) {
+                self.addMessage('error', 'Failed to compact previous conversation: ' + error.message);
+                if ($suggestion.length) {
+                    $suggestion.removeClass('is-loading');
+                    $('#ai-assistant-messages').append($suggestion);
+                    self.setAreaChangeSuggestionHtml($suggestion, self.getAreaChangeSuggestionHtml(true));
+                    $suggestion.prop('hidden', false);
+                    if (self.moveAiChangesSuggestionToEnd) {
+                        self.moveAiChangesSuggestionToEnd();
+                    }
+                }
+            }).finally(function() {
+                self.isCompactingStandaloneContinuation = false;
+                self.updateSendButton();
+            });
+        },
+
         manualSummarizeConversation: function() {
             var self = this;
 
