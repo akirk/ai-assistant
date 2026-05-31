@@ -39,7 +39,7 @@ class SettingsTest extends TestCase {
         $expected_safe = [
             'read_file', 'list_directory', 'search_files', 'search_content',
             'db_query', 'environment_info', 'get_plugins', 'get_themes', 'list_abilities', 'get_ability',
-            'get_page_html', 'pick_image', 'summarize_conversation', 'list_skills', 'get_skill', 'navigate',
+            'get_page_html', 'pick_image', 'summarize_conversation', 'inspect_tool_result', 'list_skills', 'get_skill', 'navigate',
         ];
 
         foreach ($expected_safe as $tool) {
@@ -85,7 +85,7 @@ class SettingsTest extends TestCase {
     public function test_all_tools_marks_safe_tools_correctly(): void {
         $meta = $this->settings->get_all_tools_with_meta();
 
-        foreach (['read_file', 'list_directory', 'search_files', 'db_query', 'get_plugins', 'navigate', 'pick_image'] as $tool) {
+        foreach (['read_file', 'list_directory', 'search_files', 'db_query', 'get_plugins', 'navigate', 'pick_image', 'inspect_tool_result'] as $tool) {
             $this->assertArrayHasKey($tool, $meta);
             $this->assertFalse($meta[$tool]['dangerous'], "Tool '$tool' should not be marked dangerous");
         }
@@ -100,7 +100,7 @@ class SettingsTest extends TestCase {
             'db_query', 'environment_info', 'get_plugins', 'get_themes', 'install_plugin', 'run_php',
             'list_abilities', 'get_ability', 'execute_ability',
             'navigate', 'get_page_html',
-            'pick_image', 'summarize_conversation', 'list_skills', 'get_skill',
+            'pick_image', 'summarize_conversation', 'inspect_tool_result', 'list_skills', 'get_skill',
         ];
 
         foreach ($expected as $tool) {

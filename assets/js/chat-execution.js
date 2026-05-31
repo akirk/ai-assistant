@@ -286,6 +286,7 @@
             if (
                 toolName === 'get_page_html' ||
                 toolName === 'summarize_conversation' ||
+                toolName === 'inspect_tool_result' ||
                 toolName === 'pick_image' ||
                 this.canUseFileToolEndpoint(toolName)
             ) {
@@ -1011,6 +1012,10 @@
                 return this.executeSummarizeConversation(toolCall);
             }
 
+            if (toolName === 'inspect_tool_result') {
+                return Promise.resolve(this.executeInspectToolResult(toolCall));
+            }
+
             if (toolName === 'pick_image') {
                 return this.executePickImage(toolCall);
             }
@@ -1204,6 +1209,274 @@
                     });
                 });
             });
+        },
+
+        getToolResultCacheLimit: function() {
+            var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+            var limit = parseInt(config.toolResultCacheLimit, 10);
+            return Number.isFinite(limit) && limit > 0 ? limit : 20;
+        },
+
+        rememberToolResultForInspection: function(result) {
+            if (!result || !result.id) {
+                return;
+            }
+
+            if (!this.toolResultCache || typeof this.toolResultCache !== 'object') {
+                this.toolResultCache = {};
+            }
+            if (!Array.isArray(this.toolResultCacheOrder)) {
+                this.toolResultCacheOrder = [];
+            }
+
+            var id = String(result.id);
+            this.toolResultCache[id] = {
+                id: id,
+                name: result.name || result.tool || '',
+                input: result.input || {},
+                success: result.success !== false,
+                result: result.result,
+                storedAt: Date.now ? Date.now() : new Date().getTime()
+            };
+
+            this.toolResultCacheOrder = this.toolResultCacheOrder.filter(function(existingId) {
+                return existingId !== id;
+            });
+            this.toolResultCacheOrder.push(id);
+
+            var limit = this.getToolResultCacheLimit();
+            while (this.toolResultCacheOrder.length > limit) {
+                var removedId = this.toolResultCacheOrder.shift();
+                delete this.toolResultCache[removedId];
+            }
+        },
+
+        parseCachedToolResultPath: function(path) {
+            path = String(path || '').trim();
+            if (!path) {
+                return [];
+            }
+
+            var normalized = path.replace(/\[(\d+)\]/g, '.$1');
+            return normalized.split('.').filter(function(part) {
+                return part !== '';
+            });
+        },
+
+        getCachedToolResultValue: function(value, path) {
+            var parts = this.parseCachedToolResultPath(path);
+            for (var i = 0; i < parts.length; i++) {
+                if (value === null || value === undefined) {
+                    return undefined;
+                }
+                value = value[parts[i]];
+            }
+            return value;
+        },
+
+        getCachedToolResultType: function(value) {
+            if (value === null) return 'null';
+            if (Array.isArray(value)) return 'array';
+            return typeof value;
+        },
+
+        summarizeCachedToolResultValue: function(value, depth) {
+            depth = depth || 0;
+            if (value === null || value === undefined || typeof value !== 'object') {
+                return value;
+            }
+
+            if (depth >= 2) {
+                return {
+                    type: this.getCachedToolResultType(value),
+                    keys: Array.isArray(value) ? undefined : Object.keys(value).slice(0, 20),
+                    length: Array.isArray(value) ? value.length : undefined
+                };
+            }
+
+            if (Array.isArray(value)) {
+                return {
+                    type: 'array',
+                    length: value.length,
+                    sample: value.slice(0, 5).map(function(item) {
+                        return this.summarizeCachedToolResultValue(item, depth + 1);
+                    }, this)
+                };
+            }
+
+            var summary = {};
+            Object.keys(value).slice(0, 40).forEach(function(key) {
+                var item = value[key];
+                if (typeof item === 'string') {
+                    summary[key] = {
+                        type: 'string',
+                        chars: item.length,
+                        preview: item.length > 500 ? item.substring(0, 500) + '... [truncated]' : item
+                    };
+                } else if (item && typeof item === 'object') {
+                    summary[key] = this.summarizeCachedToolResultValue(item, depth + 1);
+                } else {
+                    summary[key] = item;
+                }
+            }, this);
+
+            return summary;
+        },
+
+        inspectCachedToolResultString: function(record, args, value) {
+            var text = String(value || '');
+            var maxLength = parseInt(args.max_length, 10);
+            maxLength = Number.isFinite(maxLength) && maxLength > 0 ? Math.min(maxLength, 65536) : 12000;
+            var offset = parseInt(args.offset, 10);
+            offset = Number.isFinite(offset) && offset > 0 ? offset : 0;
+            var search = String(args.search || '');
+            var path = String(args.path || '');
+
+            if (search) {
+                var lines = text.split(/\r\n|\n|\r/);
+                var occurrence = parseInt(args.occurrence, 10);
+                occurrence = Number.isFinite(occurrence) && occurrence > 0 ? occurrence : 1;
+                var beforeLines = parseInt(args.before_lines, 10);
+                beforeLines = Number.isFinite(beforeLines) && beforeLines > 0 ? Math.min(beforeLines, 500) : 0;
+                var afterLines = parseInt(args.after_lines, 10);
+                afterLines = Number.isFinite(afterLines) && afterLines >= 0 ? Math.min(afterLines, 500) : 80;
+                var found = 0;
+                var matchIndex = -1;
+                for (var i = 0; i < lines.length; i++) {
+                    if (lines[i].indexOf(search) === -1) {
+                        continue;
+                    }
+                    found++;
+                    if (found === occurrence) {
+                        matchIndex = i;
+                        break;
+                    }
+                }
+
+                if (matchIndex === -1) {
+                    return {
+                        tool_use_id: record.id,
+                        tool: record.name,
+                        path: path,
+                        type: 'string',
+                        chars: text.length,
+                        search: search,
+                        occurrence: occurrence,
+                        match_found: false,
+                        matches_seen: found,
+                        content: '',
+                        instruction: 'Search text was not found in the cached tool result path.'
+                    };
+                }
+
+                var start = Math.max(0, matchIndex - beforeLines);
+                var end = Math.min(lines.length - 1, matchIndex + afterLines);
+                var content = lines.slice(start, end + 1).join('\n');
+                var truncated = content.length > maxLength;
+                if (truncated) {
+                    content = content.substring(0, maxLength);
+                }
+
+                return {
+                    tool_use_id: record.id,
+                    tool: record.name,
+                    path: path,
+                    type: 'string',
+                    chars: text.length,
+                    search: search,
+                    occurrence: occurrence,
+                    match_found: true,
+                    match_line: matchIndex + 1,
+                    line_start: start + 1,
+                    line_end: end + 1,
+                    content: content,
+                    returned_chars: content.length,
+                    truncated: truncated
+                };
+            }
+
+            offset = Math.min(offset, text.length);
+            var chunk = text.substring(offset, offset + maxLength);
+            var nextOffset = offset + chunk.length;
+            var chunkTruncated = nextOffset < text.length;
+
+            return {
+                tool_use_id: record.id,
+                tool: record.name,
+                path: path,
+                type: 'string',
+                chars: text.length,
+                offset: offset,
+                content: chunk,
+                returned_chars: chunk.length,
+                truncated: chunkTruncated,
+                next_offset: chunkTruncated ? nextOffset : null
+            };
+        },
+
+        executeInspectToolResult: function(toolCall) {
+            var args = toolCall.arguments || {};
+            var toolUseId = String(args.tool_use_id || args.tool_result_id || args.id || '').trim();
+
+            if (!toolUseId) {
+                return {
+                    id: toolCall.id,
+                    name: 'inspect_tool_result',
+                    input: args,
+                    result: { error: 'tool_use_id is required' },
+                    success: false
+                };
+            }
+
+            var record = this.toolResultCache && this.toolResultCache[toolUseId];
+            if (!record) {
+                return {
+                    id: toolCall.id,
+                    name: 'inspect_tool_result',
+                    input: args,
+                    result: {
+                        error: 'Cached tool result is no longer available',
+                        tool_use_id: toolUseId,
+                        available_tool_use_ids: Array.isArray(this.toolResultCacheOrder) ? this.toolResultCacheOrder.slice(-10) : []
+                    },
+                    success: false
+                };
+            }
+
+            var path = String(args.path || '');
+            var value = this.getCachedToolResultValue(record.result, path);
+            if (value === undefined) {
+                return {
+                    id: toolCall.id,
+                    name: 'inspect_tool_result',
+                    input: args,
+                    result: {
+                        error: 'Path not found in cached tool result',
+                        tool_use_id: toolUseId,
+                        path: path,
+                        available: this.summarizeCachedToolResultValue(record.result, 0)
+                    },
+                    success: false
+                };
+            }
+
+            var result = typeof value === 'string'
+                ? this.inspectCachedToolResultString(record, args, value)
+                : {
+                    tool_use_id: record.id,
+                    tool: record.name,
+                    path: path,
+                    type: this.getCachedToolResultType(value),
+                    value: this.summarizeCachedToolResultValue(value, 0)
+                };
+
+            return {
+                id: toolCall.id,
+                name: 'inspect_tool_result',
+                input: args,
+                result: result,
+                success: true
+            };
         },
 
         canUseFileToolEndpoint: function(toolName) {
@@ -1969,6 +2242,11 @@
             // All tools resolved - now send all results to the LLM
             var allResults = this.pendingToolResults;
             this.pendingToolResults = [];
+            if (this.rememberToolResultForInspection) {
+                allResults.forEach(function(result) {
+                    self.rememberToolResultForInspection(result);
+                });
+            }
 
             var navigateResult = allResults.find(function(r) {
                 return r.name === 'navigate' && r.success && r.result && r.result.url;

@@ -10,7 +10,7 @@ const ALL_ENABLED = [
     'get_plugins', 'get_themes', 'install_plugin',
     'list_abilities', 'get_ability', 'execute_ability',
     'get_page_html', 'pick_image', 'summarize_conversation',
-    'list_skills', 'get_skill',
+    'inspect_tool_result', 'list_skills', 'get_skill',
 ];
 
 function createInstance(overrides) {
@@ -96,6 +96,16 @@ describe('getAllToolDefinitions', function() {
         assert.ok(Object.hasOwn(def.input_schema.properties, 'before_lines'));
         assert.ok(Object.hasOwn(def.input_schema.properties, 'after_lines'));
         assert.ok(Object.hasOwn(def.input_schema.properties, 'occurrence'));
+    });
+
+    it('defines inspect_tool_result for cached large tool outputs', function() {
+        const def = toolsMixin.getAllToolDefinitions().find(d => d.name === 'inspect_tool_result');
+
+        assert.ok(def);
+        assert.deepStrictEqual(def.input_schema.required, ['tool_use_id']);
+        assert.ok(Object.hasOwn(def.input_schema.properties, 'path'));
+        assert.ok(Object.hasOwn(def.input_schema.properties, 'search'));
+        assert.ok(Object.hasOwn(def.input_schema.properties, 'max_length'));
     });
 
     it('guides native post drafts toward rest_api', function() {

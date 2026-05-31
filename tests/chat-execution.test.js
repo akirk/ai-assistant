@@ -139,6 +139,111 @@ describe('configured tool routing', function() {
     });
 });
 
+describe('inspect_tool_result', function() {
+    it('returns a targeted search window from a cached tool result string path', function() {
+        const assistant = createAssistant();
+        const article = [
+            '<h1>Wien</h1>',
+            '<p>Intro</p>',
+            '<h2>Gemeindebezirke</h2>',
+            '<p>Bezirk 1</p>',
+            '<p>Bezirk 2</p>',
+            '<h2>History</h2>'
+        ].join('\n');
+
+        assistant.rememberToolResultForInspection({
+            id: 'toolu_article',
+            name: 'ability',
+            input: { ability: 'wordopedia/get-saved-article' },
+            success: true,
+            result: {
+                result: {
+                    article: {
+                        content: article
+                    }
+                }
+            }
+        });
+
+        const inspected = assistant.executeInspectToolResult({
+            id: 'inspect_1',
+            arguments: {
+                tool_use_id: 'toolu_article',
+                path: 'result.article.content',
+                search: 'Gemeindebezirke',
+                before_lines: 0,
+                after_lines: 2
+            }
+        });
+
+        assert.strictEqual(inspected.success, true);
+        assert.strictEqual(inspected.result.match_found, true);
+        assert.strictEqual(inspected.result.match_line, 3);
+        assert.match(inspected.result.content, /Gemeindebezirke/);
+        assert.match(inspected.result.content, /Bezirk 2/);
+        assert.doesNotMatch(inspected.result.content, /History/);
+    });
+
+    it('returns offset chunks from cached string values', function() {
+        const assistant = createAssistant();
+
+        assistant.rememberToolResultForInspection({
+            id: 'toolu_text',
+            name: 'ability',
+            success: true,
+            result: {
+                text: 'abcdefghijklmnopqrstuvwxyz'
+            }
+        });
+
+        const inspected = assistant.executeInspectToolResult({
+            id: 'inspect_chunk',
+            arguments: {
+                tool_use_id: 'toolu_text',
+                path: 'text',
+                offset: 2,
+                max_length: 5
+            }
+        });
+
+        assert.strictEqual(inspected.success, true);
+        assert.strictEqual(inspected.result.content, 'cdefg');
+        assert.strictEqual(inspected.result.truncated, true);
+        assert.strictEqual(inspected.result.next_offset, 7);
+    });
+
+    it('evicts old cached tool results by configured limit', function() {
+        const assistant = createAssistant({
+            getToolResultCacheLimit() {
+                return 1;
+            }
+        });
+
+        assistant.rememberToolResultForInspection({
+            id: 'old_tool',
+            name: 'ability',
+            result: { value: 'old' },
+            success: true
+        });
+        assistant.rememberToolResultForInspection({
+            id: 'new_tool',
+            name: 'ability',
+            result: { value: 'new' },
+            success: true
+        });
+
+        const inspected = assistant.executeInspectToolResult({
+            id: 'inspect_old',
+            arguments: { tool_use_id: 'old_tool' }
+        });
+
+        assert.strictEqual(inspected.success, false);
+        assert.match(inspected.result.error, /no longer available/);
+        assert.strictEqual(inspected.result.available_tool_use_ids.length, 1);
+        assert.strictEqual(inspected.result.available_tool_use_ids[0], 'new_tool');
+    });
+});
+
 describe('processToolCallImmediate', function() {
     it('requires confirmation before executing abilities', async function() {
         const assistant = createAssistant();
