@@ -14,6 +14,7 @@ class FileToolExecutorTest extends TestCase {
         $this->deleteIfExists(WP_CONTENT_DIR . '/secret-link.php');
         $this->deleteIfExists(WP_CONTENT_DIR . '/visible-secret-test.php');
         $this->deleteIfExists(WP_CONTENT_DIR . '/large-read-test.txt');
+        $this->deleteIfExists(WP_CONTENT_DIR . '/search-window-test.php');
         $this->deleteDirectoryIfExists(WP_PLUGIN_DIR . '/ai-changes-meta-test');
     }
 
@@ -22,6 +23,7 @@ class FileToolExecutorTest extends TestCase {
         $this->deleteIfExists(WP_CONTENT_DIR . '/secret-link.php');
         $this->deleteIfExists(WP_CONTENT_DIR . '/visible-secret-test.php');
         $this->deleteIfExists(WP_CONTENT_DIR . '/large-read-test.txt');
+        $this->deleteIfExists(WP_CONTENT_DIR . '/search-window-test.php');
         $this->deleteDirectoryIfExists(WP_PLUGIN_DIR . '/ai-changes-meta-test');
     }
 
@@ -134,6 +136,40 @@ class FileToolExecutorTest extends TestCase {
         $this->assertSame(8, $result['returned_bytes']);
         $this->assertTrue($result['truncated']);
         $this->assertSame(18, $result['next_offset']);
+    }
+
+    public function test_read_file_can_return_search_window(): void {
+        file_put_contents(WP_CONTENT_DIR . '/search-window-test.php', implode("\n", [
+            '<?php',
+            'function first() {',
+            '    return 1;',
+            '}',
+            '',
+            'function target_function() {',
+            '    $value = 2;',
+            '    return $value;',
+            '}',
+            '',
+            'function last() {',
+            '    return 3;',
+            '}',
+        ]));
+
+        $result = $this->executor->execute('read_file', [
+            'path'         => 'search-window-test.php',
+            'search'       => 'function target_function',
+            'before_lines' => 1,
+            'after_lines'  => 2,
+        ]);
+
+        $this->assertTrue($result['match_found']);
+        $this->assertSame(6, $result['match_line']);
+        $this->assertSame(5, $result['line_start']);
+        $this->assertSame(8, $result['line_end']);
+        $this->assertStringContainsString('function target_function()', $result['content']);
+        $this->assertStringContainsString('return $value;', $result['content']);
+        $this->assertStringNotContainsString('function first()', $result['content']);
+        $this->assertFalse($result['truncated']);
     }
 
     private function createSecretFile(): void {

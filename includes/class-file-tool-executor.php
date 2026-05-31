@@ -10,8 +10,9 @@ if (!defined('ABSPATH') && !defined('AI_ASSISTANT_FILE_TOOLS_ENDPOINT')) {
  */
 class File_Tool_Executor {
 
-    private const DEFAULT_READ_FILE_BYTES = 262144;
-    private const MAX_READ_FILE_BYTES = 524288;
+    private const DEFAULT_READ_FILE_BYTES = 65536;
+    private const MAX_READ_FILE_BYTES = 262144;
+    private const MAX_READ_FILE_CONTEXT_LINES = 500;
 
     private string $wp_content_path;
     private ?Git_Tracker_Manager $git_tracker_manager;
@@ -38,7 +39,11 @@ class File_Tool_Executor {
                 return $this->with_ai_changes_metadata($this->read_file(
                     $path,
                     $this->get_int_arg($arguments, 'offset', 0, 0, PHP_INT_MAX),
-                    $this->get_int_arg($arguments, 'max_length', self::DEFAULT_READ_FILE_BYTES, 1, self::MAX_READ_FILE_BYTES)
+                    $this->get_int_arg($arguments, 'max_length', self::DEFAULT_READ_FILE_BYTES, 1, self::MAX_READ_FILE_BYTES),
+                    $this->get_string_arg($arguments, 'search', $tool_name, ''),
+                    $this->get_int_arg($arguments, 'before_lines', 0, 0, self::MAX_READ_FILE_CONTEXT_LINES),
+                    $this->get_int_arg($arguments, 'after_lines', 80, 0, self::MAX_READ_FILE_CONTEXT_LINES),
+                    $this->get_int_arg($arguments, 'occurrence', 1, 1, PHP_INT_MAX)
                 ), $path);
             case 'write_file':
                 $path = $this->get_string_arg($arguments, 'path', $tool_name);
@@ -268,7 +273,15 @@ class File_Tool_Executor {
         }
     }
 
-    private function read_file(string $path, int $offset = 0, int $max_length = self::DEFAULT_READ_FILE_BYTES): array {
+    private function read_file(
+        string $path,
+        int $offset = 0,
+        int $max_length = self::DEFAULT_READ_FILE_BYTES,
+        string $search = '',
+        int $before_lines = 0,
+        int $after_lines = 80,
+        int $occurrence = 1
+    ): array {
         $full_path = $this->resolve_path($path);
 
         if (File_Tool_Auth::is_secret_path($full_path)) {
@@ -286,6 +299,18 @@ class File_Tool_Executor {
         $size = filesize($full_path);
         $offset = max(0, min($offset, $size === false ? 0 : (int) $size));
         $max_length = max(1, min($max_length, self::MAX_READ_FILE_BYTES));
+
+        if ($search !== '') {
+            return $this->read_file_search_window(
+                $path,
+                $full_path,
+                $search,
+                $before_lines,
+                $after_lines,
+                $occurrence,
+                $max_length
+            );
+        }
 
         $content = file_get_contents($full_path, false, null, $offset, $max_length);
         if ($content === false) {
@@ -308,6 +333,86 @@ class File_Tool_Executor {
             'next_offset'    => $truncated ? $next_offset : null,
             'instruction'    => $truncated
                 ? 'File content was truncated. Call read_file again with offset set to next_offset to continue.'
+                : null,
+        ];
+    }
+
+    private function read_file_search_window(
+        string $path,
+        string $full_path,
+        string $search,
+        int $before_lines,
+        int $after_lines,
+        int $occurrence,
+        int $max_length
+    ): array {
+        $content = file_get_contents($full_path);
+        if ($content === false) {
+            throw new \Exception("Failed to read file: $path");
+        }
+
+        $file_size = filesize($full_path);
+        $lines = preg_split("/(\r\n|\n|\r)/", $content);
+        if (!is_array($lines)) {
+            $lines = [$content];
+        }
+
+        $found_count = 0;
+        $match_index = null;
+        foreach ($lines as $index => $line) {
+            if (strpos($line, $search) === false) {
+                continue;
+            }
+
+            $found_count++;
+            if ($found_count === $occurrence) {
+                $match_index = $index;
+                break;
+            }
+        }
+
+        if ($match_index === null) {
+            return [
+                'path'        => $path,
+                'content'     => '',
+                'size'        => $file_size === false ? strlen($content) : (int) $file_size,
+                'modified'    => date('Y-m-d H:i:s', filemtime($full_path)),
+                'search'      => $search,
+                'occurrence'  => $occurrence,
+                'match_found' => false,
+                'matches'     => $found_count,
+                'instruction' => 'Search text was not found. Use find with text search or try a shorter exact string.',
+            ];
+        }
+
+        $start = max(0, $match_index - $before_lines);
+        $end = min(count($lines) - 1, $match_index + $after_lines);
+        $window_lines = array_slice($lines, $start, $end - $start + 1);
+        $window_content = implode("\n", $window_lines);
+        $returned_bytes = strlen($window_content);
+        $truncated = false;
+
+        if ($returned_bytes > $max_length) {
+            $window_content = substr($window_content, 0, $max_length);
+            $returned_bytes = strlen($window_content);
+            $truncated = true;
+        }
+
+        return [
+            'path'           => $path,
+            'content'        => $window_content,
+            'size'           => $file_size === false ? strlen($content) : (int) $file_size,
+            'modified'       => date('Y-m-d H:i:s', filemtime($full_path)),
+            'search'         => $search,
+            'occurrence'     => $occurrence,
+            'match_found'    => true,
+            'match_line'     => $match_index + 1,
+            'line_start'     => $start + 1,
+            'line_end'       => $end + 1,
+            'returned_bytes' => $returned_bytes,
+            'truncated'      => $truncated,
+            'instruction'    => $truncated
+                ? 'Returned line window was truncated by max_length. Increase max_length or request a narrower line window.'
                 : null,
         ];
     }

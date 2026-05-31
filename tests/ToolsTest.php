@@ -76,6 +76,10 @@ class ToolsTest extends TestCase {
         $this->assertContains('path', $read_file['parameters']['required']);
         $this->assertArrayHasKey('offset', $read_file['parameters']['properties']);
         $this->assertArrayHasKey('max_length', $read_file['parameters']['properties']);
+        $this->assertArrayHasKey('search', $read_file['parameters']['properties']);
+        $this->assertArrayHasKey('before_lines', $read_file['parameters']['properties']);
+        $this->assertArrayHasKey('after_lines', $read_file['parameters']['properties']);
+        $this->assertArrayHasKey('occurrence', $read_file['parameters']['properties']);
     }
 
     public function test_dev_tools_prompt_tells_ai_to_reread_before_editing(): void {
@@ -86,6 +90,7 @@ class ToolsTest extends TestCase {
 
         $this->assertStringContainsString('Before edit_file, use read_file for the current file/range', $prompt);
         $this->assertStringContainsString('older tool output may be pruned', $prompt);
+        $this->assertStringContainsString('search plus before_lines/after_lines', $prompt);
         $this->assertStringContainsString('offset=next_offset', $prompt);
     }
 

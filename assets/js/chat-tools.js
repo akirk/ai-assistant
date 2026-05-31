@@ -75,13 +75,17 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'read_file',
-                    description: 'Read a file in wp-content. Large files may be returned in chunks; use offset and max_length to inspect a specific range.',
+                    description: 'Read a file in wp-content. Use search with before_lines/after_lines for targeted snippets, or offset/max_length for byte chunks.',
                     input_schema: {
                         type: 'object',
                         properties: {
                             path: { type: 'string', description: 'Relative path from wp-content' },
                             offset: { type: 'number', description: 'Byte offset to start reading from. Omit for the beginning.' },
-                            max_length: { type: 'number', description: 'Maximum bytes to return. Use smaller chunks for large files.' }
+                            max_length: { type: 'number', description: 'Maximum bytes to return. Use smaller chunks for large files.' },
+                            search: { type: 'string', description: 'Exact text to locate before returning a line window, e.g. a function name.' },
+                            before_lines: { type: 'number', description: 'Lines to include before the search match.' },
+                            after_lines: { type: 'number', description: 'Lines to include after the search match.' },
+                            occurrence: { type: 'number', description: '1-based match occurrence when search appears multiple times.' }
                         },
                         required: ['path']
                     }
