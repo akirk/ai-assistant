@@ -74,6 +74,19 @@ class ToolsTest extends TestCase {
 
         $this->assertNotNull($read_file);
         $this->assertContains('path', $read_file['parameters']['required']);
+        $this->assertArrayHasKey('offset', $read_file['parameters']['properties']);
+        $this->assertArrayHasKey('max_length', $read_file['parameters']['properties']);
+    }
+
+    public function test_dev_tools_prompt_tells_ai_to_reread_before_editing(): void {
+        $prompt = \AI_Assistant_Dev_Tools::register_system_prompt('', [
+            'read_file',
+            'edit_file',
+        ]);
+
+        $this->assertStringContainsString('Before edit_file, use read_file for the current file/range', $prompt);
+        $this->assertStringContainsString('older tool output may be pruned', $prompt);
+        $this->assertStringContainsString('offset=next_offset', $prompt);
     }
 
     public function test_search_content_tool_requires_needle(): void {

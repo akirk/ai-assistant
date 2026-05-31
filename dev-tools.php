@@ -180,6 +180,8 @@ PROMPT;
             if ($has_edit_file) {
                 $prompt .= "- Use edit_file for modifying EXISTING files - it uses search/replace operations which is more efficient and easier to review.\n";
                 $prompt .= "- The edit_file tool takes a real JSON array of {search, replace} objects, not a string containing JSON, markdown, XML, or tool-call tags.\n";
+                $prompt .= "- Before edit_file, use read_file for the current file/range unless exact current content is already in this turn; older tool output may be pruned.\n";
+                $prompt .= "- If read_file is truncated, continue with offset=next_offset until you have the needed range.\n";
                 $prompt .= "- Each edit_file search string must be exact and unique in the current file.\n";
                 $prompt .= "- If an edit_file operation fails (string not found or not unique), use read_file to see the current content and retry.\n";
             } else {
