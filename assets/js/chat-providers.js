@@ -550,7 +550,11 @@
                 return;
             }
 
-            this.hideToolProgress();
+            if (this.archiveToolCards) {
+                this.archiveToolCards({ removeIncomplete: true });
+            } else {
+                this.hideToolProgress();
+            }
             this.setLoading(true);
             this.streamComplete = false;
             this.executingToolCount = 0;

@@ -973,11 +973,11 @@
             var lastFallbackFrom = '';
             var activeSelectionController = null;
             var selectionRun = 0;
-            var $card = $('[data-tool-id="' + toolId + '"]');
+            var $card = this.getToolCardElement(toolId);
 
             if (!$card.length) {
                 this.showToolProgress('pick_image', 0, toolId);
-                $card = $('[data-tool-id="' + toolId + '"]');
+                $card = this.getToolCardElement(toolId);
             }
 
             $card.find('.ai-tool-card-status').text('Choose image');
@@ -1889,12 +1889,9 @@
 
         addToolUseGroup: function(toolUses) {
             var self = this;
-            var label = this.toolGroupLabel(toolUses);
-            var $details = $('<details class="ai-tool-cards-group"><summary class="ai-tool-cards-summary">' + this.escapeHtml(label) + '</summary></details>');
             toolUses.forEach(function(tu) {
-                self.addToolUseMessage(tu.name, tu.input, $details, tu.result);
+                self.addToolUseMessage(tu.name, tu.input, null, tu.result);
             });
-            $('#ai-assistant-messages').append($details);
             this.moveAiChangesSuggestionToEnd();
         },
 
@@ -3064,16 +3061,13 @@
         },
 
         getToolCardsContainer: function() {
-            var $container = $('#ai-assistant-tool-cards');
-            if ($container.length === 0) {
-                $container = $('<div id="ai-assistant-tool-cards" class="ai-tool-cards-live" aria-live="polite"></div>');
-                $('#ai-assistant-messages').append($container);
-            } else {
-                // Move container to end of messages if it already exists
-                // This handles cases where LLM responds multiple times with tool calls.
-                $('#ai-assistant-messages').append($container);
-            }
-            return $container;
+            return $('#ai-assistant-messages');
+        },
+
+        getToolCardElement: function(toolId) {
+            return $('.ai-tool-card[data-tool-id]').filter(function() {
+                return $(this).attr('data-tool-id') === String(toolId);
+            }).last();
         },
 
         toolGroupLabelFromEntries: function(entries) {
@@ -3155,7 +3149,7 @@
                 var desc = this.extractPartialDescription(toolName, partialInput);
                 if (desc && desc !== this.toolCardsState[toolId].partialDesc) {
                     this.toolCardsState[toolId].partialDesc = desc;
-                    var $card = $('[data-tool-id="' + toolId + '"]');
+                    var $card = this.getToolCardElement(toolId);
                     if ($card.length) {
                         $card.find('.ai-tool-card-desc').text(desc);
                     }
@@ -3289,8 +3283,9 @@
         addToolCard: function(toolId, toolName) {
             var $container = this.getToolCardsContainer();
             var description = this.getActionDescription(toolName, {});
+            var escapedToolId = this.escapeAttribute(toolId);
 
-            var $card = $('<div class="ai-tool-card ai-tool-card-generating" data-tool-id="' + toolId + '">' +
+            var $card = $('<div class="ai-tool-card ai-tool-card-generating" data-tool-id="' + escapedToolId + '">' +
                 '<div class="ai-tool-card-header">' +
                 '<span class="ai-tool-card-spinner"></span>' +
                 '<span class="ai-tool-card-name">' + this.escapeHtml(toolName) + '</span>' +
@@ -3304,6 +3299,7 @@
 
             $container.append($card);
             this.updateToolCardsSummary();
+            this.moveAiChangesSuggestionToEnd();
             this.scrollToBottom();
         },
 
@@ -3311,19 +3307,19 @@
             if (this.toolCardsState[toolId]) {
                 this.toolCardsState[toolId].bytes = bytes;
             }
-            var $card = $('[data-tool-id="' + toolId + '"]');
+            var $card = this.getToolCardElement(toolId);
             if ($card.length) {
                 $card.find('.ai-tool-card-size').text(this.formatBytes(bytes));
             }
         },
 
         updateToolCardDescription: function(toolId, toolName, args) {
-            var $card = $('[data-tool-id="' + toolId + '"]');
+            var $card = this.getToolCardElement(toolId);
 
             // Create card if it doesn't exist (for providers that report tools at completion)
             if (!$card.length) {
                 this.showToolProgress(toolName, JSON.stringify(args || {}).length, toolId);
-                $card = $('[data-tool-id="' + toolId + '"]');
+                $card = this.getToolCardElement(toolId);
             }
 
             if ($card.length) {
@@ -3443,7 +3439,7 @@
         renderDelegateToolCardDetails: function(toolId) {
             var state = this.toolCardsState[toolId];
             var delegate = state && state.delegate;
-            var $card = $('[data-tool-id="' + toolId + '"]');
+            var $card = this.getToolCardElement(toolId);
             if (!$card.length || !delegate) {
                 return;
             }
@@ -3478,7 +3474,7 @@
 
         setToolCardState: function(toolId, state, options) {
             options = options || {};
-            var $card = $('[data-tool-id="' + toolId + '"]');
+            var $card = this.getToolCardElement(toolId);
             if (!$card.length) return;
 
             $card.removeClass('ai-tool-card-generating ai-tool-card-ready ai-tool-card-checking ai-tool-card-pending ai-tool-card-executing ai-tool-card-completed ai-tool-card-error ai-tool-card-skipped');
@@ -3539,11 +3535,12 @@
                     var restApiPattern = isRestApiWrite
                         ? (cardState.arguments.method || 'POST').toUpperCase() + ' ' + (cardState.arguments.path || '/')
                         : '';
+                    var escapedToolId = this.escapeAttribute(toolId);
                     $actions.html(
-                        '<button class="ai-tool-approve ai-approve-btn" data-tool-id="' + toolId + '">Approve</button>' +
-                        (isAbilityExecute ? '<button class="ai-tool-approve-always ai-always-approve-btn" data-tool-id="' + toolId + '" data-ability="' + this.escapeHtml(cardState.arguments.ability) + '">Always approve</button>' : '') +
-                        (isRestApiWrite ? '<button class="ai-tool-approve-always ai-always-approve-btn" data-tool-id="' + toolId + '" data-rest-api="' + this.escapeHtml(restApiPattern) + '">Always approve</button>' : '') +
-                        '<button class="ai-tool-skip ai-skip-btn" data-tool-id="' + toolId + '">Skip</button>'
+                        '<button class="ai-tool-approve ai-approve-btn" data-tool-id="' + escapedToolId + '">Approve</button>' +
+                        (isAbilityExecute ? '<button class="ai-tool-approve-always ai-always-approve-btn" data-tool-id="' + escapedToolId + '" data-ability="' + this.escapeAttribute(cardState.arguments.ability) + '">Always approve</button>' : '') +
+                        (isRestApiWrite ? '<button class="ai-tool-approve-always ai-always-approve-btn" data-tool-id="' + escapedToolId + '" data-rest-api="' + this.escapeAttribute(restApiPattern) + '">Always approve</button>' : '') +
+                        '<button class="ai-tool-skip ai-skip-btn" data-tool-id="' + escapedToolId + '">Skip</button>'
                     );
                     break;
                 case 'executing':
@@ -3589,33 +3586,37 @@
             this.scrollToBottom();
         },
 
-        clearToolCards: function() {
-            var previousState = this.toolCardsState || {};
-            this.toolCardsState = {};
-            var $container = $('#ai-assistant-tool-cards');
-            var $finished = $container.find('.ai-tool-card-completed, .ai-tool-card-error, .ai-tool-card-skipped');
-            if ($finished.length > 0) {
-                var entries = [];
-                Object.keys(previousState).forEach(function(id) {
-                    var n = previousState[id].name;
-                    if (n) {
-                        entries.push({ name: n });
-                    }
-                });
-                if (entries.length === 0) {
-                    $finished.find('.ai-tool-card-name').each(function() {
-                        var n = $(this).text();
-                        if (n) {
-                            entries.push({ name: n });
-                        }
-                    });
+        archiveToolCards: function(options) {
+            options = options || {};
+            var self = this;
+            var state = this.toolCardsState || {};
+
+            Object.keys(state).forEach(function(toolId) {
+                var cardState = state[toolId] && state[toolId].state;
+                var $card = self.getToolCardElement(toolId);
+                if (!$card.length) {
+                    return;
                 }
-                var label = this.toolGroupLabelFromEntries(entries.length ? entries : new Array($finished.length));
-                var $group = $('<details class="ai-tool-cards-group"><summary class="ai-tool-cards-summary">' + this.escapeHtml(label) + '</summary></details>');
-                $finished.appendTo($group);
-                $group.insertBefore($container);
-            }
-            $container.remove();
+
+                if (options.removeIncomplete !== false && cardState === 'generating') {
+                    $card.remove();
+                    return;
+                }
+
+                $card.attr('data-tool-history-id', toolId).removeAttr('data-tool-id');
+            });
+
+            this.toolCardsState = {};
+
+            $('#ai-assistant-tool-cards').each(function() {
+                var $container = $(this);
+                $container.children('.ai-tool-card').insertBefore($container);
+                $container.remove();
+            });
+        },
+
+        clearToolCards: function() {
+            this.archiveToolCards({ removeIncomplete: true });
         },
 
         hideToolProgress: function() {
@@ -3623,7 +3624,7 @@
             var self = this;
             Object.keys(this.toolCardsState).forEach(function(toolId) {
                 if (self.toolCardsState[toolId].state === 'generating') {
-                    $('[data-tool-id="' + toolId + '"]').remove();
+                    self.getToolCardElement(toolId).remove();
                     delete self.toolCardsState[toolId];
                 }
             });
