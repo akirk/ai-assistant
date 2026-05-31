@@ -282,21 +282,118 @@ class Chat_UI {
             'welcomeTips' => $this->get_welcome_tips($welcome_tip_context),
             'urlComponent' => $welcome_tip_context['url_component'],
             'currentAiChanges' => $current_ai_changes,
+            /**
+             * Filters the maximum text attachment size that may be inserted into
+             * the conversation as direct private context.
+             *
+             * Larger browser-side text attachments are offered as compact previews
+             * instead of being inserted in full.
+             *
+             * @param int $bytes Maximum direct-insert size in bytes. Default 131072.
+             */
             'maxClientFileBytes' => (int) apply_filters('ai_assistant_client_file_context_bytes', 128 * 1024),
+            /**
+             * Filters the target preview size for compacted browser-side text
+             * attachments.
+             *
+             * @param int $bytes Compact preview target size in bytes. Default 32768.
+             */
             'compactClientFileBytes' => (int) apply_filters('ai_assistant_client_file_compact_bytes', 32 * 1024),
+            /**
+             * Filters the maximum serialized size for one tool result sent to an
+             * LLM provider or saved in conversation history.
+             *
+             * Oversized tool results are deterministically compacted and may be
+             * reopened from the active session cache with inspect_tool_result.
+             *
+             * @param int $chars Maximum serialized tool result size in characters. Default 32768.
+             */
             'maxToolResultChars' => (int) apply_filters('ai_assistant_tool_result_max_chars', 32 * 1024),
+            /**
+             * Filters the maximum string field size kept inside compacted tool
+             * results.
+             *
+             * Longer string values are truncated with context metadata before the
+             * result is sent to the provider.
+             *
+             * @param int $chars Maximum string field size in characters. Default 8192.
+             */
             'maxToolResultStringChars' => (int) apply_filters('ai_assistant_tool_result_string_max_chars', 8 * 1024),
+            /**
+             * Filters the maximum number of array items retained when compacting
+             * tool results.
+             *
+             * @param int $items Maximum retained array items. Default 40.
+             */
             'maxToolResultArrayItems' => (int) apply_filters('ai_assistant_tool_result_array_max_items', 40),
+            /**
+             * Filters the approximate serialized request budget used before an LLM
+             * provider call.
+             *
+             * If compacted messages still exceed this local budget, older history
+             * may be trimmed from the outgoing request while the saved conversation
+             * remains intact.
+             *
+             * @param int $chars Maximum provider request size in characters. Default 163840.
+             */
             'maxProviderRequestChars' => (int) apply_filters('ai_assistant_provider_request_max_chars', 160 * 1024),
+            /**
+             * Filters whether resolved older tool calls and tool results are pruned
+             * from future provider requests.
+             *
+             * The latest unconsumed tool result is kept so the model can react to
+             * it once; stale pairs are removed to prevent long-session token growth.
+             *
+             * @param bool $prune Whether to prune stale resolved tool results. Default true.
+             */
             'pruneStaleToolResults' => (bool) apply_filters('ai_assistant_prune_stale_tool_results', true),
+            /**
+             * Filters how many raw tool results are kept in the active browser
+             * session for inspect_tool_result.
+             *
+             * Cached raw results are not persisted into conversation storage; they
+             * let the assistant inspect narrow slices of compacted large results
+             * without sending the full payload to the provider.
+             *
+             * @param int $limit Maximum cached tool results. Default 20.
+             */
             'toolResultCacheLimit' => (int) apply_filters('ai_assistant_tool_result_cache_limit', 20),
             'maxMediaUploadBytes' => (int) wp_max_upload_size(),
             'toolRoundLimits' => [
+                /**
+                 * Filters the default maximum number of consecutive tool-call rounds
+                 * before the assistant stops the loop.
+                 *
+                 * @param int $rounds Maximum default tool-call rounds. Default 25.
+                 */
                 'default' => (int) apply_filters('ai_assistant_tool_round_limit_default', 25),
+                /**
+                 * Filters the maximum number of consecutive tool-call rounds for
+                 * coding workflows.
+                 *
+                 * Coding workflows often need more read/edit/verify iterations than
+                 * ordinary site questions.
+                 *
+                 * @param int $rounds Maximum coding tool-call rounds. Default 50.
+                 */
                 'coding' => (int) apply_filters('ai_assistant_tool_round_limit_coding', 50),
+                /**
+                 * Filters the maximum number of consecutive failed tool rounds before
+                 * the assistant stops retrying.
+                 *
+                 * @param int $rounds Maximum consecutive failed tool rounds. Default 3.
+                 */
                 'consecutiveFailures' => (int) apply_filters('ai_assistant_tool_round_limit_consecutive_failures', 3),
             ],
             'systemPrompt' => $system_prompt,
+            /**
+             * Filters ability domain keywords exposed to the browser runtime.
+             *
+             * These domains help the assistant route plugin-specific topics to the
+             * `ability` tool instead of generic file or database inspection.
+             *
+             * @param array<string,string> $domains Map of plugin slug => comma-separated topic keywords.
+             */
             'abilityDomains' => apply_filters('ai_assistant_ability_domains', []),
             'strings' => [
                 'placeholder' => __('Ask me anything about your WordPress site...', 'ai-assistant'),
