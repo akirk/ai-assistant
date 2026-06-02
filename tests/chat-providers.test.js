@@ -601,6 +601,97 @@ describe('provider request message sanitization', function() {
         assert.match(parsed.inspect_tool_result.instruction, /Do not rerun the original broad tool call/);
     });
 
+    it('includes original byte size metadata on compacted inspectable tool results', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 4096,
+                maxToolResultStringChars: 1024,
+                maxToolResultArrayItems: 5
+            }
+        });
+
+        const result = {
+            sessions: Array.from({ length: 20 }, function(_, index) {
+                return {
+                    id: index + 1,
+                    title: 'Session ä ' + (index + 1),
+                    description: 'Details ' + 'x'.repeat(500)
+                };
+            })
+        };
+        const originalJson = assistant.safeJsonStringify(result);
+        const content = assistant.stringifyToolResultForProvider(result, 'anthropic', undefined, {
+            toolUseId: 'toolu_schedule'
+        });
+        const parsed = JSON.parse(content);
+
+        assert.strictEqual(parsed.returned_to_llm_truncated, true);
+        assert.strictEqual(parsed.original_result_chars, originalJson.length);
+        assert.strictEqual(parsed.original_result_bytes, assistant.getUtf8ByteLength(originalJson));
+        assert.ok(parsed.original_result_bytes > parsed.original_result_chars);
+    });
+
+    it('keeps an active tool card group while continuing a tool loop', async function() {
+        const assistant = loadProvidersMixin();
+        let archiveCalls = 0;
+        let anthropicCalls = 0;
+
+        Object.assign(assistant, {
+            conversationProvider: 'anthropic',
+            pendingActions: [],
+            pendingToolChecks: 0,
+            continuingToolLoop: true,
+            archiveToolCards() {
+                archiveCalls++;
+            },
+            hideToolProgress() {
+                throw new Error('hideToolProgress should not run during tool-loop continuation');
+            },
+            setLoading() {},
+            isConnectorsMode() {
+                return false;
+            },
+            callAnthropic() {
+                anthropicCalls++;
+            },
+            getProvider() {
+                return 'anthropic';
+            }
+        });
+
+        await assistant.callLLM();
+
+        assert.strictEqual(archiveCalls, 0);
+        assert.strictEqual(assistant.continuingToolLoop, false);
+        assert.strictEqual(anthropicCalls, 1);
+    });
+
+    it('archives tool cards at a normal provider request boundary', async function() {
+        const assistant = loadProvidersMixin();
+        let archiveCalls = 0;
+
+        Object.assign(assistant, {
+            conversationProvider: 'anthropic',
+            pendingActions: [],
+            pendingToolChecks: 0,
+            archiveToolCards() {
+                archiveCalls++;
+            },
+            setLoading() {},
+            isConnectorsMode() {
+                return false;
+            },
+            callAnthropic() {},
+            getProvider() {
+                return 'anthropic';
+            }
+        });
+
+        await assistant.callLLM();
+
+        assert.strictEqual(archiveCalls, 1);
+    });
+
     it('keeps item samples when an inspect_tool_result response is itself compacted', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {

@@ -200,6 +200,49 @@ describe('inspect_tool_result', function() {
         assert.doesNotMatch(inspected.result.content, /History/);
     });
 
+    it('reports byte sizes and next search occurrence for cached result searches', function() {
+        const assistant = createAssistant();
+
+        assistant.rememberToolResultForInspection({
+            id: 'toolu_schedule',
+            name: 'ability',
+            success: true,
+            result: {
+                sessions: [
+                    { title: 'Playground overview', description: 'First match ä' },
+                    { title: 'Playground workshop', description: 'Second match' }
+                ]
+            }
+        });
+
+        const inspected = assistant.executeInspectToolResult({
+            id: 'inspect_search',
+            arguments: {
+                tool_use_id: 'toolu_schedule',
+                path: 'sessions',
+                search: 'Playground',
+                after_lines: 2
+            }
+        });
+
+        assert.strictEqual(inspected.success, true);
+        assert.strictEqual(inspected.result.match_found, true);
+        assert.ok(inspected.result.bytes > inspected.result.chars);
+        assert.ok(inspected.result.returned_bytes >= inspected.result.returned_chars);
+        assert.strictEqual(inspected.result.more_matches_available, true);
+        assert.strictEqual(inspected.result.next_occurrence, 2);
+        assert.deepEqual(JSON.parse(JSON.stringify(inspected.result.next_inspection)), {
+            tool_use_id: 'toolu_schedule',
+            path: 'sessions',
+            search: 'Playground',
+            occurrence: 2,
+            before_lines: 0,
+            after_lines: 2,
+            max_length: 12000
+        });
+        assert.match(inspected.result.instruction, /Do not rerun the original broad tool call/);
+    });
+
     it('returns offset chunks from cached string values', function() {
         const assistant = createAssistant();
 

@@ -1472,6 +1472,21 @@
             return typeof value;
         },
 
+        getUtf8ByteLength: function(value) {
+            var text = String(value || '');
+            if (typeof TextEncoder !== 'undefined') {
+                try {
+                    return new TextEncoder().encode(text).length;
+                } catch (e) {}
+            }
+
+            try {
+                return encodeURIComponent(text).replace(/%[0-9A-F]{2}/gi, 'x').length;
+            } catch (e) {
+                return text.length;
+            }
+        },
+
         summarizeCachedToolResultValue: function(value, depth) {
             depth = depth || 0;
             if (value === null || value === undefined || typeof value !== 'object') {
@@ -1503,6 +1518,7 @@
                     summary[key] = {
                         type: 'string',
                         chars: item.length,
+                        bytes: this.getUtf8ByteLength(item),
                         preview: item.length > 500 ? item.substring(0, 500) + '... [truncated]' : item
                     };
                 } else if (item && typeof item === 'object') {
@@ -1534,6 +1550,7 @@
                 afterLines = Number.isFinite(afterLines) && afterLines >= 0 ? Math.min(afterLines, 500) : 80;
                 var found = 0;
                 var matchIndex = -1;
+                var hasMoreMatches = false;
                 for (var i = 0; i < lines.length; i++) {
                     if (lines[i].indexOf(search) === -1) {
                         continue;
@@ -1541,6 +1558,8 @@
                     found++;
                     if (found === occurrence) {
                         matchIndex = i;
+                    } else if (found > occurrence) {
+                        hasMoreMatches = true;
                         break;
                     }
                 }
@@ -1552,6 +1571,7 @@
                         path: path,
                         type: 'string',
                         chars: text.length,
+                        bytes: this.getUtf8ByteLength(text),
                         search: search,
                         occurrence: occurrence,
                         match_found: false,
@@ -1575,6 +1595,7 @@
                     path: path,
                     type: 'string',
                     chars: text.length,
+                    bytes: this.getUtf8ByteLength(text),
                     search: search,
                     occurrence: occurrence,
                     match_found: true,
@@ -1583,7 +1604,23 @@
                     line_end: end + 1,
                     content: content,
                     returned_chars: content.length,
-                    truncated: truncated
+                    returned_bytes: this.getUtf8ByteLength(content),
+                    truncated: truncated,
+                    matches_seen: found,
+                    more_matches_available: hasMoreMatches,
+                    next_occurrence: hasMoreMatches ? occurrence + 1 : null,
+                    next_inspection: hasMoreMatches ? {
+                        tool_use_id: record.id,
+                        path: path,
+                        search: search,
+                        occurrence: occurrence + 1,
+                        before_lines: beforeLines,
+                        after_lines: afterLines,
+                        max_length: maxLength
+                    } : null,
+                    instruction: hasMoreMatches
+                        ? 'Another search match is available. Call inspect_tool_result again with the same tool_use_id, path, and search, and set occurrence to next_occurrence. Do not rerun the original broad tool call.'
+                        : 'No later search match was found in this cached result path.'
                 };
             }
 
@@ -1598,9 +1635,11 @@
                 path: path,
                 type: 'string',
                 chars: text.length,
+                bytes: this.getUtf8ByteLength(text),
                 offset: offset,
                 content: chunk,
                 returned_chars: chunk.length,
+                returned_bytes: this.getUtf8ByteLength(chunk),
                 truncated: chunkTruncated,
                 next_offset: chunkTruncated ? nextOffset : null
             };
@@ -2610,10 +2649,12 @@
             }
 
             if (this.maybeStopForToolRoundLimit(allResults)) {
+                this.continuingToolLoop = true;
                 this.callLLM();
                 return;
             }
 
+            this.continuingToolLoop = true;
             this.callLLM();
         },
 
