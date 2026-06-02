@@ -1441,7 +1441,6 @@ describe('tool result display', function() {
             type: 'object',
             keys: {
                 ability: '32 chars',
-                success: 'boolean, 4 chars',
                 event_url: '36 chars',
                 sessions: 'array, 120 items, 78000 chars'
             },

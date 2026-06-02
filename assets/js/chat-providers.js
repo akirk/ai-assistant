@@ -948,7 +948,9 @@
                 return summary;
             }
 
-            Object.keys(value).slice(0, maxKeys || 40).forEach(function(key) {
+            Object.keys(value).filter(function(key) {
+                return key !== 'success';
+            }).slice(0, maxKeys || 40).forEach(function(key) {
                 summary[key] = this.summarizeProviderKeyValue(value[key]);
             }, this);
 

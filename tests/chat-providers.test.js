@@ -648,7 +648,7 @@ describe('provider request message sanitization', function() {
         assert.strictEqual(summary.type, 'object');
         assert.strictEqual(typeof summary.keys, 'object');
         assert.match(summary.keys.ability, /chars/);
-        assert.match(summary.keys.success, /boolean/);
+        assert.strictEqual(summary.keys.success, undefined);
         assert.match(summary.keys.sessions, /array, 20 items/);
         assert.match(summary.keys.sessions, /chars/);
     });
