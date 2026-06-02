@@ -2508,6 +2508,10 @@
         },
 
         getResolvedToolResultForProviderDisplay: function(result, provider) {
+            if (result && (result.name || result.tool) === 'inspect_tool_result') {
+                return result.result;
+            }
+
             var content = this.stringifyResolvedToolResultForProvider(result, provider);
             try {
                 return JSON.parse(content);

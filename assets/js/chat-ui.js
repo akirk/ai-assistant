@@ -1412,6 +1412,13 @@
                         label: output.match_found === false ? 'Inspection result' : (output.search ? 'Inspected match' : 'Inspected content')
                     };
                 }
+                if (typeof output.content_preview === 'string') {
+                    return {
+                        text: output.content_preview,
+                        language: this.inferToolResultLanguage ? this.inferToolResultLanguage(toolName, output, output.content_preview) : null,
+                        label: output.search ? 'Inspected match preview' : 'Inspected preview'
+                    };
+                }
                 if (output.value !== undefined) {
                     return {
                         text: typeof output.value === 'string' ? output.value : JSON.stringify(output.value, null, 2),

@@ -666,6 +666,35 @@ describe('provider request message sanitization', function() {
         assert.strictEqual(anthropicCalls, 1);
     });
 
+    it('splits the active tool card group when assistant text appears', function() {
+        const assistant = loadProvidersMixin();
+        let archiveCalls = 0;
+        const state = assistant.createStreamingResponseState(null);
+
+        Object.assign(assistant, {
+            activeToolCardsGroupId: 'tool-group-1',
+            archiveToolCards(options) {
+                archiveCalls++;
+                assert.deepEqual(JSON.parse(JSON.stringify(options)), { removeIncomplete: false });
+            },
+            ensureStreamingReply() {
+                return {};
+            },
+            updateReply(reply, text) {
+                assert.strictEqual(text, 'I found a match.');
+            },
+            extractReasoningFromContent(text) {
+                return { content: text, thinking: '', thinkingOpen: false };
+            }
+        });
+
+        assistant.appendAssistantContent(state, 'I found a match.');
+        assistant.appendAssistantContent(state, '');
+
+        assert.strictEqual(archiveCalls, 1);
+        assert.strictEqual(state.toolCardsArchivedBeforeAssistantText, true);
+    });
+
     it('archives tool cards at a normal provider request boundary', async function() {
         const assistant = loadProvidersMixin();
         let archiveCalls = 0;

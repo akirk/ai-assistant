@@ -261,6 +261,7 @@
             if (parsed.content !== state.textContent) {
                 state.textContent = parsed.content;
                 if (state.textContent) {
+                    this.archiveToolCardsBeforeAssistantText(state);
                     this.updateReply(this.ensureStreamingReply(state), state.textContent);
                 }
             }
@@ -275,6 +276,19 @@
             state.thinkingDurationMs = Date.now() - started;
             this.finalizeThinking(state.$thinking, state.thinkingDurationMs);
             state.thinkingFinalized = true;
+        },
+
+        archiveToolCardsBeforeAssistantText: function(state) {
+            if (state && state.toolCardsArchivedBeforeAssistantText) {
+                return;
+            }
+            if (state) {
+                state.toolCardsArchivedBeforeAssistantText = true;
+            }
+
+            if (this.archiveToolCards && this.activeToolCardsGroupId) {
+                this.archiveToolCards({ removeIncomplete: false });
+            }
         },
 
         shouldQueueUserMessage: function() {
@@ -2531,6 +2545,7 @@
                 var toolCalls = [];
                 var stopReason = null;
                 var providerUsage = null;
+                var toolCardsArchivedBeforeText = false;
 
                 for await (var event of this.readSSEStream(response)) {
                     if (event.message && event.message.usage) {
@@ -2560,6 +2575,10 @@
                                 textContent += event.delta.text;
                                 if (currentBlock && currentBlock.type === 'text') {
                                     currentBlock.text += event.delta.text;
+                                }
+                                if (!toolCardsArchivedBeforeText && textContent.trim()) {
+                                    toolCardsArchivedBeforeText = true;
+                                    this.archiveToolCardsBeforeAssistantText();
                                 }
                                 this.updateReply($reply, textContent);
                             } else if (event.delta.type === 'input_json_delta') {

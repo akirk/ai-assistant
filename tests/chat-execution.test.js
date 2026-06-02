@@ -271,6 +271,27 @@ describe('inspect_tool_result', function() {
         assert.strictEqual(inspected.result.next_offset, 7);
     });
 
+    it('uses raw inspect results for live tool-card display', function() {
+        const assistant = createAssistant();
+        const output = {
+            tool_use_id: 'toolu_schedule',
+            path: 'sessions',
+            type: 'json',
+            search: 'Playground',
+            content: 'Playground details',
+            instruction: 'Provider-only compaction should not replace this.'
+        };
+
+        const display = assistant.getResolvedToolResultForProviderDisplay({
+            id: 'inspect_1',
+            name: 'inspect_tool_result',
+            success: true,
+            result: output
+        }, 'anthropic');
+
+        assert.strictEqual(display, output);
+    });
+
     it('tells the model how to continue truncated array inspections', function() {
         const assistant = createAssistant();
 
