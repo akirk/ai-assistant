@@ -960,7 +960,7 @@
 
             if (Array.isArray(value.items)) {
                 summary.items_sample = value.items.slice(0, 3).map(function(item) {
-                    return this.summarizeProviderValueShape(item, 0);
+                    return this.summarizeProviderValueShape(item, 2);
                 }, this);
             }
 
@@ -1025,10 +1025,38 @@
                 return value;
             }
 
-            var hint = {
-                tool_use_id: String(toolUseId),
-                instruction: 'This result was compacted before it was returned to the LLM. You can call inspect_tool_result multiple times with this same tool_use_id. Use a narrow path plus search, offset/next_offset, or item_offset/next_item_offset to inspect additional slices. Do not rerun the original broad tool call just to inspect more of this cached result.'
-            };
+            var hintToolUseId = String(toolUseId);
+            var hint = null;
+
+            if (
+                !Array.isArray(value) &&
+                value.tool_use_id &&
+                Object.prototype.hasOwnProperty.call(value, 'path') &&
+                Object.prototype.hasOwnProperty.call(value, 'type')
+            ) {
+                hintToolUseId = String(value.tool_use_id);
+                hint = {
+                    tool_use_id: hintToolUseId,
+                    path: String(value.path || ''),
+                    instruction: 'This inspect_tool_result response was compacted, but it inspected a cached original result. Continue inspecting that original result with this same tool_use_id and path; use the provided offset fields to request the next slice.'
+                };
+
+                if (value.next_item_offset !== undefined && value.next_item_offset !== null) {
+                    hint.item_offset = value.next_item_offset;
+                    hint.instruction = 'This inspect_tool_result response was compacted, but it inspected a cached original result. Call inspect_tool_result again with this tool_use_id, path, and item_offset to continue the array slice.';
+                } else if (value.next_offset !== undefined && value.next_offset !== null) {
+                    hint.offset = value.next_offset;
+                    hint.instruction = 'This inspect_tool_result response was compacted, but it inspected a cached original result. Call inspect_tool_result again with this tool_use_id, path, and offset to continue the text/JSON slice.';
+                }
+            }
+
+            if (!hint) {
+                hint = {
+                    tool_use_id: hintToolUseId,
+                    instruction: 'This result was compacted before it was returned to the LLM. You can call inspect_tool_result multiple times with this same tool_use_id. Use a narrow path plus search, offset/next_offset, or item_offset/next_item_offset to inspect additional slices. Do not rerun the original broad tool call just to inspect more of this cached result.'
+                };
+            }
+
             var metadata = {
                 returned_to_llm_truncated: true,
                 truncation_reason: 'Tool result exceeded the provider-safe context budget and was compacted before being returned to the LLM.'

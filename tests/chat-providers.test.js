@@ -601,6 +601,55 @@ describe('provider request message sanitization', function() {
         assert.match(parsed.inspect_tool_result.instruction, /Do not rerun the original broad tool call/);
     });
 
+    it('keeps item samples when an inspect_tool_result response is itself compacted', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 4096,
+                maxToolResultStringChars: 1024,
+                maxToolResultArrayItems: 40
+            }
+        });
+
+        const content = assistant.stringifyToolResultForProvider({
+            tool_use_id: 'toolu_schedule',
+            tool: 'inspect_tool_result',
+            path: 'sessions',
+            type: 'array',
+            length: 30,
+            item_offset: 0,
+            item_count: 20,
+            items: Array.from({ length: 20 }, function(_, index) {
+                return {
+                    id: index + 1,
+                    title: 'Session ' + (index + 1),
+                    speaker: {
+                        name: 'Speaker ' + (index + 1),
+                        bio: 'Bio ' + 'x'.repeat(1000)
+                    },
+                    description: 'Description ' + 'y'.repeat(2000)
+                };
+            }),
+            truncated: true,
+            next_item_offset: 20,
+            instruction: 'More array items are available.'
+        }, 'anthropic', undefined, { toolUseId: 'inspect_sessions' });
+        const parsed = JSON.parse(content);
+
+        assert.strictEqual(parsed._truncated, true);
+        assert.strictEqual(parsed.tool, 'inspect_tool_result');
+        assert.strictEqual(parsed.path, 'sessions');
+        assert.strictEqual(parsed.item_count, 20);
+        assert.strictEqual(parsed.next_item_offset, 20);
+        assert.ok(Array.isArray(parsed.items_sample));
+        assert.strictEqual(parsed.items_sample.length, 3);
+        assert.deepEqual(parsed.items_sample[0].keys, ['id', 'title', 'speaker', 'description']);
+        assert.strictEqual(parsed.inspect_tool_result.tool_use_id, 'toolu_schedule');
+        assert.strictEqual(parsed.inspect_tool_result.path, 'sessions');
+        assert.strictEqual(parsed.inspect_tool_result.item_offset, 20);
+        assert.match(parsed.inspect_tool_result.instruction, /original result/);
+        assert.match(parsed.inspect_tool_result.instruction, /item_offset/);
+    });
+
     it('omits duplicate large strings before truncating tool results', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
