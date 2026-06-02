@@ -1889,8 +1889,16 @@
 
         addToolUseGroup: function(toolUses) {
             var self = this;
+            var $messages = $('#ai-assistant-messages');
+            var groupId = 'tool-history-' + (++this.toolCardsGroupCounter);
+            var label = this.toolGroupLabel(toolUses || []) + ' - complete';
+            var $group = $('<details class="ai-tool-cards-group ai-tool-cards-complete" data-tool-group-id="' + this.escapeAttribute(groupId) + '">' +
+                '<summary class="ai-tool-cards-summary">' + this.escapeHtml(label) + '</summary>' +
+                '</details>');
+
+            $messages.append($group);
             toolUses.forEach(function(tu) {
-                self.addToolUseMessage(tu.name, tu.input, null, tu.result);
+                self.addToolUseMessage(tu.name, tu.input, $group, tu.result);
             });
             this.moveAiChangesSuggestionToEnd();
         },
@@ -2908,6 +2916,8 @@
         },
 
         toolCardsState: {},
+        activeToolCardsGroupId: '',
+        toolCardsGroupCounter: 0,
 
         formatBytes: function(bytes) {
             if (bytes < 1024) return bytes + ' B';
@@ -3061,7 +3071,35 @@
         },
 
         getToolCardsContainer: function() {
-            return $('#ai-assistant-messages');
+            return this.getActiveToolCardsGroup();
+        },
+
+        getActiveToolCardsGroup: function() {
+            var self = this;
+            var $messages = $('#ai-assistant-messages');
+            var groupId = this.activeToolCardsGroupId;
+            var $group = groupId ? $('.ai-tool-cards-group[data-tool-group-id="' + this.escapeAttribute(groupId) + '"]').last() : $();
+
+            if (!$group.length) {
+                groupId = 'tool-group-' + (++this.toolCardsGroupCounter);
+                this.activeToolCardsGroupId = groupId;
+                $group = $('<details class="ai-tool-cards-group ai-tool-cards-live" open data-tool-group-id="' + this.escapeAttribute(groupId) + '">' +
+                    '<summary class="ai-tool-cards-summary">Tools</summary>' +
+                    '</details>');
+                $messages.append($group);
+            }
+
+            if (!$group.data('aiToolGroupBound')) {
+                $group.data('aiToolGroupBound', true);
+                $group.on('click.aiToolGroup focusin.aiToolGroup keydown.aiToolGroup mouseenter.aiToolGroup', function() {
+                    $(this).attr('data-user-inspected', '1');
+                });
+                $group.on('toggle.aiToolGroup', function() {
+                    self.updateToolCardsSummaryForGroup($(this));
+                });
+            }
+
+            return $group;
         },
 
         getToolCardElement: function(toolId) {
@@ -3102,18 +3140,27 @@
             }).join(', ');
         },
 
-        updateToolCardsSummary: function() {
-            var $container = $('#ai-assistant-tool-cards');
-            if (!$container.length) return;
+        updateToolCardsSummaryForGroup: function($container, options) {
+            options = options || {};
+            if (!$container || !$container.length) return;
             var state = this.toolCardsState;
-            var ids = Object.keys(state);
+            var ids = [];
+
+            $container.children('.ai-tool-card[data-tool-id]').each(function() {
+                ids.push(String($(this).attr('data-tool-id')));
+            });
+
+            if (!ids.length) {
+                ids = Object.keys(state);
+            }
+
             var total = ids.length;
             var done = ids.filter(function(id) {
-                var s = state[id].state;
+                var s = state[id] && state[id].state;
                 return s === 'completed' || s === 'error' || s === 'skipped';
             }).length;
             var base = this.toolGroupLabelFromEntries(ids.map(function(id) {
-                return state[id];
+                return state[id] || {};
             }));
             $container.toggleClass('ai-tool-cards-complete', done === total && total > 0);
             var $summary = $container.find('> .ai-tool-cards-summary');
@@ -3126,6 +3173,28 @@
             } else {
                 $summary.text(base + ' - ' + done + '/' + total + ' done');
             }
+
+            if (options.autoCollapse && done === total && total > 0) {
+                this.maybeCollapseToolCardsGroup($container);
+            }
+        },
+
+        updateToolCardsSummary: function(options) {
+            var groupId = this.activeToolCardsGroupId;
+            var $container = groupId ? $('.ai-tool-cards-group[data-tool-group-id="' + this.escapeAttribute(groupId) + '"]').last() : $();
+            if (!$container.length) {
+                $container = $('#ai-assistant-tool-cards');
+            }
+            this.updateToolCardsSummaryForGroup($container, options);
+        },
+
+        maybeCollapseToolCardsGroup: function($container) {
+            if (!$container || !$container.length || !$container.is('details')) return;
+            if ($container.attr('data-user-inspected') === '1') return;
+            if ($container.find(':focus').length) return;
+            if ($container.find('.ai-tool-card-pending, .ai-tool-card-checking, .ai-tool-card-executing, .ai-tool-card-generating').length) return;
+
+            $container.removeAttr('open');
         },
 
         showToolProgress: function(toolName, bytesReceived, toolId, partialInput) {
@@ -3298,7 +3367,7 @@
                 '</div>');
 
             $container.append($card);
-            this.updateToolCardsSummary();
+            this.updateToolCardsSummary({ autoCollapse: false });
             this.moveAiChangesSuggestionToEnd();
             this.scrollToBottom();
         },
@@ -3582,7 +3651,7 @@
                 this.toolCardsState[toolId].state = state;
             }
 
-            this.updateToolCardsSummary();
+            this.updateToolCardsSummary({ autoCollapse: !!this.streamComplete });
             this.scrollToBottom();
         },
 
@@ -3606,7 +3675,23 @@
                 $card.attr('data-tool-history-id', toolId).removeAttr('data-tool-id');
             });
 
+            var groupId = this.activeToolCardsGroupId;
+            if (groupId) {
+                var $activeGroup = $('.ai-tool-cards-group[data-tool-group-id="' + this.escapeAttribute(groupId) + '"]').last();
+                if ($activeGroup.length) {
+                    if (!$activeGroup.children('.ai-tool-card').length) {
+                        $activeGroup.remove();
+                    } else {
+                        $activeGroup.removeClass('ai-tool-cards-live');
+                        this.updateToolCardsSummaryForGroup($activeGroup, { autoCollapse: false });
+                        $activeGroup.off('.aiToolGroup').removeData('aiToolGroupBound');
+                        this.maybeCollapseToolCardsGroup($activeGroup);
+                    }
+                }
+            }
+
             this.toolCardsState = {};
+            this.activeToolCardsGroupId = '';
 
             $('#ai-assistant-tool-cards').each(function() {
                 var $container = $(this);
