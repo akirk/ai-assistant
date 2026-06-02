@@ -420,7 +420,7 @@ class Chat_UI {
             'contextCompaction' => [
                 'enabled' => (bool) apply_filters('ai_assistant_context_compaction_enabled', true),
                 'triggerTokens' => (int) apply_filters('ai_assistant_context_compaction_trigger_tokens', 24000),
-                'recentMessages' => (int) apply_filters('ai_assistant_context_compaction_recent_messages', 12),
+                'recentMessages' => (int) apply_filters('ai_assistant_context_compaction_recent_messages', 24),
                 'maxSummaryWords' => (int) apply_filters('ai_assistant_context_compaction_summary_words', 700),
             ],
             'systemPrompt' => $system_prompt,

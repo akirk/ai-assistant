@@ -1365,6 +1365,107 @@
             return value;
         },
 
+        resolveCachedToolResultPath: function(record, path) {
+            path = String(path || '');
+
+            var candidates = [path];
+            if (path.indexOf('result.') === 0) {
+                candidates.push(path.substring(7));
+            } else if (path && record && record.name === 'ability') {
+                candidates.push('result.' + path);
+            }
+
+            if (!path && record && record.result && record.result.result !== undefined) {
+                candidates.push('result');
+            }
+
+            for (var i = 0; i < candidates.length; i++) {
+                var candidatePath = candidates[i];
+                var value = this.getCachedToolResultValue(record.result, candidatePath);
+                if (value !== undefined) {
+                    return {
+                        value: value,
+                        path: candidatePath,
+                        requestedPath: path,
+                        usedFallback: candidatePath !== path
+                    };
+                }
+            }
+
+            return {
+                value: undefined,
+                path: path,
+                requestedPath: path,
+                usedFallback: false
+            };
+        },
+
+        parseStoredToolResultContent: function(content) {
+            if (content === undefined || content === null) {
+                return undefined;
+            }
+
+            if (typeof content !== 'string') {
+                return content;
+            }
+
+            try {
+                return JSON.parse(content);
+            } catch (e) {
+                return content;
+            }
+        },
+
+        findStoredToolResultForInspection: function(toolUseId) {
+            var messages = Array.isArray(this.messages) ? this.messages : [];
+            var toolCalls = this.collectToolCallsById
+                ? this.collectToolCallsById(messages, this.currentProvider || this.getProvider())
+                : {};
+
+            for (var i = messages.length - 1; i >= 0; i--) {
+                var message = messages[i];
+                var content;
+                var j;
+
+                if (!message || typeof message !== 'object') {
+                    continue;
+                }
+
+                if (message.role === 'user' && Array.isArray(message.content)) {
+                    content = message.content;
+                    for (j = content.length - 1; j >= 0; j--) {
+                        if (
+                            content[j] &&
+                            content[j].type === 'tool_result' &&
+                            content[j].tool_use_id === toolUseId
+                        ) {
+                            return {
+                                id: toolUseId,
+                                name: (toolCalls[toolUseId] && toolCalls[toolUseId].name) || '',
+                                input: (toolCalls[toolUseId] && toolCalls[toolUseId].input) || {},
+                                success: content[j].is_error !== true,
+                                result: this.parseStoredToolResultContent(content[j].content),
+                                storedAt: 0
+                            };
+                        }
+                    }
+                }
+
+                if (message.role === 'tool' && message.tool_call_id === toolUseId) {
+                    return {
+                        id: toolUseId,
+                        name: (toolCalls[toolUseId] && toolCalls[toolUseId].name) || '',
+                        input: (toolCalls[toolUseId] && toolCalls[toolUseId].input) || {},
+                        success: true,
+                        result: this.parseStoredToolResultContent(message.content),
+                        storedAt: 0
+                    };
+                }
+            }
+
+            return null;
+        },
+
         getCachedToolResultType: function(value) {
             if (value === null) return 'null';
             if (Array.isArray(value)) return 'array';
@@ -1505,6 +1606,46 @@
             };
         },
 
+        inspectCachedToolResultArray: function(record, args, value, path) {
+            var offset = parseInt(args.item_offset, 10);
+            if (!Number.isFinite(offset)) {
+                offset = parseInt(args.offset, 10);
+            }
+            offset = Number.isFinite(offset) && offset > 0 ? offset : 0;
+
+            var maxItems = parseInt(args.max_items, 10);
+            maxItems = Number.isFinite(maxItems) && maxItems > 0 ? Math.min(maxItems, 100) : 20;
+            offset = Math.min(offset, value.length);
+
+            var items = value.slice(offset, offset + maxItems);
+            var nextOffset = offset + items.length;
+            var hasMore = nextOffset < value.length;
+
+            return {
+                tool_use_id: record.id,
+                tool: record.name,
+                path: path,
+                type: 'array',
+                length: value.length,
+                item_offset: offset,
+                item_count: items.length,
+                items: items,
+                truncated: hasMore,
+                next_item_offset: hasMore ? nextOffset : null
+            };
+        },
+
+        inspectCachedToolResultJson: function(record, args, value, path) {
+            var nextArgs = $.extend({}, args, { path: path });
+            var result = this.inspectCachedToolResultString(
+                record,
+                nextArgs,
+                JSON.stringify(value, null, 2)
+            );
+            result.type = 'json';
+            return result;
+        },
+
         executeInspectToolResult: function(toolCall) {
             var args = toolCall.arguments || {};
             var toolUseId = String(args.tool_use_id || args.tool_result_id || args.id || '').trim();
@@ -1520,6 +1661,9 @@
             }
 
             var record = this.toolResultCache && this.toolResultCache[toolUseId];
+            if (!record && this.findStoredToolResultForInspection) {
+                record = this.findStoredToolResultForInspection(toolUseId);
+            }
             if (!record) {
                 return {
                     id: toolCall.id,
@@ -1535,7 +1679,15 @@
             }
 
             var path = String(args.path || '');
-            var value = this.getCachedToolResultValue(record.result, path);
+            var resolved = this.resolveCachedToolResultPath
+                ? this.resolveCachedToolResultPath(record, path)
+                : {
+                    value: this.getCachedToolResultValue(record.result, path),
+                    path: path,
+                    requestedPath: path,
+                    usedFallback: false
+                };
+            var value = resolved.value;
             if (value === undefined) {
                 return {
                     id: toolCall.id,
@@ -1545,21 +1697,38 @@
                         error: 'Path not found in cached tool result',
                         tool_use_id: toolUseId,
                         path: path,
-                        available: this.summarizeCachedToolResultValue(record.result, 0)
+                        available: this.summarizeCachedToolResultValue(record.result, 0),
+                        instruction: 'Use one of the available keys as the path. If the cached value is an ability wrapper, try paths under result; if it is already unwrapped, omit the result. prefix.'
                     },
                     success: false
                 };
             }
 
-            var result = typeof value === 'string'
-                ? this.inspectCachedToolResultString(record, args, value)
-                : {
+            var result;
+
+            if (typeof value === 'string') {
+                result = this.inspectCachedToolResultString(record, args, value);
+            } else if (args.search || args.offset !== undefined) {
+                result = this.inspectCachedToolResultJson(record, args, value, resolved.path);
+            } else if (Array.isArray(value)) {
+                result = this.inspectCachedToolResultArray(record, args, value, resolved.path);
+            } else {
+                result = {
                     tool_use_id: record.id,
                     tool: record.name,
-                    path: path,
+                    path: resolved.path,
+                    requested_path: resolved.usedFallback ? resolved.requestedPath : undefined,
+                    path_corrected: resolved.usedFallback ? true : undefined,
                     type: this.getCachedToolResultType(value),
                     value: this.summarizeCachedToolResultValue(value, 0)
                 };
+            }
+
+            if (resolved.usedFallback && result && typeof result === 'object') {
+                result.path = resolved.path;
+                result.requested_path = resolved.requestedPath;
+                result.path_corrected = true;
+            }
 
             return {
                 id: toolCall.id,
@@ -2361,16 +2530,16 @@
                         type: 'tool_result',
                         tool_use_id: r.id,
                         is_error: r.success === false ? true : undefined,
-                        content: self.stringifyToolResultForProvider
-                            ? self.stringifyToolResultForProvider(r.result, provider)
+                        content: self.safeJsonStringify
+                            ? self.safeJsonStringify(r.result)
                             : JSON.stringify(r.result)
                     };
                 });
                 this.messages.push(this.createStoredMessage('user', toolResults));
             } else {
                 allResults.forEach(function(r) {
-                    var content = self.stringifyToolResultForProvider
-                        ? self.stringifyToolResultForProvider(r.result, provider)
+                    var content = self.safeJsonStringify
+                        ? self.safeJsonStringify(r.result)
                         : JSON.stringify(r.result);
                     self.messages.push(self.createStoredMessage('tool', content, {
                         tool_call_id: r.id

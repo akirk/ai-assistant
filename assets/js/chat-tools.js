@@ -188,7 +188,7 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'inspect_tool_result',
-                    description: 'Inspect a cached full result from a previous tool call when its provider context was compacted. Use path plus search/before_lines/after_lines or offset/max_length to retrieve a narrow piece without rerunning the original tool.',
+                    description: 'Inspect a cached full result from a previous tool call when its provider context was compacted. Use path plus search/before_lines/after_lines or offset/max_length for text/JSON, or item_offset/max_items for array windows, without rerunning the original tool.',
                     input_schema: {
                         type: 'object',
                         properties: {
@@ -199,7 +199,9 @@ var aiAssistantToolsMixin = (function() {
                             after_lines: { type: 'number', description: 'Lines to include after the search match.' },
                             occurrence: { type: 'number', description: '1-based match occurrence when search appears multiple times.' },
                             offset: { type: 'number', description: 'Character offset for string chunks.' },
-                            max_length: { type: 'number', description: 'Maximum characters to return.' }
+                            max_length: { type: 'number', description: 'Maximum characters to return.' },
+                            item_offset: { type: 'number', description: '0-based start index when path points to an array.' },
+                            max_items: { type: 'number', description: 'Maximum array items to return when path points to an array.' }
                         },
                         required: ['tool_use_id']
                     }
