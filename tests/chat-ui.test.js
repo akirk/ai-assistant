@@ -1413,7 +1413,7 @@ describe('tool result display', function() {
         assert.doesNotMatch(display.text, /compacted/);
     });
 
-    it('explains restored compacted inspections when cached content is unavailable', function() {
+    it('explains restored compacted inspections as stored summaries', function() {
         const assistant = loadUiMixin();
 
         const display = assistant.getToolResultDisplay('inspect_tool_result', {
@@ -1423,9 +1423,10 @@ describe('tool result display', function() {
             instruction: 'This inspect_tool_result response was compacted. Use next_inspections to drill into the original cached result, not into this inspect response wrapper.'
         });
 
-        assert.strictEqual(display.label, 'Inspection unavailable');
-        assert.match(display.text, /restored conversation/);
-        assert.match(display.text, /original cached tool result is no longer available/);
+        assert.strictEqual(display.label, 'Stored inspection summary');
+        assert.match(display.text, /available while the conversation was running/);
+        assert.match(display.text, /saved conversation contains only the compacted inspection metadata/);
+        assert.match(display.text, /was not restored when this conversation was loaded/);
         assert.doesNotMatch(display.text, /next_inspections/);
         assert.doesNotMatch(display.text, /toolu_secret_123/);
     });

@@ -1428,9 +1428,9 @@
                 }
                 if (output.instruction && output._truncated) {
                     return {
-                        text: 'This restored conversation only has the compacted inspection metadata. The original cached tool result is no longer available in this browser session, so this card cannot show the inspected slice. Run the original tool again to inspect a fresh result.',
+                        text: 'This inspection result was available while the conversation was running. The saved conversation contains only the compacted inspection metadata that was sent back to the model, while the original cached result lived in the browser session and was not restored when this conversation was loaded.',
                         language: null,
-                        label: 'Inspection unavailable'
+                        label: 'Stored inspection summary'
                     };
                 }
                 if (output.error || output.instruction) {
