@@ -636,7 +636,7 @@ describe('provider request message sanitization', function() {
         assert.strictEqual(parsed.original_result_bytes, undefined);
     });
 
-    it('summarizes object keys with value shapes and char counts', function() {
+    it('preserves top-level shape in last-resort provider summaries', function() {
         const assistant = loadProvidersMixin();
         const summary = assistant.createProviderValueSummary({
             ability: 'wordcamp-companion/get-schedule',
@@ -651,12 +651,19 @@ describe('provider request message sanitization', function() {
             })
         });
 
-        assert.strictEqual(summary.type, 'object');
-        assert.strictEqual(typeof summary.keys, 'object');
-        assert.match(summary.keys.ability, /chars/);
-        assert.strictEqual(summary.keys.success, undefined);
-        assert.match(summary.keys.sessions, /array, 20 items/);
-        assert.match(summary.keys.sessions, /chars/);
+        assert.strictEqual(summary.ability, 'wordcamp-companion/get-schedule');
+        assert.strictEqual(summary.success, true);
+        assert.strictEqual(summary.event_url, 'https://europe.wordcamp.org/2026/');
+        assert.ok(Array.isArray(summary.sessions));
+        assert.deepEqual(JSON.parse(JSON.stringify(summary.sessions)), [{
+            _omitted_items: 20,
+            _inspect: {
+                item_offset: 0,
+                max_items: 5
+            }
+        }]);
+        assert.strictEqual(summary.type, undefined);
+        assert.strictEqual(summary.keys, undefined);
     });
 
     it('keeps an active tool card group while continuing a tool loop', async function() {

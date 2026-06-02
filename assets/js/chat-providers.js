@@ -976,12 +976,7 @@
             }
 
             if (typeof value === 'string') {
-                return {
-                    _truncated: true,
-                    type: 'string',
-                    original_chars: value.length,
-                    preview: this.truncateProviderString(value, 4000)
-                };
+                return this.truncateProviderString(value, 1000);
             }
 
             if (typeof value !== 'object') {
@@ -993,56 +988,51 @@
             }
 
             if (Array.isArray(value)) {
-                return {
-                    _truncated: true,
-                    type: 'array',
-                    length: value.length,
-                    sample: value.slice(0, 3).map(function(item) {
-                        return this.compactProviderValue(item, this.getToolResultCompactLimits('aggressive'), 0);
-                    }, this)
-                };
-            }
-
-            var summary = {
-                _truncated: true,
-                type: 'object',
-                keys: this.summarizeProviderKeyMap(value, 40)
-            };
-            var aggressiveLimits = this.getToolResultCompactLimits('aggressive');
-
-            [
-                'tool_use_id', 'tool', 'path', 'requested_path', 'path_corrected',
-                'type', 'length', 'item_offset', 'item_count', 'truncated',
-                'next_item_offset', 'offset', 'chars', 'returned_chars',
-                'next_offset', 'original_chars',
-                'size', 'modified', 'count', 'error', 'message', 'url', 'title',
-                'ability', 'success', 'more_matches_available', 'next_occurrence',
-                'next_inspection', 'instruction'
-            ].forEach(function(key) {
-                if (Object.prototype.hasOwnProperty.call(value, key)) {
-                    summary[key] = this.compactProviderValue(value[key], aggressiveLimits, 0);
+                if (!value.length) {
+                    return [];
                 }
+                return [
+                    this.createProviderOmissionMarker('items', value.length, {
+                        item_offset: 0,
+                        max_items: 5
+                    })
+                ];
+            }
+
+            var summary = {};
+            var tinyLimits = {
+                maxResultChars: 2048,
+                maxStringChars: 300,
+                maxArrayItems: 1,
+                maxObjectKeys: 8,
+                maxDepth: 2
+            };
+
+            Object.keys(value).forEach(function(key) {
+                if (key.charAt(0) === '_' || key === 'inspect_tool_result') {
+                    return;
+                }
+
+                var item = value[key];
+                if (Array.isArray(item)) {
+                    summary[key] = item.length
+                        ? [this.createProviderOmissionMarker('items', item.length, { item_offset: 0, max_items: 5 })]
+                        : [];
+                    return;
+                }
+
+                if (typeof item === 'string') {
+                    summary[key] = this.truncateProviderString(item, tinyLimits.maxStringChars);
+                    return;
+                }
+
+                if (item && typeof item === 'object') {
+                    summary[key] = this.compactProviderValue(item, tinyLimits, 0);
+                    return;
+                }
+
+                summary[key] = item;
             }, this);
-
-            if (typeof value.content === 'string') {
-                summary.content_preview = this.truncateProviderString(value.content, 6000);
-                summary.content_original_chars = value.content.length;
-            }
-
-            if (Array.isArray(value.items)) {
-                summary.value = value.items.slice(0, 3).map(function(item) {
-                    return this.summarizeProviderValueShape(item, 2);
-                }, this);
-            }
-
-            if (
-                value.result !== undefined &&
-                Object.prototype.hasOwnProperty.call(value, 'ability') &&
-                Object.prototype.hasOwnProperty.call(value, 'success')
-            ) {
-                summary.result_summary = this.summarizeProviderValueShape(value.result, 0);
-                summary.instruction = summary.instruction || 'Inspect a narrow child path for the returned data. Object-like ability results are usually exposed at the top level; scalar or list ability results are under result.';
-            }
 
             return summary;
         },
