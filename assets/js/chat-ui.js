@@ -1457,6 +1457,9 @@
                         outputText = JSON.stringify(r, null, 2);
                         language = 'json';
                     }
+                } else if (output._truncated || output.returned_to_llm_truncated || output.inspect_tool_result) {
+                    outputText = JSON.stringify(output, null, 2);
+                    language = 'json';
                 }
             } else {
                 if (output.output !== undefined && output.output !== null) {

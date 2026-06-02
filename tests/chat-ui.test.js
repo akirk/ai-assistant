@@ -1400,6 +1400,29 @@ describe('tool result display', function() {
         assert.doesNotMatch(display.text, /compacted/);
     });
 
+    it('renders compacted ability summaries even when result is omitted', function() {
+        const assistant = loadUiMixin();
+
+        const display = assistant.getToolResultDisplay('ability', {
+            _truncated: true,
+            ability: 'wordcamp-companion/get-schedule',
+            success: true,
+            type: 'object',
+            keys: ['ability', 'success', 'event_url', 'sessions'],
+            returned_to_llm_truncated: true,
+            inspect_tool_result: {
+                tool_use_id: 'toolu_secret_123',
+                instruction: 'Use inspect_tool_result for slices.'
+            }
+        });
+
+        assert.strictEqual(display.language, 'json');
+        assert.strictEqual(display.label, 'Result');
+        assert.match(display.text, /wordcamp-companion\/get-schedule/);
+        assert.match(display.text, /returned_to_llm_truncated/);
+        assert.doesNotMatch(display.text, /undefined/);
+    });
+
     it('renders inspected structured values as the value only', function() {
         const assistant = loadUiMixin();
 
