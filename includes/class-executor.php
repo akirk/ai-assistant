@@ -657,10 +657,8 @@ class Executor {
             throw new \Exception("Ability not found: $ability_id");
         }
 
-        $input_schema = is_object($ability) && method_exists($ability, 'get_input_schema')
-            ? $ability->get_input_schema()
-            : null;
-        $input = !empty($input_schema) ? $arguments : null;
+        $has_input_schema = is_object($ability) && method_exists($ability, 'get_input_schema');
+        $input = $has_input_schema ? $arguments : null;
         $result = $ability->execute($input);
 
         if (is_wp_error($result)) {

@@ -583,7 +583,8 @@ class ExecutorTest extends TestCase {
 
         $this->assertTrue($result['success']);
         $this->assertEquals('demo/read', $result['ability']);
-        $this->assertEquals(['input' => ['id' => 123]], $result['result']);
+        $this->assertEquals(['id' => 123], $result['input']);
+        $this->assertArrayNotHasKey('result', $result);
     }
 
     public function test_read_only_permission_blocks_write_ability_execution(): void {
@@ -623,11 +624,10 @@ class ExecutorTest extends TestCase {
 
         $this->assertTrue($result['success']);
         $this->assertEquals([
-            'input' => [
-                'title' => 'Bacon Jam',
-                'servings' => 4,
-            ],
-        ], $result['result']);
+            'title' => 'Bacon Jam',
+            'servings' => 4,
+        ], $result['input']);
+        $this->assertArrayNotHasKey('result', $result);
     }
 
     public function test_legacy_execute_ability_decodes_stringified_arguments(): void {
@@ -639,7 +639,8 @@ class ExecutorTest extends TestCase {
         ]);
 
         $this->assertTrue($result['success']);
-        $this->assertEquals(['input' => ['title' => 'Bacon Jam']], $result['result']);
+        $this->assertEquals(['title' => 'Bacon Jam'], $result['input']);
+        $this->assertArrayNotHasKey('result', $result);
     }
 
     public function test_ability_execution_preserves_empty_schema_input(): void {
@@ -652,7 +653,8 @@ class ExecutorTest extends TestCase {
         ]);
 
         $this->assertTrue($result['success']);
-        $this->assertSame(['input' => []], $result['result']);
+        $this->assertSame([], $result['input']);
+        $this->assertArrayNotHasKey('result', $result);
     }
 
     public function test_ability_rejects_invalid_stringified_arguments(): void {
