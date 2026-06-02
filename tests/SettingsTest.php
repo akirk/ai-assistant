@@ -333,7 +333,7 @@ class SettingsTest extends TestCase {
         $this->assertStringContainsString('_truncated', $prompt);
         $this->assertStringContainsString('_omitted_items', $prompt);
         $this->assertStringContainsString('_omitted_keys', $prompt);
-        $this->assertStringContainsString('use inspect_tool_result', $prompt);
+        $this->assertStringContainsString('use inspect_tool_result with path/search', $prompt);
         $this->assertStringContainsString('Do not use run_php/db_query just to recover omitted parts', $prompt);
         $this->assertStringNotContainsString('use the JSON path where the omission marker appears', $prompt);
     }

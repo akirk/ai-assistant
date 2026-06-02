@@ -106,6 +106,8 @@ describe('getAllToolDefinitions', function() {
         assert.ok(Object.hasOwn(def.input_schema.properties, 'path'));
         assert.ok(Object.hasOwn(def.input_schema.properties, 'search'));
         assert.ok(Object.hasOwn(def.input_schema.properties, 'max_length'));
+        assert.match(def.description, /search scans the pretty-printed JSON/);
+        assert.match(def.input_schema.properties.search.description, /array\/object path/);
     });
 
     it('defines delegate as a read-only subagent tool', function() {

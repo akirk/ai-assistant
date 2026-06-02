@@ -596,8 +596,8 @@ describe('provider request message sanitization', function() {
         const parsed = JSON.parse(content);
 
         assert.ok(Array.isArray(parsed.result.sessions));
-        assert.strictEqual(parsed._truncated, 'use inspect_tool_result for more');
-        assert.strictEqual(parsed.result.sessions[parsed.result.sessions.length - 1]._truncated, 'use inspect_tool_result for more');
+        assert.strictEqual(parsed._truncated, 'use inspect_tool_result with path/search for more');
+        assert.strictEqual(parsed.result.sessions[parsed.result.sessions.length - 1]._truncated, 'use inspect_tool_result with path/search for more');
         assert.strictEqual(parsed.result.sessions[parsed.result.sessions.length - 1]._omitted_items, 15);
         assert.deepEqual(parsed.result.sessions[parsed.result.sessions.length - 1]._inspect, {
             item_offset: 5,
@@ -634,8 +634,8 @@ describe('provider request message sanitization', function() {
         const parsed = JSON.parse(content);
 
         assert.strictEqual(parsed.returned_to_llm_truncated, undefined);
-        assert.strictEqual(parsed._truncated, 'use inspect_tool_result for more');
-        assert.strictEqual(parsed._ai_assistant_compacted._truncated, 'use inspect_tool_result for more');
+        assert.strictEqual(parsed._truncated, 'use inspect_tool_result with path/search for more');
+        assert.strictEqual(parsed._ai_assistant_compacted._truncated, 'use inspect_tool_result with path/search for more');
         assert.strictEqual(parsed._ai_assistant_compacted.original_chars, originalJson.length);
         assert.strictEqual(parsed.original_result_bytes, undefined);
     });
@@ -660,7 +660,7 @@ describe('provider request message sanitization', function() {
         assert.strictEqual(summary.event_url, 'https://europe.wordcamp.org/2026/');
         assert.ok(Array.isArray(summary.sessions));
         assert.deepEqual(JSON.parse(JSON.stringify(summary.sessions)), [{
-            _truncated: 'use inspect_tool_result for more',
+            _truncated: 'use inspect_tool_result with path/search for more',
             _omitted_items: 20,
             _inspect: {
                 item_offset: 0,
@@ -801,7 +801,7 @@ describe('provider request message sanitization', function() {
         assert.ok(Array.isArray(parsed.value));
         assert.strictEqual(parsed.value.length, 4);
         assert.strictEqual(parsed.value[0].title, 'Session 1');
-        assert.strictEqual(parsed.value[3]._truncated, 'use inspect_tool_result for more');
+        assert.strictEqual(parsed.value[3]._truncated, 'use inspect_tool_result with path/search for more');
         assert.strictEqual(parsed.value[3]._omitted_items, 27);
         assert.deepEqual(parsed.value[3]._inspect, { item_offset: 3, max_items: 3 });
         assert.deepEqual(parsed.next_inspections, [{

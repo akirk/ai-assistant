@@ -765,7 +765,7 @@
         },
 
         getProviderTruncatedInstruction: function() {
-            return 'use inspect_tool_result for more';
+            return 'use inspect_tool_result with path/search for more';
         },
 
         createProviderOmissionMarker: function(kind, omitted, inspect) {
