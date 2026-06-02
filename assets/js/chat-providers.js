@@ -764,8 +764,14 @@
             }
         },
 
+        getProviderTruncatedInstruction: function() {
+            return 'use inspect_tool_result for more';
+        },
+
         createProviderOmissionMarker: function(kind, omitted, inspect) {
-            var marker = {};
+            var marker = {
+                _truncated: this.getProviderTruncatedInstruction()
+            };
             marker[kind === 'keys' ? '_omitted_keys' : '_omitted_items'] = omitted;
             if (inspect && typeof inspect === 'object') {
                 marker._inspect = inspect;
@@ -801,14 +807,14 @@
             if (depth >= limits.maxDepth) {
                 if (Array.isArray(value)) {
                     return {
-                        _truncated: true,
+                        _truncated: this.getProviderTruncatedInstruction(),
                         type: 'array',
                         length: value.length
                     };
                 }
 
                 return {
-                    _truncated: true,
+                    _truncated: this.getProviderTruncatedInstruction(),
                     type: 'object',
                     keys: Object.keys(value).slice(0, 20)
                 };
@@ -1246,6 +1252,7 @@
             }
 
             var metadata = {
+                _truncated: this.getProviderTruncatedInstruction(),
                 reason: 'Tool result exceeded the provider-safe context budget and was compacted before being returned to the LLM.',
                 original_chars: options.originalResultChars,
                 inspect_tool_result: hint
@@ -1262,7 +1269,9 @@
                 return arrayValue;
             }
 
-            return $.extend({}, value, {
+            return $.extend({
+                _truncated: this.getProviderTruncatedInstruction()
+            }, value, {
                 _ai_assistant_compacted: metadata
             });
         },

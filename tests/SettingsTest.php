@@ -330,11 +330,12 @@ class SettingsTest extends TestCase {
 
         $prompt = $this->settings->get_system_prompt();
 
-        $this->assertStringContainsString('_ai_assistant_compacted', $prompt);
+        $this->assertStringContainsString('_truncated', $prompt);
         $this->assertStringContainsString('_omitted_items', $prompt);
-        $this->assertStringContainsString('_inspect', $prompt);
-        $this->assertStringContainsString('use the JSON path where the omission marker appears', $prompt);
-        $this->assertStringContainsString('do not fall back to run_php just to recover omitted parts', $prompt);
+        $this->assertStringContainsString('_omitted_keys', $prompt);
+        $this->assertStringContainsString('use inspect_tool_result', $prompt);
+        $this->assertStringContainsString('Do not use run_php/db_query just to recover omitted parts', $prompt);
+        $this->assertStringNotContainsString('use the JSON path where the omission marker appears', $prompt);
     }
 
     public function test_system_prompt_help_tab_includes_estimated_token_count(): void {
