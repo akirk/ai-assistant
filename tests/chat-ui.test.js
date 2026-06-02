@@ -1423,6 +1423,29 @@ describe('tool result display', function() {
         assert.doesNotMatch(display.text, /undefined/);
     });
 
+    it('renders top-level ability results when result is omitted', function() {
+        const assistant = loadUiMixin();
+
+        const display = assistant.getToolResultDisplay('ability', {
+            ability: 'wordcamp-companion/get-plan',
+            success: true,
+            selected_event_url: 'https://europe.wordcamp.org/2026/',
+            selected_wordcamp_term_id: 2,
+            saved_session_posts: [
+                {
+                    title: 'What’s new in WordPress Playground?',
+                    start_local: '2026-06-05 12:30 PM CEST'
+                }
+            ]
+        });
+
+        assert.strictEqual(display.language, 'json');
+        assert.strictEqual(display.label, 'Result');
+        assert.match(display.text, /wordcamp-companion\/get-plan/);
+        assert.match(display.text, /selected_event_url/);
+        assert.match(display.text, /What’s new in WordPress Playground/);
+    });
+
     it('renders inspected structured values as the value only', function() {
         const assistant = loadUiMixin();
 
