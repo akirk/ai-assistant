@@ -1426,6 +1426,13 @@
                         label: 'Inspected value'
                     };
                 }
+                if (output.instruction && output._truncated) {
+                    return {
+                        text: 'This restored conversation only has the compacted inspection metadata. The original cached tool result is no longer available in this browser session, so this card cannot show the inspected slice. Run the original tool again to inspect a fresh result.',
+                        language: null,
+                        label: 'Inspection unavailable'
+                    };
+                }
                 if (output.error || output.instruction) {
                     return {
                         text: output.error || output.instruction,

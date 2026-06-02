@@ -1413,6 +1413,23 @@ describe('tool result display', function() {
         assert.doesNotMatch(display.text, /compacted/);
     });
 
+    it('explains restored compacted inspections when cached content is unavailable', function() {
+        const assistant = loadUiMixin();
+
+        const display = assistant.getToolResultDisplay('inspect_tool_result', {
+            _truncated: true,
+            tool_use_id: 'toolu_secret_123',
+            path: 'sessions',
+            instruction: 'This inspect_tool_result response was compacted. Use next_inspections to drill into the original cached result, not into this inspect response wrapper.'
+        });
+
+        assert.strictEqual(display.label, 'Inspection unavailable');
+        assert.match(display.text, /restored conversation/);
+        assert.match(display.text, /original cached tool result is no longer available/);
+        assert.doesNotMatch(display.text, /next_inspections/);
+        assert.doesNotMatch(display.text, /toolu_secret_123/);
+    });
+
     it('renders compacted ability summaries even when result is omitted', function() {
         const assistant = loadUiMixin();
 
