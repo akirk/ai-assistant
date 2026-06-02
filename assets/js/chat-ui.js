@@ -1861,6 +1861,7 @@
             var self = this;
             var $messages = $container || $('#ai-assistant-messages');
             var description = this.getActionDescription(toolName, input || {});
+            var summaryName = this.getToolSummaryName({ name: toolName, input: input || {} });
 
             var $card = $('<div class="ai-tool-card ai-tool-card-completed">' +
                 '<div class="ai-tool-card-header">' +
@@ -1870,6 +1871,7 @@
                 '<div class="ai-tool-card-desc">' + this.escapeHtml(description) + '</div>' +
                 '<div class="ai-tool-card-preview"></div>' +
                 '</div>');
+            $card.attr('data-tool-summary-name', summaryName);
 
             // Add input preview if available
             var preview = this.getActionContentPreview(toolName, input || {});
@@ -3098,12 +3100,19 @@
             var $group = groupId ? $('.ai-tool-cards-group[data-tool-group-id="' + this.escapeAttribute(groupId) + '"]').last() : $();
 
             if (!$group.length) {
-                groupId = 'tool-group-' + (++this.toolCardsGroupCounter);
-                this.activeToolCardsGroupId = groupId;
-                $group = $('<details class="ai-tool-cards-group ai-tool-cards-live" open data-tool-group-id="' + this.escapeAttribute(groupId) + '">' +
-                    '<summary class="ai-tool-cards-summary">Tools</summary>' +
-                    '</details>');
-                $messages.append($group);
+                $group = $messages.children('.ai-tool-cards-group').last();
+                if ($group.length && $group.is('.ai-tool-cards-complete') && $group.is(':last-child')) {
+                    groupId = $group.attr('data-tool-group-id') || ('tool-group-' + (++this.toolCardsGroupCounter));
+                    $group.attr('data-tool-group-id', groupId).addClass('ai-tool-cards-live').attr('open', 'open');
+                    this.activeToolCardsGroupId = groupId;
+                } else {
+                    groupId = 'tool-group-' + (++this.toolCardsGroupCounter);
+                    this.activeToolCardsGroupId = groupId;
+                    $group = $('<details class="ai-tool-cards-group ai-tool-cards-live" open data-tool-group-id="' + this.escapeAttribute(groupId) + '">' +
+                        '<summary class="ai-tool-cards-summary">Tools</summary>' +
+                        '</details>');
+                    $messages.append($group);
+                }
             }
 
             if (!$group.data('aiToolGroupBound')) {
@@ -3132,7 +3141,7 @@
             var order = [];
 
             entries.forEach(function(entry) {
-                var name = entry && entry.name ? entry.name : '';
+                var name = this.getToolSummaryName(entry);
                 if (!name) {
                     return;
                 }
@@ -3141,7 +3150,7 @@
                     order.push(name);
                 }
                 counts[name]++;
-            });
+            }, this);
 
             var label = count === 1 ? '1 tool' : count + ' tools';
             if (!order.length) {
@@ -3157,28 +3166,91 @@
             }).join(', ');
         },
 
+        getToolSummaryName: function(entry) {
+            if (entry && entry.summaryName) {
+                return entry.summaryName;
+            }
+            var name = entry && entry.name ? entry.name : '';
+            var args = entry && (entry.arguments || entry.input) || {};
+            if (!name) {
+                return '';
+            }
+
+            if (name === 'ability') {
+                if (args.action === 'list') {
+                    return 'ability list' + (args.category ? ' (' + args.category + ')' : '');
+                }
+                if (args.action === 'get') {
+                    return 'ability get' + (args.ability ? ': ' + args.ability : '');
+                }
+                if (args.action === 'execute') {
+                    return this.getAbilityExecutionSummaryName(args);
+                }
+                return 'ability';
+            }
+
+            if (name === 'execute_ability') {
+                return this.getAbilityExecutionSummaryName($.extend({}, args, { action: 'execute' }));
+            }
+
+            if (name === 'get_ability') {
+                return 'ability get' + (args.ability ? ': ' + args.ability : '');
+            }
+
+            if (name === 'list_abilities') {
+                return 'ability list' + (args.category ? ' (' + args.category + ')' : '');
+            }
+
+            return name;
+        },
+
+        getAbilityExecutionSummaryName: function(args) {
+            args = args || {};
+            var input = args.arguments || {};
+            var hint = input.username || input.name || input.query || input.group_slug || '';
+            return 'ability execute' + (args.ability ? ': ' + args.ability : '') + (hint ? ' (' + hint + ')' : '');
+        },
+
         updateToolCardsSummaryForGroup: function($container, options) {
             options = options || {};
             if (!$container || !$container.length) return;
             var state = this.toolCardsState;
-            var ids = [];
+            var entries = [];
+            var total = 0;
+            var done = 0;
 
-            $container.children('.ai-tool-card[data-tool-id]').each(function() {
-                ids.push(String($(this).attr('data-tool-id')));
+            $container.children('.ai-tool-card').each(function() {
+                var $card = $(this);
+                var id = $card.attr('data-tool-id');
+                total++;
+                if (id) {
+                    var item = state[String(id)] || {};
+                    entries.push(item);
+                    var s = item && item.state;
+                    if (s === 'completed' || s === 'error' || s === 'skipped') {
+                        done++;
+                    }
+                } else {
+                    var summaryName = $card.attr('data-tool-summary-name') || '';
+                    var name = $card.find('.ai-tool-card-name').first().text() || '';
+                    entries.push({ name: name, summaryName: summaryName });
+                    done++;
+                }
             });
 
-            if (!ids.length) {
-                ids = Object.keys(state);
+            if (!entries.length && Object.keys(state).length) {
+                Object.keys(state).forEach(function(id) {
+                    var item = state[id] || {};
+                    entries.push(item);
+                    total++;
+                    var s = item && item.state;
+                    if (s === 'completed' || s === 'error' || s === 'skipped') {
+                        done++;
+                    }
+                });
             }
 
-            var total = ids.length;
-            var done = ids.filter(function(id) {
-                var s = state[id] && state[id].state;
-                return s === 'completed' || s === 'error' || s === 'skipped';
-            }).length;
-            var base = this.toolGroupLabelFromEntries(ids.map(function(id) {
-                return state[id] || {};
-            }));
+            var base = this.toolGroupLabelFromEntries(entries);
             $container.toggleClass('ai-tool-cards-complete', done === total && total > 0);
             var $summary = $container.find('> .ai-tool-cards-summary');
             if (!$summary.length) {
@@ -3413,6 +3485,7 @@
                     this.toolCardsState[toolId].arguments = args;
                 }
                 var description = this.getActionDescription(toolName, args);
+                $card.attr('data-tool-summary-name', this.getToolSummaryName({ name: toolName, arguments: args || {} }));
                 $card.find('.ai-tool-card-desc').text(description);
 
                 // Show size now that tool is fully received
