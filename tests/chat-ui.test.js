@@ -1444,17 +1444,19 @@ describe('tool result display', function() {
                 event_url: '36 chars',
                 sessions: 'array, 120 items, 78000 chars'
             },
-            returned_to_llm_truncated: true,
-            inspect_tool_result: {
-                tool_use_id: 'toolu_secret_123',
-                instruction: 'Use inspect_tool_result for slices.'
+            _ai_assistant_compacted: {
+                reason: 'Tool result exceeded the provider-safe context budget.',
+                inspect_tool_result: {
+                    tool_use_id: 'toolu_secret_123',
+                    instruction: 'Use inspect_tool_result for slices.'
+                }
             }
         });
 
         assert.strictEqual(display.language, 'json');
         assert.strictEqual(display.label, 'Result');
         assert.match(display.text, /wordcamp-companion\/get-schedule/);
-        assert.match(display.text, /returned_to_llm_truncated/);
+        assert.match(display.text, /_ai_assistant_compacted/);
         assert.doesNotMatch(display.text, /undefined/);
     });
 

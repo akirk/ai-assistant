@@ -1813,6 +1813,10 @@
                 return true;
             }
 
+            if (output._ai_assistant_compacted) {
+                return true;
+            }
+
             return !!(
                 output.inspect_tool_result &&
                 this.isCompactedToolResultValue &&

@@ -574,7 +574,7 @@ describe('provider request message sanitization', function() {
         assert.equal(parsed.size, originalContent.length);
     });
 
-    it('tells the model inspect_tool_result can be repeated instead of rerunning broad tools', function() {
+    it('preserves compacted result shape and tells the model inspect_tool_result can be repeated', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
                 maxToolResultChars: 4096,
@@ -595,10 +595,16 @@ describe('provider request message sanitization', function() {
         }, 'anthropic', undefined, { toolUseId: 'toolu_schedule' });
         const parsed = JSON.parse(content);
 
-        assert.strictEqual(parsed.inspect_tool_result.tool_use_id, 'toolu_schedule');
-        assert.match(parsed.inspect_tool_result.instruction, /multiple times with this same tool_use_id/);
-        assert.match(parsed.inspect_tool_result.instruction, /item_offset\/next_item_offset/);
-        assert.match(parsed.inspect_tool_result.instruction, /Do not rerun the original broad tool call/);
+        assert.ok(Array.isArray(parsed.result.sessions));
+        assert.strictEqual(parsed.result.sessions[parsed.result.sessions.length - 1]._omitted_items, 15);
+        assert.deepEqual(parsed.result.sessions[parsed.result.sessions.length - 1]._inspect, {
+            item_offset: 5,
+            max_items: 5
+        });
+        assert.strictEqual(parsed._ai_assistant_compacted.inspect_tool_result.tool_use_id, 'toolu_schedule');
+        assert.match(parsed._ai_assistant_compacted.inspect_tool_result.instruction, /multiple times with this same tool_use_id/);
+        assert.match(parsed._ai_assistant_compacted.inspect_tool_result.instruction, /item_offset\/next_item_offset/);
+        assert.match(parsed._ai_assistant_compacted.inspect_tool_result.instruction, /Do not rerun the original broad tool call/);
     });
 
     it('includes original char size metadata on compacted inspectable tool results', function() {
@@ -625,8 +631,8 @@ describe('provider request message sanitization', function() {
         });
         const parsed = JSON.parse(content);
 
-        assert.strictEqual(parsed.returned_to_llm_truncated, true);
-        assert.strictEqual(parsed.original_result_chars, originalJson.length);
+        assert.strictEqual(parsed.returned_to_llm_truncated, undefined);
+        assert.strictEqual(parsed._ai_assistant_compacted.original_chars, originalJson.length);
         assert.strictEqual(parsed.original_result_bytes, undefined);
     });
 
@@ -743,7 +749,7 @@ describe('provider request message sanitization', function() {
         assert.strictEqual(archiveCalls, 1);
     });
 
-    it('keeps item samples when an inspect_tool_result response is itself compacted', function() {
+    it('keeps inspected array content in value when an inspect_tool_result response is itself compacted', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
                 maxToolResultChars: 4096,
@@ -780,15 +786,17 @@ describe('provider request message sanitization', function() {
         assert.strictEqual(parsed._truncated, true);
         assert.strictEqual(parsed.path, 'sessions');
         assert.strictEqual(parsed.item_count, 20);
-        assert.ok(Array.isArray(parsed.items_sample));
-        assert.strictEqual(parsed.items_sample.length, 3);
-        assert.deepEqual(parsed.items_sample[0].keys, ['id', 'title', 'speaker', 'description']);
+        assert.ok(Array.isArray(parsed.value));
+        assert.strictEqual(parsed.value.length, 4);
+        assert.strictEqual(parsed.value[0].title, 'Session 1');
+        assert.strictEqual(parsed.value[3]._omitted_items, 27);
+        assert.deepEqual(parsed.value[3]._inspect, { item_offset: 3, max_items: 3 });
         assert.deepEqual(parsed.next_inspections, [{
             tool_use_id: 'toolu_schedule',
             path: 'sessions',
             item_offset: 20
         }]);
-        assert.match(parsed.instruction, /drill into the original cached result/);
+        assert.match(parsed._ai_assistant_compacted.inspect_tool_result.instruction, /cached original result/);
     });
 
     it('suggests child inspect paths when a compacted inspect_tool_result exposes another object layer', function() {

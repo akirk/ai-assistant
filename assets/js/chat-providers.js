@@ -764,6 +764,15 @@
             }
         },
 
+        createProviderOmissionMarker: function(kind, omitted, inspect) {
+            var marker = {};
+            marker[kind === 'keys' ? '_omitted_keys' : '_omitted_items'] = omitted;
+            if (inspect && typeof inspect === 'object') {
+                marker._inspect = inspect;
+            }
+            return marker;
+        },
+
         compactProviderValue: function(value, limits, depth) {
             limits = limits || this.getToolResultCompactLimits();
             depth = depth || 0;
@@ -812,9 +821,10 @@
                 }, this);
 
                 if (value.length > maxItems) {
-                    items.push({
-                        _truncated_items: value.length - maxItems
-                    });
+                    items.push(this.createProviderOmissionMarker('items', value.length - maxItems, {
+                        item_offset: maxItems,
+                        max_items: maxItems
+                    }));
                 }
 
                 return items;
@@ -829,7 +839,10 @@
             }, this);
 
             if (keys.length > maxKeys) {
-                compacted._truncated_keys = keys.length - maxKeys;
+                compacted._ai_assistant_omitted = this.createProviderOmissionMarker('keys', keys.length - maxKeys, {
+                    keys_offset: maxKeys,
+                    max_keys: maxKeys
+                });
             }
 
             return compacted;
@@ -1017,7 +1030,7 @@
             }
 
             if (Array.isArray(value.items)) {
-                summary.items_sample = value.items.slice(0, 3).map(function(item) {
+                summary.value = value.items.slice(0, 3).map(function(item) {
                     return this.summarizeProviderValueShape(item, 2);
                 }, this);
             }
@@ -1083,12 +1096,27 @@
             }
 
             if (Array.isArray(value.items)) {
+                var itemLimits = $.extend({}, this.getToolResultCompactLimits('aggressive'), {
+                    maxStringChars: 300,
+                    maxArrayItems: 3,
+                    maxObjectKeys: 20,
+                    maxDepth: 3
+                });
+                var maxItems = Math.max(1, Math.min(3, itemLimits.maxArrayItems));
+                var returnedItems = value.items.slice(0, Math.min(value.items.length, maxItems)).map(function(item) {
+                    return this.compactProviderValue(item, itemLimits, 0);
+                }, this);
+                if (value.items.length > returnedItems.length || (value.next_item_offset !== undefined && value.next_item_offset !== null)) {
+                    returnedItems.push(this.createProviderOmissionMarker('items', Math.max(0, (value.length || value.items.length) - returnedItems.length), {
+                        item_offset: (value.item_offset || 0) + returnedItems.length,
+                        max_items: maxItems
+                    }));
+                }
+
                 summary.length = value.length;
                 summary.item_offset = value.item_offset || 0;
                 summary.item_count = value.item_count;
-                summary.items_sample = value.items.slice(0, 3).map(function(item) {
-                    return this.summarizeProviderValueShape(item, 2);
-                }, this);
+                summary.value = returnedItems;
 
                 if (value.next_item_offset !== undefined && value.next_item_offset !== null) {
                     summary.next_inspections = [{
@@ -1228,29 +1256,24 @@
             }
 
             var metadata = {
-                returned_to_llm_truncated: true,
-                truncation_reason: 'Tool result exceeded the provider-safe context budget and was compacted before being returned to the LLM.',
-                original_result_chars: options.originalResultChars
+                reason: 'Tool result exceeded the provider-safe context budget and was compacted before being returned to the LLM.',
+                original_chars: options.originalResultChars,
+                inspect_tool_result: hint
             };
-            if (metadata.original_result_chars === undefined) {
-                delete metadata.original_result_chars;
+            if (metadata.original_chars === undefined) {
+                delete metadata.original_chars;
             }
 
             if (Array.isArray(value)) {
-                return {
-                    _truncated: true,
-                    returned_to_llm_truncated: true,
-                    truncation_reason: metadata.truncation_reason,
-                    original_result_chars: metadata.original_result_chars,
-                    type: 'array',
-                    length: value.length,
-                    sample: value,
-                    inspect_tool_result: hint
-                };
+                var arrayValue = value.slice();
+                arrayValue.push({
+                    _ai_assistant_compacted: metadata
+                });
+                return arrayValue;
             }
 
-            return $.extend({}, value, metadata, {
-                inspect_tool_result: hint
+            return $.extend({}, value, {
+                _ai_assistant_compacted: metadata
             });
         },
 
@@ -1510,6 +1533,10 @@
                 ) ||
                 Object.prototype.hasOwnProperty.call(value, '_truncated_items') ||
                 Object.prototype.hasOwnProperty.call(value, '_truncated_keys') ||
+                Object.prototype.hasOwnProperty.call(value, '_omitted_items') ||
+                Object.prototype.hasOwnProperty.call(value, '_omitted_keys') ||
+                Object.prototype.hasOwnProperty.call(value, '_ai_assistant_omitted') ||
+                Object.prototype.hasOwnProperty.call(value, '_ai_assistant_compacted') ||
                 Object.prototype.hasOwnProperty.call(value, 'content_original_chars')
             ) {
                 return true;
