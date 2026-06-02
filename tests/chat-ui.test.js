@@ -1408,7 +1408,12 @@ describe('tool result display', function() {
             ability: 'wordcamp-companion/get-schedule',
             success: true,
             type: 'object',
-            keys: ['ability', 'success', 'event_url', 'sessions'],
+            keys: {
+                ability: '32 chars',
+                success: 'boolean, 4 chars',
+                event_url: '36 chars',
+                sessions: 'array, 120 items, 78000 chars'
+            },
             returned_to_llm_truncated: true,
             inspect_tool_result: {
                 tool_use_id: 'toolu_secret_123',

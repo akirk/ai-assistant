@@ -764,21 +764,6 @@
             }
         },
 
-        getUtf8ByteLength: function(value) {
-            var text = String(value || '');
-            if (typeof TextEncoder !== 'undefined') {
-                try {
-                    return new TextEncoder().encode(text).length;
-                } catch (e) {}
-            }
-
-            try {
-                return encodeURIComponent(text).replace(/%[0-9A-F]{2}/gi, 'x').length;
-            } catch (e) {
-                return text.length;
-            }
-        },
-
         compactProviderValue: function(value, limits, depth) {
             limits = limits || this.getToolResultCompactLimits();
             depth = depth || 0;
@@ -929,13 +914,45 @@
             compacted.content = content.substring(0, keepLength) + marker;
             compacted.content_truncated_for_context = true;
             compacted.content_original_chars = content.length;
-            compacted.content_original_bytes = this.getUtf8ByteLength(content);
             compacted.returned_bytes = keepLength;
             compacted.truncated = true;
             compacted.next_offset = nextOffset;
             compacted.instruction = 'File content was compacted for provider context. Call read_file again with offset set to next_offset to continue.';
 
             return compacted;
+        },
+
+        summarizeProviderKeyValue: function(value) {
+            if (value === null) {
+                return 'null';
+            }
+            if (value === undefined) {
+                return 'undefined';
+            }
+            if (typeof value === 'string') {
+                return value.length + ' chars';
+            }
+            if (Array.isArray(value)) {
+                return 'array, ' + value.length + ' items, ' + this.safeJsonStringify(value).length + ' chars';
+            }
+            if (typeof value === 'object') {
+                return 'object, ' + Object.keys(value).length + ' keys, ' + this.safeJsonStringify(value).length + ' chars';
+            }
+
+            return typeof value + ', ' + String(value).length + ' chars';
+        },
+
+        summarizeProviderKeyMap: function(value, maxKeys) {
+            var summary = {};
+            if (!value || typeof value !== 'object') {
+                return summary;
+            }
+
+            Object.keys(value).slice(0, maxKeys || 40).forEach(function(key) {
+                summary[key] = this.summarizeProviderKeyValue(value[key]);
+            }, this);
+
+            return summary;
         },
 
         createProviderValueSummary: function(value) {
@@ -948,7 +965,6 @@
                     _truncated: true,
                     type: 'string',
                     original_chars: value.length,
-                    original_bytes: this.getUtf8ByteLength(value),
                     preview: this.truncateProviderString(value, 4000)
                 };
             }
@@ -975,15 +991,15 @@
             var summary = {
                 _truncated: true,
                 type: 'object',
-                keys: Object.keys(value).slice(0, 40)
+                keys: this.summarizeProviderKeyMap(value, 40)
             };
             var aggressiveLimits = this.getToolResultCompactLimits('aggressive');
 
             [
                 'tool_use_id', 'tool', 'path', 'requested_path', 'path_corrected',
                 'type', 'length', 'item_offset', 'item_count', 'truncated',
-                'next_item_offset', 'offset', 'chars', 'bytes', 'returned_chars',
-                'returned_bytes', 'next_offset', 'original_chars', 'original_bytes',
+                'next_item_offset', 'offset', 'chars', 'returned_chars',
+                'next_offset', 'original_chars',
                 'size', 'modified', 'count', 'error', 'message', 'url', 'title',
                 'ability', 'success', 'more_matches_available', 'next_occurrence',
                 'next_inspection', 'instruction'
@@ -996,7 +1012,6 @@
             if (typeof value.content === 'string') {
                 summary.content_preview = this.truncateProviderString(value.content, 6000);
                 summary.content_original_chars = value.content.length;
-                summary.content_original_bytes = this.getUtf8ByteLength(value.content);
             }
 
             if (Array.isArray(value.items)) {
@@ -1086,10 +1101,8 @@
 
             if (typeof value.content === 'string') {
                 summary.chars = value.chars;
-                summary.bytes = value.bytes;
                 summary.offset = value.offset || 0;
                 summary.returned_chars = value.returned_chars;
-                summary.returned_bytes = value.returned_bytes;
                 summary.more_matches_available = value.more_matches_available;
                 summary.next_occurrence = value.next_occurrence;
                 summary.content_preview = this.truncateProviderString(value.content, 1000);
@@ -1138,7 +1151,6 @@
                     return {
                         type: 'string',
                         chars: value.length,
-                        bytes: this.getUtf8ByteLength(value),
                         preview: this.truncateProviderString(value, 500)
                     };
                 }
@@ -1216,14 +1228,10 @@
             var metadata = {
                 returned_to_llm_truncated: true,
                 truncation_reason: 'Tool result exceeded the provider-safe context budget and was compacted before being returned to the LLM.',
-                original_result_chars: options.originalResultChars,
-                original_result_bytes: options.originalResultBytes
+                original_result_chars: options.originalResultChars
             };
             if (metadata.original_result_chars === undefined) {
                 delete metadata.original_result_chars;
-            }
-            if (metadata.original_result_bytes === undefined) {
-                delete metadata.original_result_bytes;
             }
 
             if (Array.isArray(value)) {
@@ -1232,7 +1240,6 @@
                     returned_to_llm_truncated: true,
                     truncation_reason: metadata.truncation_reason,
                     original_result_chars: metadata.original_result_chars,
-                    original_result_bytes: metadata.original_result_bytes,
                     type: 'array',
                     length: value.length,
                     sample: value,
@@ -1261,8 +1268,7 @@
             var limits = this.getToolResultCompactLimits(mode);
             var originalJson = this.safeJsonStringify(result);
             var inspectionMetadata = {
-                originalResultChars: originalJson.length,
-                originalResultBytes: this.getUtf8ByteLength(originalJson)
+                originalResultChars: originalJson.length
             };
             result = this.dedupeLargeProviderStrings(result);
             var compacted = this.compactProviderValue(result, limits, 0);
@@ -1299,7 +1305,6 @@
                 _truncated: true,
                 reason: 'Tool result exceeded the provider context limit.',
                 original_chars: originalJson.length,
-                original_bytes: inspectionMetadata.originalResultBytes,
                 preview: this.truncateProviderString(json, Math.max(1000, limits.maxResultChars - 1000))
             };
             if (options.toolUseId) {

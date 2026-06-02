@@ -601,10 +601,10 @@ describe('provider request message sanitization', function() {
         assert.match(parsed.inspect_tool_result.instruction, /Do not rerun the original broad tool call/);
     });
 
-    it('includes original byte size metadata on compacted inspectable tool results', function() {
+    it('includes original char size metadata on compacted inspectable tool results', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
-                maxToolResultChars: 4096,
+                maxToolResultChars: 2048,
                 maxToolResultStringChars: 1024,
                 maxToolResultArrayItems: 5
             }
@@ -627,8 +627,30 @@ describe('provider request message sanitization', function() {
 
         assert.strictEqual(parsed.returned_to_llm_truncated, true);
         assert.strictEqual(parsed.original_result_chars, originalJson.length);
-        assert.strictEqual(parsed.original_result_bytes, assistant.getUtf8ByteLength(originalJson));
-        assert.ok(parsed.original_result_bytes > parsed.original_result_chars);
+        assert.strictEqual(parsed.original_result_bytes, undefined);
+    });
+
+    it('summarizes object keys with value shapes and char counts', function() {
+        const assistant = loadProvidersMixin();
+        const summary = assistant.createProviderValueSummary({
+            ability: 'wordcamp-companion/get-schedule',
+            success: true,
+            event_url: 'https://europe.wordcamp.org/2026/',
+            sessions: Array.from({ length: 20 }, function(_, index) {
+                return {
+                    id: index + 1,
+                    title: 'Session ' + (index + 1),
+                    description: 'Details ' + 'x'.repeat(500)
+                };
+            })
+        });
+
+        assert.strictEqual(summary.type, 'object');
+        assert.strictEqual(typeof summary.keys, 'object');
+        assert.match(summary.keys.ability, /chars/);
+        assert.match(summary.keys.success, /boolean/);
+        assert.match(summary.keys.sessions, /array, 20 items/);
+        assert.match(summary.keys.sessions, /chars/);
     });
 
     it('keeps an active tool card group while continuing a tool loop', async function() {
