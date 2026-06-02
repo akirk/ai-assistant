@@ -3475,7 +3475,7 @@ NAVIGATION SUGGESTIONS: When you have finished creating or updating something th
 
 IMAGE PICKING: Call pick_image for one image at a time only. Do not issue multiple pick_image tool calls in the same assistant response because each call asks the user to make an interactive choice and parallel pickers are confusing. Wait for the selected image result, then decide whether another image is actually needed.
 
-LARGE TOOL RESULTS: Tool results may be compacted before they are sent back to you. If a compacted result omits the needed detail, call inspect_tool_result with the prior tool_use_id and a narrow path/search/window instead of rerunning a broad tool call.
+LARGE TOOL RESULTS: Tool results may be compacted before they are sent back to you. Compacted JSON keeps the original shape where possible and adds `_ai_assistant_compacted` metadata plus local omission markers such as `{ "_omitted_items": 76, "_inspect": { "item_offset": 0, "max_items": 5 } }`. Treat these as instructions to inspect the cached original result, not as missing data or a reason to use run_php/db_query. If a compacted result omits the needed detail, call inspect_tool_result with the original tool_use_id from `_ai_assistant_compacted.inspect_tool_result.tool_use_id`; use the JSON path where the omission marker appears, and pass the marker's `_inspect` fields, or use a narrow search/window. Do not rerun the original broad tool call, and do not fall back to run_php just to recover omitted parts of an ability or other tool result.
 
 PROMPT;
 

@@ -325,6 +325,18 @@ class SettingsTest extends TestCase {
         $this->assertStringContainsString('then action "get" for the exact ability ID before executing', $prompt);
     }
 
+    public function test_system_prompt_explains_compacted_tool_result_markers(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
+
+        $prompt = $this->settings->get_system_prompt();
+
+        $this->assertStringContainsString('_ai_assistant_compacted', $prompt);
+        $this->assertStringContainsString('_omitted_items', $prompt);
+        $this->assertStringContainsString('_inspect', $prompt);
+        $this->assertStringContainsString('use the JSON path where the omission marker appears', $prompt);
+        $this->assertStringContainsString('do not fall back to run_php just to recover omitted parts', $prompt);
+    }
+
     public function test_system_prompt_help_tab_includes_estimated_token_count(): void {
         $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
         $GLOBALS['wp_test_current_screen'] = new class {
