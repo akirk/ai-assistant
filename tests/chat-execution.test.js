@@ -228,6 +228,39 @@ describe('inspect_tool_result', function() {
         assert.strictEqual(inspected.result.next_offset, 7);
     });
 
+    it('tells the model how to continue truncated array inspections', function() {
+        const assistant = createAssistant();
+
+        assistant.rememberToolResultForInspection({
+            id: 'toolu_array',
+            name: 'ability',
+            success: true,
+            result: {
+                sessions: [
+                    { id: 1 },
+                    { id: 2 },
+                    { id: 3 }
+                ]
+            }
+        });
+
+        const inspected = assistant.executeInspectToolResult({
+            id: 'inspect_array',
+            arguments: {
+                tool_use_id: 'toolu_array',
+                path: 'sessions',
+                max_items: 2
+            }
+        });
+
+        assert.strictEqual(inspected.success, true);
+        assert.strictEqual(inspected.result.item_count, 2);
+        assert.strictEqual(inspected.result.truncated, true);
+        assert.strictEqual(inspected.result.next_item_offset, 2);
+        assert.match(inspected.result.instruction, /same tool_use_id and path/);
+        assert.match(inspected.result.instruction, /item_offset to next_item_offset/);
+    });
+
     it('evicts old cached tool results by configured limit', function() {
         const assistant = createAssistant({
             getToolResultCacheLimit() {
