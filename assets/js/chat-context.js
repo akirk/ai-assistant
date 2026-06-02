@@ -9,7 +9,7 @@
             return {
                 enabled: config.enabled !== false,
                 triggerTokens: Math.max(1000, parseInt(config.triggerTokens || 24000, 10)),
-                recentMessages: Math.max(4, parseInt(config.recentMessages || 12, 10)),
+                recentMessages: Math.max(4, parseInt(config.recentMessages || 24, 10)),
                 maxSummaryWords: Math.max(100, parseInt(config.maxSummaryWords || 700, 10))
             };
         },
@@ -136,6 +136,8 @@
             var model = this.getSubagentModel();
             var prompt = 'Compact the older part of this WordPress assistant conversation for future context. ' +
                 'Preserve user goals, decisions, changed files, important tool findings, unresolved work, and constraints. ' +
+                'Preserve current actionable selections exactly, including names, IDs, URLs, timestamps, and any user-confirmed items to add, remove, or change. ' +
+                'If the user chose items from an earlier suggestion list, keep enough detail to continue the action without rediscovering the list. ' +
                 'Do not add a title. Keep it under ' + maxWords + ' words.\n\nConversation:\n' +
                 this.buildMessagesTextForSummary(messages);
 
@@ -184,18 +186,8 @@
 
         showContextCompactionStatus: function(state, options) {
             options = options || {};
-            if (!this.showToolProgress || !this.setToolCardState) {
-                return;
-            }
-
-            var toolId = options.id || 'context-compaction';
-            this.showToolProgress('compact_context', 0, toolId);
-            if (state === 'executing') {
-                this.setToolCardState(toolId, 'executing');
-            } else if (state === 'completed') {
-                this.setToolCardState(toolId, 'completed', { message: options.message || 'Compacted' });
-            } else if (state === 'error') {
-                this.setToolCardState(toolId, 'error', { message: options.message || 'Compaction skipped' });
+            if (state === 'error') {
+                console.warn('[AI Assistant] Context compaction skipped:', options.message || 'Compaction skipped');
             }
         },
 
