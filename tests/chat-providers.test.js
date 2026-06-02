@@ -574,6 +574,33 @@ describe('provider request message sanitization', function() {
         assert.equal(parsed.size, originalContent.length);
     });
 
+    it('tells the model inspect_tool_result can be repeated instead of rerunning broad tools', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 4096,
+                maxToolResultStringChars: 1024,
+                maxToolResultArrayItems: 5
+            }
+        });
+
+        const content = assistant.stringifyToolResultForProvider({
+            result: {
+                sessions: Array.from({ length: 20 }, function(_, index) {
+                    return {
+                        id: index + 1,
+                        description: 'Session details ' + 'x'.repeat(500)
+                    };
+                })
+            }
+        }, 'anthropic', undefined, { toolUseId: 'toolu_schedule' });
+        const parsed = JSON.parse(content);
+
+        assert.strictEqual(parsed.inspect_tool_result.tool_use_id, 'toolu_schedule');
+        assert.match(parsed.inspect_tool_result.instruction, /multiple times with this same tool_use_id/);
+        assert.match(parsed.inspect_tool_result.instruction, /item_offset\/next_item_offset/);
+        assert.match(parsed.inspect_tool_result.instruction, /Do not rerun the original broad tool call/);
+    });
+
     it('omits duplicate large strings before truncating tool results', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {

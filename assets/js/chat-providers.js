@@ -961,7 +961,7 @@
 
             var hint = {
                 tool_use_id: String(toolUseId),
-                instruction: 'This result was compacted before it was returned to the LLM. To inspect omitted details, call inspect_tool_result with this exact tool_use_id and a narrow path, search, or offset.'
+                instruction: 'This result was compacted before it was returned to the LLM. You can call inspect_tool_result multiple times with this same tool_use_id. Use a narrow path plus search, offset/next_offset, or item_offset/next_item_offset to inspect additional slices. Do not rerun the original broad tool call just to inspect more of this cached result.'
             };
             var metadata = {
                 returned_to_llm_truncated: true,

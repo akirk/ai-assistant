@@ -1620,6 +1620,9 @@
             var items = value.slice(offset, offset + maxItems);
             var nextOffset = offset + items.length;
             var hasMore = nextOffset < value.length;
+            var instruction = hasMore
+                ? 'More array items are available. Call inspect_tool_result again with the same tool_use_id and path, and set item_offset to next_item_offset.'
+                : undefined;
 
             return {
                 tool_use_id: record.id,
@@ -1631,7 +1634,8 @@
                 item_count: items.length,
                 items: items,
                 truncated: hasMore,
-                next_item_offset: hasMore ? nextOffset : null
+                next_item_offset: hasMore ? nextOffset : null,
+                instruction: instruction
             };
         },
 

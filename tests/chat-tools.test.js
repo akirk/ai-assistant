@@ -80,8 +80,8 @@ describe('getAllToolDefinitions', function() {
         assert.ok(def.description.includes('selected image details'));
         assert.ok(def.description.includes('Do not call this tool multiple times'));
         assert.deepStrictEqual(def.input_schema.required, ['query']);
-        assert.strictEqual(def.input_schema.properties.query.description, 'Initial search.');
-        assert.strictEqual(def.input_schema.properties.purpose.description, 'Image use.');
+        assert.strictEqual(def.input_schema.properties.query.type, 'string');
+        assert.strictEqual(def.input_schema.properties.purpose.type, 'string');
         assert.ok(!Object.hasOwn(def.input_schema.properties, 'allow_external_fallback'));
     });
 
@@ -154,7 +154,7 @@ describe('getAllToolDefinitions', function() {
         });
     });
 
-    it('explains ability domains are not executable IDs', function() {
+    it('explains ability domains are not executable IDs without duplicating domain keywords', function() {
         global.aiAssistantConfig = {
             abilityDomains: {
                 'create-wp-app': 'wp app, app plugin',
@@ -167,7 +167,9 @@ describe('getAllToolDefinitions', function() {
         assert.ok(description.includes('Ability domain slugs are categories, not executable ability IDs'));
         assert.ok(description.includes('list by category'));
         assert.ok(description.includes('get the exact ability ID before execute'));
-        assert.ok(description.includes('create-wp-app (wp app, app plugin)'));
+        assert.ok(description.includes('plugin-specific data and actions'));
+        assert.ok(!description.includes('create-wp-app'));
+        assert.ok(!description.includes('wp app, app plugin'));
     });
 });
 

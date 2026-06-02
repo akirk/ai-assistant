@@ -5,15 +5,8 @@ var aiAssistantToolsMixin = (function() {
     return {
 
         getAbilityToolDescription: function() {
-            var config = this.getRuntimeConfig();
-            var domains = config.abilityDomains || {};
-            var keys = Object.keys(domains);
             var base = 'Plugin abilities: list, get, or execute. Ability domain slugs are categories, not executable ability IDs; list by category and get the exact ability ID before execute.';
-            if (keys.length === 0) {
-                return base + ' Use for plugin-specific data and actions.';
-            }
-            var domainParts = keys.map(function(slug) { return slug + ' (' + domains[slug] + ')'; });
-            return base + ' ALWAYS use this for: ' + domainParts.join('; ') + '. Do not use db_query or find for these topics.';
+            return base + ' Use for plugin-specific data and actions.';
         },
 
         getRuntimeConfig: function() {
@@ -66,7 +59,7 @@ var aiAssistantToolsMixin = (function() {
                         type: 'object',
                         properties: {
                             action: { type: 'string', enum: ['list', 'get', 'execute'] },
-                            ability: { type: 'string', description: 'Ability identifier' },
+                            ability: { type: 'string', description: 'Ability ID' },
                             category: { type: 'string' },
                             arguments: { type: 'object' }
                         },
@@ -85,7 +78,7 @@ var aiAssistantToolsMixin = (function() {
                             search: { type: 'string', description: 'Exact text to locate before returning a line window, e.g. a function name.' },
                             before_lines: { type: 'number', description: 'Lines to include before the search match.' },
                             after_lines: { type: 'number', description: 'Lines to include after the search match.' },
-                            occurrence: { type: 'number', description: '1-based match occurrence when search appears multiple times.' }
+                            occurrence: { type: 'number', description: 'Which search match; starts at 1' }
                         },
                         required: ['path']
                     }
@@ -182,7 +175,7 @@ var aiAssistantToolsMixin = (function() {
                     input_schema: {
                         type: 'object',
                         properties: {
-                            conversation_id: { type: 'number', description: 'Omit for current conversation' }
+                            conversation_id: { type: 'number', description: 'Optional; omit for current' }
                         }
                     }
                 },
@@ -192,12 +185,12 @@ var aiAssistantToolsMixin = (function() {
                     input_schema: {
                         type: 'object',
                         properties: {
-                            tool_use_id: { type: 'string', description: 'The previous tool call/result ID to inspect.' },
-                            path: { type: 'string', description: 'Dot path inside the cached result, e.g. result.article.content.' },
+                            tool_use_id: { type: 'string', description: 'Previous tool call/result ID' },
+                            path: { type: 'string', description: 'Dot path inside the cached result, e.g. result.sessions.' },
                             search: { type: 'string', description: 'Exact text to locate inside a string value.' },
                             before_lines: { type: 'number', description: 'Lines to include before the search match.' },
                             after_lines: { type: 'number', description: 'Lines to include after the search match.' },
-                            occurrence: { type: 'number', description: '1-based match occurrence when search appears multiple times.' },
+                            occurrence: { type: 'number', description: 'Which search match; starts at 1' },
                             offset: { type: 'number', description: 'Character offset for string chunks.' },
                             max_length: { type: 'number', description: 'Maximum characters to return.' },
                             item_offset: { type: 'number', description: '0-based start index when path points to an array.' },
