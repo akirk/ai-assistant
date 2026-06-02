@@ -264,7 +264,7 @@
                     if (result.success) {
                         var successOptions = result.name === 'navigate'
                             ? { message: 'Suggestion shown' }
-                            : { output: result.result };
+                            : { output: self.getResolvedToolResultForProviderDisplay(result, provider) };
                         self.setToolCardState(result.id, 'completed', successOptions);
                     } else {
                         var errorMsg = result.result?.error || 'Failed';
@@ -2322,7 +2322,7 @@
                     if (result.success) {
                         var successOptions = result.name === 'navigate'
                             ? { message: 'Suggestion shown' }
-                            : { output: result.result };
+                            : { output: self.getResolvedToolResultForProviderDisplay(result, provider) };
                         self.setToolCardState(result.id, 'completed', successOptions);
                     } else {
                         self.setToolCardState(result.id, 'error', { message: result.result?.error || 'Failed', output: result.result });
@@ -2440,6 +2440,32 @@
             return 'You have reached the current tool call round limit of ' + limit + ' rounds. Stop calling tools and explain what you accomplished, what remains to be done, and any blockers or failed tool results.';
         },
 
+        stringifyResolvedToolResultForProvider: function(result, provider) {
+            if (this.stringifyToolResultForProvider) {
+                return this.stringifyToolResultForProvider(
+                    result ? result.result : null,
+                    provider,
+                    undefined,
+                    { toolUseId: result && result.id }
+                );
+            }
+
+            if (this.safeJsonStringify) {
+                return this.safeJsonStringify(result ? result.result : null);
+            }
+
+            return JSON.stringify(result ? result.result : null);
+        },
+
+        getResolvedToolResultForProviderDisplay: function(result, provider) {
+            var content = this.stringifyResolvedToolResultForProvider(result, provider);
+            try {
+                return JSON.parse(content);
+            } catch (e) {
+                return content;
+            }
+        },
+
         maybeStopForToolRoundLimit: function(results) {
             this.updateToolRoundProgress(results);
             this.toolCallRounds++;
@@ -2530,17 +2556,13 @@
                         type: 'tool_result',
                         tool_use_id: r.id,
                         is_error: r.success === false ? true : undefined,
-                        content: self.safeJsonStringify
-                            ? self.safeJsonStringify(r.result)
-                            : JSON.stringify(r.result)
+                        content: self.stringifyResolvedToolResultForProvider(r, provider)
                     };
                 });
                 this.messages.push(this.createStoredMessage('user', toolResults));
             } else {
                 allResults.forEach(function(r) {
-                    var content = self.safeJsonStringify
-                        ? self.safeJsonStringify(r.result)
-                        : JSON.stringify(r.result);
+                    var content = self.stringifyResolvedToolResultForProvider(r, provider);
                     self.messages.push(self.createStoredMessage('tool', content, {
                         tool_call_id: r.id
                     }));
@@ -2691,7 +2713,9 @@
                 self.executingToolCount = Math.max(0, (self.executingToolCount || 0) - actions.length);
                 results.forEach(function(result) {
                     if (result.success) {
-                        self.setToolCardState(result.id, 'completed', { output: result.result });
+                        self.setToolCardState(result.id, 'completed', {
+                            output: self.getResolvedToolResultForProviderDisplay(result, providersById[result.id] || resultProvider)
+                        });
                     } else {
                         var errorMsg = result.result?.error || 'Failed';
                         self.setToolCardState(result.id, 'error', { message: errorMsg, output: result.result });

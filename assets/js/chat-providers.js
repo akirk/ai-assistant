@@ -961,12 +961,18 @@
 
             var hint = {
                 tool_use_id: String(toolUseId),
-                instruction: 'This result was compacted. To inspect omitted details, call inspect_tool_result with this exact tool_use_id and a narrow path, search, or offset.'
+                instruction: 'This result was compacted before it was returned to the LLM. To inspect omitted details, call inspect_tool_result with this exact tool_use_id and a narrow path, search, or offset.'
+            };
+            var metadata = {
+                returned_to_llm_truncated: true,
+                truncation_reason: 'Tool result exceeded the provider-safe context budget and was compacted before being returned to the LLM.'
             };
 
             if (Array.isArray(value)) {
                 return {
                     _truncated: true,
+                    returned_to_llm_truncated: true,
+                    truncation_reason: metadata.truncation_reason,
                     type: 'array',
                     length: value.length,
                     sample: value,
@@ -974,7 +980,7 @@
                 };
             }
 
-            return $.extend({}, value, {
+            return $.extend({}, value, metadata, {
                 inspect_tool_result: hint
             });
         },
