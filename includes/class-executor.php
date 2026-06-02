@@ -667,11 +667,7 @@ class Executor {
             throw new \Exception("Ability execution failed: " . $result->get_error_message());
         }
 
-        $response = [
-            'ability' => $ability_id,
-            'success' => true,
-            'result'  => $result,
-        ];
+        $response = $this->build_ability_response($ability_id, $result);
 
         /**
          * Filter the instructions injected into the AI context after an ability executes.
@@ -702,6 +698,51 @@ class Executor {
         }
 
         return $response;
+    }
+
+    private function build_ability_response(string $ability_id, $result): array {
+        $response = [
+            'ability' => $ability_id,
+            'success' => true,
+        ];
+
+        if (is_object($result)) {
+            if ($result instanceof \JsonSerializable) {
+                $json_value = $result->jsonSerialize();
+                if (is_array($json_value)) {
+                    $result = $json_value;
+                }
+            } else {
+                $result = get_object_vars($result);
+            }
+        }
+
+        if (!is_array($result) || $this->is_list_array($result)) {
+            $response['result'] = $result;
+            return $response;
+        }
+
+        foreach ($result as $key => $value) {
+            $key = (string) $key;
+            if ($key === '' || array_key_exists($key, $response)) {
+                continue;
+            }
+            $response[$key] = $value;
+        }
+
+        return $response;
+    }
+
+    private function is_list_array(array $value): bool {
+        $index = 0;
+        foreach ($value as $key => $_) {
+            if ($key !== $index) {
+                return false;
+            }
+            $index++;
+        }
+
+        return true;
     }
 
     // ===== SKILLS OPERATIONS =====

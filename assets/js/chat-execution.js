@@ -1614,10 +1614,17 @@
             offset = Number.isFinite(offset) && offset > 0 ? offset : 0;
 
             var maxItems = parseInt(args.max_items, 10);
-            maxItems = Number.isFinite(maxItems) && maxItems > 0 ? Math.min(maxItems, 100) : 20;
+            maxItems = Number.isFinite(maxItems) && maxItems > 0 ? Math.min(maxItems, 100) : 5;
             offset = Math.min(offset, value.length);
 
-            var items = value.slice(offset, offset + maxItems);
+            var itemLimits = this.getToolResultCompactLimits
+                ? this.getToolResultCompactLimits('aggressive')
+                : null;
+            var items = value.slice(offset, offset + maxItems).map(function(item) {
+                return itemLimits && this.compactProviderValue
+                    ? this.compactProviderValue(item, itemLimits, 0)
+                    : item;
+            }, this);
             var nextOffset = offset + items.length;
             var hasMore = nextOffset < value.length;
             var instruction = hasMore
@@ -1702,7 +1709,7 @@
                         tool_use_id: toolUseId,
                         path: path,
                         available: this.summarizeCachedToolResultValue(record.result, 0),
-                        instruction: 'Use one of the available keys as the path. If the cached value is an ability wrapper, try paths under result; if it is already unwrapped, omit the result. prefix.'
+                        instruction: 'Use one of the available keys as the path. Object-like ability results are usually exposed at the top level; scalar or list ability results are under result.'
                     },
                     success: false
                 };

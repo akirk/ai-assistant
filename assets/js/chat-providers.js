@@ -939,10 +939,17 @@
                 type: 'object',
                 keys: Object.keys(value).slice(0, 40)
             };
+            var aggressiveLimits = this.getToolResultCompactLimits('aggressive');
 
-            ['path', 'size', 'modified', 'count', 'error', 'message', 'url', 'title'].forEach(function(key) {
+            [
+                'tool_use_id', 'tool', 'path', 'requested_path', 'path_corrected',
+                'type', 'length', 'item_offset', 'item_count', 'truncated',
+                'next_item_offset', 'offset', 'returned_chars', 'next_offset',
+                'size', 'modified', 'count', 'error', 'message', 'url', 'title',
+                'ability', 'success', 'instruction'
+            ].forEach(function(key) {
                 if (Object.prototype.hasOwnProperty.call(value, key)) {
-                    summary[key] = this.compactProviderValue(value[key], this.getToolResultCompactLimits('aggressive'), 0);
+                    summary[key] = this.compactProviderValue(value[key], aggressiveLimits, 0);
                 }
             }, this);
 
@@ -950,6 +957,65 @@
                 summary.content_preview = this.truncateProviderString(value.content, 6000);
                 summary.content_original_chars = value.content.length;
             }
+
+            if (Array.isArray(value.items)) {
+                summary.items_sample = value.items.slice(0, 3).map(function(item) {
+                    return this.summarizeProviderValueShape(item, 0);
+                }, this);
+            }
+
+            if (
+                value.result !== undefined &&
+                Object.prototype.hasOwnProperty.call(value, 'ability') &&
+                Object.prototype.hasOwnProperty.call(value, 'success')
+            ) {
+                summary.result_summary = this.summarizeProviderValueShape(value.result, 0);
+                summary.instruction = summary.instruction || 'Inspect a narrow child path for the returned data. Object-like ability results are usually exposed at the top level; scalar or list ability results are under result.';
+            }
+
+            return summary;
+        },
+
+        summarizeProviderValueShape: function(value, depth) {
+            depth = depth || 0;
+
+            if (value === null || value === undefined || typeof value !== 'object') {
+                if (typeof value === 'string') {
+                    return {
+                        type: 'string',
+                        chars: value.length,
+                        preview: this.truncateProviderString(value, 500)
+                    };
+                }
+
+                return value;
+            }
+
+            if (Array.isArray(value)) {
+                return {
+                    type: 'array',
+                    length: value.length,
+                    sample: depth >= 1 ? undefined : value.slice(0, 3).map(function(item) {
+                        return this.summarizeProviderValueShape(item, depth + 1);
+                    }, this)
+                };
+            }
+
+            var keys = Object.keys(value);
+            var summary = {
+                type: 'object',
+                keys: keys.slice(0, 30)
+            };
+
+            if (depth >= 2) {
+                return summary;
+            }
+
+            var fields = {};
+            keys.slice(0, 12).forEach(function(key) {
+                fields[key] = this.summarizeProviderValueShape(value[key], depth + 1);
+            }, this);
+            summary.fields = fields;
 
             return summary;
         },
