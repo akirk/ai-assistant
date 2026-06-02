@@ -1787,6 +1787,22 @@
             }, metadata));
         },
 
+        wasToolResultTruncatedForLlm: function(output) {
+            if (!output || typeof output !== 'object') {
+                return false;
+            }
+
+            if (output.returned_to_llm_truncated === true) {
+                return true;
+            }
+
+            return !!(
+                output.inspect_tool_result &&
+                this.isCompactedToolResultValue &&
+                this.isCompactedToolResultValue(output, 0)
+            );
+        },
+
         renderToolResultOutput: function($card, toolName, output, input) {
             if (output === undefined || output === null) return;
             if (toolName === 'navigate') return;
@@ -1804,11 +1820,12 @@
             var outputText = display.text;
             var lineCount = (outputText.match(/\n/g) || []).length + 1;
             var autoExpand = lineCount <= 10 && toolName !== 'db_query';
+            var summarySuffix = this.wasToolResultTruncatedForLlm(output) ? ', returned truncated to LLM' : '';
             var $output = $('<div class="ai-tool-output">' +
                 '<div class="ai-action-preview' + (autoExpand ? ' expanded' : '') + '" data-language="' + this.escapeHtml(display.language || '') + '">' +
                 '<button type="button" class="ai-action-preview-toggle">' +
                 '<span class="ai-action-preview-icon" aria-hidden="true">&gt;</span>' +
-                this.escapeHtml(display.label || 'Result') + ' (' + lineCount + ' line' + (lineCount !== 1 ? 's' : '') + ')' +
+                this.escapeHtml(display.label || 'Result') + ' (' + lineCount + ' line' + (lineCount !== 1 ? 's' : '') + summarySuffix + ')' +
                 '</button>' +
                 '<div class="ai-action-preview-content"><pre class="ai-code-preview"></pre></div>' +
                 '</div></div>');
