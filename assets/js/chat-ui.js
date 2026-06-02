@@ -1830,12 +1830,12 @@
             var outputText = display.text;
             var lineCount = (outputText.match(/\n/g) || []).length + 1;
             var autoExpand = lineCount <= 10 && toolName !== 'db_query';
-            var summarySuffix = this.wasToolResultTruncatedForLlm(output) ? ', returned truncated to LLM' : '';
+            var summaryLabel = this.getToolResultSummaryLabel(lineCount, outputText, this.wasToolResultTruncatedForLlm(output));
             var $output = $('<div class="ai-tool-output">' +
                 '<div class="ai-action-preview' + (autoExpand ? ' expanded' : '') + '" data-language="' + this.escapeHtml(display.language || '') + '">' +
                 '<button type="button" class="ai-action-preview-toggle">' +
                 '<span class="ai-action-preview-icon" aria-hidden="true">&gt;</span>' +
-                this.escapeHtml(display.label || 'Result') + ' (' + lineCount + ' line' + (lineCount !== 1 ? 's' : '') + summarySuffix + ')' +
+                this.escapeHtml(display.label || 'Result') + ' (' + this.escapeHtml(summaryLabel) + ')' +
                 '</button>' +
                 '<div class="ai-action-preview-content"><pre class="ai-code-preview"></pre></div>' +
                 '</div></div>');
@@ -2952,6 +2952,29 @@
             if (bytes < 1024) return bytes + ' B';
             if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        },
+
+        getTextByteLength: function(text) {
+            text = String(text || '');
+            if (typeof TextEncoder !== 'undefined') {
+                return new TextEncoder().encode(text).length;
+            }
+            try {
+                return unescape(encodeURIComponent(text)).length;
+            } catch (e) {
+                return text.length;
+            }
+        },
+
+        getToolResultSummaryLabel: function(lineCount, text, returnedTruncated) {
+            var summaryParts = [
+                lineCount + ' line' + (lineCount !== 1 ? 's' : ''),
+                this.formatBytes(this.getTextByteLength(text))
+            ];
+            if (returnedTruncated) {
+                summaryParts.push('returned truncated to LLM');
+            }
+            return summaryParts.join(', ');
         },
 
         getCodeLanguageClass: function(language) {

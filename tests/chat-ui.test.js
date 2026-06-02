@@ -1348,6 +1348,19 @@ describe('REST API tool card descriptions', function() {
 });
 
 describe('tool result display', function() {
+    it('includes compact byte size in result preview summaries', function() {
+        const assistant = loadUiMixin();
+
+        assert.strictEqual(
+            assistant.getToolResultSummaryLabel(2559, 'x'.repeat(4096), false),
+            '2559 lines, 4.0 KB'
+        );
+        assert.strictEqual(
+            assistant.getToolResultSummaryLabel(1, 'ok', true),
+            '1 line, 2 B, returned truncated to LLM'
+        );
+    });
+
     it('renders read_file results as file content with the file language', function() {
         const assistant = loadUiMixin();
         assistant.getLanguageFromPath = function(path) {
