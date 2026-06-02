@@ -186,7 +186,7 @@ var aiAssistantToolsMixin = (function() {
                         type: 'object',
                         properties: {
                             tool_use_id: { type: 'string', description: 'Previous tool call/result ID' },
-                            path: { type: 'string', description: 'Dot path inside the cached result, e.g. result.sessions.' },
+                            path: { type: 'string', description: 'Dot path inside the cached result, e.g. sessions. For scalar or list ability results, use result or a path below result.' },
                             search: { type: 'string', description: 'Exact text to locate inside a string value.' },
                             before_lines: { type: 'number', description: 'Lines to include before the search match.' },
                             after_lines: { type: 'number', description: 'Lines to include after the search match.' },

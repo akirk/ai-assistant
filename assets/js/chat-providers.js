@@ -923,6 +923,10 @@
                 return value;
             }
 
+            if (this.isInspectToolResultValue(value)) {
+                return this.createInspectToolResultSummary(value);
+            }
+
             if (Array.isArray(value)) {
                 return {
                     _truncated: true,
@@ -939,10 +943,17 @@
                 type: 'object',
                 keys: Object.keys(value).slice(0, 40)
             };
+            var aggressiveLimits = this.getToolResultCompactLimits('aggressive');
 
-            ['path', 'size', 'modified', 'count', 'error', 'message', 'url', 'title'].forEach(function(key) {
+            [
+                'tool_use_id', 'tool', 'path', 'requested_path', 'path_corrected',
+                'type', 'length', 'item_offset', 'item_count', 'truncated',
+                'next_item_offset', 'offset', 'returned_chars', 'next_offset',
+                'size', 'modified', 'count', 'error', 'message', 'url', 'title',
+                'ability', 'success', 'instruction'
+            ].forEach(function(key) {
                 if (Object.prototype.hasOwnProperty.call(value, key)) {
-                    summary[key] = this.compactProviderValue(value[key], this.getToolResultCompactLimits('aggressive'), 0);
+                    summary[key] = this.compactProviderValue(value[key], aggressiveLimits, 0);
                 }
             }, this);
 
@@ -950,6 +961,171 @@
                 summary.content_preview = this.truncateProviderString(value.content, 6000);
                 summary.content_original_chars = value.content.length;
             }
+
+            if (Array.isArray(value.items)) {
+                summary.items_sample = value.items.slice(0, 3).map(function(item) {
+                    return this.summarizeProviderValueShape(item, 2);
+                }, this);
+            }
+
+            if (
+                value.result !== undefined &&
+                Object.prototype.hasOwnProperty.call(value, 'ability') &&
+                Object.prototype.hasOwnProperty.call(value, 'success')
+            ) {
+                summary.result_summary = this.summarizeProviderValueShape(value.result, 0);
+                summary.instruction = summary.instruction || 'Inspect a narrow child path for the returned data. Object-like ability results are usually exposed at the top level; scalar or list ability results are under result.';
+            }
+
+            return summary;
+        },
+
+        isInspectToolResultValue: function(value) {
+            return !!(
+                value &&
+                typeof value === 'object' &&
+                !Array.isArray(value) &&
+                value.tool_use_id &&
+                Object.prototype.hasOwnProperty.call(value, 'path') &&
+                Object.prototype.hasOwnProperty.call(value, 'type') &&
+                (
+                    Object.prototype.hasOwnProperty.call(value, 'value') ||
+                    Object.prototype.hasOwnProperty.call(value, 'items') ||
+                    Object.prototype.hasOwnProperty.call(value, 'content')
+                )
+            );
+        },
+
+        joinInspectToolResultPath: function(basePath, key) {
+            basePath = String(basePath || '');
+            key = String(key || '');
+
+            if (!basePath) {
+                return key;
+            }
+
+            if (!key) {
+                return basePath;
+            }
+
+            return basePath + '.' + key;
+        },
+
+        createInspectToolResultSummary: function(value) {
+            var path = String(value.path || '');
+            var summary = {
+                _truncated: true,
+                type: value.type || this.getCachedToolResultType?.(value.value) || 'object',
+                tool_use_id: String(value.tool_use_id),
+                path: path,
+                instruction: 'This inspect_tool_result response was compacted. Use next_inspections to drill into the original cached result, not into this inspect response wrapper.'
+            };
+
+            if (value.requested_path !== undefined) {
+                summary.requested_path = value.requested_path;
+            }
+            if (value.path_corrected !== undefined) {
+                summary.path_corrected = value.path_corrected;
+            }
+
+            if (Array.isArray(value.items)) {
+                summary.length = value.length;
+                summary.item_offset = value.item_offset || 0;
+                summary.item_count = value.item_count;
+                summary.items_sample = value.items.slice(0, 3).map(function(item) {
+                    return this.summarizeProviderValueShape(item, 2);
+                }, this);
+
+                if (value.next_item_offset !== undefined && value.next_item_offset !== null) {
+                    summary.next_inspections = [{
+                        tool_use_id: summary.tool_use_id,
+                        path: path,
+                        item_offset: value.next_item_offset
+                    }];
+                }
+
+                return summary;
+            }
+
+            if (typeof value.content === 'string') {
+                summary.chars = value.chars;
+                summary.offset = value.offset || 0;
+                summary.content_preview = this.truncateProviderString(value.content, 1000);
+
+                if (value.next_offset !== undefined && value.next_offset !== null) {
+                    summary.next_inspections = [{
+                        tool_use_id: summary.tool_use_id,
+                        path: path,
+                        offset: value.next_offset
+                    }];
+                }
+
+                return summary;
+            }
+
+            if (value.value && typeof value.value === 'object' && !Array.isArray(value.value)) {
+                var childKeys = Object.keys(value.value).slice(0, 40);
+                summary.available_paths = childKeys.map(function(key) {
+                    return this.joinInspectToolResultPath(path, key);
+                }, this);
+                summary.child_shapes = {};
+                childKeys.slice(0, 12).forEach(function(key) {
+                    summary.child_shapes[key] = this.summarizeProviderValueShape(value.value[key], 1);
+                }, this);
+                summary.next_inspections = summary.available_paths.slice(0, 12).map(function(childPath) {
+                    return {
+                        tool_use_id: summary.tool_use_id,
+                        path: childPath
+                    };
+                });
+
+                return summary;
+            }
+
+            summary.value_shape = this.summarizeProviderValueShape(value.value, 0);
+            return summary;
+        },
+
+        summarizeProviderValueShape: function(value, depth) {
+            depth = depth || 0;
+
+            if (value === null || value === undefined || typeof value !== 'object') {
+                if (typeof value === 'string') {
+                    return {
+                        type: 'string',
+                        chars: value.length,
+                        preview: this.truncateProviderString(value, 500)
+                    };
+                }
+
+                return value;
+            }
+
+            if (Array.isArray(value)) {
+                return {
+                    type: 'array',
+                    length: value.length,
+                    sample: depth >= 1 ? undefined : value.slice(0, 3).map(function(item) {
+                        return this.summarizeProviderValueShape(item, depth + 1);
+                    }, this)
+                };
+            }
+
+            var keys = Object.keys(value);
+            var summary = {
+                type: 'object',
+                keys: keys.slice(0, 30)
+            };
+
+            if (depth >= 2) {
+                return summary;
+            }
+
+            var fields = {};
+            keys.slice(0, 12).forEach(function(key) {
+                fields[key] = this.summarizeProviderValueShape(value[key], depth + 1);
+            }, this);
+            summary.fields = fields;
 
             return summary;
         },
@@ -959,10 +1135,38 @@
                 return value;
             }
 
-            var hint = {
-                tool_use_id: String(toolUseId),
-                instruction: 'This result was compacted before it was returned to the LLM. You can call inspect_tool_result multiple times with this same tool_use_id. Use a narrow path plus search, offset/next_offset, or item_offset/next_item_offset to inspect additional slices. Do not rerun the original broad tool call just to inspect more of this cached result.'
-            };
+            var hintToolUseId = String(toolUseId);
+            var hint = null;
+
+            if (
+                !Array.isArray(value) &&
+                value.tool_use_id &&
+                Object.prototype.hasOwnProperty.call(value, 'path') &&
+                Object.prototype.hasOwnProperty.call(value, 'type')
+            ) {
+                hintToolUseId = String(value.tool_use_id);
+                hint = {
+                    tool_use_id: hintToolUseId,
+                    path: String(value.path || ''),
+                    instruction: 'This inspect_tool_result response was compacted, but it inspected a cached original result. Continue inspecting that original result with this same tool_use_id and path; use the provided offset fields to request the next slice.'
+                };
+
+                if (value.next_item_offset !== undefined && value.next_item_offset !== null) {
+                    hint.item_offset = value.next_item_offset;
+                    hint.instruction = 'This inspect_tool_result response was compacted, but it inspected a cached original result. Call inspect_tool_result again with this tool_use_id, path, and item_offset to continue the array slice.';
+                } else if (value.next_offset !== undefined && value.next_offset !== null) {
+                    hint.offset = value.next_offset;
+                    hint.instruction = 'This inspect_tool_result response was compacted, but it inspected a cached original result. Call inspect_tool_result again with this tool_use_id, path, and offset to continue the text/JSON slice.';
+                }
+            }
+
+            if (!hint) {
+                hint = {
+                    tool_use_id: hintToolUseId,
+                    instruction: 'This result was compacted before it was returned to the LLM. You can call inspect_tool_result multiple times with this same tool_use_id. Use a narrow path plus search, offset/next_offset, or item_offset/next_item_offset to inspect additional slices. Do not rerun the original broad tool call just to inspect more of this cached result.'
+                };
+            }
+
             var metadata = {
                 returned_to_llm_truncated: true,
                 truncation_reason: 'Tool result exceeded the provider-safe context budget and was compacted before being returned to the LLM.'

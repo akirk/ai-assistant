@@ -601,6 +601,99 @@ describe('provider request message sanitization', function() {
         assert.match(parsed.inspect_tool_result.instruction, /Do not rerun the original broad tool call/);
     });
 
+    it('keeps item samples when an inspect_tool_result response is itself compacted', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 4096,
+                maxToolResultStringChars: 1024,
+                maxToolResultArrayItems: 40
+            }
+        });
+
+        const content = assistant.stringifyToolResultForProvider({
+            tool_use_id: 'toolu_schedule',
+            tool: 'inspect_tool_result',
+            path: 'sessions',
+            type: 'array',
+            length: 30,
+            item_offset: 0,
+            item_count: 20,
+            items: Array.from({ length: 20 }, function(_, index) {
+                return {
+                    id: index + 1,
+                    title: 'Session ' + (index + 1),
+                    speaker: {
+                        name: 'Speaker ' + (index + 1),
+                        bio: 'Bio ' + 'x'.repeat(1000)
+                    },
+                    description: 'Description ' + 'y'.repeat(2000)
+                };
+            }),
+            truncated: true,
+            next_item_offset: 20,
+            instruction: 'More array items are available.'
+        }, 'anthropic', undefined, { toolUseId: 'inspect_sessions' });
+        const parsed = JSON.parse(content);
+
+        assert.strictEqual(parsed._truncated, true);
+        assert.strictEqual(parsed.path, 'sessions');
+        assert.strictEqual(parsed.item_count, 20);
+        assert.ok(Array.isArray(parsed.items_sample));
+        assert.strictEqual(parsed.items_sample.length, 3);
+        assert.deepEqual(parsed.items_sample[0].keys, ['id', 'title', 'speaker', 'description']);
+        assert.deepEqual(parsed.next_inspections, [{
+            tool_use_id: 'toolu_schedule',
+            path: 'sessions',
+            item_offset: 20
+        }]);
+        assert.match(parsed.instruction, /drill into the original cached result/);
+    });
+
+    it('suggests child inspect paths when a compacted inspect_tool_result exposes another object layer', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 4096,
+                maxToolResultStringChars: 1024,
+                maxToolResultArrayItems: 40
+            }
+        });
+
+        const content = assistant.stringifyToolResultForProvider({
+            tool_use_id: 'toolu_schedule',
+            tool: 'ability',
+            path: 'result',
+            type: 'object',
+            value: {
+                sessions: Array.from({ length: 50 }, function(_, index) {
+                    return {
+                        id: index + 1,
+                        title: 'Session ' + (index + 1),
+                        description: 'Description ' + 'x'.repeat(2000)
+                    };
+                }),
+                tracks: Array.from({ length: 20 }, function(_, index) {
+                    return {
+                        id: index + 1,
+                        name: 'Track ' + (index + 1)
+                    };
+                })
+            }
+        }, 'anthropic', undefined, { toolUseId: 'inspect_result' });
+        const parsed = JSON.parse(content);
+
+        assert.strictEqual(parsed._truncated, true);
+        assert.strictEqual(parsed.tool_use_id, 'toolu_schedule');
+        assert.strictEqual(parsed.path, 'result');
+        assert.deepEqual(parsed.available_paths, ['result.sessions', 'result.tracks']);
+        assert.deepEqual(parsed.next_inspections, [
+            { tool_use_id: 'toolu_schedule', path: 'result.sessions' },
+            { tool_use_id: 'toolu_schedule', path: 'result.tracks' }
+        ]);
+        assert.strictEqual(parsed.child_shapes.sessions.type, 'array');
+        assert.strictEqual(parsed.child_shapes.sessions.length, 50);
+        assert.match(parsed.instruction, /not into this inspect response wrapper/);
+    });
+
     it('omits duplicate large strings before truncating tool results', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
