@@ -1416,12 +1416,35 @@ describe('tool result display', function() {
             path: 'result.article.content',
             search: 'Gemeindebezirke',
             match_found: true,
+            content_format: 'line_excerpt',
             content: '<h2>Gemeindebezirke</h2>\n<p>Bezirk 1</p>'
         });
 
         assert.strictEqual(display.text, '<h2>Gemeindebezirke</h2>\n<p>Bezirk 1</p>');
-        assert.strictEqual(display.label, 'Inspected match');
+        assert.strictEqual(display.label, 'Inspected excerpt');
+        assert.strictEqual(display.language, null);
         assert.doesNotMatch(display.text, /toolu_secret_123/);
+    });
+
+    it('renders searched JSON matches as structured items', function() {
+        const assistant = loadUiMixin();
+
+        const display = assistant.getToolResultDisplay('inspect_tool_result', {
+            tool: 'ability',
+            path: 'sessions',
+            search: '2026-06-06',
+            match_found: true,
+            item_index: 0,
+            item: {
+                title: 'Registration & Networking',
+                start_local: '2026-06-06 8:00 AM CEST',
+                track_names: ['Track 1']
+            }
+        });
+
+        assert.strictEqual(display.label, 'Inspected item');
+        assert.strictEqual(display.language, 'json');
+        assert.match(display.text, /Registration & Networking/);
     });
 
     it('renders compacted inspected result previews instead of wrapper instructions', function() {

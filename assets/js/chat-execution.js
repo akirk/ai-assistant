@@ -1571,7 +1571,6 @@
                         path: path,
                         type: 'string',
                         chars: text.length,
-                        bytes: this.getUtf8ByteLength(text),
                         search: search,
                         occurrence: occurrence,
                         match_found: false,
@@ -1595,16 +1594,16 @@
                     path: path,
                     type: 'string',
                     chars: text.length,
-                    bytes: this.getUtf8ByteLength(text),
                     search: search,
                     occurrence: occurrence,
                     match_found: true,
                     match_line: matchIndex + 1,
                     line_start: start + 1,
                     line_end: end + 1,
+                    content_format: 'line_excerpt',
+                    content_note: 'The content field is a line excerpt from the cached value and may not be valid standalone JSON.',
                     content: content,
                     returned_chars: content.length,
-                    returned_bytes: this.getUtf8ByteLength(content),
                     truncated: truncated,
                     matches_seen: found,
                     more_matches_available: hasMoreMatches,
@@ -1619,8 +1618,8 @@
                         max_length: maxLength
                     } : null,
                     instruction: hasMoreMatches
-                        ? 'Another search match is available. Call inspect_tool_result again with the same tool_use_id, path, and search, and set occurrence to next_occurrence. Do not rerun the original broad tool call.'
-                        : 'No later search match was found in this cached result path.'
+                        ? 'The content field is a line excerpt and may not be valid standalone JSON. Another search match is available. Call inspect_tool_result again with the same tool_use_id, path, and search, and set occurrence to next_occurrence. Do not rerun the original broad tool call.'
+                        : 'The content field is a line excerpt and may not be valid standalone JSON. No later search match was found in this cached result path.'
                 };
             }
 
@@ -1635,11 +1634,9 @@
                 path: path,
                 type: 'string',
                 chars: text.length,
-                bytes: this.getUtf8ByteLength(text),
                 offset: offset,
                 content: chunk,
                 returned_chars: chunk.length,
-                returned_bytes: this.getUtf8ByteLength(chunk),
                 truncated: chunkTruncated,
                 next_offset: chunkTruncated ? nextOffset : null
             };
@@ -1685,7 +1682,119 @@
             };
         },
 
+        inspectCachedToolResultJsonSearch: function(record, args, value, path) {
+            var search = String(args.search || '');
+            var occurrence = parseInt(args.occurrence, 10);
+            occurrence = Number.isFinite(occurrence) && occurrence > 0 ? occurrence : 1;
+            var found = 0;
+            var hasMoreMatches = false;
+            var match = null;
+            var itemLimits = this.getToolResultCompactLimits
+                ? this.getToolResultCompactLimits('aggressive')
+                : null;
+            var compactValue = function(item) {
+                return itemLimits && this.compactProviderValue
+                    ? this.compactProviderValue(item, itemLimits, 0)
+                    : item;
+            }.bind(this);
+            var jsonContains = function(item) {
+                try {
+                    return JSON.stringify(item, null, 2).indexOf(search) !== -1;
+                } catch (e) {
+                    return String(item).indexOf(search) !== -1;
+                }
+            };
+            var noteMatch = function(candidate) {
+                found++;
+                if (found === occurrence) {
+                    match = candidate;
+                } else if (found > occurrence) {
+                    hasMoreMatches = true;
+                    return true;
+                }
+                return false;
+            };
+
+            if (Array.isArray(value)) {
+                for (var i = 0; i < value.length; i++) {
+                    if (!jsonContains(value[i])) {
+                        continue;
+                    }
+                    if (noteMatch({
+                        item_index: i,
+                        item: compactValue(value[i])
+                    })) {
+                        break;
+                    }
+                }
+            } else if (value && typeof value === 'object') {
+                var keys = Object.keys(value);
+                for (var k = 0; k < keys.length; k++) {
+                    var key = keys[k];
+                    if (!jsonContains(value[key])) {
+                        continue;
+                    }
+                    if (noteMatch({
+                        matched_path: path ? path + '.' + key : key,
+                        value: compactValue(value[key])
+                    })) {
+                        break;
+                    }
+                }
+            }
+
+            if (!match) {
+                return {
+                    tool_use_id: record.id,
+                    tool: record.name,
+                    path: path,
+                    type: this.getCachedToolResultType(value),
+                    length: Array.isArray(value) ? value.length : undefined,
+                    search: search,
+                    occurrence: occurrence,
+                    match_found: false,
+                    matches_seen: found,
+                    instruction: 'Search text was not found in the cached JSON value at this path.'
+                };
+            }
+
+            var returnedValue = match.item !== undefined ? match.item : match.value;
+            var returnedJson = '';
+            try {
+                returnedJson = JSON.stringify(returnedValue, null, 2);
+            } catch (e) {
+                returnedJson = String(returnedValue);
+            }
+
+            return $.extend({
+                tool_use_id: record.id,
+                tool: record.name,
+                path: path,
+                type: this.getCachedToolResultType(value),
+                length: Array.isArray(value) ? value.length : undefined,
+                search: search,
+                occurrence: occurrence,
+                match_found: true,
+                returned_chars: returnedJson.length,
+                matches_seen: found,
+                more_matches_available: hasMoreMatches,
+                next_occurrence: hasMoreMatches ? occurrence + 1 : null,
+                next_inspection: hasMoreMatches ? {
+                    tool_use_id: record.id,
+                    path: path,
+                    search: search,
+                    occurrence: occurrence + 1
+                } : null,
+                instruction: hasMoreMatches
+                    ? 'A later JSON match is available. Call inspect_tool_result again with the same tool_use_id, path, and search, and set occurrence to next_occurrence. Do not rerun the original broad tool call.'
+                    : 'No later JSON match was found in this cached result path.'
+            }, match);
+        },
+
         inspectCachedToolResultJson: function(record, args, value, path) {
+            if (args.search) {
+                return this.inspectCachedToolResultJsonSearch(record, args, value, path);
+            }
             var nextArgs = $.extend({}, args, { path: path });
             var result = this.inspectCachedToolResultString(
                 record,

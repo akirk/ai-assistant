@@ -234,7 +234,7 @@ describe('inspect_tool_result', function() {
         assert.doesNotMatch(inspected.result.content, /History/);
     });
 
-    it('reports byte sizes and next search occurrence for cached result searches', function() {
+    it('returns a structured array item and next occurrence for cached JSON searches', function() {
         const assistant = createAssistant();
 
         assistant.rememberToolResultForInspection({
@@ -254,25 +254,25 @@ describe('inspect_tool_result', function() {
             arguments: {
                 tool_use_id: 'toolu_schedule',
                 path: 'sessions',
-                search: 'Playground',
-                after_lines: 2
+                search: 'Playground'
             }
         });
 
         assert.strictEqual(inspected.success, true);
         assert.strictEqual(inspected.result.match_found, true);
-        assert.ok(inspected.result.bytes > inspected.result.chars);
-        assert.ok(inspected.result.returned_bytes >= inspected.result.returned_chars);
+        assert.strictEqual(inspected.result.type, 'array');
+        assert.strictEqual(inspected.result.length, 2);
+        assert.strictEqual(inspected.result.item_index, 0);
+        assert.deepEqual(inspected.result.item, { title: 'Playground overview', description: 'First match ä' });
+        assert.ok(inspected.result.returned_chars > 0);
+        assert.strictEqual(inspected.result.returned_bytes, undefined);
         assert.strictEqual(inspected.result.more_matches_available, true);
         assert.strictEqual(inspected.result.next_occurrence, 2);
         assert.deepEqual(JSON.parse(JSON.stringify(inspected.result.next_inspection)), {
             tool_use_id: 'toolu_schedule',
             path: 'sessions',
             search: 'Playground',
-            occurrence: 2,
-            before_lines: 0,
-            after_lines: 2,
-            max_length: 12000
+            occurrence: 2
         });
         assert.match(inspected.result.instruction, /Do not rerun the original broad tool call/);
     });

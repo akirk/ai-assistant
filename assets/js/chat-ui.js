@@ -1406,10 +1406,11 @@
             if (toolName === 'inspect_tool_result') {
                 if (typeof output.content === 'string') {
                     var inspectedText = output.content || output.instruction || 'No content returned.';
+                    var isLineExcerpt = output.content_format === 'line_excerpt' || (output.search && output.line_start !== undefined && output.line_end !== undefined);
                     return {
                         text: inspectedText,
-                        language: output.content && this.inferToolResultLanguage ? this.inferToolResultLanguage(toolName, output, inspectedText) : null,
-                        label: output.match_found === false ? 'Inspection result' : (output.search ? 'Inspected match' : 'Inspected content')
+                        language: isLineExcerpt ? null : (output.content && this.inferToolResultLanguage ? this.inferToolResultLanguage(toolName, output, inspectedText) : null),
+                        label: output.match_found === false ? 'Inspection result' : (isLineExcerpt ? 'Inspected excerpt' : (output.search ? 'Inspected match' : 'Inspected content'))
                     };
                 }
                 if (typeof output.content_preview === 'string') {
@@ -1417,6 +1418,13 @@
                         text: output.content_preview,
                         language: this.inferToolResultLanguage ? this.inferToolResultLanguage(toolName, output, output.content_preview) : null,
                         label: output.search ? 'Inspected match preview' : 'Inspected preview'
+                    };
+                }
+                if (output.item !== undefined) {
+                    return {
+                        text: typeof output.item === 'string' ? output.item : JSON.stringify(output.item, null, 2),
+                        language: typeof output.item === 'string' ? null : 'json',
+                        label: 'Inspected item'
                     };
                 }
                 if (output.value !== undefined) {
