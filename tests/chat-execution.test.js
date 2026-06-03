@@ -156,6 +156,40 @@ describe('inspect_tool_result', function() {
         assert.doesNotMatch(description, /toolu_secret_123/);
     });
 
+    it('describes inspect result limits for repeated array windows', function() {
+        const assistant = loadExecutionMixin();
+
+        const description = assistant.getActionDescription('inspect_tool_result', {
+            tool_use_id: 'toolu_secret_123',
+            path: 'candidates',
+            item_offset: 20,
+            max_items: 10
+        });
+
+        assert.strictEqual(
+            description,
+            'Inspect cached result: candidates (items 20-29)'
+        );
+        assert.doesNotMatch(description, /toolu_secret_123/);
+    });
+
+    it('describes inspect search occurrence and line windows', function() {
+        const assistant = loadExecutionMixin();
+
+        const description = assistant.getActionDescription('inspect_tool_result', {
+            path: 'sessions',
+            search: 'Playground',
+            occurrence: 3,
+            before_lines: 2,
+            after_lines: 4
+        });
+
+        assert.strictEqual(
+            description,
+            'Inspect cached result: sessions around "Playground" (match 3, 2 before/4 after)'
+        );
+    });
+
     it('returns a targeted search window from a cached tool result string path', function() {
         const assistant = createAssistant();
         const article = [

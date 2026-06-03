@@ -3462,10 +3462,38 @@
                     if (pathMatch) {
                         inspectDesc += ': ' + pathMatch[1];
                     }
+                    var inspectLimits = [];
                     match = partialJson.match(/"search"\s*:\s*"([^"]+)"/);
                     if (match) {
                         var inspectSearch = match[1].substring(0, 40);
                         inspectDesc += ' around "' + inspectSearch + (match[1].length > 40 ? '...' : '') + '"';
+                        var occurrenceMatch = partialJson.match(/"occurrence"\s*:\s*(\d+)/);
+                        if (occurrenceMatch) {
+                            inspectLimits.push('match ' + occurrenceMatch[1]);
+                        }
+                        var beforeMatch = partialJson.match(/"before_lines"\s*:\s*(\d+)/);
+                        var afterMatch = partialJson.match(/"after_lines"\s*:\s*(\d+)/);
+                        if (beforeMatch || afterMatch) {
+                            inspectLimits.push((beforeMatch ? beforeMatch[1] : '0') + ' before/' + (afterMatch ? afterMatch[1] : '0') + ' after');
+                        }
+                    }
+                    var itemOffsetMatch = partialJson.match(/"item_offset"\s*:\s*(\d+)/);
+                    var maxItemsMatch = partialJson.match(/"max_items"\s*:\s*(\d+)/);
+                    if (itemOffsetMatch || maxItemsMatch) {
+                        var itemOffset = itemOffsetMatch ? parseInt(itemOffsetMatch[1], 10) : 0;
+                        var maxItems = maxItemsMatch ? parseInt(maxItemsMatch[1], 10) : 0;
+                        inspectLimits.push(maxItems > 0 ? 'items ' + itemOffset + '-' + (itemOffset + maxItems - 1) : 'items from ' + itemOffset);
+                    } else {
+                        var offsetMatch = partialJson.match(/"offset"\s*:\s*(\d+)/);
+                        var maxLengthMatch = partialJson.match(/"max_length"\s*:\s*(\d+)/);
+                        if (offsetMatch || maxLengthMatch) {
+                            var textOffset = offsetMatch ? parseInt(offsetMatch[1], 10) : 0;
+                            var maxLength = maxLengthMatch ? parseInt(maxLengthMatch[1], 10) : 0;
+                            inspectLimits.push(maxLength > 0 ? 'chars ' + textOffset + '-' + (textOffset + maxLength - 1) : 'offset ' + textOffset);
+                        }
+                    }
+                    if (inspectLimits.length) {
+                        inspectDesc += ' (' + inspectLimits.join(', ') + ')';
                     }
                     return inspectDesc;
                 case 'ability':

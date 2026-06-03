@@ -3229,11 +3229,31 @@
                     if (args.path) {
                         inspectDescription += ': ' + args.path;
                     }
+                    var inspectLimits = [];
                     if (args.search) {
                         var inspectSearch = String(args.search);
                         inspectDescription += ' around "' + inspectSearch.substring(0, 40) + (inspectSearch.length > 40 ? '...' : '') + '"';
+                        if (args.occurrence !== undefined) {
+                            inspectLimits.push('match ' + (parseInt(args.occurrence, 10) || 1));
+                        }
+                        if (args.before_lines !== undefined || args.after_lines !== undefined) {
+                            inspectLimits.push(
+                                (parseInt(args.before_lines, 10) || 0) + ' before/' +
+                                (parseInt(args.after_lines, 10) || 0) + ' after'
+                            );
+                        }
+                    }
+                    if (args.item_offset !== undefined || args.max_items !== undefined) {
+                        var itemOffset = parseInt(args.item_offset, 10) || 0;
+                        var maxItems = parseInt(args.max_items, 10) || 0;
+                        inspectLimits.push(maxItems > 0 ? 'items ' + itemOffset + '-' + (itemOffset + maxItems - 1) : 'items from ' + itemOffset);
                     } else if (args.offset !== undefined || args.max_length !== undefined) {
-                        inspectDescription += ' at offset ' + (parseInt(args.offset, 10) || 0);
+                        var textOffset = parseInt(args.offset, 10) || 0;
+                        var maxLength = parseInt(args.max_length, 10) || 0;
+                        inspectLimits.push(maxLength > 0 ? 'chars ' + textOffset + '-' + (textOffset + maxLength - 1) : 'offset ' + textOffset);
+                    }
+                    if (inspectLimits.length) {
+                        inspectDescription += ' (' + inspectLimits.join(', ') + ')';
                     }
                     return inspectDescription;
                 case 'install_plugin':
