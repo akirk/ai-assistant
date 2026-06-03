@@ -264,7 +264,6 @@ describe('inspect_tool_result', function() {
         assert.strictEqual(inspected.result.length, 2);
         assert.strictEqual(inspected.result.item_index, 0);
         assert.deepEqual(inspected.result.item, { title: 'Playground overview', description: 'First match ä' });
-        assert.ok(inspected.result.returned_chars > 0);
         assert.strictEqual(inspected.result.returned_bytes, undefined);
         assert.strictEqual(inspected.result.more_matches_available, true);
         assert.strictEqual(inspected.result.next_occurrence, 2);

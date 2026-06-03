@@ -1603,7 +1603,6 @@
                     content_format: 'line_excerpt',
                     content_note: 'The content field is a line excerpt from the cached value and may not be valid standalone JSON.',
                     content: content,
-                    returned_chars: content.length,
                     truncated: truncated,
                     matches_seen: found,
                     more_matches_available: hasMoreMatches,
@@ -1636,7 +1635,6 @@
                 chars: text.length,
                 offset: offset,
                 content: chunk,
-                returned_chars: chunk.length,
                 truncated: chunkTruncated,
                 next_offset: chunkTruncated ? nextOffset : null
             };
@@ -1758,14 +1756,6 @@
                 };
             }
 
-            var returnedValue = match.item !== undefined ? match.item : match.value;
-            var returnedJson = '';
-            try {
-                returnedJson = JSON.stringify(returnedValue, null, 2);
-            } catch (e) {
-                returnedJson = String(returnedValue);
-            }
-
             return $.extend({
                 tool_use_id: record.id,
                 tool: record.name,
@@ -1775,7 +1765,6 @@
                 search: search,
                 occurrence: occurrence,
                 match_found: true,
-                returned_chars: returnedJson.length,
                 matches_seen: found,
                 more_matches_available: hasMoreMatches,
                 next_occurrence: hasMoreMatches ? occurrence + 1 : null,

@@ -1128,7 +1128,6 @@
             if (typeof value.content === 'string') {
                 summary.chars = value.chars;
                 summary.offset = value.offset || 0;
-                summary.returned_chars = value.returned_chars;
                 summary.more_matches_available = value.more_matches_available;
                 summary.next_occurrence = value.next_occurrence;
                 summary.content_preview = this.truncateProviderString(value.content, 1000);
@@ -1526,8 +1525,7 @@
                     value.truncated === true &&
                     (
                         Object.prototype.hasOwnProperty.call(value, 'next_offset') ||
-                        Object.prototype.hasOwnProperty.call(value, 'returned_bytes') ||
-                        Object.prototype.hasOwnProperty.call(value, 'returned_chars')
+                        Object.prototype.hasOwnProperty.call(value, 'returned_bytes')
                     )
                 ) ||
                 Object.prototype.hasOwnProperty.call(value, '_truncated_items') ||
