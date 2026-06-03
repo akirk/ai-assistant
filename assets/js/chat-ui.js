@@ -1406,10 +1406,25 @@
             if (toolName === 'inspect_tool_result') {
                 if (typeof output.content === 'string') {
                     var inspectedText = output.content || output.instruction || 'No content returned.';
+                    var isLineExcerpt = output.content_format === 'line_excerpt' || (output.search && output.line_start !== undefined && output.line_end !== undefined);
                     return {
                         text: inspectedText,
-                        language: output.content && this.inferToolResultLanguage ? this.inferToolResultLanguage(toolName, output, inspectedText) : null,
-                        label: output.match_found === false ? 'Inspection result' : (output.search ? 'Inspected match' : 'Inspected content')
+                        language: isLineExcerpt ? null : (output.content && this.inferToolResultLanguage ? this.inferToolResultLanguage(toolName, output, inspectedText) : null),
+                        label: output.match_found === false ? 'Inspection result' : (isLineExcerpt ? 'Inspected excerpt' : (output.search ? 'Inspected match' : 'Inspected content'))
+                    };
+                }
+                if (typeof output.content_preview === 'string') {
+                    return {
+                        text: output.content_preview,
+                        language: this.inferToolResultLanguage ? this.inferToolResultLanguage(toolName, output, output.content_preview) : null,
+                        label: output.search ? 'Inspected match preview' : 'Inspected preview'
+                    };
+                }
+                if (output.item !== undefined) {
+                    return {
+                        text: typeof output.item === 'string' ? output.item : JSON.stringify(output.item, null, 2),
+                        language: typeof output.item === 'string' ? null : 'json',
+                        label: 'Inspected item'
                     };
                 }
                 if (output.value !== undefined) {
@@ -1417,6 +1432,13 @@
                         text: typeof output.value === 'string' ? output.value : JSON.stringify(output.value, null, 2),
                         language: typeof output.value === 'string' ? null : 'json',
                         label: 'Inspected value'
+                    };
+                }
+                if (output.instruction && output._truncated) {
+                    return {
+                        text: 'This inspection result was available while the conversation was running. The saved conversation contains only the compacted inspection metadata that was sent back to the model, while the original cached result lived in the browser session and was not restored when this conversation was loaded.',
+                        language: null,
+                        label: 'Stored inspection summary'
                     };
                 }
                 if (output.error || output.instruction) {
@@ -1450,6 +1472,9 @@
                         outputText = JSON.stringify(r, null, 2);
                         language = 'json';
                     }
+                } else {
+                    outputText = JSON.stringify(output, null, 2);
+                    language = 'json';
                 }
             } else {
                 if (output.output !== undefined && output.output !== null) {
@@ -1796,6 +1821,10 @@
                 return true;
             }
 
+            if (output._ai_assistant_compacted) {
+                return true;
+            }
+
             return !!(
                 output.inspect_tool_result &&
                 this.isCompactedToolResultValue &&
@@ -1820,12 +1849,12 @@
             var outputText = display.text;
             var lineCount = (outputText.match(/\n/g) || []).length + 1;
             var autoExpand = lineCount <= 10 && toolName !== 'db_query';
-            var summarySuffix = this.wasToolResultTruncatedForLlm(output) ? ', returned truncated to LLM' : '';
+            var summaryLabel = this.getToolResultSummaryLabel(lineCount, outputText, this.wasToolResultTruncatedForLlm(output));
             var $output = $('<div class="ai-tool-output">' +
                 '<div class="ai-action-preview' + (autoExpand ? ' expanded' : '') + '" data-language="' + this.escapeHtml(display.language || '') + '">' +
                 '<button type="button" class="ai-action-preview-toggle">' +
                 '<span class="ai-action-preview-icon" aria-hidden="true">&gt;</span>' +
-                this.escapeHtml(display.label || 'Result') + ' (' + lineCount + ' line' + (lineCount !== 1 ? 's' : '') + summarySuffix + ')' +
+                this.escapeHtml(display.label || 'Result') + ' (' + this.escapeHtml(summaryLabel) + ')' +
                 '</button>' +
                 '<div class="ai-action-preview-content"><pre class="ai-code-preview"></pre></div>' +
                 '</div></div>');
@@ -2944,6 +2973,29 @@
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         },
 
+        getTextByteLength: function(text) {
+            text = String(text || '');
+            if (typeof TextEncoder !== 'undefined') {
+                return new TextEncoder().encode(text).length;
+            }
+            try {
+                return unescape(encodeURIComponent(text)).length;
+            } catch (e) {
+                return text.length;
+            }
+        },
+
+        getToolResultSummaryLabel: function(lineCount, text, returnedTruncated) {
+            var summaryParts = [
+                lineCount + ' line' + (lineCount !== 1 ? 's' : ''),
+                this.formatBytes(this.getTextByteLength(text))
+            ];
+            if (returnedTruncated) {
+                summaryParts.push('returned truncated to LLM');
+            }
+            return summaryParts.join(', ');
+        },
+
         getCodeLanguageClass: function(language) {
             language = String(language || '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
             return language ? 'ai-language-' + language : '';
@@ -3418,10 +3470,38 @@
                     if (pathMatch) {
                         inspectDesc += ': ' + pathMatch[1];
                     }
+                    var inspectLimits = [];
                     match = partialJson.match(/"search"\s*:\s*"([^"]+)"/);
                     if (match) {
                         var inspectSearch = match[1].substring(0, 40);
                         inspectDesc += ' around "' + inspectSearch + (match[1].length > 40 ? '...' : '') + '"';
+                        var occurrenceMatch = partialJson.match(/"occurrence"\s*:\s*(\d+)/);
+                        if (occurrenceMatch) {
+                            inspectLimits.push('match ' + occurrenceMatch[1]);
+                        }
+                        var beforeMatch = partialJson.match(/"before_lines"\s*:\s*(\d+)/);
+                        var afterMatch = partialJson.match(/"after_lines"\s*:\s*(\d+)/);
+                        if (beforeMatch || afterMatch) {
+                            inspectLimits.push((beforeMatch ? beforeMatch[1] : '0') + ' before/' + (afterMatch ? afterMatch[1] : '0') + ' after');
+                        }
+                    }
+                    var itemOffsetMatch = partialJson.match(/"item_offset"\s*:\s*(\d+)/);
+                    var maxItemsMatch = partialJson.match(/"max_items"\s*:\s*(\d+)/);
+                    if (itemOffsetMatch || maxItemsMatch) {
+                        var itemOffset = itemOffsetMatch ? parseInt(itemOffsetMatch[1], 10) : 0;
+                        var maxItems = maxItemsMatch ? parseInt(maxItemsMatch[1], 10) : 0;
+                        inspectLimits.push(maxItems > 0 ? 'items ' + itemOffset + '-' + (itemOffset + maxItems - 1) : 'items from ' + itemOffset);
+                    } else {
+                        var offsetMatch = partialJson.match(/"offset"\s*:\s*(\d+)/);
+                        var maxLengthMatch = partialJson.match(/"max_length"\s*:\s*(\d+)/);
+                        if (offsetMatch || maxLengthMatch) {
+                            var textOffset = offsetMatch ? parseInt(offsetMatch[1], 10) : 0;
+                            var maxLength = maxLengthMatch ? parseInt(maxLengthMatch[1], 10) : 0;
+                            inspectLimits.push(maxLength > 0 ? 'chars ' + textOffset + '-' + (textOffset + maxLength - 1) : 'offset ' + textOffset);
+                        }
+                    }
+                    if (inspectLimits.length) {
+                        inspectDesc += ' (' + inspectLimits.join(', ') + ')';
                     }
                     return inspectDesc;
                 case 'ability':

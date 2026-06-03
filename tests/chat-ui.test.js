@@ -132,6 +132,11 @@ function createToolCardsDom() {
     function matches(element, selector) {
         selector = selector.trim();
         if (!selector) return false;
+        const classAttrMatch = selector.match(/^\.([a-z0-9_-]+)\[([^=]+)="([^"]*)"\]$/i);
+        if (classAttrMatch) {
+            return element.classes.has(classAttrMatch[1]) &&
+                element.attrs[classAttrMatch[2]] === classAttrMatch[3];
+        }
         if (selector[0] === '.') {
             return element.classes.has(selector.slice(1));
         }
@@ -235,7 +240,24 @@ function createToolCardsDom() {
                 return this;
             },
             find(selector) {
+                if (selector.indexOf('> ') === 0) {
+                    const childSelector = selector.slice(2).trim();
+                    return wrapper(elements.flatMap(element => element.children.filter(child => matches(child, childSelector))));
+                }
                 return wrapper(elements.flatMap(element => findAll(element, selector)));
+            },
+            children(selector) {
+                let children = elements.flatMap(element => element.children);
+                if (selector) {
+                    children = children.filter(child => matches(child, selector));
+                }
+                return wrapper(children);
+            },
+            each(callback) {
+                elements.forEach((element, index) => {
+                    callback.call(element, index, element);
+                });
+                return this;
             },
             text(value) {
                 if (value === undefined) {
@@ -243,6 +265,24 @@ function createToolCardsDom() {
                 }
                 elements.forEach(element => {
                     element.textContent = String(value);
+                });
+                return this;
+            },
+            addClass(classNames) {
+                elements.forEach(element => {
+                    String(classNames || '').split(/\s+/).filter(Boolean).forEach(className => {
+                        element.classes.add(className);
+                    });
+                    element.attrs.class = Array.from(element.classes).join(' ');
+                });
+                return this;
+            },
+            removeClass(classNames) {
+                elements.forEach(element => {
+                    String(classNames || '').split(/\s+/).filter(Boolean).forEach(className => {
+                        element.classes.delete(className);
+                    });
+                    element.attrs.class = Array.from(element.classes).join(' ');
                 });
                 return this;
             },
@@ -270,7 +310,40 @@ function createToolCardsDom() {
                 if (selector === ':visible') {
                     return !!elements[0] && elements[0].hidden !== true;
                 }
+                if (selector === ':last-child') {
+                    const element = elements[0];
+                    return !!(element && element.parent && element.parent.children[element.parent.children.length - 1] === element);
+                }
+                if (elements[0] && matches(elements[0], selector)) {
+                    return true;
+                }
                 return false;
+            },
+            data(key, value) {
+                if (!elements[0]) {
+                    return value === undefined ? undefined : this;
+                }
+                elements.forEach(element => {
+                    element.dataStore = element.dataStore || {};
+                    if (value !== undefined) {
+                        element.dataStore[key] = value;
+                    }
+                });
+                return value === undefined ? elements[0].dataStore && elements[0].dataStore[key] : this;
+            },
+            removeData(key) {
+                elements.forEach(element => {
+                    if (element.dataStore) {
+                        delete element.dataStore[key];
+                    }
+                });
+                return this;
+            },
+            on() {
+                return this;
+            },
+            off() {
+                return this;
             }
         };
     }
@@ -280,11 +353,13 @@ function createToolCardsDom() {
         const tagName = tagMatch ? tagMatch[1].toLowerCase() : 'div';
         const open = /\sopen(?:[>\s])/.test(html);
         const idMatch = html.match(/id="([^"]+)"/);
+        const groupIdMatch = html.match(/data-tool-group-id="([^"]+)"/);
         const classMatch = html.match(/class="([^"]+)"/);
         const ariaLiveMatch = html.match(/aria-live="([^"]+)"/);
         const attrs = {
             id: idMatch ? idMatch[1] : undefined,
-            class: classMatch ? classMatch[1] : undefined
+            class: classMatch ? classMatch[1] : undefined,
+            'data-tool-group-id': groupIdMatch ? groupIdMatch[1] : undefined
         };
         if (ariaLiveMatch) {
             attrs['aria-live'] = ariaLiveMatch[1];
@@ -307,6 +382,9 @@ function createToolCardsDom() {
     }
 
     function jQueryStub(selector) {
+        if (selector instanceof Element) {
+            return wrapper([selector]);
+        }
         if (typeof selector === 'string' && selector[0] === '<') {
             return wrapper([createElementFromHtml(selector)]);
         }
@@ -320,6 +398,9 @@ function createToolCardsDom() {
             const element = byId[selector.slice(1)];
             return wrapper(element ? [element] : []);
         }
+        if (typeof selector === 'string') {
+            return wrapper(findAll(chatContainer, selector));
+        }
         return wrapper([]);
     }
 
@@ -332,8 +413,12 @@ function createToolCardsDom() {
         get container() {
             return byId['ai-assistant-tool-cards'];
         },
+        get group() {
+            return messages.children.find(child => child.classes.has('ai-tool-cards-group'));
+        },
         get summary() {
-            const container = byId['ai-assistant-tool-cards'];
+            const container = byId['ai-assistant-tool-cards'] ||
+                messages.children.find(child => child.classes.has('ai-tool-cards-group'));
             return container && container.children[0];
         },
         get messages() {
@@ -365,11 +450,12 @@ function imageResponse(body, type) {
 }
 
 describe('live tool card behavior', function() {
-    it('keeps live tool cards as an ungrouped stack when all tools finish', function() {
+    it('keeps live tool cards in a summarized group when all tools finish', function() {
         const dom = createToolCardsDom();
         const assistant = loadUiMixin({}, { jQuery: dom.$ });
+        assistant.escapeAttribute = value => String(value);
 
-        assistant.getToolCardsContainer();
+        const group = assistant.getToolCardsContainer().elements[0];
         assistant.toolCardsState = {
             'tool-1': {
                 name: 'read_file',
@@ -379,21 +465,22 @@ describe('live tool card behavior', function() {
 
         assistant.updateToolCardsSummary();
 
-        assert.strictEqual(dom.container.tagName, 'div');
-        assert.strictEqual(dom.summary, undefined);
-        assert.strictEqual(dom.container.attrs['aria-label'], '1 tool: read_file - complete');
-        assert.strictEqual(dom.container.classes.has('ai-tool-cards-complete'), true);
+        assert.strictEqual(group.tagName, 'details');
+        assert.strictEqual(dom.summary.textContent, '1 tool: read_file - complete');
+        assert.strictEqual(group.classes.has('ai-tool-cards-complete'), true);
     });
 
-    it('reuses the current live tool card stack without creating a summary', function() {
+    it('reuses the current live tool card group with one summary', function() {
         const dom = createToolCardsDom();
         const assistant = loadUiMixin({}, { jQuery: dom.$ });
+        assistant.escapeAttribute = value => String(value);
 
         const first = assistant.getToolCardsContainer().elements[0];
         assistant.getToolCardsContainer();
 
         assert.strictEqual(assistant.getToolCardsContainer().elements[0], first);
-        assert.strictEqual(dom.summary, undefined);
+        assert.strictEqual(dom.messages.children.filter(child => child.classes.has('ai-tool-cards-group')).length, 1);
+        assert.strictEqual(dom.summary.tagName, 'summary');
     });
 
     it('counts repeated tool names in group labels', function() {
@@ -1258,9 +1345,51 @@ describe('REST API tool card descriptions', function() {
         );
         assert.doesNotMatch(description, /toolu_secret_123/);
     });
+
+    it('extracts inspect_tool_result array window descriptions', function() {
+        const assistant = loadUiMixin();
+
+        const description = assistant.extractPartialDescription(
+            'inspect_tool_result',
+            '{"tool_use_id":"toolu_secret_123","path":"candidates","item_offset":20,"max_items":10'
+        );
+
+        assert.strictEqual(
+            description,
+            'Inspect cached result: candidates (items 20-29)'
+        );
+        assert.doesNotMatch(description, /toolu_secret_123/);
+    });
+
+    it('extracts inspect_tool_result search window descriptions', function() {
+        const assistant = loadUiMixin();
+
+        const description = assistant.extractPartialDescription(
+            'inspect_tool_result',
+            '{"path":"sessions","search":"Playground","occurrence":3,"before_lines":2,"after_lines":4'
+        );
+
+        assert.strictEqual(
+            description,
+            'Inspect cached result: sessions around "Playground" (match 3, 2 before/4 after)'
+        );
+    });
 });
 
 describe('tool result display', function() {
+    it('includes compact byte size in result preview summaries', function() {
+        const assistant = loadUiMixin();
+
+        assert.strictEqual(
+            assistant.getToolResultSummaryLabel(2559, 'x'.repeat(4096), false),
+            '2559 lines, 4.0 KB'
+        );
+        assert.strictEqual(
+            assistant.getToolResultSummaryLabel(1, 'ok', true),
+            '1 line, 2 B, returned truncated to LLM'
+        );
+    });
+
     it('renders read_file results as file content with the file language', function() {
         const assistant = loadUiMixin();
         assistant.getLanguageFromPath = function(path) {
@@ -1287,12 +1416,123 @@ describe('tool result display', function() {
             path: 'result.article.content',
             search: 'Gemeindebezirke',
             match_found: true,
+            content_format: 'line_excerpt',
             content: '<h2>Gemeindebezirke</h2>\n<p>Bezirk 1</p>'
         });
 
         assert.strictEqual(display.text, '<h2>Gemeindebezirke</h2>\n<p>Bezirk 1</p>');
-        assert.strictEqual(display.label, 'Inspected match');
+        assert.strictEqual(display.label, 'Inspected excerpt');
+        assert.strictEqual(display.language, null);
         assert.doesNotMatch(display.text, /toolu_secret_123/);
+    });
+
+    it('renders searched JSON matches as structured items', function() {
+        const assistant = loadUiMixin();
+
+        const display = assistant.getToolResultDisplay('inspect_tool_result', {
+            tool: 'ability',
+            path: 'sessions',
+            search: '2026-06-06',
+            match_found: true,
+            item_index: 0,
+            item: {
+                title: 'Registration & Networking',
+                start_local: '2026-06-06 8:00 AM CEST',
+                track_names: ['Track 1']
+            }
+        });
+
+        assert.strictEqual(display.label, 'Inspected item');
+        assert.strictEqual(display.language, 'json');
+        assert.match(display.text, /Registration & Networking/);
+    });
+
+    it('renders compacted inspected result previews instead of wrapper instructions', function() {
+        const assistant = loadUiMixin();
+
+        const display = assistant.getToolResultDisplay('inspect_tool_result', {
+            _truncated: true,
+            tool_use_id: 'toolu_secret_123',
+            path: 'sessions',
+            type: 'json',
+            content_preview: 'Playground session details',
+            instruction: 'This inspect_tool_result response was compacted.'
+        });
+
+        assert.strictEqual(display.text, 'Playground session details');
+        assert.strictEqual(display.label, 'Inspected preview');
+        assert.doesNotMatch(display.text, /toolu_secret_123/);
+        assert.doesNotMatch(display.text, /compacted/);
+    });
+
+    it('explains restored compacted inspections as stored summaries', function() {
+        const assistant = loadUiMixin();
+
+        const display = assistant.getToolResultDisplay('inspect_tool_result', {
+            _truncated: true,
+            tool_use_id: 'toolu_secret_123',
+            path: 'sessions',
+            instruction: 'This inspect_tool_result response was compacted. Use next_inspections to drill into the original cached result, not into this inspect response wrapper.'
+        });
+
+        assert.strictEqual(display.label, 'Stored inspection summary');
+        assert.match(display.text, /available while the conversation was running/);
+        assert.match(display.text, /saved conversation contains only the compacted inspection metadata/);
+        assert.match(display.text, /was not restored when this conversation was loaded/);
+        assert.doesNotMatch(display.text, /next_inspections/);
+        assert.doesNotMatch(display.text, /toolu_secret_123/);
+    });
+
+    it('renders compacted ability summaries even when result is omitted', function() {
+        const assistant = loadUiMixin();
+
+        const display = assistant.getToolResultDisplay('ability', {
+            _truncated: true,
+            ability: 'wordcamp-companion/get-schedule',
+            success: true,
+            type: 'object',
+            keys: {
+                ability: '32 chars',
+                event_url: '36 chars',
+                sessions: 'array, 120 items, 78000 chars'
+            },
+            _ai_assistant_compacted: {
+                reason: 'Tool result exceeded the provider-safe context budget.',
+                inspect_tool_result: {
+                    tool_use_id: 'toolu_secret_123',
+                    instruction: 'Use inspect_tool_result for slices.'
+                }
+            }
+        });
+
+        assert.strictEqual(display.language, 'json');
+        assert.strictEqual(display.label, 'Result');
+        assert.match(display.text, /wordcamp-companion\/get-schedule/);
+        assert.match(display.text, /_ai_assistant_compacted/);
+        assert.doesNotMatch(display.text, /undefined/);
+    });
+
+    it('renders top-level ability results when result is omitted', function() {
+        const assistant = loadUiMixin();
+
+        const display = assistant.getToolResultDisplay('ability', {
+            ability: 'wordcamp-companion/get-plan',
+            success: true,
+            selected_event_url: 'https://europe.wordcamp.org/2026/',
+            selected_wordcamp_term_id: 2,
+            saved_session_posts: [
+                {
+                    title: 'What’s new in WordPress Playground?',
+                    start_local: '2026-06-05 12:30 PM CEST'
+                }
+            ]
+        });
+
+        assert.strictEqual(display.language, 'json');
+        assert.strictEqual(display.label, 'Result');
+        assert.match(display.text, /wordcamp-companion\/get-plan/);
+        assert.match(display.text, /selected_event_url/);
+        assert.match(display.text, /What’s new in WordPress Playground/);
     });
 
     it('renders inspected structured values as the value only', function() {

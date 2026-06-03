@@ -156,6 +156,40 @@ describe('inspect_tool_result', function() {
         assert.doesNotMatch(description, /toolu_secret_123/);
     });
 
+    it('describes inspect result limits for repeated array windows', function() {
+        const assistant = loadExecutionMixin();
+
+        const description = assistant.getActionDescription('inspect_tool_result', {
+            tool_use_id: 'toolu_secret_123',
+            path: 'candidates',
+            item_offset: 20,
+            max_items: 10
+        });
+
+        assert.strictEqual(
+            description,
+            'Inspect cached result: candidates (items 20-29)'
+        );
+        assert.doesNotMatch(description, /toolu_secret_123/);
+    });
+
+    it('describes inspect search occurrence and line windows', function() {
+        const assistant = loadExecutionMixin();
+
+        const description = assistant.getActionDescription('inspect_tool_result', {
+            path: 'sessions',
+            search: 'Playground',
+            occurrence: 3,
+            before_lines: 2,
+            after_lines: 4
+        });
+
+        assert.strictEqual(
+            description,
+            'Inspect cached result: sessions around "Playground" (match 3, 2 before/4 after)'
+        );
+    });
+
     it('returns a targeted search window from a cached tool result string path', function() {
         const assistant = createAssistant();
         const article = [
@@ -200,6 +234,48 @@ describe('inspect_tool_result', function() {
         assert.doesNotMatch(inspected.result.content, /History/);
     });
 
+    it('returns a structured array item and next occurrence for cached JSON searches', function() {
+        const assistant = createAssistant();
+
+        assistant.rememberToolResultForInspection({
+            id: 'toolu_schedule',
+            name: 'ability',
+            success: true,
+            result: {
+                sessions: [
+                    { title: 'Playground overview', description: 'First match ä' },
+                    { title: 'Playground workshop', description: 'Second match' }
+                ]
+            }
+        });
+
+        const inspected = assistant.executeInspectToolResult({
+            id: 'inspect_search',
+            arguments: {
+                tool_use_id: 'toolu_schedule',
+                path: 'sessions',
+                search: 'Playground'
+            }
+        });
+
+        assert.strictEqual(inspected.success, true);
+        assert.strictEqual(inspected.result.match_found, true);
+        assert.strictEqual(inspected.result.type, 'array');
+        assert.strictEqual(inspected.result.length, 2);
+        assert.strictEqual(inspected.result.item_index, 0);
+        assert.deepEqual(inspected.result.item, { title: 'Playground overview', description: 'First match ä' });
+        assert.strictEqual(inspected.result.returned_bytes, undefined);
+        assert.strictEqual(inspected.result.more_matches_available, true);
+        assert.strictEqual(inspected.result.next_occurrence, 2);
+        assert.deepEqual(JSON.parse(JSON.stringify(inspected.result.next_inspection)), {
+            tool_use_id: 'toolu_schedule',
+            path: 'sessions',
+            search: 'Playground',
+            occurrence: 2
+        });
+        assert.match(inspected.result.instruction, /Do not rerun the original broad tool call/);
+    });
+
     it('returns offset chunks from cached string values', function() {
         const assistant = createAssistant();
 
@@ -226,6 +302,27 @@ describe('inspect_tool_result', function() {
         assert.strictEqual(inspected.result.content, 'cdefg');
         assert.strictEqual(inspected.result.truncated, true);
         assert.strictEqual(inspected.result.next_offset, 7);
+    });
+
+    it('uses raw inspect results for live tool-card display', function() {
+        const assistant = createAssistant();
+        const output = {
+            tool_use_id: 'toolu_schedule',
+            path: 'sessions',
+            type: 'json',
+            search: 'Playground',
+            content: 'Playground details',
+            instruction: 'Provider-only compaction should not replace this.'
+        };
+
+        const display = assistant.getResolvedToolResultForProviderDisplay({
+            id: 'inspect_1',
+            name: 'inspect_tool_result',
+            success: true,
+            result: output
+        }, 'anthropic');
+
+        assert.strictEqual(display, output);
     });
 
     it('tells the model how to continue truncated array inspections', function() {

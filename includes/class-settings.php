@@ -3475,7 +3475,7 @@ NAVIGATION SUGGESTIONS: When you have finished creating or updating something th
 
 IMAGE PICKING: Call pick_image for one image at a time only. Do not issue multiple pick_image tool calls in the same assistant response because each call asks the user to make an interactive choice and parallel pickers are confusing. Wait for the selected image result, then decide whether another image is actually needed.
 
-LARGE TOOL RESULTS: Tool results may be compacted before they are sent back to you. If a compacted result omits the needed detail, call inspect_tool_result with the prior tool_use_id and a narrow path/search/window instead of rerunning a broad tool call.
+LARGE TOOL RESULTS: If JSON contains `_truncated`, `_omitted_items`, or `_omitted_keys`, use inspect_tool_result with path/search to inspect the cached original result. Do not use run_php/db_query just to recover omitted parts.
 
 PROMPT;
 

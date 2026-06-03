@@ -574,7 +574,7 @@ describe('provider request message sanitization', function() {
         assert.equal(parsed.size, originalContent.length);
     });
 
-    it('tells the model inspect_tool_result can be repeated instead of rerunning broad tools', function() {
+    it('preserves compacted result shape and tells the model inspect_tool_result can be repeated', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
                 maxToolResultChars: 4096,
@@ -595,13 +595,173 @@ describe('provider request message sanitization', function() {
         }, 'anthropic', undefined, { toolUseId: 'toolu_schedule' });
         const parsed = JSON.parse(content);
 
-        assert.strictEqual(parsed.inspect_tool_result.tool_use_id, 'toolu_schedule');
-        assert.match(parsed.inspect_tool_result.instruction, /multiple times with this same tool_use_id/);
-        assert.match(parsed.inspect_tool_result.instruction, /item_offset\/next_item_offset/);
-        assert.match(parsed.inspect_tool_result.instruction, /Do not rerun the original broad tool call/);
+        assert.ok(Array.isArray(parsed.result.sessions));
+        assert.strictEqual(parsed._truncated, 'use inspect_tool_result with path/search for more');
+        assert.strictEqual(parsed.result.sessions[parsed.result.sessions.length - 1]._truncated, 'use inspect_tool_result with path/search for more');
+        assert.strictEqual(parsed.result.sessions[parsed.result.sessions.length - 1]._omitted_items, 15);
+        assert.deepEqual(parsed.result.sessions[parsed.result.sessions.length - 1]._inspect, {
+            item_offset: 5,
+            max_items: 5
+        });
+        assert.strictEqual(parsed._ai_assistant_compacted.inspect_tool_result.tool_use_id, 'toolu_schedule');
+        assert.match(parsed._ai_assistant_compacted.inspect_tool_result.instruction, /multiple times with this same tool_use_id/);
+        assert.match(parsed._ai_assistant_compacted.inspect_tool_result.instruction, /item_offset\/next_item_offset/);
+        assert.match(parsed._ai_assistant_compacted.inspect_tool_result.instruction, /Do not rerun the original broad tool call/);
     });
 
-    it('keeps item samples when an inspect_tool_result response is itself compacted', function() {
+    it('includes original char size metadata on compacted inspectable tool results', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 2048,
+                maxToolResultStringChars: 1024,
+                maxToolResultArrayItems: 5
+            }
+        });
+
+        const result = {
+            sessions: Array.from({ length: 20 }, function(_, index) {
+                return {
+                    id: index + 1,
+                    title: 'Session ä ' + (index + 1),
+                    description: 'Details ' + 'x'.repeat(500)
+                };
+            })
+        };
+        const originalJson = assistant.safeJsonStringify(result);
+        const content = assistant.stringifyToolResultForProvider(result, 'anthropic', undefined, {
+            toolUseId: 'toolu_schedule'
+        });
+        const parsed = JSON.parse(content);
+
+        assert.strictEqual(parsed.returned_to_llm_truncated, undefined);
+        assert.strictEqual(parsed._truncated, 'use inspect_tool_result with path/search for more');
+        assert.strictEqual(parsed._ai_assistant_compacted._truncated, 'use inspect_tool_result with path/search for more');
+        assert.strictEqual(parsed._ai_assistant_compacted.original_chars, originalJson.length);
+        assert.strictEqual(parsed.original_result_bytes, undefined);
+    });
+
+    it('preserves top-level shape in last-resort provider summaries', function() {
+        const assistant = loadProvidersMixin();
+        const summary = assistant.createProviderValueSummary({
+            ability: 'wordcamp-companion/get-schedule',
+            success: true,
+            event_url: 'https://europe.wordcamp.org/2026/',
+            sessions: Array.from({ length: 20 }, function(_, index) {
+                return {
+                    id: index + 1,
+                    title: 'Session ' + (index + 1),
+                    description: 'Details ' + 'x'.repeat(500)
+                };
+            })
+        });
+
+        assert.strictEqual(summary.ability, 'wordcamp-companion/get-schedule');
+        assert.strictEqual(summary.success, true);
+        assert.strictEqual(summary.event_url, 'https://europe.wordcamp.org/2026/');
+        assert.ok(Array.isArray(summary.sessions));
+        assert.deepEqual(JSON.parse(JSON.stringify(summary.sessions)), [{
+            _truncated: 'use inspect_tool_result with path/search for more',
+            _omitted_items: 20,
+            _inspect: {
+                item_offset: 0,
+                max_items: 5
+            }
+        }]);
+        assert.strictEqual(summary.type, undefined);
+        assert.strictEqual(summary.keys, undefined);
+    });
+
+    it('keeps an active tool card group while continuing a tool loop', async function() {
+        const assistant = loadProvidersMixin();
+        let archiveCalls = 0;
+        let anthropicCalls = 0;
+
+        Object.assign(assistant, {
+            conversationProvider: 'anthropic',
+            pendingActions: [],
+            pendingToolChecks: 0,
+            continuingToolLoop: true,
+            archiveToolCards() {
+                archiveCalls++;
+            },
+            hideToolProgress() {
+                throw new Error('hideToolProgress should not run during tool-loop continuation');
+            },
+            setLoading() {},
+            isConnectorsMode() {
+                return false;
+            },
+            callAnthropic() {
+                anthropicCalls++;
+            },
+            getProvider() {
+                return 'anthropic';
+            }
+        });
+
+        await assistant.callLLM();
+
+        assert.strictEqual(archiveCalls, 0);
+        assert.strictEqual(assistant.continuingToolLoop, false);
+        assert.strictEqual(anthropicCalls, 1);
+    });
+
+    it('splits the active tool card group when assistant text appears', function() {
+        const assistant = loadProvidersMixin();
+        let archiveCalls = 0;
+        const state = assistant.createStreamingResponseState(null);
+
+        Object.assign(assistant, {
+            activeToolCardsGroupId: 'tool-group-1',
+            archiveToolCards(options) {
+                archiveCalls++;
+                assert.deepEqual(JSON.parse(JSON.stringify(options)), { removeIncomplete: false });
+            },
+            ensureStreamingReply() {
+                return {};
+            },
+            updateReply(reply, text) {
+                assert.strictEqual(text, 'I found a match.');
+            },
+            extractReasoningFromContent(text) {
+                return { content: text, thinking: '', thinkingOpen: false };
+            }
+        });
+
+        assistant.appendAssistantContent(state, 'I found a match.');
+        assistant.appendAssistantContent(state, '');
+
+        assert.strictEqual(archiveCalls, 1);
+        assert.strictEqual(state.toolCardsArchivedBeforeAssistantText, true);
+    });
+
+    it('archives tool cards at a normal provider request boundary', async function() {
+        const assistant = loadProvidersMixin();
+        let archiveCalls = 0;
+
+        Object.assign(assistant, {
+            conversationProvider: 'anthropic',
+            pendingActions: [],
+            pendingToolChecks: 0,
+            archiveToolCards() {
+                archiveCalls++;
+            },
+            setLoading() {},
+            isConnectorsMode() {
+                return false;
+            },
+            callAnthropic() {},
+            getProvider() {
+                return 'anthropic';
+            }
+        });
+
+        await assistant.callLLM();
+
+        assert.strictEqual(archiveCalls, 1);
+    });
+
+    it('keeps inspected array content in value when an inspect_tool_result response is itself compacted', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
                 maxToolResultChars: 4096,
@@ -638,15 +798,18 @@ describe('provider request message sanitization', function() {
         assert.strictEqual(parsed._truncated, true);
         assert.strictEqual(parsed.path, 'sessions');
         assert.strictEqual(parsed.item_count, 20);
-        assert.ok(Array.isArray(parsed.items_sample));
-        assert.strictEqual(parsed.items_sample.length, 3);
-        assert.deepEqual(parsed.items_sample[0].keys, ['id', 'title', 'speaker', 'description']);
+        assert.ok(Array.isArray(parsed.value));
+        assert.strictEqual(parsed.value.length, 4);
+        assert.strictEqual(parsed.value[0].title, 'Session 1');
+        assert.strictEqual(parsed.value[3]._truncated, 'use inspect_tool_result with path/search for more');
+        assert.strictEqual(parsed.value[3]._omitted_items, 27);
+        assert.deepEqual(parsed.value[3]._inspect, { item_offset: 3, max_items: 3 });
         assert.deepEqual(parsed.next_inspections, [{
             tool_use_id: 'toolu_schedule',
             path: 'sessions',
             item_offset: 20
         }]);
-        assert.match(parsed.instruction, /drill into the original cached result/);
+        assert.match(parsed._ai_assistant_compacted.inspect_tool_result.instruction, /cached original result/);
     });
 
     it('suggests child inspect paths when a compacted inspect_tool_result exposes another object layer', function() {

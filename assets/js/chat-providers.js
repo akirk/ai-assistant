@@ -261,6 +261,7 @@
             if (parsed.content !== state.textContent) {
                 state.textContent = parsed.content;
                 if (state.textContent) {
+                    this.archiveToolCardsBeforeAssistantText(state);
                     this.updateReply(this.ensureStreamingReply(state), state.textContent);
                 }
             }
@@ -275,6 +276,19 @@
             state.thinkingDurationMs = Date.now() - started;
             this.finalizeThinking(state.$thinking, state.thinkingDurationMs);
             state.thinkingFinalized = true;
+        },
+
+        archiveToolCardsBeforeAssistantText: function(state) {
+            if (state && state.toolCardsArchivedBeforeAssistantText) {
+                return;
+            }
+            if (state) {
+                state.toolCardsArchivedBeforeAssistantText = true;
+            }
+
+            if (this.archiveToolCards && this.activeToolCardsGroupId) {
+                this.archiveToolCards({ removeIncomplete: false });
+            }
         },
 
         shouldQueueUserMessage: function() {
@@ -550,9 +564,12 @@
                 return;
             }
 
-            if (this.archiveToolCards) {
+            var isToolLoopContinuation = this.continuingToolLoop === true;
+            this.continuingToolLoop = false;
+
+            if (this.archiveToolCards && !isToolLoopContinuation) {
                 this.archiveToolCards({ removeIncomplete: true });
-            } else {
+            } else if (!isToolLoopContinuation) {
                 this.hideToolProgress();
             }
             this.setLoading(true);
@@ -747,6 +764,21 @@
             }
         },
 
+        getProviderTruncatedInstruction: function() {
+            return 'use inspect_tool_result with path/search for more';
+        },
+
+        createProviderOmissionMarker: function(kind, omitted, inspect) {
+            var marker = {
+                _truncated: this.getProviderTruncatedInstruction()
+            };
+            marker[kind === 'keys' ? '_omitted_keys' : '_omitted_items'] = omitted;
+            if (inspect && typeof inspect === 'object') {
+                marker._inspect = inspect;
+            }
+            return marker;
+        },
+
         compactProviderValue: function(value, limits, depth) {
             limits = limits || this.getToolResultCompactLimits();
             depth = depth || 0;
@@ -775,14 +807,14 @@
             if (depth >= limits.maxDepth) {
                 if (Array.isArray(value)) {
                     return {
-                        _truncated: true,
+                        _truncated: this.getProviderTruncatedInstruction(),
                         type: 'array',
                         length: value.length
                     };
                 }
 
                 return {
-                    _truncated: true,
+                    _truncated: this.getProviderTruncatedInstruction(),
                     type: 'object',
                     keys: Object.keys(value).slice(0, 20)
                 };
@@ -795,9 +827,10 @@
                 }, this);
 
                 if (value.length > maxItems) {
-                    items.push({
-                        _truncated_items: value.length - maxItems
-                    });
+                    items.push(this.createProviderOmissionMarker('items', value.length - maxItems, {
+                        item_offset: maxItems,
+                        max_items: maxItems
+                    }));
                 }
 
                 return items;
@@ -812,7 +845,10 @@
             }, this);
 
             if (keys.length > maxKeys) {
-                compacted._truncated_keys = keys.length - maxKeys;
+                compacted._ai_assistant_omitted = this.createProviderOmissionMarker('keys', keys.length - maxKeys, {
+                    keys_offset: maxKeys,
+                    max_keys: maxKeys
+                });
             }
 
             return compacted;
@@ -905,18 +941,48 @@
             return compacted;
         },
 
+        summarizeProviderKeyValue: function(value) {
+            if (value === null) {
+                return 'null';
+            }
+            if (value === undefined) {
+                return 'undefined';
+            }
+            if (typeof value === 'string') {
+                return value.length + ' chars';
+            }
+            if (Array.isArray(value)) {
+                return 'array, ' + value.length + ' items, ' + this.safeJsonStringify(value).length + ' chars';
+            }
+            if (typeof value === 'object') {
+                return 'object, ' + Object.keys(value).length + ' keys, ' + this.safeJsonStringify(value).length + ' chars';
+            }
+
+            return typeof value + ', ' + String(value).length + ' chars';
+        },
+
+        summarizeProviderKeyMap: function(value, maxKeys) {
+            var summary = {};
+            if (!value || typeof value !== 'object') {
+                return summary;
+            }
+
+            Object.keys(value).filter(function(key) {
+                return key !== 'success';
+            }).slice(0, maxKeys || 40).forEach(function(key) {
+                summary[key] = this.summarizeProviderKeyValue(value[key]);
+            }, this);
+
+            return summary;
+        },
+
         createProviderValueSummary: function(value) {
             if (value === null || value === undefined) {
                 return value;
             }
 
             if (typeof value === 'string') {
-                return {
-                    _truncated: true,
-                    type: 'string',
-                    original_chars: value.length,
-                    preview: this.truncateProviderString(value, 4000)
-                };
+                return this.truncateProviderString(value, 1000);
             }
 
             if (typeof value !== 'object') {
@@ -928,54 +994,51 @@
             }
 
             if (Array.isArray(value)) {
-                return {
-                    _truncated: true,
-                    type: 'array',
-                    length: value.length,
-                    sample: value.slice(0, 3).map(function(item) {
-                        return this.compactProviderValue(item, this.getToolResultCompactLimits('aggressive'), 0);
-                    }, this)
-                };
-            }
-
-            var summary = {
-                _truncated: true,
-                type: 'object',
-                keys: Object.keys(value).slice(0, 40)
-            };
-            var aggressiveLimits = this.getToolResultCompactLimits('aggressive');
-
-            [
-                'tool_use_id', 'tool', 'path', 'requested_path', 'path_corrected',
-                'type', 'length', 'item_offset', 'item_count', 'truncated',
-                'next_item_offset', 'offset', 'returned_chars', 'next_offset',
-                'size', 'modified', 'count', 'error', 'message', 'url', 'title',
-                'ability', 'success', 'instruction'
-            ].forEach(function(key) {
-                if (Object.prototype.hasOwnProperty.call(value, key)) {
-                    summary[key] = this.compactProviderValue(value[key], aggressiveLimits, 0);
+                if (!value.length) {
+                    return [];
                 }
+                return [
+                    this.createProviderOmissionMarker('items', value.length, {
+                        item_offset: 0,
+                        max_items: 5
+                    })
+                ];
+            }
+
+            var summary = {};
+            var tinyLimits = {
+                maxResultChars: 2048,
+                maxStringChars: 300,
+                maxArrayItems: 1,
+                maxObjectKeys: 8,
+                maxDepth: 2
+            };
+
+            Object.keys(value).forEach(function(key) {
+                if (key.charAt(0) === '_' || key === 'inspect_tool_result') {
+                    return;
+                }
+
+                var item = value[key];
+                if (Array.isArray(item)) {
+                    summary[key] = item.length
+                        ? [this.createProviderOmissionMarker('items', item.length, { item_offset: 0, max_items: 5 })]
+                        : [];
+                    return;
+                }
+
+                if (typeof item === 'string') {
+                    summary[key] = this.truncateProviderString(item, tinyLimits.maxStringChars);
+                    return;
+                }
+
+                if (item && typeof item === 'object') {
+                    summary[key] = this.compactProviderValue(item, tinyLimits, 0);
+                    return;
+                }
+
+                summary[key] = item;
             }, this);
-
-            if (typeof value.content === 'string') {
-                summary.content_preview = this.truncateProviderString(value.content, 6000);
-                summary.content_original_chars = value.content.length;
-            }
-
-            if (Array.isArray(value.items)) {
-                summary.items_sample = value.items.slice(0, 3).map(function(item) {
-                    return this.summarizeProviderValueShape(item, 2);
-                }, this);
-            }
-
-            if (
-                value.result !== undefined &&
-                Object.prototype.hasOwnProperty.call(value, 'ability') &&
-                Object.prototype.hasOwnProperty.call(value, 'success')
-            ) {
-                summary.result_summary = this.summarizeProviderValueShape(value.result, 0);
-                summary.instruction = summary.instruction || 'Inspect a narrow child path for the returned data. Object-like ability results are usually exposed at the top level; scalar or list ability results are under result.';
-            }
 
             return summary;
         },
@@ -1029,12 +1092,27 @@
             }
 
             if (Array.isArray(value.items)) {
+                var itemLimits = $.extend({}, this.getToolResultCompactLimits('aggressive'), {
+                    maxStringChars: 300,
+                    maxArrayItems: 3,
+                    maxObjectKeys: 20,
+                    maxDepth: 3
+                });
+                var maxItems = Math.max(1, Math.min(3, itemLimits.maxArrayItems));
+                var returnedItems = value.items.slice(0, Math.min(value.items.length, maxItems)).map(function(item) {
+                    return this.compactProviderValue(item, itemLimits, 0);
+                }, this);
+                if (value.items.length > returnedItems.length || (value.next_item_offset !== undefined && value.next_item_offset !== null)) {
+                    returnedItems.push(this.createProviderOmissionMarker('items', Math.max(0, (value.length || value.items.length) - returnedItems.length), {
+                        item_offset: (value.item_offset || 0) + returnedItems.length,
+                        max_items: maxItems
+                    }));
+                }
+
                 summary.length = value.length;
                 summary.item_offset = value.item_offset || 0;
                 summary.item_count = value.item_count;
-                summary.items_sample = value.items.slice(0, 3).map(function(item) {
-                    return this.summarizeProviderValueShape(item, 2);
-                }, this);
+                summary.value = returnedItems;
 
                 if (value.next_item_offset !== undefined && value.next_item_offset !== null) {
                     summary.next_inspections = [{
@@ -1050,9 +1128,13 @@
             if (typeof value.content === 'string') {
                 summary.chars = value.chars;
                 summary.offset = value.offset || 0;
+                summary.more_matches_available = value.more_matches_available;
+                summary.next_occurrence = value.next_occurrence;
                 summary.content_preview = this.truncateProviderString(value.content, 1000);
 
-                if (value.next_offset !== undefined && value.next_offset !== null) {
+                if (value.next_inspection) {
+                    summary.next_inspections = [value.next_inspection];
+                } else if (value.next_offset !== undefined && value.next_offset !== null) {
                     summary.next_inspections = [{
                         tool_use_id: summary.tool_use_id,
                         path: path,
@@ -1130,7 +1212,8 @@
             return summary;
         },
 
-        addToolInspectionHint: function(value, toolUseId) {
+        addToolInspectionHint: function(value, toolUseId, options) {
+            options = options || {};
             if (!toolUseId || !value || typeof value !== 'object') {
                 return value;
             }
@@ -1168,24 +1251,27 @@
             }
 
             var metadata = {
-                returned_to_llm_truncated: true,
-                truncation_reason: 'Tool result exceeded the provider-safe context budget and was compacted before being returned to the LLM.'
+                _truncated: this.getProviderTruncatedInstruction(),
+                reason: 'Tool result exceeded the provider-safe context budget and was compacted before being returned to the LLM.',
+                original_chars: options.originalResultChars,
+                inspect_tool_result: hint
             };
-
-            if (Array.isArray(value)) {
-                return {
-                    _truncated: true,
-                    returned_to_llm_truncated: true,
-                    truncation_reason: metadata.truncation_reason,
-                    type: 'array',
-                    length: value.length,
-                    sample: value,
-                    inspect_tool_result: hint
-                };
+            if (metadata.original_chars === undefined) {
+                delete metadata.original_chars;
             }
 
-            return $.extend({}, value, metadata, {
-                inspect_tool_result: hint
+            if (Array.isArray(value)) {
+                var arrayValue = value.slice();
+                arrayValue.push({
+                    _ai_assistant_compacted: metadata
+                });
+                return arrayValue;
+            }
+
+            return $.extend({
+                _truncated: this.getProviderTruncatedInstruction()
+            }, value, {
+                _ai_assistant_compacted: metadata
             });
         },
 
@@ -1203,10 +1289,14 @@
             options = options || {};
             mode = this.getToolResultStringifyMode(providerOrMode, mode);
             var limits = this.getToolResultCompactLimits(mode);
+            var originalJson = this.safeJsonStringify(result);
+            var inspectionMetadata = {
+                originalResultChars: originalJson.length
+            };
             result = this.dedupeLargeProviderStrings(result);
             var compacted = this.compactProviderValue(result, limits, 0);
             if (options.toolUseId && this.isCompactedToolResultValue(compacted, 0)) {
-                compacted = this.addToolInspectionHint(compacted, options.toolUseId);
+                compacted = this.addToolInspectionHint(compacted, options.toolUseId, inspectionMetadata);
             }
             var json = this.safeJsonStringify(compacted);
 
@@ -1217,7 +1307,7 @@
             limits = this.getToolResultCompactLimits('aggressive');
             compacted = this.compactProviderValue(result, limits, 0);
             if (options.toolUseId && this.isCompactedToolResultValue(compacted, 0)) {
-                compacted = this.addToolInspectionHint(compacted, options.toolUseId);
+                compacted = this.addToolInspectionHint(compacted, options.toolUseId, inspectionMetadata);
             }
             json = this.safeJsonStringify(compacted);
 
@@ -1227,7 +1317,7 @@
 
             compacted = this.createProviderValueSummary(result);
             if (options.toolUseId) {
-                compacted = this.addToolInspectionHint(compacted, options.toolUseId);
+                compacted = this.addToolInspectionHint(compacted, options.toolUseId, inspectionMetadata);
             }
             json = this.safeJsonStringify(compacted);
             if (json.length <= limits.maxResultChars) {
@@ -1237,11 +1327,11 @@
             compacted = {
                 _truncated: true,
                 reason: 'Tool result exceeded the provider context limit.',
-                original_chars: json.length,
+                original_chars: originalJson.length,
                 preview: this.truncateProviderString(json, Math.max(1000, limits.maxResultChars - 1000))
             };
             if (options.toolUseId) {
-                compacted = this.addToolInspectionHint(compacted, options.toolUseId);
+                compacted = this.addToolInspectionHint(compacted, options.toolUseId, inspectionMetadata);
             }
             return this.safeJsonStringify(compacted);
         },
@@ -1435,12 +1525,15 @@
                     value.truncated === true &&
                     (
                         Object.prototype.hasOwnProperty.call(value, 'next_offset') ||
-                        Object.prototype.hasOwnProperty.call(value, 'returned_bytes') ||
-                        Object.prototype.hasOwnProperty.call(value, 'returned_chars')
+                        Object.prototype.hasOwnProperty.call(value, 'returned_bytes')
                     )
                 ) ||
                 Object.prototype.hasOwnProperty.call(value, '_truncated_items') ||
                 Object.prototype.hasOwnProperty.call(value, '_truncated_keys') ||
+                Object.prototype.hasOwnProperty.call(value, '_omitted_items') ||
+                Object.prototype.hasOwnProperty.call(value, '_omitted_keys') ||
+                Object.prototype.hasOwnProperty.call(value, '_ai_assistant_omitted') ||
+                Object.prototype.hasOwnProperty.call(value, '_ai_assistant_compacted') ||
                 Object.prototype.hasOwnProperty.call(value, 'content_original_chars')
             ) {
                 return true;
@@ -2483,6 +2576,7 @@
                 var toolCalls = [];
                 var stopReason = null;
                 var providerUsage = null;
+                var toolCardsArchivedBeforeText = false;
 
                 for await (var event of this.readSSEStream(response)) {
                     if (event.message && event.message.usage) {
@@ -2512,6 +2606,10 @@
                                 textContent += event.delta.text;
                                 if (currentBlock && currentBlock.type === 'text') {
                                     currentBlock.text += event.delta.text;
+                                }
+                                if (!toolCardsArchivedBeforeText && textContent.trim()) {
+                                    toolCardsArchivedBeforeText = true;
+                                    this.archiveToolCardsBeforeAssistantText();
                                 }
                                 this.updateReply($reply, textContent);
                             } else if (event.delta.type === 'input_json_delta') {
@@ -2593,6 +2691,9 @@
                 if (toolCalls.length > 0) {
                     this.checkAllToolsResolved();
                 } else {
+                    if (this.archiveToolCards) {
+                        this.archiveToolCards({ removeIncomplete: false });
+                    }
                     if (this.sendQueuedMessagesIfAvailable('anthropic')) {
                         return;
                     }
@@ -2773,6 +2874,9 @@
                 if (toolCalls.length > 0) {
                     this.processToolCalls(toolCalls, 'openai');
                 } else {
+                    if (this.archiveToolCards) {
+                        this.archiveToolCards({ removeIncomplete: false });
+                    }
                     if (this.sendQueuedMessagesIfAvailable('openai')) {
                         return;
                     }
@@ -3144,6 +3248,9 @@
                 if (toolCalls.length > 0) {
                     this.processToolCalls(toolCalls, 'openai');
                 } else {
+                    if (this.archiveToolCards) {
+                        this.archiveToolCards({ removeIncomplete: false });
+                    }
                     if (this.sendQueuedMessagesIfAvailable('openai')) {
                         return;
                     }

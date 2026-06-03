@@ -1472,6 +1472,21 @@
             return typeof value;
         },
 
+        getUtf8ByteLength: function(value) {
+            var text = String(value || '');
+            if (typeof TextEncoder !== 'undefined') {
+                try {
+                    return new TextEncoder().encode(text).length;
+                } catch (e) {}
+            }
+
+            try {
+                return encodeURIComponent(text).replace(/%[0-9A-F]{2}/gi, 'x').length;
+            } catch (e) {
+                return text.length;
+            }
+        },
+
         summarizeCachedToolResultValue: function(value, depth) {
             depth = depth || 0;
             if (value === null || value === undefined || typeof value !== 'object') {
@@ -1503,6 +1518,7 @@
                     summary[key] = {
                         type: 'string',
                         chars: item.length,
+                        bytes: this.getUtf8ByteLength(item),
                         preview: item.length > 500 ? item.substring(0, 500) + '... [truncated]' : item
                     };
                 } else if (item && typeof item === 'object') {
@@ -1534,6 +1550,7 @@
                 afterLines = Number.isFinite(afterLines) && afterLines >= 0 ? Math.min(afterLines, 500) : 80;
                 var found = 0;
                 var matchIndex = -1;
+                var hasMoreMatches = false;
                 for (var i = 0; i < lines.length; i++) {
                     if (lines[i].indexOf(search) === -1) {
                         continue;
@@ -1541,6 +1558,8 @@
                     found++;
                     if (found === occurrence) {
                         matchIndex = i;
+                    } else if (found > occurrence) {
+                        hasMoreMatches = true;
                         break;
                     }
                 }
@@ -1581,9 +1600,25 @@
                     match_line: matchIndex + 1,
                     line_start: start + 1,
                     line_end: end + 1,
+                    content_format: 'line_excerpt',
+                    content_note: 'The content field is a line excerpt from the cached value and may not be valid standalone JSON.',
                     content: content,
-                    returned_chars: content.length,
-                    truncated: truncated
+                    truncated: truncated,
+                    matches_seen: found,
+                    more_matches_available: hasMoreMatches,
+                    next_occurrence: hasMoreMatches ? occurrence + 1 : null,
+                    next_inspection: hasMoreMatches ? {
+                        tool_use_id: record.id,
+                        path: path,
+                        search: search,
+                        occurrence: occurrence + 1,
+                        before_lines: beforeLines,
+                        after_lines: afterLines,
+                        max_length: maxLength
+                    } : null,
+                    instruction: hasMoreMatches
+                        ? 'The content field is a line excerpt and may not be valid standalone JSON. Another search match is available. Call inspect_tool_result again with the same tool_use_id, path, and search, and set occurrence to next_occurrence. Do not rerun the original broad tool call.'
+                        : 'The content field is a line excerpt and may not be valid standalone JSON. No later search match was found in this cached result path.'
                 };
             }
 
@@ -1600,7 +1635,6 @@
                 chars: text.length,
                 offset: offset,
                 content: chunk,
-                returned_chars: chunk.length,
                 truncated: chunkTruncated,
                 next_offset: chunkTruncated ? nextOffset : null
             };
@@ -1646,7 +1680,110 @@
             };
         },
 
+        inspectCachedToolResultJsonSearch: function(record, args, value, path) {
+            var search = String(args.search || '');
+            var occurrence = parseInt(args.occurrence, 10);
+            occurrence = Number.isFinite(occurrence) && occurrence > 0 ? occurrence : 1;
+            var found = 0;
+            var hasMoreMatches = false;
+            var match = null;
+            var itemLimits = this.getToolResultCompactLimits
+                ? this.getToolResultCompactLimits('aggressive')
+                : null;
+            var compactValue = function(item) {
+                return itemLimits && this.compactProviderValue
+                    ? this.compactProviderValue(item, itemLimits, 0)
+                    : item;
+            }.bind(this);
+            var jsonContains = function(item) {
+                try {
+                    return JSON.stringify(item, null, 2).indexOf(search) !== -1;
+                } catch (e) {
+                    return String(item).indexOf(search) !== -1;
+                }
+            };
+            var noteMatch = function(candidate) {
+                found++;
+                if (found === occurrence) {
+                    match = candidate;
+                } else if (found > occurrence) {
+                    hasMoreMatches = true;
+                    return true;
+                }
+                return false;
+            };
+
+            if (Array.isArray(value)) {
+                for (var i = 0; i < value.length; i++) {
+                    if (!jsonContains(value[i])) {
+                        continue;
+                    }
+                    if (noteMatch({
+                        item_index: i,
+                        item: compactValue(value[i])
+                    })) {
+                        break;
+                    }
+                }
+            } else if (value && typeof value === 'object') {
+                var keys = Object.keys(value);
+                for (var k = 0; k < keys.length; k++) {
+                    var key = keys[k];
+                    if (!jsonContains(value[key])) {
+                        continue;
+                    }
+                    if (noteMatch({
+                        matched_path: path ? path + '.' + key : key,
+                        value: compactValue(value[key])
+                    })) {
+                        break;
+                    }
+                }
+            }
+
+            if (!match) {
+                return {
+                    tool_use_id: record.id,
+                    tool: record.name,
+                    path: path,
+                    type: this.getCachedToolResultType(value),
+                    length: Array.isArray(value) ? value.length : undefined,
+                    search: search,
+                    occurrence: occurrence,
+                    match_found: false,
+                    matches_seen: found,
+                    instruction: 'Search text was not found in the cached JSON value at this path.'
+                };
+            }
+
+            return $.extend({
+                tool_use_id: record.id,
+                tool: record.name,
+                path: path,
+                type: this.getCachedToolResultType(value),
+                length: Array.isArray(value) ? value.length : undefined,
+                search: search,
+                occurrence: occurrence,
+                match_found: true,
+                matches_seen: found,
+                more_matches_available: hasMoreMatches,
+                next_occurrence: hasMoreMatches ? occurrence + 1 : null,
+                next_inspection: hasMoreMatches ? {
+                    tool_use_id: record.id,
+                    path: path,
+                    search: search,
+                    occurrence: occurrence + 1
+                } : null,
+                instruction: hasMoreMatches
+                    ? 'A later JSON match is available. Call inspect_tool_result again with the same tool_use_id, path, and search, and set occurrence to next_occurrence. Do not rerun the original broad tool call.'
+                    : 'No later JSON match was found in this cached result path.'
+            }, match);
+        },
+
         inspectCachedToolResultJson: function(record, args, value, path) {
+            if (args.search) {
+                return this.inspectCachedToolResultJsonSearch(record, args, value, path);
+            }
             var nextArgs = $.extend({}, args, { path: path });
             var result = this.inspectCachedToolResultString(
                 record,
@@ -2469,6 +2606,10 @@
         },
 
         getResolvedToolResultForProviderDisplay: function(result, provider) {
+            if (result && (result.name || result.tool) === 'inspect_tool_result') {
+                return result.result;
+            }
+
             var content = this.stringifyResolvedToolResultForProvider(result, provider);
             try {
                 return JSON.parse(content);
@@ -2610,10 +2751,12 @@
             }
 
             if (this.maybeStopForToolRoundLimit(allResults)) {
+                this.continuingToolLoop = true;
                 this.callLLM();
                 return;
             }
 
+            this.continuingToolLoop = true;
             this.callLLM();
         },
 
@@ -3184,11 +3327,31 @@
                     if (args.path) {
                         inspectDescription += ': ' + args.path;
                     }
+                    var inspectLimits = [];
                     if (args.search) {
                         var inspectSearch = String(args.search);
                         inspectDescription += ' around "' + inspectSearch.substring(0, 40) + (inspectSearch.length > 40 ? '...' : '') + '"';
+                        if (args.occurrence !== undefined) {
+                            inspectLimits.push('match ' + (parseInt(args.occurrence, 10) || 1));
+                        }
+                        if (args.before_lines !== undefined || args.after_lines !== undefined) {
+                            inspectLimits.push(
+                                (parseInt(args.before_lines, 10) || 0) + ' before/' +
+                                (parseInt(args.after_lines, 10) || 0) + ' after'
+                            );
+                        }
+                    }
+                    if (args.item_offset !== undefined || args.max_items !== undefined) {
+                        var itemOffset = parseInt(args.item_offset, 10) || 0;
+                        var maxItems = parseInt(args.max_items, 10) || 0;
+                        inspectLimits.push(maxItems > 0 ? 'items ' + itemOffset + '-' + (itemOffset + maxItems - 1) : 'items from ' + itemOffset);
                     } else if (args.offset !== undefined || args.max_length !== undefined) {
-                        inspectDescription += ' at offset ' + (parseInt(args.offset, 10) || 0);
+                        var textOffset = parseInt(args.offset, 10) || 0;
+                        var maxLength = parseInt(args.max_length, 10) || 0;
+                        inspectLimits.push(maxLength > 0 ? 'chars ' + textOffset + '-' + (textOffset + maxLength - 1) : 'offset ' + textOffset);
+                    }
+                    if (inspectLimits.length) {
+                        inspectDescription += ' (' + inspectLimits.join(', ') + ')';
                     }
                     return inspectDescription;
                 case 'install_plugin':

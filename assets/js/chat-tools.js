@@ -181,13 +181,13 @@ var aiAssistantToolsMixin = (function() {
                 },
                 {
                     name: 'inspect_tool_result',
-                    description: 'Inspect a cached full result from a previous tool call when its provider context was compacted. Use path plus search/before_lines/after_lines or offset/max_length for text/JSON, or item_offset/max_items for array windows, without rerunning the original tool.',
+                    description: 'Inspect a cached full result from a previous tool call when its provider context was compacted. If looking for a word/topic in an omitted array or object, use path plus search/before_lines/after_lines; search scans the pretty-printed JSON at that path. Use offset/max_length for text/JSON chunks, or item_offset/max_items for array windows. Do not rerun the original tool.',
                     input_schema: {
                         type: 'object',
                         properties: {
                             tool_use_id: { type: 'string', description: 'Previous tool call/result ID' },
                             path: { type: 'string', description: 'Dot path inside the cached result, e.g. sessions. For scalar or list ability results, use result or a path below result.' },
-                            search: { type: 'string', description: 'Exact text to locate inside a string value.' },
+                            search: { type: 'string', description: 'Exact text to locate inside a string or the pretty-printed JSON for an array/object path, e.g. Playground inside sessions.' },
                             before_lines: { type: 'number', description: 'Lines to include before the search match.' },
                             after_lines: { type: 'number', description: 'Lines to include after the search match.' },
                             occurrence: { type: 'number', description: 'Which search match; starts at 1' },
