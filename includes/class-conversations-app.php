@@ -73,6 +73,7 @@ class Conversations_App {
         $container_class = isset($args['container_class'])
             ? (string) $args['container_class']
             : 'ai-assistant-page';
+        $container_class = trim($container_class . ' ' . self::get_theme_class());
         ?>
         <div class="<?php echo esc_attr($container_class); ?>">
             <div class="ai-chat-layout">
@@ -165,5 +166,22 @@ class Conversations_App {
             });
         </script>
         <?php
+    }
+
+    private static function get_theme_class(): string {
+        $assistant = function_exists('ai_assistant') ? ai_assistant() : null;
+        if (is_object($assistant) && method_exists($assistant, 'assistant_themes')) {
+            $themes = $assistant->assistant_themes();
+            if ($themes instanceof Assistant_Themes) {
+                return 'ai-assistant-theme-' . sanitize_html_class($themes->get_current_theme_id());
+            }
+        }
+
+        $theme_id = sanitize_key((string) get_option(Assistant_Themes::OPTION, Assistant_Themes::DEFAULT_THEME));
+        if ($theme_id === '') {
+            $theme_id = Assistant_Themes::DEFAULT_THEME;
+        }
+
+        return 'ai-assistant-theme-' . sanitize_html_class($theme_id);
     }
 }

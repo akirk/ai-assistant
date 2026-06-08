@@ -1,0 +1,561 @@
+@import url("../admin-classic/style.css");
+
+.ai-assistant-standalone-wrap {
+    bottom: 24px !important;
+    left: auto !important;
+    right: 24px !important;
+    top: auto !important;
+    width: min(var(--ai-assistant-floating-width, 520px), calc(100vw - 32px)) !important;
+}
+
+body.admin-bar .ai-assistant-standalone-wrap,
+body.wp-admin .ai-assistant-standalone-wrap {
+    width: min(var(--ai-assistant-floating-width, 520px), calc(100vw - 32px)) !important;
+}
+
+.ai-assistant-standalone-panel {
+    border: 1px solid #e5e7eb !important;
+    border-radius: 10px !important;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18) !important;
+    margin: 0 0 12px !important;
+    overflow: hidden !important;
+}
+
+.ai-assistant-standalone-panel #ai-assistant-columns,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-columns {
+    padding: 0 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-chat-container {
+    --ai-assistant-chat-default-height: min(560px, calc(100vh - 132px));
+    --ai-assistant-chat-min-height: 360px;
+    --ai-assistant-chat-max-height: calc(100vh - 132px);
+    background: #fff !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-header {
+    background: #fff !important;
+    border-bottom: 1px solid #f1f3f5 !important;
+    min-height: 42px !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-header h2 {
+    color: #111827 !important;
+    font-size: 13px !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-sep {
+    color: #e5e7eb !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-expand.ai-assistant-resize-handle {
+    display: none !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-corner-resize {
+    align-items: center !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    color: #d1d5db !important;
+    cursor: nwse-resize !important;
+    display: inline-flex !important;
+    height: 18px !important;
+    justify-content: center !important;
+    left: 5px !important;
+    padding: 0 !important;
+    position: absolute !important;
+    top: 5px !important;
+    touch-action: none !important;
+    width: 18px !important;
+    z-index: 30 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-corner-resize span {
+    background:
+        linear-gradient(135deg, transparent 0 45%, currentColor 45% 55%, transparent 55%),
+        linear-gradient(135deg, transparent 0 64%, currentColor 64% 72%, transparent 72%) !important;
+    border: 0 !important;
+    display: block !important;
+    height: 12px !important;
+    width: 12px !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-corner-resize:hover,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-corner-resize:focus {
+    color: #6b7280 !important;
+    outline: none !important;
+}
+
+body.ai-assistant-corner-resizing {
+    cursor: nwse-resize !important;
+}
+
+body.wp-app-body.ai-assistant-app-body:has(.ai-assistant-theme-floating-button) {
+    background: #fff !important;
+}
+
+body.wp-app-body.ai-assistant-app-body .ai-assistant-page.ai-assistant-theme-floating-button #ai-assistant-new-chat {
+    background: #111827 !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    box-shadow: none !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+    min-height: 34px !important;
+    padding: 6px 14px !important;
+}
+
+body.wp-app-body.ai-assistant-app-body .ai-assistant-page.ai-assistant-theme-floating-button #ai-assistant-new-chat:hover,
+body.wp-app-body.ai-assistant-app-body .ai-assistant-page.ai-assistant-theme-floating-button #ai-assistant-new-chat:focus {
+    background: #374151 !important;
+    color: #fff !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-layout {
+    background: #fff !important;
+    border: 0 !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main {
+    background: #fff !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-sidebar {
+    background: #fff !important;
+    border: 0 !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-sidebar-footer {
+    background: #fff !important;
+    border: 0 !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main-header {
+    background: #fff !important;
+    border-bottom-color: #f1f3f5 !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-assistant-chat-container {
+    background: #fff !important;
+    border: 0 !important;
+    position: relative !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main #ai-assistant-messages {
+    background: #fff !important;
+    gap: 18px !important;
+    padding: 24px 28px 150px !important;
+}
+
+body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-layout,
+body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-sidebar,
+body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-sidebar-footer,
+body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main,
+body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-assistant-chat-container,
+body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main #ai-assistant-messages {
+    background: #f0f0f1 !important;
+}
+
+body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-message-user .ai-message-content {
+    background: #fff !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main-header {
+    background: #fff !important;
+    border-radius: 10px !important;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08) !important;
+    margin: 8px 8px 0 !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-message {
+    align-items: flex-start !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    max-width: 100% !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-message-user {
+    align-items: flex-end !important;
+    align-self: flex-end !important;
+    flex-direction: column !important;
+    max-width: min(78%, 720px) !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-message-assistant,
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-message-system {
+    align-items: flex-start !important;
+    align-self: stretch !important;
+    max-width: 100% !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-message-user .ai-message-content {
+    background: #f3f4f6 !important;
+    border: 0 !important;
+    border-radius: 10px !important;
+    color: #111827 !important;
+    padding: 9px 12px !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-message-assistant .ai-message-content {
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    color: #111827 !important;
+    padding: 0 !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-message-system .ai-message-content,
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-model-note .ai-message-content,
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-model-warning .ai-message-content {
+    background: #f9fafb !important;
+    border: 1px solid #e5e7eb !important;
+    color: #374151 !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-message-error .ai-message-content {
+    background: #fef2f2 !important;
+    border: 1px solid #fecaca !important;
+    color: #991b1b !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-message-actions {
+    align-self: flex-start !important;
+    gap: 1px !important;
+    margin: 0 0 0 2px !important;
+    opacity: 0 !important;
+    order: 2 !important;
+    padding: 0 !important;
+    transition: opacity 0.12s, visibility 0s linear 0.12s !important;
+    visibility: hidden !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-message-user .ai-message-actions {
+    align-self: flex-end !important;
+    justify-content: flex-end !important;
+    margin: 0 2px 0 0 !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-message:hover .ai-message-actions,
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-message:focus-within .ai-message-actions,
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-message-actions:focus-within {
+    opacity: 1 !important;
+    transition-delay: 0s !important;
+    visibility: visible !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-message-timestamp {
+    color: #9ca3af !important;
+    font-size: 10px !important;
+    min-height: 18px !important;
+    padding: 0 2px !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-action-btn {
+    color: #9ca3af !important;
+    height: 18px !important;
+    width: 18px !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-action-btn svg {
+    height: 12px !important;
+    width: 12px !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-action-btn:hover,
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-action-btn:focus {
+    background: #f3f4f6 !important;
+    color: #4b5563 !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-assistant-input-area {
+    align-items: flex-end !important;
+    background: #fff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 10px !important;
+    bottom: 20px !important;
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.14) !important;
+    gap: 8px !important;
+    left: 24px !important;
+    margin: 0 !important;
+    min-height: 92px !important;
+    padding: 14px !important;
+    position: absolute !important;
+    right: 24px !important;
+    z-index: 20 !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main .ai-assistant-attachments.has-attachments + .ai-assistant-input-area {
+    border-top: 1px solid #e5e7eb !important;
+    padding-top: 14px !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main #ai-assistant-input {
+    align-self: stretch !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    color: #111827 !important;
+    height: auto !important;
+    line-height: 1.45 !important;
+    min-height: 62px !important;
+    padding: 6px 2px !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main #ai-assistant-input::placeholder {
+    color: #8b949e !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main #ai-assistant-attach,
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main #ai-assistant-send,
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main #ai-assistant-stop {
+    align-self: flex-end !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    box-shadow: none !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main #ai-assistant-attach {
+    background: transparent !important;
+    color: #8b949e !important;
+}
+
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main #ai-assistant-send,
+.ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main #ai-assistant-stop {
+    background: transparent !important;
+    color: #8b949e !important;
+    min-width: 34px !important;
+    padding: 0 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-messages {
+    background: #fff !important;
+    gap: 18px !important;
+    padding: 22px 22px 150px !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message {
+    align-items: flex-start !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    max-width: 100% !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-user {
+    align-self: flex-end !important;
+    align-items: flex-end !important;
+    flex-direction: column !important;
+    max-width: min(78%, 560px) !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-assistant,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-system {
+    align-items: flex-start !important;
+    align-self: stretch !important;
+    max-width: 100% !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-actions {
+    align-self: flex-start !important;
+    gap: 1px !important;
+    margin: 0 0 0 2px !important;
+    opacity: 0 !important;
+    order: 2 !important;
+    padding: 0 !important;
+    transition: opacity 0.12s, visibility 0s linear 0.12s !important;
+    visibility: hidden !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-user .ai-message-actions {
+    align-self: flex-end !important;
+    justify-content: flex-end !important;
+    margin: 0 2px 0 0 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message:hover .ai-message-actions,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message:focus-within .ai-message-actions,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-actions:focus-within {
+    opacity: 1 !important;
+    transition-delay: 0s !important;
+    visibility: visible !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-timestamp {
+    color: #9ca3af !important;
+    font-size: 10px !important;
+    min-height: 18px !important;
+    padding: 0 2px !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-btn {
+    color: #9ca3af !important;
+    height: 18px !important;
+    width: 18px !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-btn svg {
+    height: 12px !important;
+    width: 12px !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-btn:hover,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-action-btn:focus {
+    background: #f3f4f6 !important;
+    color: #4b5563 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-content {
+    border-radius: 12px !important;
+    font-size: 13px !important;
+    line-height: 1.55 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-user .ai-message-content {
+    background: #f3f4f6 !important;
+    border: 0 !important;
+    border-radius: 10px !important;
+    color: #111827 !important;
+    padding: 9px 12px !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-user .ai-message-content::selection,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-user .ai-message-content *::selection {
+    background: #dbeafe !important;
+    color: #111827 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-assistant .ai-message-content {
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    color: #111827 !important;
+    padding: 0 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-system .ai-message-content,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-model-note .ai-message-content,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-model-warning .ai-message-content {
+    background: #f9fafb !important;
+    border: 1px solid #e5e7eb !important;
+    color: #374151 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message-error .ai-message-content {
+    background: #fef2f2 !important;
+    border: 1px solid #fecaca !important;
+    color: #991b1b !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-input-area {
+    align-items: flex-end !important;
+    background: #fff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 10px !important;
+    bottom: 16px !important;
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.14) !important;
+    gap: 8px !important;
+    left: 16px !important;
+    margin: 0 !important;
+    min-height: 92px !important;
+    padding: 14px !important;
+    position: absolute !important;
+    right: 16px !important;
+    z-index: 20 !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-attachments.has-attachments + .ai-assistant-input-area {
+    border-top: 1px solid #e5e7eb !important;
+    padding-top: 14px !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-input {
+    align-self: stretch !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    color: #111827 !important;
+    height: auto !important;
+    line-height: 1.45 !important;
+    min-height: 62px !important;
+    padding: 6px 2px !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-input::placeholder {
+    color: #8b949e !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-attach,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-send,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-stop {
+    align-self: flex-end !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    box-shadow: none !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-attach {
+    background: transparent !important;
+    color: #8b949e !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-send,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-stop {
+    background: transparent !important;
+    color: #8b949e !important;
+    min-width: 34px !important;
+    padding: 0 !important;
+}
+
+.ai-assistant-standalone-links {
+    float: none !important;
+    margin: 0 !important;
+    text-align: right !important;
+}
+
+.ai-assistant-standalone-trigger {
+    float: none !important;
+    margin: 0 !important;
+}
+
+.ai-assistant-standalone-trigger button {
+    align-items: center !important;
+    background: var(--ai-assistant-accent) !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28) !important;
+    color: var(--ai-assistant-on-accent) !important;
+    display: inline-flex !important;
+    font-weight: 600 !important;
+    min-height: 44px !important;
+    padding: 0 18px !important;
+}
+
+.ai-assistant-standalone-trigger button:hover,
+.ai-assistant-standalone-trigger button:focus {
+    background: var(--ai-assistant-accent-hover) !important;
+    color: var(--ai-assistant-on-accent) !important;
+}
+
+.ai-assistant-standalone-trigger button::after,
+.ai-assistant-standalone-links::after {
+    display: none !important;
+}
+
+@media screen and (max-width: 782px) {
+    .ai-assistant-standalone-wrap {
+        bottom: 12px !important;
+        right: 12px !important;
+        width: min(var(--ai-assistant-floating-width, calc(100vw - 24px)), calc(100vw - 24px)) !important;
+    }
+
+    body.admin-bar .ai-assistant-standalone-wrap,
+    body.wp-admin .ai-assistant-standalone-wrap {
+        width: min(var(--ai-assistant-floating-width, calc(100vw - 24px)), calc(100vw - 24px)) !important;
+    }
+}

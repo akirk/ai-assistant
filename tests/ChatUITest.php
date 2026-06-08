@@ -14,6 +14,7 @@ class ChatUITest extends TestCase {
 
     protected function setUp(): void {
         $GLOBALS['wp_test_filters'] = [];
+        $GLOBALS['wp_test_options'] = [];
         $GLOBALS['wp_test_site_url'] = 'http://localhost';
         $_SERVER['REQUEST_URI'] = '/my-apps/?tab=one';
     }
@@ -128,6 +129,15 @@ class ChatUITest extends TestCase {
         $this->assertFalse($this->should_defer_initial_provider_config());
     }
 
+    public function test_bootstrap_config_includes_selected_theme(): void {
+        $GLOBALS['wp_test_options']['ai_assistant_theme'] = 'floating-button';
+
+        $config = $this->get_bootstrap_config();
+
+        $this->assertSame('floating-button', $config['theme']['id']);
+        $this->assertSame('standalone', $config['theme']['placement']);
+    }
+
     private function get_welcome_tips(): array {
         $chat_ui = new Chat_UI();
         $reflection = new ReflectionClass($chat_ui);
@@ -153,6 +163,15 @@ class ChatUITest extends TestCase {
         $method->setAccessible(true);
 
         return $method->invoke($chat_ui);
+    }
+
+    private function get_bootstrap_config(): array {
+        $chat_ui = new Chat_UI();
+        $reflection = new ReflectionClass($chat_ui);
+        $method = $reflection->getMethod('get_bootstrap_config');
+        $method->setAccessible(true);
+
+        return $method->invoke($chat_ui, true);
     }
 
     private function add_test_filter(string $tag, callable $callback, int $priority = 10, int $accepted_args = 2): void {

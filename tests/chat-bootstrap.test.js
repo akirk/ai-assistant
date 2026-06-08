@@ -450,7 +450,7 @@ function createHarness(useCoreScreenMeta) {
 
     vm.createContext(context);
     const source = fs.readFileSync(
-        path.join(__dirname, '../assets/js/chat-bootstrap.js'),
+        path.join(__dirname, '../themes/admin-classic/script.js'),
         'utf8'
     );
     vm.runInContext(source, context);

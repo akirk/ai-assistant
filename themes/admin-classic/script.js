@@ -47,6 +47,21 @@
             '</div>';
     }
 
+    function usesCornerResizeHandle() {
+        var config = getConfig();
+        return config.theme && config.theme.id === 'floating-button';
+    }
+
+    function cornerResizeHandle() {
+        if (!usesCornerResizeHandle()) {
+            return '';
+        }
+
+        return '<div id="ai-assistant-corner-resize" class="ai-assistant-corner-resize" role="separator" tabindex="0" aria-controls="ai-assistant-messages" aria-orientation="horizontal" aria-label="' + escapeAttr(text('resizePanel', 'Resize AI Assistant')) + '" title="' + escapeAttr(text('resizePanelTitle', 'Drag to resize AI Assistant.')) + '">' +
+            '<span aria-hidden="true"></span>' +
+        '</div>';
+    }
+
     function attachIcon() {
         return '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
             '<path d="M21.44 11.05l-8.49 8.49a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.19 9.19a2 2 0 01-2.83-2.83l8.49-8.49"/>' +
@@ -92,6 +107,7 @@
                         '<button type="button" id="ai-assistant-stop" class="button" style="display: none;" title="' + escapeAttr(text('stopGeneration', 'Stop generation')) + '"></button>' +
                     '</div>' +
                     resizeHandle() +
+                    cornerResizeHandle() +
                 '</div>' +
             '</div>' +
         '</div>';
@@ -353,10 +369,150 @@
             }
         });
 
+        bindCornerResize($wrap);
+
         $(document).off('keydown.aiAssistantStandalone').on('keydown.aiAssistantStandalone', function(e) {
             if (e.key === 'Escape' && $button.attr('aria-expanded') === 'true') {
                 $button.trigger('click');
             }
+        });
+    }
+
+    function getCornerResizeLimits($wrap, $container) {
+        var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        var viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        var adminbarOffset = parseFloat($wrap.css('--ai-assistant-adminbar-offset')) || 0;
+        var right = parseFloat($wrap.css('right')) || 0;
+        var bottom = parseFloat($wrap.css('bottom')) || 0;
+        var maxWidth = Math.max(320, viewportWidth - right - 16);
+        var maxHeight = Math.max(280, viewportHeight - adminbarOffset - bottom - 72);
+
+        return {
+            minWidth: 360,
+            maxWidth: Math.max(360, maxWidth),
+            minHeight: 360,
+            maxHeight: Math.max(360, maxHeight),
+            currentWidth: $wrap.outerWidth(),
+            currentHeight: $container.outerHeight()
+        };
+    }
+
+    function applyCornerResize($wrap, $container, width, height, limits) {
+        var nextWidth = Math.round(Math.max(limits.minWidth, Math.min(width, limits.maxWidth)));
+        var nextHeight = Math.round(Math.max(limits.minHeight, Math.min(height, limits.maxHeight)));
+
+        $wrap[0].style.setProperty('--ai-assistant-floating-width', nextWidth + 'px');
+        if (window.aiAssistant && typeof window.aiAssistant.applyAssistantPanelHeight === 'function') {
+            window.aiAssistant.applyAssistantPanelHeight($container, nextHeight, {
+                min: limits.minHeight,
+                max: limits.maxHeight
+            });
+        } else {
+            $container[0].style.setProperty('--ai-assistant-chat-height', nextHeight + 'px');
+        }
+    }
+
+    function bindCornerResize($wrap) {
+        var $handle = $wrap.find('#ai-assistant-corner-resize');
+        if (!$handle.length) {
+            return;
+        }
+
+        $handle.off('pointerdown.aiAssistantBootstrap').on('pointerdown.aiAssistantBootstrap', function(event) {
+            var originalEvent = event.originalEvent || event;
+            if (originalEvent.button !== undefined && originalEvent.button !== 0) {
+                return;
+            }
+
+            var handle = this;
+            var $container = $wrap.find('.ai-assistant-chat-container');
+            var limits = getCornerResizeLimits($wrap, $container);
+            var startX = originalEvent.clientX;
+            var startY = originalEvent.clientY;
+            var startWidth = limits.currentWidth;
+            var startHeight = limits.currentHeight;
+            var pointerId = originalEvent.pointerId;
+
+            $container.addClass('is-resizing');
+            $('body').addClass('ai-assistant-panel-resizing ai-assistant-corner-resizing');
+
+            if (handle.setPointerCapture && pointerId !== undefined) {
+                try {
+                    handle.setPointerCapture(pointerId);
+                } catch (error) {}
+            }
+
+            $(document).off('.aiAssistantCornerResize');
+            $(document).on('pointermove.aiAssistantCornerResize', function(moveEvent) {
+                var moveOriginal = moveEvent.originalEvent || moveEvent;
+                if (pointerId !== undefined && moveOriginal.pointerId !== undefined && moveOriginal.pointerId !== pointerId) {
+                    return;
+                }
+
+                applyCornerResize(
+                    $wrap,
+                    $container,
+                    startWidth + startX - moveOriginal.clientX,
+                    startHeight + startY - moveOriginal.clientY,
+                    limits
+                );
+                moveEvent.preventDefault();
+            });
+
+            $(document).on('pointerup.aiAssistantCornerResize pointercancel.aiAssistantCornerResize', function(upEvent) {
+                var upOriginal = upEvent.originalEvent || upEvent;
+                if (pointerId !== undefined && upOriginal.pointerId !== undefined && upOriginal.pointerId !== pointerId) {
+                    return;
+                }
+
+                $(document).off('.aiAssistantCornerResize');
+                $container.removeClass('is-resizing');
+                $('body').removeClass('ai-assistant-panel-resizing ai-assistant-corner-resizing');
+
+                if (handle.releasePointerCapture && pointerId !== undefined) {
+                    try {
+                        handle.releasePointerCapture(pointerId);
+                    } catch (error) {}
+                }
+            });
+
+            event.preventDefault();
+        });
+
+        $handle.off('keydown.aiAssistantBootstrap').on('keydown.aiAssistantBootstrap', function(event) {
+            var $container = $wrap.find('.ai-assistant-chat-container');
+            var limits = getCornerResizeLimits($wrap, $container);
+            var step = event.shiftKey ? 60 : 24;
+            var width = limits.currentWidth;
+            var height = limits.currentHeight;
+
+            switch (event.key) {
+                case 'ArrowLeft':
+                    width += step;
+                    break;
+                case 'ArrowRight':
+                    width -= step;
+                    break;
+                case 'ArrowUp':
+                    height += step;
+                    break;
+                case 'ArrowDown':
+                    height -= step;
+                    break;
+                case 'Home':
+                    width = limits.minWidth;
+                    height = limits.minHeight;
+                    break;
+                case 'End':
+                    width = limits.maxWidth;
+                    height = limits.maxHeight;
+                    break;
+                default:
+                    return;
+            }
+
+            applyCornerResize($wrap, $container, width, height, limits);
+            event.preventDefault();
         });
     }
 
@@ -377,7 +533,8 @@
 
         var $screenMetaLinks = $('#screen-meta-links');
         var $screenMeta = $('#screen-meta');
-        var hasScreenMeta = $screenMetaLinks.length > 0 && $screenMeta.length > 0;
+        var placement = config.theme && config.theme.placement ? config.theme.placement : 'auto';
+        var hasScreenMeta = placement !== 'standalone' && $screenMetaLinks.length > 0 && $screenMeta.length > 0;
         var $standaloneWrap = $(buildStandaloneHtml());
 
         if (hasScreenMeta) {

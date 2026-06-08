@@ -42,13 +42,13 @@ class Chat_UI {
         wp_enqueue_style('dashicons');
 
         wp_enqueue_style(
-            'ai-assistant-chat',
-            AI_ASSISTANT_PLUGIN_URL . 'assets/css/chat.css',
+            'ai-assistant-theme-' . $this->get_current_theme_id(),
+            $this->get_theme_asset_url('style.css'),
             ['wp-codemirror'],
             AI_ASSISTANT_VERSION
         );
         wp_add_inline_style(
-            'ai-assistant-chat',
+            'ai-assistant-theme-' . $this->get_current_theme_id(),
             $this->get_color_css()
         );
 
@@ -138,8 +138,8 @@ class Chat_UI {
         );
 
         wp_enqueue_script(
-            'ai-assistant-chat-bootstrap',
-            AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-bootstrap.js',
+            'ai-assistant-theme-bootstrap',
+            $this->get_theme_asset_url('script.js'),
             [
                 'ai-assistant-chat-conversations',
                 'ai-assistant-chat-tools',
@@ -762,6 +762,10 @@ class Chat_UI {
         return [
             'deferInit' => true,
             'renderLatch' => (bool) $render_latch,
+            'theme' => [
+                'id' => $this->get_current_theme_id(),
+                'placement' => (string) ($this->get_current_theme()['placement'] ?? 'auto'),
+            ],
             'urls' => [
                 'history' => $history_url,
                 'settings' => admin_url('options-general.php?page=ai-assistant-settings'),
@@ -802,8 +806,8 @@ class Chat_UI {
         return [
             'styles' => [
                 [
-                    'id' => 'ai-assistant-chat-css',
-                    'href' => AI_ASSISTANT_PLUGIN_URL . 'assets/css/chat.css',
+                    'id' => 'ai-assistant-theme-' . $this->get_current_theme_id() . '-css',
+                    'href' => $this->get_theme_asset_url('style.css'),
                     'version' => AI_ASSISTANT_VERSION,
                 ],
             ],
@@ -860,8 +864,8 @@ class Chat_UI {
                     'version' => AI_ASSISTANT_VERSION,
                 ],
                 [
-                    'id' => 'ai-assistant-chat-bootstrap',
-                    'src' => AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-bootstrap.js',
+                    'id' => 'ai-assistant-theme-bootstrap',
+                    'src' => $this->get_theme_asset_url('script.js'),
                     'version' => AI_ASSISTANT_VERSION,
                 ],
             ],
@@ -873,6 +877,37 @@ class Chat_UI {
      */
     private function get_color_css() {
         return Admin_Colors::get_current_scheme_css(':root, body, #ai-assistant-wrap, .ai-assistant-standalone-wrap, .ai-assistant-page, .ai-assistant-chat-container');
+    }
+
+    private function get_current_theme_id(): string {
+        return $this->get_assistant_themes()->get_current_theme_id();
+    }
+
+    private function get_current_theme(): array {
+        return $this->get_assistant_themes()->get_current_theme();
+    }
+
+    private function get_theme_asset_url(string $relative_path): string {
+        $themes = $this->get_assistant_themes();
+        $url = $themes->locate_url($themes->get_current_theme_id(), $relative_path);
+
+        if ($url !== '') {
+            return $url;
+        }
+
+        return AI_ASSISTANT_PLUGIN_URL . 'themes/' . Assistant_Themes::DEFAULT_THEME . '/' . ltrim($relative_path, '/');
+    }
+
+    private function get_assistant_themes(): Assistant_Themes {
+        $assistant = function_exists('ai_assistant') ? ai_assistant() : null;
+        if (is_object($assistant) && method_exists($assistant, 'assistant_themes')) {
+            $themes = $assistant->assistant_themes();
+            if ($themes instanceof Assistant_Themes) {
+                return $themes;
+            }
+        }
+
+        return new Assistant_Themes();
     }
 
     /**

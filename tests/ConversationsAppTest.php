@@ -8,6 +8,7 @@ class ConversationsAppTest extends TestCase {
 
     protected function tearDown(): void {
         unset($_GET['conversation'], $_GET['conversation_id']);
+        $GLOBALS['wp_test_options'] = [];
     }
 
     public function test_request_conversation_id_accepts_conversation_param(): void {
@@ -27,5 +28,17 @@ class ConversationsAppTest extends TestCase {
             'http://localhost/ai-assistant/conversations/?conversation=42',
             Conversations_App::get_conversation_url(42)
         );
+    }
+
+    public function test_chat_shell_includes_selected_theme_class(): void {
+        $GLOBALS['wp_test_options']['ai_assistant_theme'] = 'floating-button';
+
+        ob_start();
+        Conversations_App::render_chat_shell([
+            'container_class' => 'wrap ai-assistant-page',
+        ]);
+        $html = ob_get_clean();
+
+        $this->assertStringContainsString('wrap ai-assistant-page ai-assistant-theme-floating-button', $html);
     }
 }
