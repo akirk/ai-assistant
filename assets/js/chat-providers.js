@@ -2721,7 +2721,9 @@
                 this.setLoading(false);
                 if (!expectedAbort) {
                     this.autoSaveConversation();
-                    this.addMessage('error', 'Anthropic API error: ' + error.message);
+                    this.addMessage('error', 'Anthropic API error: ' + error.message, 'ai-provider-error', {
+                        retryable: true
+                    });
                 }
             }
         },
@@ -2903,7 +2905,9 @@
                 this.setLoading(false);
                 if (!expectedAbort) {
                     this.autoSaveConversation();
-                    this.addMessage('error', 'OpenAI API error: ' + error.message);
+                    this.addMessage('error', 'OpenAI API error: ' + error.message, 'ai-provider-error', {
+                        retryable: true
+                    });
                 }
             }
         },
@@ -3280,7 +3284,9 @@
                 this.setLoading(false);
                 if (!expectedAbort) {
                     this.autoSaveConversation();
-                    this.addMessage('error', 'Local LLM error: ' + error.message);
+                    this.addMessage('error', 'Local LLM error: ' + error.message, 'ai-provider-error', {
+                        retryable: true
+                    });
                 }
             }
         },

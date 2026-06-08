@@ -422,6 +422,11 @@
                 self.sendMessage();
             });
 
+            $(document).on('click', '.ai-action-retry-last', function(e) {
+                e.preventDefault();
+                self.retryLastUserMessage($(this).closest('.ai-message'));
+            });
+
             $(document).on('click', '.ai-action-edit', function(e) {
                 e.preventDefault();
                 if (self.isLoading) return;
@@ -1183,6 +1188,54 @@
             if (this.updateExportButton) {
                 this.updateExportButton();
             }
+        },
+
+        retryLastUserMessage: function($sourceMessage) {
+            if (this.isLoading) {
+                return;
+            }
+
+            var lastUserIndex = -1;
+            for (var i = this.messages.length - 1; i >= 0; i--) {
+                if (this.messages[i] && this.messages[i].role === 'user') {
+                    lastUserIndex = i;
+                    break;
+                }
+            }
+
+            if (lastUserIndex < 0) {
+                this.addMessage('error', 'Nothing to retry.');
+                return;
+            }
+
+            this.messages = this.messages.slice(0, lastUserIndex + 1);
+            this.pendingToolResults = [];
+            this.pendingActions = [];
+            this.pendingToolChecks = 0;
+            this.executingToolCount = 0;
+            this.streamComplete = false;
+
+            if (this.showToolApprovalModal) {
+                this.showToolApprovalModal();
+            }
+            if (this.hideToolProgress) {
+                this.hideToolProgress();
+            }
+            if (this.archiveToolCards) {
+                this.archiveToolCards({ removeIncomplete: true });
+            }
+
+            this.rebuildMessagesUI();
+            if ($sourceMessage && $sourceMessage.length) {
+                $sourceMessage.remove();
+            }
+            this.updateSummarizeVisibility();
+            if (this.updateExportButton) {
+                this.updateExportButton();
+            }
+            this.updateTokenCount();
+            this.shouldFollowStreamingScroll = true;
+            this.callLLM();
         },
 
         escapeHtml: function(text) {

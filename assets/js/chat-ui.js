@@ -54,6 +54,9 @@
                     $message.attr('data-copy-content', copyContent);
                 }
                 $message.append(this.getUserMessageActions(timestamp));
+            } else if (role === 'error' && options.retryable) {
+                $message.addClass('ai-message-retryable');
+                $message.append(this.getRetryErrorActions());
             }
 
             $messages.append($message);
@@ -226,6 +229,14 @@
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
                 '</button>' +
                 '<button type="button" class="ai-action-btn ai-action-retry" title="Retry">' +
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>' +
+                '</button>' +
+                '</div>';
+        },
+
+        getRetryErrorActions: function() {
+            return '<div class="ai-message-actions ai-message-error-actions">' +
+                '<button type="button" class="ai-action-btn ai-action-retry-last" title="Retry last message">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>' +
                 '</button>' +
                 '</div>';

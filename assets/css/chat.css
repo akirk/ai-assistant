@@ -835,6 +835,12 @@ body.wp-app-body .ai-message-user .ai-message-content *::selection,
     transition-delay: 0s;
 }
 
+.ai-message-retryable .ai-message-error-actions {
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0s;
+}
+
 .ai-message-streaming .ai-message-actions {
     display: none;
 }
