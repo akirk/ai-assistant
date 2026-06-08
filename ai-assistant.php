@@ -84,6 +84,7 @@ final class AI_Assistant {
     private $llm_proxy;
     private $wp_app_abilities;
     private $conversations_app;
+    private $assistant_themes;
 
     public static function instance() {
         if (is_null(self::$instance)) {
@@ -111,6 +112,7 @@ final class AI_Assistant {
 
         // Initialize components
         $this->settings = new AI_Assistant\Settings();
+        $this->assistant_themes = new AI_Assistant\Assistant_Themes();
         $this->tools = new AI_Assistant\Tools();
         $this->git_tracker_manager = new AI_Assistant\Git_Tracker_Manager();
         $this->executor = new AI_Assistant\Executor($this->tools, $this->git_tracker_manager);
@@ -173,6 +175,10 @@ final class AI_Assistant {
      */
     public function conversations_app() {
         return $this->conversations_app;
+    }
+
+    public function assistant_themes() {
+        return $this->assistant_themes;
     }
 
     public function plugin_checkout_badge() {

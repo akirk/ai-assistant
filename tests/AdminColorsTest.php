@@ -19,8 +19,11 @@ final class AdminColorsTest extends TestCase {
     }
 
     public function test_stylesheets_do_not_hardcode_colors_in_assistant_custom_properties(): void {
-        foreach (['chat.css', 'changes.css'] as $file) {
-            $css = file_get_contents(dirname(__DIR__) . '/assets/css/' . $file);
+        foreach ([
+            'themes/admin-classic/style.css',
+            'assets/css/changes.css',
+        ] as $file) {
+            $css = file_get_contents(dirname(__DIR__) . '/' . $file);
             $this->assertIsString($css);
 
             preg_match_all('/^\s*--ai-assistant-[\w-]+:\s*[^;]+;/m', $css, $matches);

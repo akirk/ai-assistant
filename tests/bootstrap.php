@@ -19,6 +19,14 @@ if (!defined('WP_PLUGIN_DIR')) {
     define('WP_PLUGIN_DIR', WP_CONTENT_DIR . '/plugins');
 }
 
+if (!defined('AI_ASSISTANT_PLUGIN_DIR')) {
+    define('AI_ASSISTANT_PLUGIN_DIR', dirname(__DIR__) . '/');
+}
+
+if (!defined('AI_ASSISTANT_PLUGIN_URL')) {
+    define('AI_ASSISTANT_PLUGIN_URL', 'http://example.test/wp-content/plugins/ai-assistant/');
+}
+
 // Create test directory structure
 if (!is_dir(WP_CONTENT_DIR)) {
     mkdir(WP_CONTENT_DIR, 0755, true);
@@ -94,6 +102,13 @@ if (!function_exists('wp_unslash')) {
 if (!function_exists('sanitize_key')) {
     function sanitize_key($key) {
         return strtolower(preg_replace('/[^a-z0-9_\-]/', '', (string) $key));
+    }
+}
+
+if (!function_exists('sanitize_html_class')) {
+    function sanitize_html_class($class, $fallback = '') {
+        $class = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $class);
+        return $class !== '' ? $class : (string) $fallback;
     }
 }
 
@@ -343,6 +358,7 @@ if (!function_exists('esc_attr'))            { function esc_attr($text) { return
 if (!function_exists('esc_attr_e'))          { function esc_attr_e($text, $domain = '') { echo esc_attr($text); } }
 if (!function_exists('esc_url'))             { function esc_url($url) { return (string) $url; } }
 if (!function_exists('checked'))             { function checked($checked, $current = true, $display = true) { $result = ((string) $checked === (string) $current) ? ' checked="checked"' : ''; if ($display) { echo $result; } return $result; } }
+if (!function_exists('selected'))            { function selected($selected, $current = true, $display = true) { $result = ((string) $selected === (string) $current) ? ' selected="selected"' : ''; if ($display) { echo $result; } return $result; } }
 if (!function_exists('admin_url'))           { function admin_url($path = '') { return 'http://example.test/wp-admin/' . ltrim($path, '/'); } }
 if (!function_exists('wp_nonce_url'))        { function wp_nonce_url($url, $action = -1) { return $url . (strpos($url, '?') === false ? '?' : '&') . '_wpnonce=test'; } }
 if (!function_exists('is_wp_error'))         { function is_wp_error($thing) { return $thing instanceof WP_Error; } }
@@ -401,6 +417,7 @@ require_once $plugin_dir . '/includes/class-git-tracker.php';
 require_once $plugin_dir . '/includes/class-git-tracker-manager.php';
 require_once $plugin_dir . '/includes/class-plugin-checkout-badge.php';
 require_once $plugin_dir . '/includes/class-admin-colors.php';
+require_once $plugin_dir . '/includes/class-assistant-themes.php';
 require_once $plugin_dir . '/includes/class-conversations.php';
 require_once $plugin_dir . '/includes/class-conversations-app.php';
 require_once $plugin_dir . '/includes/class-settings.php';

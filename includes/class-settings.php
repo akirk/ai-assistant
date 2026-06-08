@@ -527,6 +527,17 @@ class Settings {
             'default' => '1',
         ]);
 
+        register_setting('ai_assistant_settings', Assistant_Themes::OPTION, [
+            'type' => 'string',
+            'sanitize_callback' => function($value) {
+                $theme_id = sanitize_key((string) $value);
+                $themes = $this->get_assistant_themes();
+
+                return $themes->theme_exists($theme_id) ? $theme_id : Assistant_Themes::DEFAULT_THEME;
+            },
+            'default' => Assistant_Themes::DEFAULT_THEME,
+        ]);
+
         // Provider section (localStorage-based, rendered via callback)
         add_settings_section(
             'ai_assistant_provider_section',
@@ -2501,6 +2512,29 @@ class Settings {
     }
 
     /**
+     * Assistant presentation theme selector.
+     */
+    public function theme_field_callback() {
+        $themes = $this->get_assistant_themes();
+        $current_theme = $themes->get_current_theme_id();
+        ?>
+        <select name="<?php echo esc_attr(Assistant_Themes::OPTION); ?>" id="ai_assistant_theme">
+            <?php foreach ($themes->get_themes() as $theme_id => $theme) : ?>
+                <option value="<?php echo esc_attr($theme_id); ?>" <?php selected($current_theme, $theme_id); ?>>
+                    <?php echo esc_html((string) ($theme['label'] ?? $theme_id)); ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <?php
+        $theme = $themes->get_theme($current_theme);
+        if (!empty($theme['description'])) :
+            ?>
+            <p class="description"><?php echo esc_html((string) $theme['description']); ?></p>
+            <?php
+        endif;
+    }
+
+    /**
      * Render the settings page
      */
     public function render_settings_page() {
@@ -2981,6 +3015,10 @@ class Settings {
                                 <td><?php $this->frontend_field_callback(); ?></td>
                             </tr>
                             <tr>
+                                <th scope="row"><label for="ai_assistant_theme"><?php esc_html_e('Assistant Theme', 'ai-assistant'); ?></label></th>
+                                <td><?php $this->theme_field_callback(); ?></td>
+                            </tr>
+                            <tr>
                                 <th scope="row"><?php esc_html_e('In-page AI Changes', 'ai-assistant'); ?></th>
                                 <td><?php $this->in_page_ai_changes_field_callback(); ?></td>
                             </tr>
@@ -3118,6 +3156,18 @@ class Settings {
         });
         </script>
         <?php
+    }
+
+    private function get_assistant_themes(): Assistant_Themes {
+        $assistant = function_exists('ai_assistant') ? ai_assistant() : null;
+        if (is_object($assistant) && method_exists($assistant, 'assistant_themes')) {
+            $themes = $assistant->assistant_themes();
+            if ($themes instanceof Assistant_Themes) {
+                return $themes;
+            }
+        }
+
+        return new Assistant_Themes();
     }
 
     /**
