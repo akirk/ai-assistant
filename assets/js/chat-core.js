@@ -75,6 +75,7 @@
         streamingScrollResumeThreshold: 4,
         defaultScrollThreshold: 100,
         messagesTouchStartY: null,
+        assistantPanelPreviousHeight: existingAiAssistant.assistantPanelPreviousHeight || 0,
         initialized: existingAiAssistant.initialized || false,
 
         getMessageTimestamp: function() {
@@ -1011,6 +1012,9 @@
             var nextHeight = Math.round(Math.max(limits.min, Math.min(height, limits.max)));
             $container[0].style.setProperty('--ai-assistant-chat-height', nextHeight + 'px');
             $container.toggleClass('expanded', nextHeight >= limits.max - 2);
+            if (nextHeight < limits.max - 2) {
+                this.assistantPanelPreviousHeight = nextHeight;
+            }
             this.updateAssistantPanelResizeHandle($container, nextHeight, limits);
             $(document).trigger('aiAssistantPanelHeightChange', [$container, nextHeight]);
 
@@ -1090,7 +1094,14 @@
             var limits = this.getAssistantPanelResizeLimits($container);
             var currentHeight = this.readAssistantPanelHeight($container, limits);
             var defaultHeight = this.getAssistantPanelDefaultHeight(limits);
-            var targetHeight = currentHeight >= limits.max - 2 ? defaultHeight : limits.max;
+            var previousHeight = parseFloat(this.assistantPanelPreviousHeight);
+            var targetHeight = limits.max;
+
+            if (currentHeight >= limits.max - 2) {
+                targetHeight = isFinite(previousHeight) && previousHeight > 0 ? previousHeight : defaultHeight;
+            } else {
+                this.assistantPanelPreviousHeight = currentHeight;
+            }
 
             this.applyAssistantPanelHeight($container, targetHeight, limits);
             this.scrollToBottom();

@@ -9,7 +9,8 @@ function loadCore(options) {
 
     function jQueryStub() {
         return {
-            ready() {}
+            ready() {},
+            trigger() {}
         };
     }
     jQueryStub.extend = function(target, source) {
@@ -196,5 +197,76 @@ describe('conversation preloading', function() {
 
         assert.strictEqual(loadCount, 0);
         assert.strictEqual(assistant.conversationPreloaded, false);
+    });
+});
+
+describe('assistant panel resizing', function() {
+    function createPanel(height) {
+        const state = {
+            height: height,
+            classes: new Set(),
+            attrs: {}
+        };
+
+        const container = {
+            length: 1,
+            0: {
+                style: {
+                    setProperty(name, value) {
+                        if (name === '--ai-assistant-chat-height') {
+                            state.height = parseFloat(value);
+                        }
+                    },
+                    getPropertyValue(name) {
+                        return name === '--ai-assistant-chat-height' ? state.height + 'px' : '';
+                    }
+                }
+            },
+            find(selector) {
+                return selector === '#ai-assistant-expand'
+                    ? {
+                        length: 1,
+                        attr(attrs) {
+                            state.attrs = Object.assign(state.attrs, attrs);
+                        }
+                    }
+                    : { length: 0 };
+            },
+            toggleClass(className, enabled) {
+                if (enabled) {
+                    state.classes.add(className);
+                } else {
+                    state.classes.delete(className);
+                }
+                return this;
+            }
+        };
+
+        return { container, state };
+    }
+
+    it('toggles between maximum height and the previous non-maximum height', function() {
+        const assistant = loadCore();
+        const panel = createPanel(420);
+
+        assistant.getAssistantPanelResizeLimits = function() {
+            return { min: 300, max: 900 };
+        };
+        assistant.getAssistantPanelDefaultHeight = function() {
+            return 380;
+        };
+        assistant.scrollToBottom = function() {};
+
+        assistant.toggleAssistantPanelMax(panel.container);
+
+        assert.strictEqual(panel.state.height, 900);
+        assert.strictEqual(panel.state.classes.has('expanded'), true);
+        assert.strictEqual(assistant.assistantPanelPreviousHeight, 420);
+
+        assistant.toggleAssistantPanelMax(panel.container);
+
+        assert.strictEqual(panel.state.height, 420);
+        assert.strictEqual(panel.state.classes.has('expanded'), false);
+        assert.strictEqual(panel.state.attrs['aria-valuenow'], 420);
     });
 });

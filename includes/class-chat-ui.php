@@ -785,7 +785,7 @@ class Chat_UI {
                 'attachFiles' => __('Attach files', 'ai-assistant'),
                 'stopGeneration' => __('Stop generation', 'ai-assistant'),
                 'resizePanel' => __('Resize AI Assistant', 'ai-assistant'),
-                'resizePanelTitle' => __('Drag to resize AI Assistant. Double-click to fit the window.', 'ai-assistant'),
+                'resizePanelTitle' => __('Drag to resize AI Assistant. Double-click to toggle maximum size.', 'ai-assistant'),
                 'autoApproveMode' => __('Auto-approve', 'ai-assistant'),
                 'autoApproveTitle' => __('Automatically approve destructive actions without confirmation', 'ai-assistant'),
             ],

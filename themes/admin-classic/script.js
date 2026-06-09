@@ -42,9 +42,7 @@
     }
 
     function resizeHandle() {
-        return '<div id="ai-assistant-expand" class="ai-assistant-resize-handle" role="separator" tabindex="0" aria-controls="ai-assistant-messages" aria-orientation="horizontal" aria-valuemin="300" aria-valuemax="900" aria-valuenow="380" aria-label="' + escapeAttr(text('resizePanel', 'Resize AI Assistant')) + '" title="' + escapeAttr(text('resizePanelTitle', 'Drag to resize AI Assistant. Double-click to fit the window.')) + '">' +
-            '<span class="ai-resize-grip" aria-hidden="true"></span>' +
-            '</div>';
+        return '<div id="ai-assistant-expand" class="ai-assistant-resize-handle" role="separator" tabindex="0" aria-controls="ai-assistant-messages" aria-orientation="horizontal" aria-valuemin="300" aria-valuemax="900" aria-valuenow="380" aria-label="' + escapeAttr(text('resizePanel', 'Resize AI Assistant')) + '" title="' + escapeAttr(text('resizePanelTitle', 'Drag to resize AI Assistant. Double-click to toggle maximum size.')) + '"></div>';
     }
 
     function usesCornerResizeHandle() {
