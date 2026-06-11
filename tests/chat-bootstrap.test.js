@@ -16,6 +16,12 @@ class FakeElement {
         this.visible = true;
         this.styles = {};
         this.style = {
+            setProperty: (name, value) => {
+                this.styles[name] = value;
+            },
+            getPropertyValue: (name) => {
+                return this.styles[name] || '';
+            },
             removeProperty: (name) => {
                 delete this.styles[name];
             }
@@ -28,7 +34,7 @@ class FakeElement {
     }
 }
 
-function createHarness(useCoreScreenMeta) {
+function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides) {
     const elements = {};
     let openCount = 0;
     let closeCount = 0;
@@ -120,6 +126,13 @@ function createHarness(useCoreScreenMeta) {
         return Object.keys(elements).map((id) => elements[id]);
     }
 
+    function descendants(element) {
+        return element.children.reduce((items, child) => {
+            items.push(child);
+            return items.concat(descendants(child));
+        }, []);
+    }
+
     function collection(items) {
         const elems = items.filter(Boolean);
         const api = {
@@ -141,15 +154,21 @@ function createHarness(useCoreScreenMeta) {
                 const eventType = eventName.split('.')[0];
                 elems.forEach((element) => {
                     element.handlers = element.handlers || {};
-                    element.handlers[eventType] = [];
+                    if (!eventType) {
+                        Object.keys(element.handlers).forEach((type) => {
+                            element.handlers[type] = [];
+                        });
+                    } else {
+                        element.handlers[eventType] = [];
+                    }
                 });
                 return this;
             },
-            trigger(eventName) {
+            trigger(eventName, eventProps) {
                 const eventType = eventName.split('.')[0];
                 elems.forEach((element) => {
                     element.handlers = element.handlers || {};
-                    const event = {
+                    const event = Object.assign({
                         type: eventType,
                         prevented: false,
                         immediateStopped: false,
@@ -159,7 +178,7 @@ function createHarness(useCoreScreenMeta) {
                         stopImmediatePropagation() {
                             this.immediateStopped = true;
                         }
-                    };
+                    }, eventProps || {});
 
                     (element.handlers[eventType] || []).slice().some((handler) => {
                         handler.call(element, event);
@@ -199,6 +218,9 @@ function createHarness(useCoreScreenMeta) {
                 return elems[0] ? elems[0].classes.has(className) : false;
             },
             css(name, value) {
+                if (value === undefined && typeof name === 'string') {
+                    return elems[0] ? elems[0].styles[name] : undefined;
+                }
                 if (name && typeof name === 'object') {
                     elems.forEach((element) => {
                         Object.assign(element.styles, name);
@@ -269,6 +291,8 @@ function createHarness(useCoreScreenMeta) {
                         found = found.concat(element.children.filter((child) => child.tag === 'div'));
                     } else if (selector === '.screen-meta-toggle') {
                         found = found.concat(element.children.filter((child) => child.classes.has('screen-meta-toggle')));
+                    } else {
+                        found = found.concat(descendants(element).filter((child) => matchesSelector(child, selector)));
                     }
                 });
                 return collection(found);
@@ -307,7 +331,12 @@ function createHarness(useCoreScreenMeta) {
                 return collection(elems.flatMap((element) => element.children));
             },
             outerHeight() {
-                return 320;
+                const height = elems[0] ? parseFloat(elems[0].styles['--ai-assistant-chat-height']) : NaN;
+                return Number.isFinite(height) ? height : 420;
+            },
+            outerWidth() {
+                const width = elems[0] ? parseFloat(elems[0].styles['--ai-assistant-floating-width']) : NaN;
+                return Number.isFinite(width) ? width : 520;
             },
             promise() {
                 return {
@@ -331,11 +360,40 @@ function createHarness(useCoreScreenMeta) {
         return api;
     }
 
-    function makeStandaloneFragment() {
-        const wrap = new FakeElement('ai-assistant-standalone-wrap');
-        const panel = new FakeElement('ai-assistant-standalone-panel');
+    function makeStandaloneFragment(html) {
+        const wrap = register(new FakeElement('ai-assistant-standalone-wrap'));
+        const panel = register(new FakeElement('ai-assistant-standalone-panel'));
         panel.htmlContent = '<div id="ai-assistant-wrap" class="hidden"><textarea id="ai-assistant-input"></textarea></div>';
         append(wrap, panel);
+
+        const assistantWrap = register(new FakeElement('ai-assistant-wrap'));
+        assistantWrap.classes.add('hidden');
+        append(panel, assistantWrap);
+
+        const container = new FakeElement('', 'div');
+        container.classes.add('ai-assistant-chat-container');
+        append(assistantWrap, container);
+
+        append(container, register(new FakeElement('ai-assistant-input', 'textarea')));
+
+        if (html.indexOf('ai-assistant-corner-resize') !== -1) {
+            const cornerHandle = register(new FakeElement('ai-assistant-corner-resize'));
+            cornerHandle.classes.add('ai-assistant-corner-resize');
+            append(container, cornerHandle);
+        }
+
+        const links = new FakeElement('', 'div');
+        links.classes.add('ai-assistant-standalone-links');
+        append(wrap, links);
+
+        const trigger = register(new FakeElement('ai-assistant-standalone-trigger'));
+        trigger.classes.add('ai-assistant-standalone-trigger');
+        append(links, trigger);
+
+        const button = new FakeElement('', 'button');
+        button.attrs['aria-expanded'] = 'false';
+        append(trigger, button);
+
         return collection([wrap]);
     }
 
@@ -353,7 +411,7 @@ function createHarness(useCoreScreenMeta) {
         }
 
         if (typeof selector === 'string' && selector.trim()[0] === '<') {
-            return makeStandaloneFragment();
+            return makeStandaloneFragment(selector);
         }
 
         if (typeof selector === 'string' && selector.indexOf(',') !== -1) {
@@ -392,13 +450,13 @@ function createHarness(useCoreScreenMeta) {
 
     const context = {
         window: {
-            aiAssistantBootstrap: {
+            aiAssistantBootstrap: Object.assign({
                 deferInit: true,
                 renderLatch: true,
                 strings: {},
                 urls: {}
-            },
-            aiAssistant: {
+            }, bootstrapOverrides || {}),
+            aiAssistant: Object.assign({
                 initialized: false,
                 init() {
                     this.initialized = true;
@@ -407,12 +465,13 @@ function createHarness(useCoreScreenMeta) {
                 preloadMostRecentConversation() {
                     preloadCount++;
                 }
-            },
+            }, assistantOverrides || {}),
         },
         document: {
             nodeType: 9,
             documentElement: {
-                clientWidth: 1024
+                clientWidth: 1024,
+                clientHeight: 768
             },
             getElementById(id) {
                 return elements[id] || null;
@@ -510,5 +569,64 @@ describe('chat bootstrap screen-meta latch', function() {
         assert.strictEqual(harness.elements['screen-meta'].visible, true);
         assert.strictEqual(harness.elements['ai-assistant-wrap'].visible, false);
         assert.strictEqual(harness.elements['ai-assistant-link'].attrs['aria-expanded'], 'false');
+    });
+
+    it('toggles panel max width and height from the floating corner handle on double-click', function() {
+        const harness = createHarness(false, {
+            theme: {
+                id: 'floating-button',
+                placement: 'standalone'
+            },
+            strings: {
+                resizePanelTitle: 'Drag to resize AI Assistant. Double-click to toggle maximum size.'
+            }
+        });
+        const wrap = harness.elements['ai-assistant-standalone-wrap'];
+        const container = harness.elements['ai-assistant-corner-resize'].parentNode;
+
+        harness.context.jQuery('#ai-assistant-corner-resize').trigger('dblclick');
+
+        assert.strictEqual(wrap.styles['--ai-assistant-floating-width'], '1008px');
+        assert.strictEqual(container.styles['--ai-assistant-chat-height'], '696px');
+
+        harness.context.jQuery('#ai-assistant-corner-resize').trigger('dblclick');
+
+        assert.strictEqual(wrap.styles['--ai-assistant-floating-width'], '520px');
+        assert.strictEqual(container.styles['--ai-assistant-chat-height'], '420px');
+    });
+
+    it('moves the floating launcher by dragging without opening the panel', function() {
+        const harness = createHarness(false, {
+            theme: {
+                id: 'floating-button',
+                placement: 'standalone'
+            }
+        });
+        const $ = harness.context.jQuery;
+        const wrap = harness.elements['ai-assistant-standalone-wrap'];
+        const trigger = harness.elements['ai-assistant-standalone-trigger'];
+        const button = $(trigger).find('button')[0];
+
+        $(trigger).trigger('pointerdown', {
+            button: 0,
+            clientX: 900,
+            clientY: 700,
+            pointerId: 1
+        });
+        $(harness.context.document).trigger('pointermove', {
+            clientX: 850,
+            clientY: 650,
+            pointerId: 1
+        });
+        $(harness.context.document).trigger('pointerup', {
+            pointerId: 1
+        });
+
+        assert.strictEqual(wrap.styles['--ai-assistant-floating-right'], '74px');
+        assert.strictEqual(wrap.styles['--ai-assistant-floating-bottom'], '74px');
+
+        $(button).trigger('click');
+
+        assert.strictEqual(button.attrs['aria-expanded'], 'false');
     });
 });

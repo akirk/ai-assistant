@@ -1,9 +1,9 @@
 @import url("../admin-classic/style.css");
 
 .ai-assistant-standalone-wrap {
-    bottom: 24px !important;
+    bottom: var(--ai-assistant-floating-bottom, 24px) !important;
     left: auto !important;
-    right: 24px !important;
+    right: var(--ai-assistant-floating-right, 24px) !important;
     top: auto !important;
     width: min(var(--ai-assistant-floating-width, 520px), calc(100vw - 32px)) !important;
 }
@@ -72,16 +72,6 @@ body.wp-admin .ai-assistant-standalone-wrap {
     touch-action: none !important;
     width: 18px !important;
     z-index: 30 !important;
-}
-
-.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-corner-resize span {
-    background:
-        linear-gradient(135deg, transparent 0 45%, currentColor 45% 55%, transparent 55%),
-        linear-gradient(135deg, transparent 0 64%, currentColor 64% 72%, transparent 72%) !important;
-    border: 0 !important;
-    display: block !important;
-    height: 12px !important;
-    width: 12px !important;
 }
 
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-assistant-corner-resize:hover,
@@ -534,6 +524,13 @@ body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-mai
     font-weight: 600 !important;
     min-height: 44px !important;
     padding: 0 18px !important;
+    cursor: grab !important;
+}
+
+body.ai-assistant-floating-button-moving,
+body.ai-assistant-floating-button-moving .ai-assistant-standalone-trigger button {
+    cursor: grabbing !important;
+    user-select: none !important;
 }
 
 .ai-assistant-standalone-trigger button:hover,
@@ -549,8 +546,8 @@ body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-mai
 
 @media screen and (max-width: 782px) {
     .ai-assistant-standalone-wrap {
-        bottom: 12px !important;
-        right: 12px !important;
+        bottom: var(--ai-assistant-floating-bottom, 12px) !important;
+        right: var(--ai-assistant-floating-right, 12px) !important;
         width: min(var(--ai-assistant-floating-width, calc(100vw - 24px)), calc(100vw - 24px)) !important;
     }
 

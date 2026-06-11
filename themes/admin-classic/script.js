@@ -55,9 +55,7 @@
             return '';
         }
 
-        return '<div id="ai-assistant-corner-resize" class="ai-assistant-corner-resize" role="separator" tabindex="0" aria-controls="ai-assistant-messages" aria-orientation="horizontal" aria-label="' + escapeAttr(text('resizePanel', 'Resize AI Assistant')) + '" title="' + escapeAttr(text('resizePanelTitle', 'Drag to resize AI Assistant.')) + '">' +
-            '<span aria-hidden="true"></span>' +
-        '</div>';
+        return '<div id="ai-assistant-corner-resize" class="ai-assistant-corner-resize" role="separator" tabindex="0" aria-controls="ai-assistant-messages" aria-orientation="horizontal" aria-label="' + escapeAttr(text('resizePanel', 'Resize AI Assistant')) + '" title="' + escapeAttr(text('resizePanelTitle', 'Drag to resize AI Assistant.')) + '"></div>';
     }
 
     function attachIcon() {
@@ -355,6 +353,11 @@
         $('#ai-assistant-wrap').removeClass('hidden');
 
         $button.off('click.aiAssistantBootstrap').on('click.aiAssistantBootstrap', function() {
+            if ($wrap[0].aiAssistantFloatingButtonDragged) {
+                $wrap[0].aiAssistantFloatingButtonDragged = false;
+                return;
+            }
+
             var isExpanded = $button.attr('aria-expanded') === 'true';
 
             if (isExpanded) {
@@ -367,12 +370,160 @@
             }
         });
 
+        bindFloatingButtonMove($wrap, $trigger);
         bindCornerResize($wrap);
 
         $(document).off('keydown.aiAssistantStandalone').on('keydown.aiAssistantStandalone', function(e) {
             if (e.key === 'Escape' && $button.attr('aria-expanded') === 'true') {
                 $button.trigger('click');
             }
+        });
+    }
+
+    function readCssLength($element, property, fallback) {
+        var value = $element.css(property);
+        var parsed = parseFloat(value);
+
+        return isFinite(parsed) ? parsed : fallback;
+    }
+
+    function getFloatingButtonMoveLimits($wrap) {
+        var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        var viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        var adminbarOffset = readCssLength($wrap, '--ai-assistant-adminbar-offset', 0);
+        var margin = viewportWidth < 783 ? 12 : 24;
+        var wrapWidth = $wrap.outerWidth();
+        var wrapHeight = $wrap.outerHeight();
+
+        return {
+            minRight: margin,
+            minBottom: margin,
+            maxRight: Math.max(margin, viewportWidth - Math.min(wrapWidth, viewportWidth) - margin),
+            maxBottom: Math.max(margin, viewportHeight - adminbarOffset - Math.min(wrapHeight, viewportHeight) - margin),
+            currentRight: readCssLength($wrap, '--ai-assistant-floating-right', readCssLength($wrap, 'right', margin)),
+            currentBottom: readCssLength($wrap, '--ai-assistant-floating-bottom', readCssLength($wrap, 'bottom', margin))
+        };
+    }
+
+    function applyFloatingButtonPosition($wrap, right, bottom, limits) {
+        var nextRight = Math.round(Math.max(limits.minRight, Math.min(right, limits.maxRight)));
+        var nextBottom = Math.round(Math.max(limits.minBottom, Math.min(bottom, limits.maxBottom)));
+
+        $wrap[0].style.setProperty('--ai-assistant-floating-right', nextRight + 'px');
+        $wrap[0].style.setProperty('--ai-assistant-floating-bottom', nextBottom + 'px');
+    }
+
+    function saveFloatingButtonPosition($wrap) {
+        if (!window.localStorage) {
+            return;
+        }
+
+        try {
+            window.localStorage.setItem('aiAssistantFloatingButtonPosition', JSON.stringify({
+                right: $wrap[0].style.getPropertyValue('--ai-assistant-floating-right'),
+                bottom: $wrap[0].style.getPropertyValue('--ai-assistant-floating-bottom')
+            }));
+        } catch (error) {}
+    }
+
+    function restoreFloatingButtonPosition($wrap) {
+        if (!window.localStorage) {
+            return;
+        }
+
+        try {
+            var stored = JSON.parse(window.localStorage.getItem('aiAssistantFloatingButtonPosition') || 'null');
+            if (stored && stored.right && stored.bottom) {
+                $wrap[0].style.setProperty('--ai-assistant-floating-right', stored.right);
+                $wrap[0].style.setProperty('--ai-assistant-floating-bottom', stored.bottom);
+            }
+        } catch (error) {}
+    }
+
+    function bindFloatingButtonMove($wrap, $trigger) {
+        if (!usesCornerResizeHandle() || !$trigger.length) {
+            return;
+        }
+
+        restoreFloatingButtonPosition($wrap);
+
+        $trigger.off('pointerdown.aiAssistantMove').on('pointerdown.aiAssistantMove', function(event) {
+            var originalEvent = event.originalEvent || event;
+            if (originalEvent.button !== undefined && originalEvent.button !== 0) {
+                return;
+            }
+
+            var handle = this;
+            var limits = getFloatingButtonMoveLimits($wrap);
+            var startX = originalEvent.clientX;
+            var startY = originalEvent.clientY;
+            var pointerId = originalEvent.pointerId;
+            var isMoving = false;
+            var dragThreshold = 4;
+
+            if (!isFinite(startX) || !isFinite(startY)) {
+                return;
+            }
+
+            if (handle.setPointerCapture && pointerId !== undefined) {
+                try {
+                    handle.setPointerCapture(pointerId);
+                } catch (error) {}
+            }
+
+            $(document).off('.aiAssistantFloatingMove');
+            $(document).on('pointermove.aiAssistantFloatingMove', function(moveEvent) {
+                var moveOriginal = moveEvent.originalEvent || moveEvent;
+                if (pointerId !== undefined && moveOriginal.pointerId !== undefined && moveOriginal.pointerId !== pointerId) {
+                    return;
+                }
+                if (!isFinite(moveOriginal.clientX) || !isFinite(moveOriginal.clientY)) {
+                    return;
+                }
+
+                var deltaX = startX - moveOriginal.clientX;
+                var deltaY = startY - moveOriginal.clientY;
+                if (!isMoving && Math.max(Math.abs(deltaX), Math.abs(deltaY)) < dragThreshold) {
+                    moveEvent.preventDefault();
+                    return;
+                }
+
+                if (!isMoving) {
+                    isMoving = true;
+                    $('body').addClass('ai-assistant-floating-button-moving');
+                }
+
+                applyFloatingButtonPosition(
+                    $wrap,
+                    limits.currentRight + deltaX,
+                    limits.currentBottom + deltaY,
+                    limits
+                );
+                moveEvent.preventDefault();
+            });
+
+            $(document).on('pointerup.aiAssistantFloatingMove pointercancel.aiAssistantFloatingMove', function(upEvent) {
+                var upOriginal = upEvent.originalEvent || upEvent;
+                if (pointerId !== undefined && upOriginal.pointerId !== undefined && upOriginal.pointerId !== pointerId) {
+                    return;
+                }
+
+                $(document).off('.aiAssistantFloatingMove');
+                $('body').removeClass('ai-assistant-floating-button-moving');
+
+                if (isMoving) {
+                    $wrap[0].aiAssistantFloatingButtonDragged = true;
+                    saveFloatingButtonPosition($wrap);
+                }
+
+                if (handle.releasePointerCapture && pointerId !== undefined) {
+                    try {
+                        handle.releasePointerCapture(pointerId);
+                    } catch (error) {}
+                }
+            });
+
+            event.preventDefault();
         });
     }
 
@@ -410,6 +561,36 @@
         }
     }
 
+    var previousCornerResizeSize = null;
+
+    function toggleCornerResizeMax($wrap) {
+        var $container = $wrap.find('.ai-assistant-chat-container');
+        var limits = getCornerResizeLimits($wrap, $container);
+        var isMaximized = limits.currentWidth >= limits.maxWidth - 2 && limits.currentHeight >= limits.maxHeight - 2;
+        var targetWidth = limits.maxWidth;
+        var targetHeight = limits.maxHeight;
+
+        if (isMaximized) {
+            targetWidth = previousCornerResizeSize && previousCornerResizeSize.width
+                ? previousCornerResizeSize.width
+                : 520;
+            targetHeight = previousCornerResizeSize && previousCornerResizeSize.height
+                ? previousCornerResizeSize.height
+                : 560;
+        } else {
+            previousCornerResizeSize = {
+                width: limits.currentWidth,
+                height: limits.currentHeight
+            };
+        }
+
+        applyCornerResize($wrap, $container, targetWidth, targetHeight, limits);
+
+        if (window.aiAssistant && typeof window.aiAssistant.scrollToBottom === 'function') {
+            window.aiAssistant.scrollToBottom();
+        }
+    }
+
     function bindCornerResize($wrap) {
         var $handle = $wrap.find('#ai-assistant-corner-resize');
         if (!$handle.length) {
@@ -430,9 +611,8 @@
             var startWidth = limits.currentWidth;
             var startHeight = limits.currentHeight;
             var pointerId = originalEvent.pointerId;
-
-            $container.addClass('is-resizing');
-            $('body').addClass('ai-assistant-panel-resizing ai-assistant-corner-resizing');
+            var isResizing = false;
+            var dragThreshold = 4;
 
             if (handle.setPointerCapture && pointerId !== undefined) {
                 try {
@@ -447,11 +627,24 @@
                     return;
                 }
 
+                var deltaX = startX - moveOriginal.clientX;
+                var deltaY = startY - moveOriginal.clientY;
+                if (!isResizing && Math.max(Math.abs(deltaX), Math.abs(deltaY)) < dragThreshold) {
+                    moveEvent.preventDefault();
+                    return;
+                }
+
+                if (!isResizing) {
+                    isResizing = true;
+                    $container.addClass('is-resizing');
+                    $('body').addClass('ai-assistant-panel-resizing ai-assistant-corner-resizing');
+                }
+
                 applyCornerResize(
                     $wrap,
                     $container,
-                    startWidth + startX - moveOriginal.clientX,
-                    startHeight + startY - moveOriginal.clientY,
+                    startWidth + deltaX,
+                    startHeight + deltaY,
                     limits
                 );
                 moveEvent.preventDefault();
@@ -474,6 +667,11 @@
                 }
             });
 
+            event.preventDefault();
+        });
+
+        $handle.off('dblclick.aiAssistantBootstrap').on('dblclick.aiAssistantBootstrap', function(event) {
+            toggleCornerResizeMax($wrap);
             event.preventDefault();
         });
 
