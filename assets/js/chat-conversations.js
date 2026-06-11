@@ -503,6 +503,43 @@
             });
         },
 
+        getHeaderActionIcon: function(icon) {
+            if (icon === 'undo') {
+                return '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+                    '<path d="M9 14L4 9l5-5"></path>' +
+                    '<path d="M4 9h10a6 6 0 010 12h-1"></path>' +
+                    '</svg>';
+            }
+
+            return '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+                '<path d="M12 5v14"></path>' +
+                '<path d="M5 12h14"></path>' +
+                '</svg>';
+        },
+
+        setNewChatControlState: function(state) {
+            var isUndo = state === 'undo';
+            var $control = $('#ai-assistant-new-chat, #ai-assistant-undo-new-chat').first();
+
+            if (!$control.length) {
+                return;
+            }
+
+            var label = isUndo ? 'Undo' : 'New Chat';
+            $control.attr('id', isUndo ? 'ai-assistant-undo-new-chat' : 'ai-assistant-new-chat');
+
+            if ($control.hasClass('ai-header-icon-link')) {
+                $control.attr({
+                    'aria-label': label,
+                    title: label
+                });
+                $control.html(this.getHeaderActionIcon(isUndo ? 'undo' : 'new-chat'));
+                return;
+            }
+
+            $control.text(label);
+        },
+
         // New chat
         newChat: function() {
             var self = this;
@@ -529,7 +566,7 @@
                     this.showCurrentAiChangesSuggestion();
                 }
                 $('#ai-token-count').hide();
-                $('#ai-assistant-new-chat').text('Undo').attr('id', 'ai-assistant-undo-new-chat');
+                this.setNewChatControlState('undo');
                 this.hideAreaChangeSuggestion();
 
                 $('#ai-assistant-input').focus();
@@ -573,7 +610,7 @@
             $('#ai-assistant-messages').empty();
             $('#ai-token-count').show();
             $('#ai-assistant-pending-actions').empty().hide();
-            $('#ai-assistant-undo-new-chat').text('New Chat').attr('id', 'ai-assistant-new-chat');
+            this.setNewChatControlState('new-chat');
             this.hideAreaChangeSuggestion();
             this.updateSidebarSelection();
             this.loadWelcomeMessage();
@@ -598,7 +635,7 @@
                 this.pendingChatOriginalHtml = null;
             }
             $('#ai-token-count').show();
-            $('#ai-assistant-undo-new-chat').text('New Chat').attr('id', 'ai-assistant-new-chat');
+            this.setNewChatControlState('new-chat');
 
             this.scrollToBottom();
             this.hideAreaChangeSuggestion();

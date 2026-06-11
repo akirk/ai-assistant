@@ -47,7 +47,35 @@ body.wp-admin .ai-assistant-standalone-wrap {
 }
 
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-sep {
-    color: #e5e7eb !important;
+    display: none !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-icon-link {
+    align-items: center !important;
+    border-radius: 4px !important;
+    color: #6b7280 !important;
+    display: inline-flex !important;
+    flex: 0 0 auto !important;
+    height: 22px !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    margin: -2px 0 !important;
+    padding: 0 !important;
+    width: 22px !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-icon-link svg {
+    display: block !important;
+    height: 15px !important;
+    width: 15px !important;
+}
+
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-icon-link:hover,
+.ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-header-icon-link:focus {
+    background: #f3f4f6 !important;
+    color: #111827 !important;
+    outline: none !important;
+    text-decoration: none !important;
 }
 
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-expand.ai-assistant-resize-handle {

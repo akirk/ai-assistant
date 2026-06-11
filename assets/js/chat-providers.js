@@ -493,7 +493,11 @@
                 $('#ai-assistant-messages').empty();
                 $('#ai-token-count').show();
                 $('#ai-assistant-pending-actions').empty().hide();
-                $('#ai-assistant-undo-new-chat').text('New Chat').attr('id', 'ai-assistant-new-chat');
+                if (this.setNewChatControlState) {
+                    this.setNewChatControlState('new-chat');
+                } else {
+                    $('#ai-assistant-undo-new-chat').text('New Chat').attr('id', 'ai-assistant-new-chat');
+                }
                 if (this.hideAreaChangeSuggestion) {
                     this.hideAreaChangeSuggestion();
                 }
