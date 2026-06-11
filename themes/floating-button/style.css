@@ -524,7 +524,7 @@ body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-mai
     font-weight: 600 !important;
     min-height: 44px !important;
     padding: 0 18px !important;
-    cursor: grab !important;
+    cursor: pointer !important;
 }
 
 body.ai-assistant-floating-button-moving,

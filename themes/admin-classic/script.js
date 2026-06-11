@@ -352,7 +352,7 @@
         $wrap.show();
         $('#ai-assistant-wrap').removeClass('hidden');
 
-        $button.off('click.aiAssistantBootstrap').on('click.aiAssistantBootstrap', function() {
+        var toggleStandalone = function() {
             if ($wrap[0].aiAssistantFloatingButtonDragged) {
                 $wrap[0].aiAssistantFloatingButtonDragged = false;
                 return;
@@ -368,6 +368,17 @@
                 $button.attr('aria-expanded', 'true');
                 preloadConversationIfNeeded();
             }
+        };
+
+        $button.off('click.aiAssistantBootstrap').on('click.aiAssistantBootstrap', function(event) {
+            if (event && typeof event.stopPropagation === 'function') {
+                event.stopPropagation();
+            }
+            toggleStandalone();
+        });
+
+        $trigger.off('click.aiAssistantBootstrap').on('click.aiAssistantBootstrap', function() {
+            toggleStandalone();
         });
 
         bindFloatingButtonMove($wrap, $trigger);
@@ -523,7 +534,6 @@
                 }
             });
 
-            event.preventDefault();
         });
     }
 

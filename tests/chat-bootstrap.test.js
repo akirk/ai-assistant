@@ -175,6 +175,9 @@ function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides
                         preventDefault() {
                             this.prevented = true;
                         },
+                        stopPropagation() {
+                            this.propagationStopped = true;
+                        },
                         stopImmediatePropagation() {
                             this.immediateStopped = true;
                         }
@@ -628,5 +631,60 @@ describe('chat bootstrap screen-meta latch', function() {
         $(button).trigger('click');
 
         assert.strictEqual(button.attrs['aria-expanded'], 'false');
+    });
+
+    it('opens the floating launcher on click when no drag occurs', function() {
+        const harness = createHarness(false, {
+            theme: {
+                id: 'floating-button',
+                placement: 'standalone'
+            }
+        });
+        const $ = harness.context.jQuery;
+        const trigger = harness.elements['ai-assistant-standalone-trigger'];
+        const button = $(trigger).find('button')[0];
+        let pointerDownPrevented = false;
+
+        $(trigger).trigger('pointerdown', {
+            button: 0,
+            clientX: 900,
+            clientY: 700,
+            pointerId: 1,
+            preventDefault() {
+                pointerDownPrevented = true;
+            }
+        });
+        $(harness.context.document).trigger('pointerup', {
+            pointerId: 1
+        });
+        $(button).trigger('click');
+
+        assert.strictEqual(pointerDownPrevented, false);
+        assert.strictEqual(button.attrs['aria-expanded'], 'true');
+    });
+
+    it('opens the floating launcher when pointer capture retargets click to the trigger', function() {
+        const harness = createHarness(false, {
+            theme: {
+                id: 'floating-button',
+                placement: 'standalone'
+            }
+        });
+        const $ = harness.context.jQuery;
+        const trigger = harness.elements['ai-assistant-standalone-trigger'];
+        const button = $(trigger).find('button')[0];
+
+        $(trigger).trigger('pointerdown', {
+            button: 0,
+            clientX: 900,
+            clientY: 700,
+            pointerId: 1
+        });
+        $(harness.context.document).trigger('pointerup', {
+            pointerId: 1
+        });
+        $(trigger).trigger('click');
+
+        assert.strictEqual(button.attrs['aria-expanded'], 'true');
     });
 });
