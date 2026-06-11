@@ -2,7 +2,15 @@
 
 An AI-powered chat interface for WordPress. Bring your own API key or connect to a local LLM.
 
-![Screenshot](screenshot.png)
+## Screenshots
+
+#### "Old Style"
+
+![Screenshot Old Style](screenshot.png)
+
+#### Floating Button style
+
+![Screenshot Floating Button Style](screenshot-floating-button.png)
 
 ## Features
 
