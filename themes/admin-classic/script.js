@@ -64,6 +64,52 @@
             '</svg>';
     }
 
+    function settingsIcon() {
+        return '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+            '<circle cx="12" cy="12" r="3"></circle>' +
+            '<path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 005 15.08a1.65 1.65 0 00-1.51-1H3.4a2 2 0 010-4h.09A1.65 1.65 0 005 9.08a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009.32 5a1.65 1.65 0 001-1.51V3.4a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019 9.32a1.65 1.65 0 001.51 1h.09a2 2 0 010 4h-.09A1.65 1.65 0 0019.4 15z"></path>' +
+            '</svg>';
+    }
+
+    function newChatIcon() {
+        return '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+            '<path d="M12 5v14"></path>' +
+            '<path d="M5 12h14"></path>' +
+            '</svg>';
+    }
+
+    function conversationsIcon() {
+        return '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+            '<path d="M21 15a4 4 0 01-4 4H8l-5 3V7a4 4 0 014-4h10a4 4 0 014 4z"></path>' +
+            '<path d="M8 9h8"></path>' +
+            '<path d="M8 13h6"></path>' +
+            '</svg>';
+    }
+
+    function headerLink(href, label, icon, id) {
+        var idAttr = id ? ' id="' + escapeAttr(id) + '"' : '';
+
+        if (usesCornerResizeHandle()) {
+            return '<a href="' + escapeAttr(href) + '"' + idAttr + ' class="ai-header-link ai-header-icon-link" aria-label="' + escapeAttr(label) + '" title="' + escapeAttr(label) + '">' + icon + '</a>';
+        }
+
+        return '<a href="' + escapeAttr(href) + '"' + idAttr + ' class="ai-header-link">' + escapeHtml(label) + '</a>';
+    }
+
+    function autoApproveLabel() {
+        var label = text('autoApproveMode', text('yoloMode', 'Auto-approve'));
+        var title = text('autoApproveTitle', text('yoloTitle', 'Automatically approve destructive actions without confirmation'));
+
+        return '<label class="ai-auto-approve-label" title="' + escapeAttr(title) + '">' +
+            '<input type="checkbox" id="ai-assistant-auto-approve"> ' + escapeHtml(label) +
+        '</label>';
+    }
+
+    function settingsLink() {
+        var label = text('settings', 'Settings');
+        return headerLink(url('settings'), label, settingsIcon());
+    }
+
     function buildPanelHtml() {
         return '<div id="ai-assistant-wrap" class="hidden" tabindex="-1" aria-label="' + escapeAttr(text('ariaLabel', 'AI Assistant Tab')) + '">' +
             '<div id="ai-assistant-columns">' +
@@ -73,15 +119,13 @@
                         '<div class="ai-assistant-header-actions">' +
                             '<div id="ai-token-count" class="ai-token-count" tabindex="0" aria-label="' + escapeAttr(text('tokenCountTitle', 'Token usage')) + '">0 tokens</div>' +
                             '<span class="ai-header-sep">|</span>' +
-                            '<label class="ai-auto-approve-label" title="' + escapeAttr(text('autoApproveTitle', text('yoloTitle', 'Automatically approve destructive actions without confirmation'))) + '">' +
-                                '<input type="checkbox" id="ai-assistant-auto-approve"> ' + escapeHtml(text('autoApproveMode', text('yoloMode', 'Auto-approve'))) +
-                            '</label>' +
+                            autoApproveLabel() +
                             '<span class="ai-header-sep">|</span>' +
-                            '<a href="#" id="ai-assistant-new-chat" class="ai-header-link">' + escapeHtml(text('newChat', 'New Chat')) + '</a>' +
+                            headerLink('#', text('newChat', 'New Chat'), newChatIcon(), 'ai-assistant-new-chat') +
                             '<span class="ai-header-sep">|</span>' +
-                            '<a href="' + escapeAttr(url('history')) + '" class="ai-header-link">' + escapeHtml(text('history', 'Conversations')) + '</a>' +
+                            headerLink(url('history'), text('history', 'Conversations'), conversationsIcon()) +
                             '<span class="ai-header-sep">|</span>' +
-                            '<a href="' + escapeAttr(url('settings')) + '" class="ai-header-link">' + escapeHtml(text('settings', 'Settings')) + '</a>' +
+                            settingsLink() +
                         '</div>' +
                     '</div>' +
                     '<div id="ai-assistant-messages"></div>' +
