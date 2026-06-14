@@ -14,7 +14,9 @@ class ChatUITest extends TestCase {
 
     protected function setUp(): void {
         $GLOBALS['wp_test_filters'] = [];
-        $GLOBALS['wp_test_options'] = [];
+        $GLOBALS['wp_test_options'] = [
+            'ai_assistant_theme' => 'floating-button',
+        ];
         $GLOBALS['wp_test_site_url'] = 'http://localhost';
         $_SERVER['REQUEST_URI'] = '/my-apps/?tab=one';
     }
@@ -25,6 +27,8 @@ class ChatUITest extends TestCase {
     }
 
     public function test_welcome_tips_match_first_url_component_only(): void {
+        $this->disable_assistant_theme_switch_tip();
+
         $this->add_test_filter('ai_assistant_welcome_tips', function ($tips) {
             $tips['my-apps'] = [
                 'First matching tip',
@@ -46,6 +50,7 @@ class ChatUITest extends TestCase {
     }
 
     public function test_welcome_tips_are_deduped_limited_and_trimmed(): void {
+        $this->disable_assistant_theme_switch_tip();
         $_SERVER['REQUEST_URI'] = '/my-apps/abc/';
 
         $this->add_test_filter('ai_assistant_welcome_tips', function ($tips) {
@@ -67,6 +72,8 @@ class ChatUITest extends TestCase {
     }
 
     public function test_welcome_tips_ignore_removed_object_shape(): void {
+        $this->disable_assistant_theme_switch_tip();
+
         $this->add_test_filter('ai_assistant_welcome_tips', function ($tips) {
             $tips['my-apps'] = [
                 'url_component' => 'my-apps',
@@ -78,6 +85,34 @@ class ChatUITest extends TestCase {
         });
 
         $this->assertSame([], $this->get_welcome_tips());
+    }
+
+    public function test_welcome_tips_include_admin_classic_assistant_theme_switch_link(): void {
+        $GLOBALS['wp_test_options']['ai_assistant_theme'] = 'admin-classic';
+
+        $tips = $this->get_welcome_tips();
+
+        $this->assertCount(1, $tips);
+        $this->assertStringContainsString('Admin Classic', $tips[0]);
+        $this->assertStringContainsString('[Switch to Floating Button]', $tips[0]);
+        $this->assertStringContainsString('admin-post.php?action=ai_assistant_switch_theme', $tips[0]);
+        $this->assertStringContainsString('theme=floating-button', $tips[0]);
+        $this->assertStringNotContainsString('redirect_to=', $tips[0]);
+        $this->assertStringNotContainsString('...', $tips[0]);
+    }
+
+    public function test_welcome_tips_include_floating_button_assistant_theme_switch_link(): void {
+        $GLOBALS['wp_test_options']['ai_assistant_theme'] = 'floating-button';
+
+        $tips = $this->get_welcome_tips();
+
+        $this->assertCount(1, $tips);
+        $this->assertStringContainsString('Floating Button', $tips[0]);
+        $this->assertStringContainsString('[Switch to Admin Classic]', $tips[0]);
+        $this->assertStringContainsString('admin-post.php?action=ai_assistant_switch_theme', $tips[0]);
+        $this->assertStringContainsString('theme=admin-classic', $tips[0]);
+        $this->assertStringNotContainsString('redirect_to=', $tips[0]);
+        $this->assertStringNotContainsString('...', $tips[0]);
     }
 
     public function test_current_ai_changes_prompt_context_mentions_review_link(): void {
@@ -172,6 +207,13 @@ class ChatUITest extends TestCase {
         $method->setAccessible(true);
 
         return $method->invoke($chat_ui, true);
+    }
+
+    private function disable_assistant_theme_switch_tip(): void {
+        $this->add_test_filter('ai_assistant_themes', function(array $themes): array {
+            unset($themes['floating-button']);
+            return $themes;
+        }, 10, 1);
     }
 
     private function add_test_filter(string $tag, callable $callback, int $priority = 10, int $accepted_args = 2): void {

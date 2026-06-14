@@ -1986,7 +1986,13 @@
             content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
             content = content.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
             content = content.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-            content = content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+            content = content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(match, label, href) {
+                var decodedHref = self.decodeHtmlEntities(href);
+                var escapedHref = self.escapeAttribute
+                    ? self.escapeAttribute(decodedHref)
+                    : self.escapeHtml(decodedHref).replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+                return '<a href="' + escapedHref + '">' + label + '</a>';
+            });
 
             // Block markdown.
             content = content.replace(/^### (.+)$/gm, '<h4>$1</h4>');
@@ -1999,6 +2005,45 @@
             });
 
             return content;
+        },
+
+        decodeHtmlEntities: function(value) {
+            var decoded = String(value == null ? '' : value);
+
+            for (var i = 0; i < 3; i++) {
+                var next = decoded.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]+);/g, function(match, entity) {
+                    var lower = entity.toLowerCase();
+                    var named = {
+                        amp: '&',
+                        lt: '<',
+                        gt: '>',
+                        quot: '"',
+                        apos: "'",
+                        nbsp: ' '
+                    };
+
+                    if (Object.prototype.hasOwnProperty.call(named, lower)) {
+                        return named[lower];
+                    }
+
+                    if (lower.charAt(0) === '#') {
+                        var isHex = lower.charAt(1) === 'x';
+                        var code = parseInt(lower.slice(isHex ? 2 : 1), isHex ? 16 : 10);
+                        if (!isNaN(code)) {
+                            return String.fromCharCode(code);
+                        }
+                    }
+
+                    return match;
+                });
+
+                if (next === decoded) {
+                    break;
+                }
+                decoded = next;
+            }
+
+            return decoded;
         },
 
         renderMarkdownBlocks: function(content) {
