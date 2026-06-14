@@ -514,6 +514,37 @@ describe('conversation area suggestions', function() {
         assert.strictEqual(assistant.shouldOfferStandaloneContinuation(), false);
     });
 
+    it('offers a plain new chat for recent standalone continuations', function() {
+        const { assistant } = loadConversationMixin({
+            aiAssistant_lastUrlContextAt: String(Date.now())
+        });
+
+        assistant.newChatSuggestionMaxAgeMs = 60 * 60 * 1000;
+        assistant.restoreUrlComponentContext();
+        assistant.messages = [{ role: 'user', content: 'Previous chat', _ts: Date.now() }];
+
+        const html = assistant.getAreaChangeSuggestionHtml(true);
+
+        assert.match(html, /previous conversation was loaded/);
+        assert.match(html, /id="ai-assistant-area-new-chat"/);
+        assert.doesNotMatch(html, /area-compact-new-chat/);
+    });
+
+    it('offers compacting for stale standalone continuations', function() {
+        const { assistant } = loadConversationMixin({
+            aiAssistant_lastUrlContextAt: String(Date.now() - (2 * 60 * 60 * 1000))
+        });
+
+        assistant.newChatSuggestionMaxAgeMs = 60 * 60 * 1000;
+        assistant.restoreUrlComponentContext();
+        assistant.messages = [{ role: 'user', content: 'Previous chat', _ts: Date.now() - (2 * 60 * 60 * 1000) }];
+
+        const html = assistant.getAreaChangeSuggestionHtml(true);
+
+        assert.match(html, /id="ai-assistant-area-compact-new-chat"/);
+        assert.match(html, /Compact it and start a new chat/);
+    });
+
     it('does not update the stored URL component until interaction', function() {
         const { assistant, storage } = loadConversationMixin({
             aiAssistant_lastUrlComponent: 'my-apps'

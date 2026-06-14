@@ -274,9 +274,6 @@
 
         shouldSuggestNewChatForCurrentArea: function(current) {
             var origin = this.previousUrlComponent || '';
-            var maxAge = parseInt(this.newChatSuggestionMaxAgeMs, 10) || 60 * 60 * 1000;
-            var contextAt = this.getLatestStoredMessageTimestamp() || parseInt(this.previousUrlContextAt, 10) || 0;
-            var isStale = contextAt > 0 && this.getNewChatSuggestionTimestamp() - contextAt > maxAge;
             current = current || this.getCurrentUrlComponent();
 
             return !!(
@@ -286,9 +283,16 @@
                 !this.conversationInteracted &&
                 (
                     (origin && current && origin !== current) ||
-                    isStale
+                    this.isCurrentConversationContextStale()
                 )
             );
+        },
+
+        isCurrentConversationContextStale: function() {
+            var maxAge = parseInt(this.newChatSuggestionMaxAgeMs, 10) || 60 * 60 * 1000;
+            var contextAt = this.getLatestStoredMessageTimestamp() || parseInt(this.previousUrlContextAt, 10) || 0;
+
+            return contextAt > 0 && this.getNewChatSuggestionTimestamp() - contextAt > maxAge;
         },
 
         isStandaloneConversationPanel: function() {
@@ -315,8 +319,13 @@
 
         getAreaChangeSuggestionHtml: function(isContinuationOffer) {
             if (isContinuationOffer) {
+                if (this.isCurrentConversationContextStale()) {
+                    return 'This previous conversation was loaded from your last page. ' +
+                        '<a href="#" id="ai-assistant-area-compact-new-chat">Compact it and start a new chat</a>, or continue here.';
+                }
+
                 return 'This previous conversation was loaded from your last page. ' +
-                    '<a href="#" id="ai-assistant-area-compact-new-chat">Compact it and start a new chat</a>, or continue here.';
+                    '<a href="#" id="ai-assistant-area-new-chat">Start a new chat</a>, or continue here.';
             }
 
             return 'Click to <a href="#" id="ai-assistant-area-new-chat">start a new chat</a> or just continue the conversation.';
