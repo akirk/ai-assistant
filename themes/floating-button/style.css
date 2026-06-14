@@ -298,7 +298,9 @@ body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-mai
     border-radius: 10px !important;
     bottom: 20px !important;
     box-shadow: 0 8px 28px rgba(15, 23, 42, 0.14) !important;
+    display: grid !important;
     gap: 8px !important;
+    grid-template-columns: 36px minmax(0, 1fr) auto !important;
     left: 24px !important;
     margin: 0 !important;
     min-height: 92px !important;
@@ -319,10 +321,14 @@ body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-mai
     border: 0 !important;
     box-shadow: none !important;
     color: #111827 !important;
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
     height: auto !important;
     line-height: 1.45 !important;
     min-height: 62px !important;
+    min-width: 0 !important;
     padding: 6px 2px !important;
+    width: 100% !important;
 }
 
 .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main #ai-assistant-input::placeholder {
@@ -341,12 +347,18 @@ body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-mai
 .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main #ai-assistant-attach {
     background: transparent !important;
     color: #8b949e !important;
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    justify-self: start !important;
 }
 
 .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main #ai-assistant-send,
 .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main #ai-assistant-stop {
     background: transparent !important;
     color: #8b949e !important;
+    grid-column: 3 !important;
+    grid-row: 2 !important;
+    justify-self: end !important;
     min-width: 34px !important;
     padding: 0 !important;
 }
@@ -477,7 +489,9 @@ body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-mai
     border-radius: 10px !important;
     bottom: 16px !important;
     box-shadow: 0 8px 28px rgba(15, 23, 42, 0.14) !important;
+    display: grid !important;
     gap: 8px !important;
+    grid-template-columns: 36px minmax(0, 1fr) auto !important;
     left: 16px !important;
     margin: 0 !important;
     min-height: 92px !important;
@@ -498,10 +512,14 @@ body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-mai
     border: 0 !important;
     box-shadow: none !important;
     color: #111827 !important;
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
     height: auto !important;
     line-height: 1.45 !important;
     min-height: 62px !important;
+    min-width: 0 !important;
     padding: 6px 2px !important;
+    width: 100% !important;
 }
 
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-input::placeholder {
@@ -520,12 +538,18 @@ body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-mai
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-attach {
     background: transparent !important;
     color: #8b949e !important;
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    justify-self: start !important;
 }
 
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-send,
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-stop {
     background: transparent !important;
     color: #8b949e !important;
+    grid-column: 3 !important;
+    grid-row: 2 !important;
+    justify-self: end !important;
     min-width: 34px !important;
     padding: 0 !important;
 }
