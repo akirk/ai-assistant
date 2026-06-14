@@ -23,6 +23,7 @@ class Settings {
         add_action('wp_ajax_ai_assistant_toggle_auto_approve_ability', [$this, 'ajax_toggle_auto_approve_ability']);
         add_action('wp_ajax_ai_assistant_toggle_auto_approve_rest_api', [$this, 'ajax_toggle_auto_approve_rest_api']);
         add_action('wp_ajax_ai_assistant_sample_readonly_ability', [$this, 'ajax_sample_readonly_ability']);
+        add_action('admin_post_ai_assistant_switch_theme', [$this, 'handle_switch_assistant_theme']);
         add_action('load-tools_page_ai-conversations', [$this, 'add_help_tabs']);
         add_action('load-settings_page_ai-assistant-settings', [$this, 'add_help_tabs']);
         add_filter('map_meta_cap', [$this, 'map_tool_cap'], 10, 3);
@@ -589,6 +590,28 @@ class Settings {
             },
             'default' => [],
         ]);
+    }
+
+    public function handle_switch_assistant_theme(): void {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Sorry, you are not allowed to change AI Assistant settings.', 'ai-assistant'));
+        }
+
+        $theme_id = sanitize_key((string) ($_GET['theme'] ?? ''));
+        check_admin_referer('ai_assistant_switch_theme_' . $theme_id);
+
+        $themes = $this->get_assistant_themes();
+        if ($theme_id !== '' && $themes->theme_exists($theme_id)) {
+            update_option(Assistant_Themes::OPTION, $theme_id);
+        }
+
+        $redirect_to = function_exists('wp_get_referer') ? (string) wp_get_referer() : '';
+        if ($redirect_to === '') {
+            $redirect_to = admin_url('options-general.php?page=ai-assistant-settings');
+        }
+
+        wp_safe_redirect($redirect_to);
+        exit;
     }
 
     /**
@@ -3522,6 +3545,8 @@ TOOL USAGE RULES:
 If the user describes something they are seeing on the page, references UI elements, or asks about content visible on screen, use get_page_html to see what they're looking at.
 
 NAVIGATION SUGGESTIONS: When you have finished creating or updating something that has a useful WordPress admin or frontend URL, offer the user a direct link by calling navigate with the final URL and concise link_text. Call navigate only after all requested creation, editing, and checking is complete; do not use it as a progress step or before the destination exists. The tool shows a clickable suggestion to the user instead of opening the page automatically.
+
+AI ASSISTANT THEME: If the user asks about the assistant's Classic or Floating Button theme, this refers to the AI Assistant setting ai_assistant_theme, not the active WordPress site theme. Do not use get_themes or WordPress theme-switching behavior for this. If an installed ability exposes assistant settings/options, use ability list/get before executing it; otherwise offer the AI Assistant settings page at /wp-admin/options-general.php?page=ai-assistant-settings.
 
 IMAGE PICKING: Call pick_image for one image at a time only. Do not issue multiple pick_image tool calls in the same assistant response because each call asks the user to make an interactive choice and parallel pickers are confusing. Wait for the selected image result, then decide whether another image is actually needed.
 

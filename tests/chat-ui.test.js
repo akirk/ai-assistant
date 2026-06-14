@@ -2029,4 +2029,33 @@ describe('AI changes links', function() {
         );
         assert.strictEqual(link.attrs.target, undefined);
     });
+
+    it('preserves query separators in markdown link hrefs', function() {
+        const assistant = loadUiMixin();
+        assistant.escapeHtml = function(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        };
+        assistant.escapeAttribute = function(value) {
+            return assistant.escapeHtml(value).replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        };
+
+        const rawHtml = assistant.formatContent(
+            '[Switch to Admin Classic](https://example.test/wp-admin/admin-post.php?action=ai_assistant_switch_theme&theme=admin-classic&_wpnonce=abc123)'
+        );
+        const escapedHtml = assistant.formatContent(
+            '[Switch to Admin Classic](https://example.test/wp-admin/admin-post.php?action=ai_assistant_switch_theme&amp;theme=admin-classic&amp;_wpnonce=abc123)'
+        );
+
+        assert.match(
+            rawHtml,
+            /href="https:\/\/example\.test\/wp-admin\/admin-post\.php\?action=ai_assistant_switch_theme&amp;theme=admin-classic&amp;_wpnonce=abc123"/
+        );
+        assert.strictEqual(escapedHtml, rawHtml);
+        assert.doesNotMatch(rawHtml, /&amp;amp;/);
+    });
 });

@@ -175,6 +175,12 @@ if (!function_exists('check_ajax_referer')) {
     }
 }
 
+if (!function_exists('check_admin_referer')) {
+    function check_admin_referer() {
+        return true;
+    }
+}
+
 if (!function_exists('wp_create_nonce')) {
     function wp_create_nonce($action = -1) {
         return 'test';
@@ -361,6 +367,9 @@ if (!function_exists('checked'))             { function checked($checked, $curre
 if (!function_exists('selected'))            { function selected($selected, $current = true, $display = true) { $result = ((string) $selected === (string) $current) ? ' selected="selected"' : ''; if ($display) { echo $result; } return $result; } }
 if (!function_exists('admin_url'))           { function admin_url($path = '') { return 'http://example.test/wp-admin/' . ltrim($path, '/'); } }
 if (!function_exists('wp_nonce_url'))        { function wp_nonce_url($url, $action = -1) { return $url . (strpos($url, '?') === false ? '?' : '&') . '_wpnonce=test'; } }
+if (!function_exists('wp_get_referer'))      { function wp_get_referer() { return $GLOBALS['wp_test_referer'] ?? ''; } }
+if (!function_exists('wp_safe_redirect'))    { function wp_safe_redirect($url, $status = 302, $x_redirect_by = 'WordPress') { $GLOBALS['wp_test_redirect'] = $url; throw new \RuntimeException('wp_safe_redirect'); } }
+if (!function_exists('wp_die'))              { function wp_die($message = '') { throw new \RuntimeException('wp_die: ' . (string) $message); } }
 if (!function_exists('is_wp_error'))         { function is_wp_error($thing) { return $thing instanceof WP_Error; } }
 if (!function_exists('date_i18n'))           { function date_i18n($format, $timestamp = false) { return date($format, $timestamp ?: time()); } }
 if (!function_exists('number_format_i18n'))  { function number_format_i18n($number, $decimals = 0) { return number_format((float) $number, $decimals); } }

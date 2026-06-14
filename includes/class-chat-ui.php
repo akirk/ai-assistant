@@ -512,40 +512,44 @@ class Chat_UI {
          * @param array<string,mixed>              $context Current UI context.
          * @return array<string,string|array<int|string,string>> Filtered tips.
          */
-        $tips_by_component = apply_filters('ai_assistant_welcome_tips', [], $context);
-
-        if (!is_array($tips_by_component) || empty($context['url_component'])) {
-            return [];
+        $candidates = $this->get_core_welcome_tips($context);
+        $seen_messages = [];
+        foreach ($candidates as $candidate) {
+            $message = strtolower(preg_replace('/\s+/', ' ', (string) ($candidate['message'] ?? '')));
+            if ($message !== '') {
+                $seen_messages[$message] = true;
+            }
         }
 
-        $candidates = [];
-        $seen_messages = [];
+        $tips_by_component = apply_filters('ai_assistant_welcome_tips', [], $context);
 
-        foreach ($tips_by_component as $component => $component_tips) {
-            if ($this->normalize_welcome_tip_component_key($component) !== $context['url_component']) {
-                continue;
-            }
-
-            if (is_array($component_tips) && $this->is_welcome_tip_object_shape($component_tips)) {
-                continue;
-            }
-
-            $component_tips = is_array($component_tips) ? $component_tips : [$component_tips];
-            foreach ($component_tips as $tip) {
-                $message = $this->normalize_welcome_tip_message($tip);
-                if ($message === '') {
+        if (is_array($tips_by_component) && !empty($context['url_component'])) {
+            foreach ($tips_by_component as $component => $component_tips) {
+                if ($this->normalize_welcome_tip_component_key($component) !== $context['url_component']) {
                     continue;
                 }
 
-                $message_key = strtolower(preg_replace('/\s+/', ' ', $message));
-                if (isset($seen_messages[$message_key])) {
+                if (is_array($component_tips) && $this->is_welcome_tip_object_shape($component_tips)) {
                     continue;
                 }
 
-                $seen_messages[$message_key] = true;
-                $candidates[] = [
-                    'message' => $message,
-                ];
+                $component_tips = is_array($component_tips) ? $component_tips : [$component_tips];
+                foreach ($component_tips as $tip) {
+                    $message = $this->normalize_welcome_tip_message($tip);
+                    if ($message === '') {
+                        continue;
+                    }
+
+                    $message_key = strtolower(preg_replace('/\s+/', ' ', $message));
+                    if (isset($seen_messages[$message_key])) {
+                        continue;
+                    }
+
+                    $seen_messages[$message_key] = true;
+                    $candidates[] = [
+                        'message' => $message,
+                    ];
+                }
             }
         }
 
@@ -560,10 +564,60 @@ class Chat_UI {
                 break;
             }
 
-            $tips[] = $this->limit_welcome_tip_message($candidate['message'], $max_length);
+            $tips[] = empty($candidate['skip_length_limit'])
+                ? $this->limit_welcome_tip_message($candidate['message'], $max_length)
+                : (string) $candidate['message'];
         }
 
         return $tips;
+    }
+
+    /**
+     * Get core tips based on current site state.
+     */
+    private function get_core_welcome_tips(array $context): array {
+        $tips = [];
+        $themes = $this->get_assistant_themes();
+        $current_theme = $themes->get_current_theme_id();
+
+        if ($current_theme === Assistant_Themes::DEFAULT_THEME && $themes->theme_exists('floating-button')) {
+            $tips[] = [
+                'message' => sprintf(
+                    /* translators: %s: Markdown link to switch the AI Assistant presentation theme. */
+                    __('AI Assistant is using the Admin Classic theme. %s.', 'ai-assistant'),
+                    sprintf(
+                        '[%s](%s)',
+                        __('Switch to Floating Button', 'ai-assistant'),
+                        $this->get_assistant_theme_switch_url('floating-button')
+                    )
+                ),
+                'skip_length_limit' => true,
+            ];
+        } elseif ($current_theme === 'floating-button' && $themes->theme_exists(Assistant_Themes::DEFAULT_THEME)) {
+            $tips[] = [
+                'message' => sprintf(
+                    /* translators: %s: Markdown link to switch the AI Assistant presentation theme. */
+                    __('AI Assistant is using the Floating Button theme. %s.', 'ai-assistant'),
+                    sprintf(
+                        '[%s](%s)',
+                        __('Switch to Admin Classic', 'ai-assistant'),
+                        $this->get_assistant_theme_switch_url(Assistant_Themes::DEFAULT_THEME)
+                    )
+                ),
+                'skip_length_limit' => true,
+            ];
+        }
+
+        return $tips;
+    }
+
+    private function get_assistant_theme_switch_url(string $theme_id): string {
+        $url = admin_url(
+            'admin-post.php?action=ai_assistant_switch_theme'
+            . '&theme=' . rawurlencode($theme_id)
+        );
+
+        return wp_nonce_url($url, 'ai_assistant_switch_theme_' . $theme_id);
     }
 
     /**

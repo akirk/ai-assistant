@@ -270,6 +270,36 @@ class SettingsTest extends TestCase {
         $this->assertStringContainsString('report title, ID, edit URL.', $prompt);
     }
 
+    public function test_system_prompt_distinguishes_assistant_theme_from_wordpress_theme(): void {
+        $GLOBALS['wp_test_capabilities']['ai_assistant_full'] = true;
+
+        $prompt = $this->settings->get_system_prompt();
+
+        $this->assertStringContainsString('AI ASSISTANT THEME:', $prompt);
+        $this->assertStringContainsString('ai_assistant_theme', $prompt);
+        $this->assertStringContainsString('not the active WordPress site theme', $prompt);
+        $this->assertStringContainsString('Do not use get_themes or WordPress theme-switching behavior', $prompt);
+    }
+
+    public function test_switch_assistant_theme_handler_updates_option(): void {
+        $GLOBALS['wp_test_capabilities']['manage_options'] = true;
+        $GLOBALS['wp_test_referer'] = 'http://localhost/wp-admin/index.php';
+        $_GET = [
+            'theme' => 'floating-button',
+            '_wpnonce' => 'test',
+        ];
+
+        try {
+            $this->settings->handle_switch_assistant_theme();
+            $this->fail('Expected wp_safe_redirect to stop execution');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('wp_safe_redirect', $e->getMessage());
+        }
+
+        $this->assertSame('floating-button', $GLOBALS['wp_test_options']['ai_assistant_theme']);
+        $this->assertSame('http://localhost/wp-admin/index.php', $GLOBALS['wp_test_redirect']);
+    }
+
     public function test_system_prompt_explains_how_to_enable_disabled_file_editing_tools(): void {
         $this->setEnabledToolCaps(array_diff(
             array_keys($this->settings->get_all_tools_with_meta()),
