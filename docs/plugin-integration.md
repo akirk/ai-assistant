@@ -10,6 +10,7 @@ This document covers only the AI Assistant-specific integration points: how the 
 - [Authoring for AI Use](#authoring-for-ai-use)
 - [Annotations](#annotations)
 - [Image Inputs](#image-inputs)
+- [Current-Page Content Structure](#current-page-content-structure)
 - [AI Assistant Filters](#ai-assistant-filters)
 - [Contextual Welcome Tips](#contextual-welcome-tips)
 - [Browser Callbacks After Tool Calls](#browser-callbacks-after-tool-calls)
@@ -142,6 +143,41 @@ return [
 ```
 
 This keeps image search, user choice, and browser-side media upload in the assistant UI, while your plugin owns the plugin-specific setting or rendering rules.
+
+## Current-Page Content Structure
+
+AI Assistant uses `get_page_html` when a user asks about content visible on the current page. To help it inspect the right part of your UI, structure important content areas with semantic HTML and accessible names that match how users refer to them.
+
+Prefer visible names first:
+
+- Use headings with `aria-labelledby` for major content sections.
+- Use table captions for meaningful tables.
+- Use form labels, legends, and section headings for settings or editors.
+- Use `aria-label` only when there is no visible text that names the region.
+- Add a unique `id` or stable, plugin-scoped class to important regions so AI Assistant can inspect them with precise selectors.
+
+Good names describe user-facing content, not implementation details. A user is likely to ask about "the selected note", "open invoices", "payment settings", or "search results", not "left panel", "React grid", or "main content".
+
+```html
+<section id="selected-note" aria-labelledby="selected-note-heading" data-ai-assistant-important>
+    <h2 id="selected-note-heading">Selected note</h2>
+    ...
+</section>
+
+<table id="open-invoices">
+    <caption>Open invoices</caption>
+    ...
+</table>
+
+<form aria-labelledby="payment-settings-heading">
+    <h2 id="payment-settings-heading">Payment settings</h2>
+    ...
+</form>
+```
+
+`data-ai-assistant-important` is an optional boolean ranking hint. Use it when a page has many named regions and one or two are usually what users mean by "this page", "this item", or "what I'm looking at". It does not provide instructions to the model and should not replace accessible names.
+
+Most plugins do not need AI-specific attributes. Start with clear, accessible content names; AI Assistant benefits from the same structure that helps users understand and navigate the interface.
 
 ## AI Assistant Filters
 

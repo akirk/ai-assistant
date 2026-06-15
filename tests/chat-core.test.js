@@ -19,9 +19,11 @@ function loadCore(options) {
 
     const context = {
         window: {
-            aiAssistantToolCallbacks: options.queuedCallbacks || []
+            aiAssistantToolCallbacks: options.queuedCallbacks || [],
+            aiAssistantConfig: options.aiAssistantConfig || {}
         },
-        document: {},
+        aiAssistantConfig: options.aiAssistantConfig || {},
+        document: options.document || {},
         jQuery: jQueryStub,
         console
     };
@@ -34,6 +36,97 @@ function loadCore(options) {
     vm.runInContext(source, context);
     return context.window.aiAssistant;
 }
+
+function createElement(tagName, attrs, children) {
+    attrs = attrs || {};
+    children = children || {};
+
+    return {
+        tagName: tagName.toUpperCase(),
+        id: attrs.id || '',
+        hidden: !!attrs.hidden,
+        textContent: attrs.textContent || '',
+        getAttribute(name) {
+            return Object.prototype.hasOwnProperty.call(attrs, name) ? attrs[name] : '';
+        },
+        hasAttribute(name) {
+            return Object.prototype.hasOwnProperty.call(attrs, name);
+        },
+        querySelector(selector) {
+            return children[selector] || null;
+        }
+    };
+}
+
+function createDocument(elements, labelledElements) {
+    labelledElements = labelledElements || {};
+    return {
+        querySelectorAll() {
+            return elements;
+        },
+        getElementById(id) {
+            return labelledElements[id] || null;
+        }
+    };
+}
+
+describe('accessible page selector hints', function() {
+    it('adds named content regions to the system prompt and selector config', function() {
+        const heading = createElement('h2', { textContent: 'Selected note' });
+        const selectedNote = createElement('section', {
+            id: 'selected-note',
+            'aria-labelledby': 'selected-note-heading',
+            'data-ai-assistant-important': ''
+        });
+        const table = createElement('table', {}, {
+            caption: createElement('caption', { textContent: 'Open invoices' })
+        });
+        const document = createDocument(
+            [table, selectedNote],
+            { 'selected-note-heading': heading }
+        );
+        const config = {
+            systemPrompt: 'Base prompt.',
+            pageSelectorHints: '- .existing: Existing server hint'
+        };
+        const assistant = loadCore({ document, aiAssistantConfig: config });
+
+        assistant.buildSystemPrompt();
+
+        assert.match(assistant.systemPrompt, /CURRENT PAGE CONTENT REGIONS/);
+        assert.match(assistant.systemPrompt, /Selected note: #selected-note/);
+        assert.match(assistant.systemPrompt, /Open invoices: table/);
+        assert.ok(
+            assistant.systemPrompt.indexOf('Selected note') < assistant.systemPrompt.indexOf('Open invoices'),
+            'important regions should be listed first'
+        );
+        assert.match(config.pageSelectorHints, /\.existing/);
+        assert.match(config.pageSelectorHints, /Selected note: #selected-note/);
+    });
+
+    it('ignores hidden or unnamed regions', function() {
+        const hidden = createElement('section', {
+            id: 'hidden-region',
+            'aria-label': 'Hidden region',
+            hidden: true
+        });
+        const unnamed = createElement('section', { id: 'unnamed-region' });
+        const visible = createElement('section', {
+            id: 'visible-region',
+            'aria-label': 'Visible region'
+        });
+        const assistant = loadCore({
+            document: createDocument([hidden, unnamed, visible]),
+            aiAssistantConfig: { systemPrompt: 'Base prompt.' }
+        });
+
+        const hints = assistant.getAccessiblePageSelectorHints();
+
+        assert.match(hints, /Visible region: #visible-region/);
+        assert.doesNotMatch(hints, /Hidden region/);
+        assert.doesNotMatch(hints, /unnamed-region/);
+    });
+});
 
 describe('tool call callback API', function() {
     it('runs callbacks that match completed ability executions', function() {

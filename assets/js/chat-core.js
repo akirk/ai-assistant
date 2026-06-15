@@ -605,7 +605,191 @@
             if (!this.systemPrompt) {
                 console.error('[AI Assistant] No system prompt provided');
                 this.addMessage('error', 'Configuration error: system prompt not available. Please check plugin settings.');
+                return;
             }
+            this.addAccessiblePageSelectorHints();
+        },
+
+        addAccessiblePageSelectorHints: function() {
+            var hints = this.getAccessiblePageSelectorHints();
+            if (!hints) {
+                return;
+            }
+
+            if (window.aiAssistantConfig) {
+                aiAssistantConfig.pageSelectorHints = [aiAssistantConfig.pageSelectorHints, hints].filter(Boolean).join('\n');
+            }
+
+            this.systemPrompt += '\n\nCURRENT PAGE CONTENT REGIONS (useful selectors for get_page_html):\n' + hints;
+        },
+
+        getAccessiblePageSelectorHints: function() {
+            if (typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') {
+                return '';
+            }
+
+            var selector = [
+                'main',
+                'article',
+                'section',
+                'form',
+                'table',
+                '[role="main"]',
+                '[role="region"]',
+                '[role="tabpanel"]',
+                '[role="search"]',
+                '[data-ai-assistant-important]'
+            ].join(',');
+
+            var elements;
+            try {
+                elements = Array.prototype.slice.call(document.querySelectorAll(selector));
+            } catch (e) {
+                return '';
+            }
+
+            var self = this;
+            var seen = [];
+            var hints = elements.map(function(el) {
+                if (!el || seen.indexOf(el) >= 0 || !self.isVisiblePageRegion(el)) {
+                    return null;
+                }
+                seen.push(el);
+
+                var label = self.getPageRegionLabel(el);
+                if (!label) {
+                    return null;
+                }
+
+                var regionSelector = self.getPageRegionSelector(el);
+                if (!regionSelector) {
+                    return null;
+                }
+
+                return {
+                    important: self.hasAttribute(el, 'data-ai-assistant-important'),
+                    label: label,
+                    selector: regionSelector
+                };
+            }).filter(Boolean);
+
+            hints.sort(function(a, b) {
+                if (a.important === b.important) {
+                    return 0;
+                }
+                return a.important ? -1 : 1;
+            });
+
+            return hints.slice(0, 12).map(function(hint) {
+                return '- ' + hint.label + ': ' + hint.selector;
+            }).join('\n');
+        },
+
+        isVisiblePageRegion: function(el) {
+            if (!el) {
+                return false;
+            }
+            if (el.hidden || this.hasAttribute(el, 'hidden')) {
+                return false;
+            }
+            if (el.getAttribute && el.getAttribute('aria-hidden') === 'true') {
+                return false;
+            }
+            if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+                var style = window.getComputedStyle(el);
+                if (style && (style.display === 'none' || style.visibility === 'hidden')) {
+                    return false;
+                }
+            }
+            return true;
+        },
+
+        getPageRegionLabel: function(el) {
+            var label = this.getAttribute(el, 'aria-label');
+            if (!label) {
+                label = this.getAriaLabelledbyText(el);
+            }
+            if (!label && el.tagName && el.tagName.toLowerCase() === 'table') {
+                label = this.getChildText(el, 'caption');
+            }
+            if (!label) {
+                label = this.getChildText(el, 'h1,h2,h3,h4,h5,h6');
+            }
+
+            label = String(label || '').replace(/\s+/g, ' ').trim();
+            if (label.length > 80) {
+                label = label.substring(0, 77).trim() + '...';
+            }
+            return label;
+        },
+
+        getAriaLabelledbyText: function(el) {
+            var ids = this.getAttribute(el, 'aria-labelledby');
+            if (!ids || typeof document === 'undefined' || typeof document.getElementById !== 'function') {
+                return '';
+            }
+
+            return ids.split(/\s+/).map(function(id) {
+                var ref = document.getElementById(id);
+                return ref ? ref.textContent || '' : '';
+            }).join(' ');
+        },
+
+        getChildText: function(el, selector) {
+            if (!el || typeof el.querySelector !== 'function') {
+                return '';
+            }
+            var child = el.querySelector(selector);
+            return child ? child.textContent || '' : '';
+        },
+
+        getPageRegionSelector: function(el) {
+            var tag = el.tagName ? el.tagName.toLowerCase() : '';
+            var id = el.id || this.getAttribute(el, 'id');
+            if (id) {
+                return '#' + this.escapeCssIdentifier(id);
+            }
+
+            var labelledby = this.getAttribute(el, 'aria-labelledby');
+            if (labelledby) {
+                return tag + '[aria-labelledby="' + this.escapeCssAttribute(labelledby) + '"]';
+            }
+
+            var ariaLabel = this.getAttribute(el, 'aria-label');
+            if (ariaLabel) {
+                return tag + '[aria-label="' + this.escapeCssAttribute(ariaLabel) + '"]';
+            }
+
+            var role = this.getAttribute(el, 'role');
+            if (role) {
+                return tag + '[role="' + this.escapeCssAttribute(role) + '"]';
+            }
+
+            if (['main', 'article', 'form', 'table'].indexOf(tag) >= 0) {
+                return tag;
+            }
+
+            return '';
+        },
+
+        getAttribute: function(el, name) {
+            return el && typeof el.getAttribute === 'function' ? el.getAttribute(name) || '' : '';
+        },
+
+        hasAttribute: function(el, name) {
+            return !!(el && typeof el.hasAttribute === 'function' && el.hasAttribute(name));
+        },
+
+        escapeCssIdentifier: function(value) {
+            value = String(value || '');
+            if (typeof window !== 'undefined' && window.CSS && typeof window.CSS.escape === 'function') {
+                return window.CSS.escape(value);
+            }
+            return value.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+        },
+
+        escapeCssAttribute: function(value) {
+            return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         },
 
         isProviderConfigured: function() {
