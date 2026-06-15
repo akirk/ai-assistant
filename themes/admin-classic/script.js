@@ -25,6 +25,21 @@
         return urls[key] || '#';
     }
 
+    function hideFloatingButtonForPage($wrap) {
+        $wrap.fadeOut('fast');
+    }
+
+    function floatingButtonMenuHtml() {
+        if (!usesCornerResizeHandle()) {
+            return '';
+        }
+
+        return '<div id="ai-assistant-floating-menu" class="ai-assistant-floating-menu" role="menu" hidden>' +
+            '<a href="' + escapeAttr(url('changeTheme')) + '" role="menuitem">' + escapeHtml(text('changeTheme', 'Change theme')) + '</a>' +
+            '<button type="button" role="menuitem" data-action="hide-page">' + escapeHtml(text('hideForPage', 'Hide on this page')) + '</button>' +
+        '</div>';
+    }
+
     function escapeHtml(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, function(char) {
             return {
@@ -154,16 +169,21 @@
     }
 
     function buildStandaloneHtml() {
+        var buttonMenuAttrs = usesCornerResizeHandle()
+            ? ' aria-haspopup="menu" aria-label="' + escapeAttr(text('buttonText', 'AI Assistant')) + '"'
+            : '';
+
         return '<div id="ai-assistant-standalone-wrap" class="ai-assistant-standalone-wrap" style="display: none;">' +
             '<div id="ai-assistant-standalone-panel" class="ai-assistant-standalone-panel">' +
                 buildPanelHtml() +
             '</div>' +
             '<div class="ai-assistant-standalone-links">' +
                 '<div id="ai-assistant-standalone-trigger" class="ai-assistant-standalone-trigger hide-if-no-js">' +
-                    '<button type="button" aria-controls="ai-assistant-standalone-panel" aria-expanded="false">' +
+                    '<button type="button" aria-controls="ai-assistant-standalone-panel" aria-expanded="false"' + buttonMenuAttrs + '>' +
                         escapeHtml(text('buttonText', 'AI Assistant')) +
                     '</button>' +
                 '</div>' +
+                floatingButtonMenuHtml() +
             '</div>' +
         '</div>';
     }
@@ -383,6 +403,7 @@
         var $panel = $wrap.find('#ai-assistant-standalone-panel');
         var $trigger = $wrap.find('#ai-assistant-standalone-trigger');
         var $button = $trigger.find('button');
+        var $menu = $wrap.find('#ai-assistant-floating-menu');
         var updateStandaloneOffset = function() {
             var $masterbar = $('#wpadminbar');
             var offset = $masterbar.length && $masterbar.is(':visible') ? $masterbar.outerHeight() : 0;
@@ -397,10 +418,13 @@
         $('#ai-assistant-wrap').removeClass('hidden');
 
         var toggleStandalone = function() {
-            if ($wrap[0].aiAssistantFloatingButtonDragged) {
+            if ($wrap[0].aiAssistantFloatingButtonDragged || $wrap[0].aiAssistantFloatingMenuOpened) {
                 $wrap[0].aiAssistantFloatingButtonDragged = false;
+                $wrap[0].aiAssistantFloatingMenuOpened = false;
                 return;
             }
+
+            closeFloatingButtonMenu($wrap);
 
             var isExpanded = $button.attr('aria-expanded') === 'true';
 
@@ -426,13 +450,93 @@
         });
 
         bindFloatingButtonMove($wrap, $trigger);
+        bindFloatingButtonMenu($wrap, $trigger, $menu);
         bindCornerResize($wrap);
 
         $(document).off('keydown.aiAssistantStandalone').on('keydown.aiAssistantStandalone', function(e) {
-            if (e.key === 'Escape' && $button.attr('aria-expanded') === 'true') {
+            if (e.key === 'Escape' && isFloatingButtonMenuOpen($wrap)) {
+                closeFloatingButtonMenu($wrap);
+            } else if (e.key === 'Escape' && $button.attr('aria-expanded') === 'true') {
                 $button.trigger('click');
             }
         });
+    }
+
+    function isFloatingButtonMenuOpen($wrap) {
+        return $wrap.find('#ai-assistant-floating-menu').attr('hidden') !== 'hidden';
+    }
+
+    function openFloatingButtonMenu($wrap, suppressNextToggle) {
+        var $menu = $wrap.find('#ai-assistant-floating-menu');
+        if (!$menu.length) {
+            return;
+        }
+
+        $menu.removeAttr('hidden');
+        $wrap[0].aiAssistantFloatingMenuOpened = !!suppressNextToggle;
+    }
+
+    function closeFloatingButtonMenu($wrap) {
+        $wrap.find('#ai-assistant-floating-menu').attr('hidden', 'hidden');
+    }
+
+    function bindFloatingButtonMenu($wrap, $trigger, $menu) {
+        if (!usesCornerResizeHandle() || !$menu.length) {
+            return;
+        }
+
+        var pressTimer = null;
+
+        function clearPressTimer() {
+            if (pressTimer) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+            }
+        }
+
+        $trigger
+            .off('.aiAssistantFloatingMenu')
+            .on('pointerdown.aiAssistantFloatingMenu', function(event) {
+                var originalEvent = event.originalEvent || event;
+                if (originalEvent.button !== undefined && originalEvent.button !== 0) {
+                    return;
+                }
+
+                clearPressTimer();
+                pressTimer = setTimeout(function() {
+                    openFloatingButtonMenu($wrap, true);
+                }, 550);
+            })
+            .on('pointermove.aiAssistantFloatingMenu pointerup.aiAssistantFloatingMenu pointercancel.aiAssistantFloatingMenu pointerleave.aiAssistantFloatingMenu', clearPressTimer)
+            .on('contextmenu.aiAssistantFloatingMenu', function(event) {
+                event.preventDefault();
+                openFloatingButtonMenu($wrap, false);
+            });
+
+        $menu
+            .off('.aiAssistantFloatingMenu')
+            .on('click.aiAssistantFloatingMenu', 'button[data-action="hide-page"]', function(event) {
+                event.preventDefault();
+                closeFloatingButtonMenu($wrap);
+                hideFloatingButtonForPage($wrap);
+            })
+            .on('click.aiAssistantFloatingMenu', 'a, button', function() {
+                closeFloatingButtonMenu($wrap);
+            });
+
+        $(document)
+            .off('pointerdown.aiAssistantFloatingMenuClose')
+            .on('pointerdown.aiAssistantFloatingMenuClose', function(event) {
+                if (!isFloatingButtonMenuOpen($wrap)) {
+                    return;
+                }
+
+                if ($(event.target).closest('#ai-assistant-standalone-trigger, #ai-assistant-floating-menu').length) {
+                    return;
+                }
+
+                closeFloatingButtonMenu($wrap);
+            });
     }
 
     function readCssLength($element, property, fallback) {
@@ -495,12 +599,28 @@
         } catch (error) {}
     }
 
+    function clampFloatingButtonPosition($wrap) {
+        var limits = getFloatingButtonMoveLimits($wrap);
+
+        applyFloatingButtonPosition(
+            $wrap,
+            limits.currentRight,
+            limits.currentBottom,
+            limits
+        );
+    }
+
     function bindFloatingButtonMove($wrap, $trigger) {
         if (!usesCornerResizeHandle() || !$trigger.length) {
             return;
         }
 
         restoreFloatingButtonPosition($wrap);
+        clampFloatingButtonPosition($wrap);
+
+        $(window).off('resize.aiAssistantFloatingMoveClamp').on('resize.aiAssistantFloatingMoveClamp', function() {
+            clampFloatingButtonPosition($wrap);
+        });
 
         $trigger.off('pointerdown.aiAssistantMove').on('pointerdown.aiAssistantMove', function(event) {
             var originalEvent = event.originalEvent || event;

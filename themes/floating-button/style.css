@@ -557,6 +557,7 @@ body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-mai
 .ai-assistant-standalone-links {
     float: none !important;
     margin: 0 !important;
+    position: relative !important;
     text-align: right !important;
 }
 
@@ -589,6 +590,53 @@ body.ai-assistant-floating-button-moving .ai-assistant-standalone-trigger button
 .ai-assistant-standalone-trigger button:focus {
     background: var(--ai-assistant-accent-hover) !important;
     color: var(--ai-assistant-on-accent) !important;
+}
+
+.ai-assistant-floating-menu {
+    background: #fff !important;
+    border: 1px solid #dcdcde !important;
+    border-radius: 6px !important;
+    bottom: calc(100% + 8px) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16) !important;
+    min-width: 170px !important;
+    overflow: hidden !important;
+    position: absolute !important;
+    right: 0 !important;
+    text-align: left !important;
+    z-index: 1000001 !important;
+}
+
+.ai-assistant-floating-menu[hidden] {
+    display: none !important;
+}
+
+.ai-assistant-floating-menu a,
+.ai-assistant-floating-menu button {
+    appearance: none !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    box-sizing: border-box !important;
+    color: #1d2327 !important;
+    cursor: pointer !important;
+    display: block !important;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+    margin: 0 !important;
+    padding: 9px 12px !important;
+    text-align: left !important;
+    text-decoration: none !important;
+    width: 100% !important;
+}
+
+.ai-assistant-floating-menu a:hover,
+.ai-assistant-floating-menu a:focus,
+.ai-assistant-floating-menu button:hover,
+.ai-assistant-floating-menu button:focus {
+    background: #f0f0f1 !important;
+    color: #1d2327 !important;
+    outline: none !important;
 }
 
 .ai-assistant-standalone-trigger button::after,
