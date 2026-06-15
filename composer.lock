@@ -8,16 +8,16 @@
     "packages": [
         {
             "name": "akirk/create-wp-app",
-            "version": "v1.4.0",
+            "version": "v1.4.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/akirk/create-wp-app.git",
-                "reference": "ca1c90bf13b19f124761080db606dee6b18aaaf9"
+                "reference": "1a99995df81dca19a0bd64e129044f21e38a4e99"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/akirk/create-wp-app/zipball/ca1c90bf13b19f124761080db606dee6b18aaaf9",
-                "reference": "ca1c90bf13b19f124761080db606dee6b18aaaf9",
+                "url": "https://api.github.com/repos/akirk/create-wp-app/zipball/1a99995df81dca19a0bd64e129044f21e38a4e99",
+                "reference": "1a99995df81dca19a0bd64e129044f21e38a4e99",
                 "shasum": ""
             },
             "require": {
@@ -38,22 +38,22 @@
             "description": "Scaffold a WordPress plugin powered by WpApp",
             "support": {
                 "issues": "https://github.com/akirk/create-wp-app/issues",
-                "source": "https://github.com/akirk/create-wp-app/tree/v1.4.0"
+                "source": "https://github.com/akirk/create-wp-app/tree/v1.4.2"
             },
-            "time": "2026-05-14T12:31:40+00:00"
+            "time": "2026-06-15T09:26:34+00:00"
         },
         {
             "name": "akirk/wp-app",
-            "version": "v1.2.4",
+            "version": "v1.2.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/akirk/wp-app.git",
-                "reference": "c5f9b771cdb9650012e4a210e3317dec09fac23e"
+                "reference": "04560849aca0d15fc19492e8cbdecd94abf4b46e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/akirk/wp-app/zipball/c5f9b771cdb9650012e4a210e3317dec09fac23e",
-                "reference": "c5f9b771cdb9650012e4a210e3317dec09fac23e",
+                "url": "https://api.github.com/repos/akirk/wp-app/zipball/04560849aca0d15fc19492e8cbdecd94abf4b46e",
+                "reference": "04560849aca0d15fc19492e8cbdecd94abf4b46e",
                 "shasum": ""
             },
             "require": {
@@ -68,6 +68,7 @@
             "autoload": {
                 "files": [
                     "src/class-registry.php",
+                    "src/class-settings.php",
                     "src/class-router.php",
                     "src/class-masterbar.php",
                     "src/class-wpapp.php",
@@ -88,9 +89,9 @@
             "description": "A lightweight framework for building web applications on WordPress with routing, admin bar integration, and theme isolation",
             "support": {
                 "issues": "https://github.com/akirk/wp-app/issues",
-                "source": "https://github.com/akirk/wp-app/tree/v1.2.4"
+                "source": "https://github.com/akirk/wp-app/tree/v1.2.5"
             },
-            "time": "2026-05-23T03:54:24+00:00"
+            "time": "2026-06-15T09:29:52+00:00"
         }
     ],
     "packages-dev": [
