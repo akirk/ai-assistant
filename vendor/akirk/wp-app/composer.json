@@ -1,0 +1,48 @@
+{
+    "name": "akirk/wp-app",
+    "description": "A lightweight framework for building web applications on WordPress with routing, admin bar integration, and theme isolation",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Alex Kirk"
+        }
+    ],
+    "require": {
+        "php": ">=7.4"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.0",
+        "squizlabs/php_codesniffer": "^3.7",
+        "wp-coding-standards/wpcs": "^3.0"
+    },
+    "autoload": {
+        "files": [
+            "src/class-registry.php",
+            "src/class-router.php",
+            "src/class-masterbar.php",
+            "src/class-wpapp.php",
+            "src/BaseStorage.php",
+            "src/abstract-baseapp.php",
+            "src/functions.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "WpApp\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "phpcs": "phpcs",
+        "phpcbf": "phpcbf"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
