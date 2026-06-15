@@ -812,6 +812,9 @@ class Chat_UI {
         $history_url = class_exists('\WpApp\WpApp')
             ? Conversations_App::get_url()
             : admin_url('tools.php?page=ai-conversations');
+        $theme_switch_url = $this->get_current_theme_id() === 'floating-button'
+            ? $this->get_assistant_theme_switch_url(Assistant_Themes::DEFAULT_THEME)
+            : $this->get_assistant_theme_switch_url('floating-button');
 
         return [
             'deferInit' => true,
@@ -823,6 +826,7 @@ class Chat_UI {
             'urls' => [
                 'history' => $history_url,
                 'settings' => admin_url('options-general.php?page=ai-assistant-settings'),
+                'changeTheme' => $theme_switch_url,
             ],
             'strings' => [
                 'buttonText' => __('AI Assistant', 'ai-assistant'),
@@ -830,6 +834,8 @@ class Chat_UI {
                 'newChat' => __('New Chat', 'ai-assistant'),
                 'history' => __('Conversations', 'ai-assistant'),
                 'settings' => __('Settings', 'ai-assistant'),
+                'changeTheme' => __('Change theme', 'ai-assistant'),
+                'hideForPage' => __('Hide on this page', 'ai-assistant'),
                 'send' => __('Send', 'ai-assistant'),
                 'placeholder' => __('Ask me anything about your WordPress site...', 'ai-assistant'),
                 'ariaLabel' => __('AI Assistant Tab', 'ai-assistant'),
