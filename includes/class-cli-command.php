@@ -135,9 +135,9 @@ class CLI_Command {
         }
         if (!empty($report['ability_domains'])) {
             $domains = array_values($report['ability_domains']);
-            \WP_CLI::line('Assistant will route: ' . (string) $domains[0]);
+            \WP_CLI::line('Use this plugin for: ' . (string) $domains[0]);
         } else {
-            \WP_CLI::line('Assistant will route: none');
+            \WP_CLI::line('Use this plugin for: none');
         }
         if ($url_component !== '') {
             \WP_CLI::line('URL tips for /' . trim($url_component, '/') . '/: ' . $summary['tips']);
@@ -179,7 +179,7 @@ class CLI_Command {
             $row = [
                 'plugin' => $report['plugin']['slug'],
                 'abilities' => $summary['abilities'],
-                'routing' => $summary['domain'],
+                'used_for' => $summary['domain'],
                 'warnings' => $summary['warnings'],
             ];
             if ($show_route_tips) {
@@ -309,7 +309,7 @@ class CLI_Command {
 
     private function render_route_tips(array $route_tips): void {
         foreach ($route_tips as $route => $tips) {
-            \WP_CLI::line('Route tips for /' . trim((string) $route, '/') . '/: ' . count((array) $tips));
+            \WP_CLI::line('Tips for /' . trim((string) $route, '/') . '/: ' . count((array) $tips));
             foreach ((array) $tips as $tip) {
                 \WP_CLI::line('  - ' . $tip);
             }
