@@ -59,7 +59,9 @@ class IntegrationInspectorTest extends TestCase {
             ],
         ];
 
-        $report = (new Integration_Inspector())->inspect('memex');
+        $report = (new Integration_Inspector())->inspect('memex', [
+            'url_component' => 'memex',
+        ]);
 
         $this->assertTrue($report['plugin']['found']);
         $this->assertTrue($report['plugin']['active']);
@@ -74,6 +76,44 @@ class IntegrationInspectorTest extends TestCase {
         $this->assertTrue($report['abilities'][0]['has_output_schema']);
         $this->assertTrue($report['abilities'][0]['has_instructions']);
         $this->assertSame([], $report['warnings']);
+    }
+
+    public function test_inspect_does_not_default_welcome_tips_to_plugin_slug(): void {
+        $GLOBALS['wp_test_plugins']['memex/memex.php'] = [
+            'Name' => 'Memex',
+            'Description' => 'Personal knowledge base.',
+            'Version' => '1.0.0',
+        ];
+
+        add_filter('ai_assistant_welcome_tips', function ($tips) {
+            $tips['memex'] = 'Summarize the selected note.';
+            return $tips;
+        }, 10, 2);
+
+        $report = (new Integration_Inspector())->inspect('memex');
+
+        $this->assertSame([], $report['welcome_tips']);
+    }
+
+    public function test_get_active_plugin_slugs_returns_active_plugins(): void {
+        $GLOBALS['wp_test_plugins']['memex/memex.php'] = [
+            'Name' => 'Memex',
+            'Description' => 'Personal knowledge base.',
+            'Version' => '1.0.0',
+        ];
+        $GLOBALS['wp_test_plugins']['cookbook/cookbook.php'] = [
+            'Name' => 'Cookbook',
+            'Description' => 'Recipe manager.',
+            'Version' => '1.0.0',
+        ];
+        $GLOBALS['wp_test_options']['active_plugins'] = [
+            'memex/memex.php',
+            'ai-assistant/ai-assistant.php',
+        ];
+
+        $slugs = (new Integration_Inspector())->get_active_plugin_slugs();
+
+        $this->assertSame(['ai-assistant', 'memex'], $slugs);
     }
 
     public function test_inspect_warns_about_missing_integration_pieces(): void {

@@ -15,8 +15,12 @@ class CLI_Command {
      *
      * ## OPTIONS
      *
-     * <plugin>
+     * [<plugin>]
      * : Plugin slug as shown by wp plugin list, for example memex.
+     *   Omit when using --all-active.
+     *
+     * [--all-active]
+     * : Check every active plugin.
      *
      * [--format=<format>]
      * : Output format. Use table, json, or yaml.
@@ -29,33 +33,68 @@ class CLI_Command {
      * ---
      *
      * [--url-component=<component>]
-     * : URL path component to use when resolving contextual welcome tips.
+     * : URL path component to use when resolving contextual welcome tips. This is independent of the plugin slug.
      *
      * [--strict]
      * : Exit with an error when warnings are present.
      */
     public function integration_check(array $args, array $assoc_args): void {
-        $plugin_slug = sanitize_key((string) ($args[0] ?? ''));
-        if ($plugin_slug === '') {
-            \WP_CLI::error('Missing plugin slug.');
+        $all_active = !empty($assoc_args['all-active']);
+        $inspector = new Integration_Inspector();
+        $plugin_slugs = [];
+
+        if ($all_active) {
+            $plugin_slugs = $inspector->get_active_plugin_slugs();
+            if (empty($plugin_slugs)) {
+                \WP_CLI::error('No active plugins found.');
+            }
+        } else {
+            $plugin_slug = sanitize_key((string) ($args[0] ?? ''));
+            if ($plugin_slug === '') {
+                \WP_CLI::error('Missing plugin slug. Pass a plugin slug or use --all-active.');
+            }
+            $plugin_slugs = [$plugin_slug];
         }
 
         $format = (string) ($assoc_args['format'] ?? 'table');
-        $report = (new Integration_Inspector())->inspect($plugin_slug, [
-            'url_component' => sanitize_key((string) ($assoc_args['url-component'] ?? $plugin_slug)),
-        ]);
+        $url_component = array_key_exists('url-component', $assoc_args)
+            ? sanitize_key((string) $assoc_args['url-component'])
+            : '';
+        $reports = [];
+        foreach ($plugin_slugs as $plugin_slug) {
+            $options = [];
+            if ($url_component !== '') {
+                $options['url_component'] = $url_component;
+            }
+            $reports[] = $inspector->inspect($plugin_slug, $options);
+        }
 
         if ($format !== 'table') {
-            \WP_CLI\Utils\format_items($format, [$report], array_keys($report));
-            $this->maybe_fail_strict($report, !empty($assoc_args['strict']));
+            $items = count($reports) > 1
+                ? $this->prepare_multi_report_output($reports, $url_component)
+                : $reports;
+            \WP_CLI\Utils\format_items($format, $items, array_keys($items[0]));
+            $this->maybe_fail_strict($reports, !empty($assoc_args['strict']));
             return;
         }
 
-        $this->render_table_report($report);
-        $this->maybe_fail_strict($report, !empty($assoc_args['strict']));
+        if (count($reports) > 1 && $url_component !== '') {
+            $this->render_url_context($url_component, $reports[0]['welcome_tips'] ?? []);
+        }
+
+        foreach ($reports as $index => $report) {
+            if ($index > 0) {
+                \WP_CLI::line('');
+                \WP_CLI::line(str_repeat('-', 72));
+                \WP_CLI::line('');
+            }
+            $this->render_table_report($report, count($reports) > 1);
+        }
+
+        $this->maybe_fail_strict($reports, !empty($assoc_args['strict']));
     }
 
-    private function render_table_report(array $report): void {
+    private function render_table_report(array $report, bool $omit_url_context = false): void {
         $plugin = $report['plugin'];
         \WP_CLI::line('AI Assistant integration check: ' . $plugin['slug']);
         \WP_CLI::line('');
@@ -88,13 +127,15 @@ class CLI_Command {
             }
         }
 
-        \WP_CLI::line('');
-        \WP_CLI::line('Welcome tips:');
-        if (empty($report['welcome_tips'])) {
-            \WP_CLI::line('  none');
-        } else {
-            foreach ($report['welcome_tips'] as $tip) {
-                \WP_CLI::line('  - ' . $tip);
+        if (!$omit_url_context) {
+            \WP_CLI::line('');
+            \WP_CLI::line('Welcome tips:');
+            if (empty($report['welcome_tips'])) {
+                \WP_CLI::line('  none');
+            } else {
+                foreach ($report['welcome_tips'] as $tip) {
+                    \WP_CLI::line('  - ' . $tip);
+                }
             }
         }
 
@@ -119,8 +160,51 @@ class CLI_Command {
         }
     }
 
-    private function maybe_fail_strict(array $report, bool $strict): void {
-        if ($strict && !empty($report['warnings'])) {
+    private function render_url_context(string $url_component, array $welcome_tips): void {
+        \WP_CLI::line('URL context: /' . trim($url_component, '/') . '/');
+        \WP_CLI::line('');
+        \WP_CLI::line('Welcome tips:');
+        if (empty($welcome_tips)) {
+            \WP_CLI::line('  none');
+        } else {
+            foreach ($welcome_tips as $tip) {
+                \WP_CLI::line('  - ' . $tip);
+            }
+        }
+        \WP_CLI::line('');
+        \WP_CLI::line(str_repeat('-', 72));
+        \WP_CLI::line('');
+    }
+
+    private function prepare_multi_report_output(array $reports, string $url_component): array {
+        if ($url_component === '') {
+            return $reports;
+        }
+
+        foreach ($reports as &$report) {
+            $report['url_context'] = [
+                'url_component' => $url_component,
+                'welcome_tips' => $report['welcome_tips'] ?? [],
+            ];
+            unset($report['welcome_tips']);
+        }
+        unset($report);
+
+        return $reports;
+    }
+
+    private function maybe_fail_strict(array $reports, bool $strict): void {
+        if (!$strict) {
+            return;
+        }
+
+        foreach ($reports as $report) {
+            if (!empty($report['warnings'])) {
+                \WP_CLI::error('AI Assistant integration check failed with warnings.');
+            }
+        }
+
+        if (!isset($reports[0]['warnings']) && !empty($reports['warnings'])) {
             \WP_CLI::error('AI Assistant integration check failed with warnings.');
         }
     }

@@ -10,12 +10,31 @@ if (!defined('ABSPATH')) {
  */
 class Integration_Inspector {
 
+    public function get_active_plugin_slugs(): array {
+        if (!function_exists('get_plugins')) {
+            return [];
+        }
+
+        $slugs = [];
+        foreach ((array) get_plugins() as $file => $data) {
+            $file = (string) $file;
+            if ($this->is_plugin_active($file)) {
+                $slugs[] = $this->plugin_file_to_slug($file);
+            }
+        }
+
+        sort($slugs, SORT_STRING);
+        return array_values(array_unique($slugs));
+    }
+
     public function inspect(string $plugin_slug, array $options = []): array {
         $plugin_slug = sanitize_key($plugin_slug);
         $plugin = $this->find_plugin($plugin_slug);
         $domains = $this->get_ability_domains();
         $abilities = $this->get_plugin_abilities($plugin_slug);
-        $tips = $this->get_welcome_tips($plugin_slug, $options['url_component'] ?? $plugin_slug);
+        $tips = array_key_exists('url_component', $options)
+            ? $this->get_welcome_tips((string) $options['url_component'])
+            : [];
         $export_formats = $this->get_export_formats();
 
         $warnings = $this->get_warnings($plugin_slug, $plugin, $domains, $abilities);
@@ -174,11 +193,16 @@ class Integration_Inspector {
         return is_array($ability) && isset($ability['output_schema']) && is_array($ability['output_schema']);
     }
 
-    private function get_welcome_tips(string $plugin_slug, string $url_component): array {
+    private function get_welcome_tips(string $url_component): array {
+        $url_component = sanitize_key($url_component);
+        if ($url_component === '') {
+            return [];
+        }
+
         $context = [
             'url' => home_url('/' . trim($url_component, '/') . '/'),
             'path' => '/' . trim($url_component, '/') . '/',
-            'url_component' => sanitize_key($url_component),
+            'url_component' => $url_component,
         ];
 
         $tips_by_component = apply_filters('ai_assistant_welcome_tips', [], $context);
@@ -188,7 +212,7 @@ class Integration_Inspector {
 
         $tips = [];
         foreach ($tips_by_component as $component => $component_tips) {
-            if (sanitize_key((string) $component) !== $plugin_slug && sanitize_key((string) $component) !== $context['url_component']) {
+            if (sanitize_key((string) $component) !== $context['url_component']) {
                 continue;
             }
 
