@@ -279,7 +279,7 @@ if (!function_exists('wp_get_theme'))   {
 }
 if (!function_exists('get_plugins'))    {
     function get_plugins() {
-        return [
+        return array_merge([
             'hello.php' => [
                 'Name' => 'Hello Dolly',
                 'Description' => 'This is not just a plugin, it symbolizes the hope and enthusiasm of an entire generation.',
@@ -290,7 +290,7 @@ if (!function_exists('get_plugins'))    {
                 'Description' => 'AI-powered chat interface for WordPress.',
                 'Version' => '1.0',
             ],
-        ];
+        ], $GLOBALS['wp_test_plugins'] ?? []);
     }
 }
 
@@ -324,6 +324,9 @@ if (!function_exists('add_filter')) {
             'ai_assistant_client_tool_definitions',
             'ai_assistant_file_endpoint_tools',
             'ai_assistant_system_prompt',
+            'ai_assistant_ability_domains',
+            'ai_assistant_ability_instructions',
+            'ai_assistant_welcome_tips',
         ];
         if (!in_array($tag, $supported, true)) {
             return true;
@@ -429,5 +432,6 @@ require_once $plugin_dir . '/includes/class-admin-colors.php';
 require_once $plugin_dir . '/includes/class-assistant-themes.php';
 require_once $plugin_dir . '/includes/class-conversations.php';
 require_once $plugin_dir . '/includes/class-conversations-app.php';
+require_once $plugin_dir . '/includes/class-integration-inspector.php';
 require_once $plugin_dir . '/includes/class-settings.php';
 require_once $plugin_dir . '/includes/class-wp-app-abilities.php';
