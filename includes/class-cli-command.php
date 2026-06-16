@@ -128,10 +128,13 @@ class CLI_Command {
         \WP_CLI::line('');
         if (!empty($report['ability_domains'])) {
             $domains = array_values($report['ability_domains']);
-            \WP_CLI::line('Use this plugin for: ' . (string) $domains[0]);
+            \WP_CLI::line('Guidance for using this plugin when:');
+            \WP_CLI::line('  ' . (string) $domains[0]);
         } else {
-            \WP_CLI::line('Use this plugin for: none');
+            \WP_CLI::line('Guidance for using this plugin when:');
+            \WP_CLI::line('  none');
         }
+        \WP_CLI::line('');
         if ($url_component !== '') {
             \WP_CLI::line('On /' . trim($url_component, '/') . '/ shows tips:');
             $this->render_tip_items((array) ($report['welcome_tips'] ?? []));
