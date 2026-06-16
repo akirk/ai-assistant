@@ -113,7 +113,7 @@ class CLI_Command {
 
     private function render_summary_report(array $report, string $url_component): void {
         $plugin = $report['plugin'];
-        $summary = $this->get_report_summary($report, $url_component);
+        $summary = $this->get_report_summary($report);
 
         \WP_CLI::line('AI Assistant integration check: ' . ($plugin['name'] ?: $plugin['slug']));
         \WP_CLI::line('');
@@ -125,14 +125,7 @@ class CLI_Command {
                 \WP_CLI::line('    ' . $ability['description']);
             }
         }
-        if (!empty($report['abilities'])) {
-            \WP_CLI::line(sprintf(
-                'Ability status: %d readonly, %d mutating, %d destructive',
-                $summary['readonly'],
-                $summary['mutating'],
-                $summary['destructive']
-            ));
-        }
+        \WP_CLI::line('');
         if (!empty($report['ability_domains'])) {
             $domains = array_values($report['ability_domains']);
             \WP_CLI::line('Use this plugin for: ' . (string) $domains[0]);
@@ -140,10 +133,8 @@ class CLI_Command {
             \WP_CLI::line('Use this plugin for: none');
         }
         if ($url_component !== '') {
-            \WP_CLI::line('URL tips for /' . trim($url_component, '/') . '/: ' . $summary['tips']);
-            foreach ((array) ($report['welcome_tips'] ?? []) as $tip) {
-                \WP_CLI::line('  - ' . $tip);
-            }
+            \WP_CLI::line('On /' . trim($url_component, '/') . '/ shows tips:');
+            $this->render_tip_items((array) ($report['welcome_tips'] ?? []));
         } elseif (!empty($report['route_tips'])) {
             $this->render_route_tips($report['route_tips']);
         }
@@ -175,7 +166,7 @@ class CLI_Command {
                 continue;
             }
 
-            $summary = $this->get_report_summary($report, $url_component);
+            $summary = $this->get_report_summary($report);
             $row = [
                 'plugin' => $report['plugin']['slug'],
                 'abilities' => $summary['abilities'],
@@ -301,18 +292,25 @@ class CLI_Command {
     }
 
     private function render_tip_summary(array $welcome_tips): void {
-        \WP_CLI::line('Welcome tips: ' . count($welcome_tips));
-        foreach ($welcome_tips as $tip) {
+        \WP_CLI::line('Welcome tips:');
+        $this->render_tip_items($welcome_tips);
+    }
+
+    private function render_tip_items(array $tips): void {
+        if (empty($tips)) {
+            \WP_CLI::line('  none');
+            return;
+        }
+
+        foreach ($tips as $tip) {
             \WP_CLI::line('  - ' . $tip);
         }
     }
 
     private function render_route_tips(array $route_tips): void {
         foreach ($route_tips as $route => $tips) {
-            \WP_CLI::line('Tips for /' . trim((string) $route, '/') . '/: ' . count((array) $tips));
-            foreach ((array) $tips as $tip) {
-                \WP_CLI::line('  - ' . $tip);
-            }
+            \WP_CLI::line('On /' . trim((string) $route, '/') . '/ shows tips:');
+            $this->render_tip_items((array) $tips);
         }
     }
 
@@ -371,31 +369,15 @@ class CLI_Command {
         return $reports;
     }
 
-    private function get_report_summary(array $report, string $url_component): array {
+    private function get_report_summary(array $report): array {
         $abilities = (array) ($report['abilities'] ?? []);
-        $readonly = 0;
-        $destructive = 0;
-        foreach ($abilities as $ability) {
-            if (!empty($ability['readonly'])) {
-                $readonly++;
-            }
-            if (!empty($ability['destructive'])) {
-                $destructive++;
-            }
-        }
-
         $ability_count = count($abilities);
-        $tips = $url_component === '' ? 'n/a' : (string) count($report['welcome_tips'] ?? []);
 
         return [
             'active' => !empty($report['plugin']['active']) ? 'yes' : 'no',
             'abilities' => (string) $ability_count,
-            'readonly' => $readonly,
-            'mutating' => max(0, $ability_count - $readonly),
-            'destructive' => $destructive,
             'domain' => !empty($report['ability_domains']) ? 'yes' : 'no',
             'prompt' => trim((string) ($report['system_prompt_section'] ?? '')) !== '' ? 'yes' : 'no',
-            'tips' => $tips,
             'warnings' => (string) count($report['warnings'] ?? []),
         ];
     }
