@@ -35,6 +35,9 @@ class CLI_Command {
      * [--url-component=<component>]
      * : URL path component to use when resolving contextual welcome tips. This is independent of the plugin slug.
      *
+     * [--verbose]
+     * : Show full ability details, prompt text, welcome tip text, and export formats.
+     *
      * [--strict]
      * : Exit with an error when warnings are present.
      *
@@ -80,23 +83,102 @@ class CLI_Command {
             return;
         }
 
-        if (count($reports) > 1 && $url_component !== '') {
-            $this->render_url_context($url_component, $reports[0]['welcome_tips'] ?? []);
-        }
-
-        foreach ($reports as $index => $report) {
-            if ($index > 0) {
-                \WP_CLI::line('');
-                \WP_CLI::line(str_repeat('-', 72));
-                \WP_CLI::line('');
+        if (!empty($assoc_args['verbose'])) {
+            if (count($reports) > 1 && $url_component !== '') {
+                $this->render_url_context($url_component, $reports[0]['welcome_tips'] ?? []);
             }
-            $this->render_table_report($report, count($reports) > 1);
+
+            foreach ($reports as $index => $report) {
+                if ($index > 0) {
+                    \WP_CLI::line('');
+                    \WP_CLI::line(str_repeat('-', 72));
+                    \WP_CLI::line('');
+                }
+                $this->render_verbose_report($report, count($reports) > 1);
+            }
+        } elseif (count($reports) > 1) {
+            $this->render_summary_table($reports, $url_component);
+        } else {
+            $this->render_summary_report($reports[0], $url_component);
         }
 
         $this->maybe_fail_strict($reports, !empty($assoc_args['strict']));
     }
 
-    private function render_table_report(array $report, bool $omit_url_context = false): void {
+    private function render_summary_report(array $report, string $url_component): void {
+        $plugin = $report['plugin'];
+        $summary = $this->get_report_summary($report, $url_component);
+
+        \WP_CLI::line('AI Assistant integration check: ' . $plugin['slug']);
+        \WP_CLI::line('');
+        \WP_CLI::line('Plugin: ' . ($plugin['name'] ?: '(not found)'));
+        \WP_CLI::line('File: ' . ($plugin['file'] ?: '(unknown)'));
+        \WP_CLI::line('Active: ' . (!empty($plugin['active']) ? 'yes' : 'no'));
+        \WP_CLI::line('Abilities: ' . $summary['abilities']);
+        if (!empty($report['abilities'])) {
+            \WP_CLI::line(sprintf(
+                'Ability status: %d readonly, %d mutating, %d destructive',
+                $summary['readonly'],
+                $summary['mutating'],
+                $summary['destructive']
+            ));
+        }
+        \WP_CLI::line('Domain: ' . $summary['domain']);
+        if (!empty($report['ability_domains'])) {
+            $domains = array_values($report['ability_domains']);
+            \WP_CLI::line('Domain terms: ' . $this->truncate_text((string) $domains[0], 140));
+        }
+        \WP_CLI::line('Prompt routing: ' . $summary['prompt']);
+        if ($url_component !== '') {
+            \WP_CLI::line('URL tips for /' . trim($url_component, '/') . '/: ' . $summary['tips']);
+        }
+        \WP_CLI::line('Warnings: ' . $summary['warnings']);
+
+        if (!empty($report['warnings'])) {
+            \WP_CLI::line('');
+            \WP_CLI::line('Warnings:');
+            foreach ($report['warnings'] as $warning) {
+                \WP_CLI::line('- ' . $warning);
+            }
+        }
+    }
+
+    private function render_summary_table(array $reports, string $url_component): void {
+        \WP_CLI::line('AI Assistant integration check');
+        if ($url_component !== '') {
+            \WP_CLI::line('');
+            \WP_CLI::line('URL context: /' . trim($url_component, '/') . '/');
+            \WP_CLI::line('Tips: ' . count($reports[0]['welcome_tips'] ?? []));
+        }
+        \WP_CLI::line('');
+
+        $rows = [];
+        foreach ($reports as $report) {
+            $summary = $this->get_report_summary($report, $url_component);
+            $rows[] = [
+                'plugin' => $report['plugin']['slug'],
+                'active' => $summary['active'],
+                'abilities' => $summary['abilities'],
+                'domain' => $summary['domain'],
+                'prompt' => $summary['prompt'],
+                'tips' => $summary['tips'],
+                'warnings' => $summary['warnings'],
+            ];
+        }
+
+        \WP_CLI\Utils\format_items('table', $rows, ['plugin', 'active', 'abilities', 'domain', 'prompt', 'tips', 'warnings']);
+
+        $warnings = $this->collect_warnings($reports);
+        if (!empty($warnings)) {
+            \WP_CLI::line('');
+            \WP_CLI::line('Warnings:');
+            foreach ($warnings as $warning) {
+                \WP_CLI::line('- ' . $warning);
+            }
+        }
+    }
+
+    private function render_verbose_report(array $report, bool $omit_url_context = false): void {
         $plugin = $report['plugin'];
         \WP_CLI::line('AI Assistant integration check: ' . $plugin['slug']);
         \WP_CLI::line('');
@@ -193,6 +275,56 @@ class CLI_Command {
         unset($report);
 
         return $reports;
+    }
+
+    private function get_report_summary(array $report, string $url_component): array {
+        $abilities = (array) ($report['abilities'] ?? []);
+        $readonly = 0;
+        $destructive = 0;
+        foreach ($abilities as $ability) {
+            if (!empty($ability['readonly'])) {
+                $readonly++;
+            }
+            if (!empty($ability['destructive'])) {
+                $destructive++;
+            }
+        }
+
+        $ability_count = count($abilities);
+        $tips = $url_component === '' ? 'n/a' : (string) count($report['welcome_tips'] ?? []);
+
+        return [
+            'active' => !empty($report['plugin']['active']) ? 'yes' : 'no',
+            'abilities' => (string) $ability_count,
+            'readonly' => $readonly,
+            'mutating' => max(0, $ability_count - $readonly),
+            'destructive' => $destructive,
+            'domain' => !empty($report['ability_domains']) ? 'yes' : 'no',
+            'prompt' => trim((string) ($report['system_prompt_section'] ?? '')) !== '' ? 'yes' : 'no',
+            'tips' => $tips,
+            'warnings' => (string) count($report['warnings'] ?? []),
+        ];
+    }
+
+    private function collect_warnings(array $reports): array {
+        $warnings = [];
+        foreach ($reports as $report) {
+            $slug = (string) ($report['plugin']['slug'] ?? '');
+            foreach ((array) ($report['warnings'] ?? []) as $warning) {
+                $warnings[] = $slug !== '' ? "{$slug}: {$warning}" : (string) $warning;
+            }
+        }
+
+        return $warnings;
+    }
+
+    private function truncate_text(string $text, int $max_length): string {
+        $text = trim(preg_replace('/\s+/', ' ', $text));
+        if (strlen($text) <= $max_length) {
+            return $text;
+        }
+
+        return rtrim(substr($text, 0, max(0, $max_length - 3))) . '...';
     }
 
     private function maybe_fail_strict(array $reports, bool $strict): void {
