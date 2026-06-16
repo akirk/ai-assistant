@@ -17,7 +17,7 @@ class CLI_Command {
      *
      * [<plugin>]
      * : Plugin slug as shown by wp plugin list, for example memex.
-     *   Omit when using --all-active.
+     *   Omit to check active plugins.
      *
      * [--all-active]
      * : Check every active plugin.
@@ -44,7 +44,7 @@ class CLI_Command {
      * @subcommand integration-check
      */
     public function integration_check(array $args, array $assoc_args): void {
-        $all_active = !empty($assoc_args['all-active']);
+        $all_active = !empty($assoc_args['all-active']) || empty($args);
         $inspector = new Integration_Inspector();
         $plugin_slugs = [];
 
@@ -56,7 +56,7 @@ class CLI_Command {
         } else {
             $plugin_slug = sanitize_key((string) ($args[0] ?? ''));
             if ($plugin_slug === '') {
-                \WP_CLI::error('Missing plugin slug. Pass a plugin slug or use --all-active.');
+                \WP_CLI::error('Missing plugin slug.');
             }
             $plugin_slugs = [$plugin_slug];
         }
@@ -70,6 +70,9 @@ class CLI_Command {
             $options = [];
             if ($url_component !== '') {
                 $options['url_component'] = $url_component;
+            }
+            if ($all_active) {
+                $options['warn_missing_integration'] = false;
             }
             $reports[] = $inspector->inspect($plugin_slug, $options);
         }
@@ -87,6 +90,9 @@ class CLI_Command {
             if (count($reports) > 1 && $url_component !== '') {
                 $this->render_url_context($url_component, $reports[0]['welcome_tips'] ?? []);
             }
+            if (count($reports) > 1) {
+                $this->render_global_export_formats($reports[0]['conversation_export_formats'] ?? []);
+            }
 
             foreach ($reports as $index => $report) {
                 if ($index > 0) {
@@ -97,7 +103,7 @@ class CLI_Command {
                 $this->render_verbose_report($report, count($reports) > 1);
             }
         } elseif (count($reports) > 1) {
-            $this->render_summary_table($reports, $url_component);
+            $this->render_summary_table($reports, $url_component, $all_active);
         } else {
             $this->render_summary_report($reports[0], $url_component);
         }
@@ -143,7 +149,7 @@ class CLI_Command {
         }
     }
 
-    private function render_summary_table(array $reports, string $url_component): void {
+    private function render_summary_table(array $reports, string $url_component, bool $all_active): void {
         \WP_CLI::line('AI Assistant integration check');
         if ($url_component !== '') {
             \WP_CLI::line('');
@@ -153,20 +159,45 @@ class CLI_Command {
         \WP_CLI::line('');
 
         $rows = [];
+        $without_integration = 0;
         foreach ($reports as $report) {
+            if ($all_active && !$this->report_has_signal($report)) {
+                $without_integration++;
+                continue;
+            }
+
             $summary = $this->get_report_summary($report, $url_component);
-            $rows[] = [
+            $row = [
                 'plugin' => $report['plugin']['slug'],
-                'active' => $summary['active'],
                 'abilities' => $summary['abilities'],
                 'domain' => $summary['domain'],
                 'prompt' => $summary['prompt'],
-                'tips' => $summary['tips'],
                 'warnings' => $summary['warnings'],
             ];
+            if (!$all_active) {
+                $row = array_merge(['plugin' => $report['plugin']['slug'], 'active' => $summary['active']], array_slice($row, 1));
+            }
+            if ($url_component !== '') {
+                $row['tips'] = $summary['tips'];
+            }
+            $rows[] = $row;
         }
 
-        \WP_CLI\Utils\format_items('table', $rows, ['plugin', 'active', 'abilities', 'domain', 'prompt', 'tips', 'warnings']);
+        if (empty($rows)) {
+            \WP_CLI::line('No AI Assistant integrations detected.');
+        } else {
+            $fields = array_keys($rows[0]);
+            \WP_CLI\Utils\format_items('table', $rows, $fields);
+        }
+
+        if ($without_integration > 0) {
+            \WP_CLI::line('');
+            \WP_CLI::line(sprintf(
+                'No AI Assistant integration detected: %d active plugin%s. Use --verbose to list them.',
+                $without_integration,
+                $without_integration === 1 ? '' : 's'
+            ));
+        }
 
         $warnings = $this->collect_warnings($reports);
         if (!empty($warnings)) {
@@ -223,13 +254,15 @@ class CLI_Command {
             }
         }
 
-        \WP_CLI::line('');
-        \WP_CLI::line('Conversation export formats:');
-        if (empty($report['conversation_export_formats'])) {
-            \WP_CLI::line('  none');
-        } else {
-            foreach ($report['conversation_export_formats'] as $format) {
-                \WP_CLI::line(sprintf('  - %s (.%s)', $format['label'], $format['extension']));
+        if (!$omit_url_context) {
+            \WP_CLI::line('');
+            \WP_CLI::line('Global conversation export formats:');
+            if (empty($report['conversation_export_formats'])) {
+                \WP_CLI::line('  none');
+            } else {
+                foreach ($report['conversation_export_formats'] as $format) {
+                    \WP_CLI::line(sprintf('  - %s (.%s)', $format['label'], $format['extension']));
+                }
             }
         }
 
@@ -239,7 +272,7 @@ class CLI_Command {
             \WP_CLI::line('  none');
         } else {
             foreach ($report['warnings'] as $warning) {
-                \WP_CLI::warning($warning);
+                \WP_CLI::line('  - ' . $warning);
             }
         }
     }
@@ -253,6 +286,20 @@ class CLI_Command {
         } else {
             foreach ($welcome_tips as $tip) {
                 \WP_CLI::line('  - ' . $tip);
+            }
+        }
+        \WP_CLI::line('');
+        \WP_CLI::line(str_repeat('-', 72));
+        \WP_CLI::line('');
+    }
+
+    private function render_global_export_formats(array $formats): void {
+        \WP_CLI::line('Global conversation export formats:');
+        if (empty($formats)) {
+            \WP_CLI::line('  none');
+        } else {
+            foreach ($formats as $format) {
+                \WP_CLI::line(sprintf('  - %s (.%s)', $format['label'], $format['extension']));
             }
         }
         \WP_CLI::line('');
@@ -304,6 +351,13 @@ class CLI_Command {
             'tips' => $tips,
             'warnings' => (string) count($report['warnings'] ?? []),
         ];
+    }
+
+    private function report_has_signal(array $report): bool {
+        return !empty($report['abilities'])
+            || !empty($report['ability_domains'])
+            || !empty($report['system_prompt_section'])
+            || !empty($report['warnings']);
     }
 
     private function collect_warnings(array $reports): array {

@@ -141,4 +141,21 @@ class IntegrationInspectorTest extends TestCase {
         $this->assertContains('memex/create-note has no output schema.', $report['warnings']);
         $this->assertContains('memex/create-note has no annotation instructions.', $report['warnings']);
     }
+
+    public function test_inspect_combines_fully_missing_integration_warning(): void {
+        $GLOBALS['wp_test_plugins']['wordle/wordle.php'] = [
+            'Name' => 'Wordle Plugin',
+            'Description' => 'Word game.',
+            'Version' => '1.0.0',
+        ];
+
+        $report = (new Integration_Inspector())->inspect('wordle');
+
+        $this->assertContains(
+            "No AI Assistant integration detected for 'wordle' (no matching abilities or ability domain).",
+            $report['warnings']
+        );
+        $this->assertNotContains("No abilities found for namespace or category 'wordle'.", $report['warnings']);
+        $this->assertNotContains("No ai_assistant_ability_domains entry registered for 'wordle'.", $report['warnings']);
+    }
 }

@@ -37,7 +37,13 @@ class Integration_Inspector {
             : [];
         $export_formats = $this->get_export_formats();
 
-        $warnings = $this->get_warnings($plugin_slug, $plugin, $domains, $abilities);
+        $warnings = $this->get_warnings(
+            $plugin_slug,
+            $plugin,
+            $domains,
+            $abilities,
+            !array_key_exists('warn_missing_integration', $options) || !empty($options['warn_missing_integration'])
+        );
 
         return [
             'plugin' => [
@@ -255,7 +261,7 @@ class Integration_Inspector {
         return $normalized;
     }
 
-    private function get_warnings(string $plugin_slug, array $plugin, array $domains, array $abilities): array {
+    private function get_warnings(string $plugin_slug, array $plugin, array $domains, array $abilities, bool $warn_missing_integration = true): array {
         $warnings = [];
 
         if (empty($plugin)) {
@@ -264,12 +270,20 @@ class Integration_Inspector {
             $warnings[] = "Plugin '{$plugin_slug}' is installed but not active.";
         }
 
-        if (empty($abilities)) {
+        if ($warn_missing_integration && empty($abilities) && !array_key_exists($plugin_slug, $domains)) {
+            $warnings[] = "No AI Assistant integration detected for '{$plugin_slug}' (no matching abilities or ability domain).";
+        } elseif ($warn_missing_integration && empty($abilities)) {
             $warnings[] = "No abilities found for namespace or category '{$plugin_slug}'.";
+        } elseif ($warn_missing_integration && !array_key_exists($plugin_slug, $domains)) {
+            $warnings[] = "No ai_assistant_ability_domains entry registered for '{$plugin_slug}'.";
         }
 
-        if (!array_key_exists($plugin_slug, $domains)) {
-            $warnings[] = "No ai_assistant_ability_domains entry registered for '{$plugin_slug}'.";
+        if (!$warn_missing_integration && !empty($abilities) && !array_key_exists($plugin_slug, $domains)) {
+            $warnings[] = "Abilities are registered, but no ai_assistant_ability_domains entry is registered for '{$plugin_slug}'.";
+        }
+
+        if (!$warn_missing_integration && empty($abilities) && array_key_exists($plugin_slug, $domains)) {
+            $warnings[] = "An ai_assistant_ability_domains entry is registered for '{$plugin_slug}', but no matching abilities were found.";
         }
 
         foreach ($abilities as $ability) {
