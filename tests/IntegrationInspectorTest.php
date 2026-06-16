@@ -69,6 +69,7 @@ class IntegrationInspectorTest extends TestCase {
         $this->assertSame('notes, bookmarks, excerpts', $report['ability_domains']['memex']);
         $this->assertStringContainsString('- memex: notes, bookmarks, excerpts', $report['system_prompt_section']);
         $this->assertSame(['Summarize the selected note.', 'Find related bookmarks.'], $report['welcome_tips']);
+        $this->assertSame(['Summarize the selected note.', 'Find related bookmarks.'], $report['route_tips']['memex']);
         $this->assertCount(1, $report['abilities']);
         $this->assertSame('memex/list-notes', $report['abilities'][0]['id']);
         $this->assertTrue($report['abilities'][0]['readonly']);
@@ -93,6 +94,7 @@ class IntegrationInspectorTest extends TestCase {
         $report = (new Integration_Inspector())->inspect('memex');
 
         $this->assertSame([], $report['welcome_tips']);
+        $this->assertSame(['Summarize the selected note.'], $report['route_tips']['memex']);
     }
 
     public function test_get_active_plugin_slugs_returns_active_plugins(): void {

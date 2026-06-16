@@ -35,6 +35,7 @@ class Integration_Inspector {
         $tips = array_key_exists('url_component', $options)
             ? $this->get_welcome_tips((string) $options['url_component'])
             : [];
+        $route_tips = $this->get_route_welcome_tips($plugin_slug);
         $export_formats = $this->get_export_formats();
 
         $warnings = $this->get_warnings(
@@ -61,6 +62,7 @@ class Integration_Inspector {
                 array_key_exists($plugin_slug, $domains) ? [$plugin_slug => $domains[$plugin_slug]] : []
             ),
             'welcome_tips' => $tips,
+            'route_tips' => $route_tips,
             'conversation_export_formats' => $export_formats,
             'warnings' => $warnings,
         ];
@@ -232,6 +234,51 @@ class Integration_Inspector {
                 if ($tip !== '') {
                     $tips[] = $tip;
                 }
+            }
+        }
+
+        return array_values(array_unique($tips));
+    }
+
+    private function get_route_welcome_tips(string $plugin_slug): array {
+        $context = [
+            'url' => home_url('/'),
+            'path' => '/',
+            'url_component' => '',
+        ];
+
+        $tips_by_component = apply_filters('ai_assistant_welcome_tips', [], $context);
+        if (!is_array($tips_by_component)) {
+            return [];
+        }
+
+        $route_tips = [];
+        foreach ($tips_by_component as $component => $component_tips) {
+            $component = sanitize_key((string) $component);
+            if ($component === '' || $component !== $plugin_slug) {
+                continue;
+            }
+
+            $tips = $this->normalize_tip_list($component_tips);
+            if (!empty($tips)) {
+                $route_tips[$component] = $tips;
+            }
+        }
+
+        return $route_tips;
+    }
+
+    private function normalize_tip_list($component_tips): array {
+        $component_tips = is_array($component_tips) ? $component_tips : [$component_tips];
+        $tips = [];
+        foreach ($component_tips as $tip) {
+            if (!is_scalar($tip)) {
+                continue;
+            }
+
+            $tip = trim(preg_replace('/\s+/', ' ', (string) $tip));
+            if ($tip !== '') {
+                $tips[] = $tip;
             }
         }
 

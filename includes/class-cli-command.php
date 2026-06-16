@@ -115,12 +115,16 @@ class CLI_Command {
         $plugin = $report['plugin'];
         $summary = $this->get_report_summary($report, $url_component);
 
-        \WP_CLI::line('AI Assistant integration check: ' . $plugin['slug']);
+        \WP_CLI::line('AI Assistant integration check: ' . ($plugin['name'] ?: $plugin['slug']));
         \WP_CLI::line('');
-        \WP_CLI::line('Plugin: ' . ($plugin['name'] ?: '(not found)'));
-        \WP_CLI::line('File: ' . ($plugin['file'] ?: '(unknown)'));
         \WP_CLI::line('Active: ' . (!empty($plugin['active']) ? 'yes' : 'no'));
         \WP_CLI::line('Abilities: ' . $summary['abilities']);
+        foreach ((array) ($report['abilities'] ?? []) as $ability) {
+            \WP_CLI::line('  - ' . $ability['id']);
+            if (!empty($ability['description'])) {
+                \WP_CLI::line('    ' . $ability['description']);
+            }
+        }
         if (!empty($report['abilities'])) {
             \WP_CLI::line(sprintf(
                 'Ability status: %d readonly, %d mutating, %d destructive',
@@ -129,23 +133,24 @@ class CLI_Command {
                 $summary['destructive']
             ));
         }
-        \WP_CLI::line('Domain: ' . $summary['domain']);
         if (!empty($report['ability_domains'])) {
             $domains = array_values($report['ability_domains']);
-            \WP_CLI::line('Domain terms: ' . $this->truncate_text((string) $domains[0], 140));
+            \WP_CLI::line('Assistant will route: ' . (string) $domains[0]);
+        } else {
+            \WP_CLI::line('Assistant will route: none');
         }
-        \WP_CLI::line('Prompt routing: ' . $summary['prompt']);
         if ($url_component !== '') {
             \WP_CLI::line('URL tips for /' . trim($url_component, '/') . '/: ' . $summary['tips']);
             foreach ((array) ($report['welcome_tips'] ?? []) as $tip) {
                 \WP_CLI::line('  - ' . $tip);
             }
+        } elseif (!empty($report['route_tips'])) {
+            $this->render_route_tips($report['route_tips']);
         }
-        \WP_CLI::line('Warnings: ' . $summary['warnings']);
 
         if (!empty($report['warnings'])) {
             \WP_CLI::line('');
-            \WP_CLI::line('Warnings:');
+            \WP_CLI::line('Warnings: ' . $summary['warnings']);
             foreach ($report['warnings'] as $warning) {
                 \WP_CLI::line('- ' . $warning);
             }
@@ -163,6 +168,7 @@ class CLI_Command {
 
         $rows = [];
         $without_integration = 0;
+        $show_route_tips = $url_component === '' && $this->has_route_tips($reports);
         foreach ($reports as $report) {
             if ($all_active && !$this->report_has_signal($report)) {
                 $without_integration++;
@@ -173,10 +179,13 @@ class CLI_Command {
             $row = [
                 'plugin' => $report['plugin']['slug'],
                 'abilities' => $summary['abilities'],
-                'domain' => $summary['domain'],
-                'prompt' => $summary['prompt'],
+                'routing' => $summary['domain'],
                 'warnings' => $summary['warnings'],
             ];
+            if ($show_route_tips) {
+                $tip_count = $this->count_route_tips((array) ($report['route_tips'] ?? []));
+                $row['route_tips'] = $tip_count > 0 ? (string) $tip_count : '';
+            }
             if (!$all_active) {
                 $row = array_merge(['plugin' => $report['plugin']['slug'], 'active' => $summary['active']], array_slice($row, 1));
             }
@@ -254,6 +263,11 @@ class CLI_Command {
             }
         }
 
+        if (!empty($report['route_tips'])) {
+            \WP_CLI::line('');
+            $this->render_route_tips($report['route_tips']);
+        }
+
         if (!$omit_url_context) {
             \WP_CLI::line('');
             \WP_CLI::line('Global conversation export formats:');
@@ -290,6 +304,15 @@ class CLI_Command {
         \WP_CLI::line('Welcome tips: ' . count($welcome_tips));
         foreach ($welcome_tips as $tip) {
             \WP_CLI::line('  - ' . $tip);
+        }
+    }
+
+    private function render_route_tips(array $route_tips): void {
+        foreach ($route_tips as $route => $tips) {
+            \WP_CLI::line('Route tips for /' . trim((string) $route, '/') . '/: ' . count((array) $tips));
+            foreach ((array) $tips as $tip) {
+                \WP_CLI::line('  - ' . $tip);
+            }
         }
     }
 
@@ -381,7 +404,27 @@ class CLI_Command {
         return !empty($report['abilities'])
             || !empty($report['ability_domains'])
             || !empty($report['system_prompt_section'])
+            || !empty($report['route_tips'])
             || !empty($report['warnings']);
+    }
+
+    private function has_route_tips(array $reports): bool {
+        foreach ($reports as $report) {
+            if (!empty($report['route_tips'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function count_route_tips(array $route_tips): int {
+        $count = 0;
+        foreach ($route_tips as $tips) {
+            $count += count((array) $tips);
+        }
+
+        return $count;
     }
 
     private function collect_warnings(array $reports): array {
@@ -394,15 +437,6 @@ class CLI_Command {
         }
 
         return $warnings;
-    }
-
-    private function truncate_text(string $text, int $max_length): string {
-        $text = trim(preg_replace('/\s+/', ' ', $text));
-        if (strlen($text) <= $max_length) {
-            return $text;
-        }
-
-        return rtrim(substr($text, 0, max(0, $max_length - 3))) . '...';
     }
 
     private function maybe_fail_strict(array $reports, bool $strict): void {
