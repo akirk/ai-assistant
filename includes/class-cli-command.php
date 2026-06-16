@@ -64,7 +64,7 @@ class CLI_Command {
         $format = (string) ($assoc_args['format'] ?? 'table');
         $url_component = array_key_exists('url-component', $assoc_args)
             ? sanitize_key((string) $assoc_args['url-component'])
-            : '';
+            : $this->get_url_component_from_cli_url();
         $reports = [];
         foreach ($plugin_slugs as $plugin_slug) {
             $options = [];
@@ -137,6 +137,9 @@ class CLI_Command {
         \WP_CLI::line('Prompt routing: ' . $summary['prompt']);
         if ($url_component !== '') {
             \WP_CLI::line('URL tips for /' . trim($url_component, '/') . '/: ' . $summary['tips']);
+            foreach ((array) ($report['welcome_tips'] ?? []) as $tip) {
+                \WP_CLI::line('  - ' . $tip);
+            }
         }
         \WP_CLI::line('Warnings: ' . $summary['warnings']);
 
@@ -154,7 +157,7 @@ class CLI_Command {
         if ($url_component !== '') {
             \WP_CLI::line('');
             \WP_CLI::line('URL context: /' . trim($url_component, '/') . '/');
-            \WP_CLI::line('Tips: ' . count($reports[0]['welcome_tips'] ?? []));
+            $this->render_tip_summary($reports[0]['welcome_tips'] ?? []);
         }
         \WP_CLI::line('');
 
@@ -176,9 +179,6 @@ class CLI_Command {
             ];
             if (!$all_active) {
                 $row = array_merge(['plugin' => $report['plugin']['slug'], 'active' => $summary['active']], array_slice($row, 1));
-            }
-            if ($url_component !== '') {
-                $row['tips'] = $summary['tips'];
             }
             $rows[] = $row;
         }
@@ -280,17 +280,41 @@ class CLI_Command {
     private function render_url_context(string $url_component, array $welcome_tips): void {
         \WP_CLI::line('URL context: /' . trim($url_component, '/') . '/');
         \WP_CLI::line('');
-        \WP_CLI::line('Welcome tips:');
-        if (empty($welcome_tips)) {
-            \WP_CLI::line('  none');
-        } else {
-            foreach ($welcome_tips as $tip) {
-                \WP_CLI::line('  - ' . $tip);
-            }
-        }
+        $this->render_tip_summary($welcome_tips);
         \WP_CLI::line('');
         \WP_CLI::line(str_repeat('-', 72));
         \WP_CLI::line('');
+    }
+
+    private function render_tip_summary(array $welcome_tips): void {
+        \WP_CLI::line('Welcome tips: ' . count($welcome_tips));
+        foreach ($welcome_tips as $tip) {
+            \WP_CLI::line('  - ' . $tip);
+        }
+    }
+
+    private function get_url_component_from_cli_url(): string {
+        if (!class_exists('\WP_CLI') || !method_exists('\WP_CLI', 'get_config')) {
+            return '';
+        }
+
+        $url = (string) \WP_CLI::get_config('url');
+        if ($url === '') {
+            return '';
+        }
+
+        if (!preg_match('/^[a-z][a-z0-9+.-]*:\/\//i', $url)) {
+            $url = 'https://' . ltrim($url, '/');
+        }
+
+        $path = (string) wp_parse_url($url, PHP_URL_PATH);
+        $path = trim($path, '/');
+        if ($path === '') {
+            return '';
+        }
+
+        $parts = explode('/', $path);
+        return sanitize_key((string) ($parts[0] ?? ''));
     }
 
     private function render_global_export_formats(array $formats): void {
