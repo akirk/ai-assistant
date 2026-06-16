@@ -34,10 +34,25 @@
             return '';
         }
 
-        return '<div id="ai-assistant-floating-menu" class="ai-assistant-floating-menu" role="menu" hidden>' +
-            '<a href="' + escapeAttr(url('changeTheme')) + '" role="menuitem">' + escapeHtml(text('changeTheme', 'Change theme')) + '</a>' +
-            '<button type="button" role="menuitem" data-action="hide-page">' + escapeHtml(text('hideForPage', 'Hide on this page')) + '</button>' +
-        '</div>';
+        return '<div id="ai-assistant-floating-menu" class="ai-assistant-floating-menu" role="menu" hidden></div>';
+    }
+
+    function populateFloatingButtonMenu($wrap) {
+        var $menu = $wrap.find('#ai-assistant-floating-menu');
+        if (!$menu.length) {
+            return;
+        }
+
+        $menu.empty()
+            .append($('<a></a>')
+                .attr('href', url('changeTheme'))
+                .attr('role', 'menuitem')
+                .text(text('changeTheme', 'Change theme')))
+            .append($('<button></button>')
+                .attr('type', 'button')
+                .attr('role', 'menuitem')
+                .attr('data-action', 'hide-page')
+                .text(text('hideForPage', 'Hide on this page')));
     }
 
     function escapeHtml(value) {
@@ -416,6 +431,7 @@
 
         $wrap.show();
         $('#ai-assistant-wrap').removeClass('hidden');
+        populateFloatingButtonMenu($wrap);
 
         var toggleStandalone = function() {
             if ($wrap[0].aiAssistantFloatingButtonDragged || $wrap[0].aiAssistantFloatingMenuOpened) {

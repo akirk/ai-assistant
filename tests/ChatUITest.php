@@ -173,6 +173,19 @@ class ChatUITest extends TestCase {
         $this->assertSame('standalone', $config['theme']['placement']);
     }
 
+    public function test_bootstrap_config_uses_raw_admin_classic_theme_switch_url_and_explicit_label(): void {
+        $GLOBALS['wp_test_options']['ai_assistant_theme'] = 'floating-button';
+
+        $config = $this->get_bootstrap_config();
+
+        $this->assertSame(
+            'http://example.test/wp-admin/admin-post.php?action=ai_assistant_switch_theme&theme=admin-classic&_wpnonce=test',
+            $config['urls']['changeTheme']
+        );
+        $this->assertSame('Change to Admin Classic display style', $config['strings']['changeTheme']);
+        $this->assertStringNotContainsString('&amp;', $config['urls']['changeTheme']);
+    }
+
     private function get_welcome_tips(): array {
         $chat_ui = new Chat_UI();
         $reflection = new ReflectionClass($chat_ui);
