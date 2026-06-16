@@ -37,6 +37,8 @@ class CLI_Command {
      *
      * [--strict]
      * : Exit with an error when warnings are present.
+     *
+     * @subcommand integration-check
      */
     public function integration_check(array $args, array $assoc_args): void {
         $all_active = !empty($assoc_args['all-active']);
