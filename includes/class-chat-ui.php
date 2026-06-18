@@ -612,12 +612,19 @@ class Chat_UI {
     }
 
     private function get_assistant_theme_switch_url(string $theme_id): string {
-        $url = admin_url(
-            'admin-post.php?action=ai_assistant_switch_theme'
-            . '&theme=' . rawurlencode($theme_id)
+        $url = add_query_arg(
+            [
+                'action' => 'ai_assistant_switch_theme',
+                'theme' => $theme_id,
+            ],
+            admin_url('admin-post.php')
         );
 
-        return wp_nonce_url($url, 'ai_assistant_switch_theme_' . $theme_id);
+        return html_entity_decode(
+            wp_nonce_url($url, 'ai_assistant_switch_theme_' . $theme_id),
+            ENT_QUOTES | ENT_HTML5,
+            'UTF-8'
+        );
     }
 
     /**
@@ -812,9 +819,13 @@ class Chat_UI {
         $history_url = class_exists('\WpApp\WpApp')
             ? Conversations_App::get_url()
             : admin_url('tools.php?page=ai-conversations');
-        $theme_switch_url = $this->get_current_theme_id() === 'floating-button'
+        $current_theme_id = $this->get_current_theme_id();
+        $theme_switch_url = $current_theme_id === 'floating-button'
             ? $this->get_assistant_theme_switch_url(Assistant_Themes::DEFAULT_THEME)
             : $this->get_assistant_theme_switch_url('floating-button');
+        $theme_switch_label = $current_theme_id === 'floating-button'
+            ? __('Change to Admin Classic display style', 'ai-assistant')
+            : __('Change to Floating Button display style', 'ai-assistant');
 
         return [
             'deferInit' => true,
@@ -834,7 +845,7 @@ class Chat_UI {
                 'newChat' => __('New Chat', 'ai-assistant'),
                 'history' => __('Conversations', 'ai-assistant'),
                 'settings' => __('Settings', 'ai-assistant'),
-                'changeTheme' => __('Change theme', 'ai-assistant'),
+                'changeTheme' => $theme_switch_label,
                 'hideForPage' => __('Hide on this page', 'ai-assistant'),
                 'send' => __('Send', 'ai-assistant'),
                 'placeholder' => __('Ask me anything about your WordPress site...', 'ai-assistant'),

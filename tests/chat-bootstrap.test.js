@@ -27,6 +27,7 @@ class FakeElement {
             }
         };
         this.htmlContent = '';
+        this.textContent = '';
     }
 
     getBoundingClientRect() {
@@ -39,6 +40,8 @@ function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides
     let openCount = 0;
     let closeCount = 0;
     let preloadCount = 0;
+    let timerId = 0;
+    const timers = new Map();
 
     function register(element) {
         if (element.id) {
@@ -151,6 +154,9 @@ function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides
                 return this;
             },
             off(eventName) {
+                if (eventName && eventName[0] === '.') {
+                    return this;
+                }
                 const eventType = eventName.split('.')[0];
                 elems.forEach((element) => {
                     element.handlers = element.handlers || {};
@@ -196,6 +202,12 @@ function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides
                 }
                 elems.forEach((element) => {
                     element.attrs[name] = String(value);
+                });
+                return this;
+            },
+            removeAttr(name) {
+                elems.forEach((element) => {
+                    delete element.attrs[name];
                 });
                 return this;
             },
@@ -324,8 +336,40 @@ function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides
                 });
                 return this;
             },
-            html() {
-                return elems[0] ? elems[0].htmlContent : '';
+            empty() {
+                elems.forEach((element) => {
+                    element.children = [];
+                    element.htmlContent = '';
+                    element.textContent = '';
+                });
+                return this;
+            },
+            append(child) {
+                const children = child && child.elements ? child.elements : [child];
+                elems.forEach((element) => {
+                    children.filter(Boolean).forEach((childElement) => {
+                        append(element, childElement);
+                    });
+                });
+                return this;
+            },
+            html(value) {
+                if (value === undefined) {
+                    return elems[0] ? elems[0].htmlContent : '';
+                }
+                elems.forEach((element) => {
+                    element.htmlContent = String(value);
+                });
+                return this;
+            },
+            text(value) {
+                if (value === undefined) {
+                    return elems[0] ? elems[0].textContent : '';
+                }
+                elems.forEach((element) => {
+                    element.textContent = String(value);
+                });
+                return this;
             },
             appendTo() {
                 return this;
@@ -363,6 +407,15 @@ function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides
         return api;
     }
 
+    function makeElementFragment(html) {
+        const match = html.match(/^<([a-z0-9-]+)>/i);
+        if (!match) {
+            return collection([]);
+        }
+
+        return collection([new FakeElement('', match[1].toLowerCase())]);
+    }
+
     function makeStandaloneFragment(html) {
         const wrap = register(new FakeElement('ai-assistant-standalone-wrap'));
         const panel = register(new FakeElement('ai-assistant-standalone-panel'));
@@ -383,6 +436,12 @@ function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides
             const cornerHandle = register(new FakeElement('ai-assistant-corner-resize'));
             cornerHandle.classes.add('ai-assistant-corner-resize');
             append(container, cornerHandle);
+        }
+
+        if (html.indexOf('ai-assistant-floating-menu') !== -1) {
+            const menu = register(new FakeElement('ai-assistant-floating-menu'));
+            menu.classes.add('ai-assistant-floating-menu');
+            append(container, menu);
         }
 
         const links = new FakeElement('', 'div');
@@ -414,6 +473,9 @@ function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides
         }
 
         if (typeof selector === 'string' && selector.trim()[0] === '<') {
+            if (selector.indexOf('ai-assistant-standalone-wrap') === -1) {
+                return makeElementFragment(selector.trim());
+            }
             return makeStandaloneFragment(selector);
         }
 
@@ -481,9 +543,17 @@ function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides
             }
         },
         jQuery: $,
-        setTimeout(callback) {
+        setTimeout(callback, delay) {
+            if (delay && delay >= 550) {
+                timerId++;
+                timers.set(timerId, callback);
+                return timerId;
+            }
             callback();
             return 1;
+        },
+        clearTimeout(id) {
+            timers.delete(id);
         },
         console
     };
@@ -596,6 +666,30 @@ describe('chat bootstrap screen-meta latch', function() {
 
         assert.strictEqual(wrap.styles['--ai-assistant-floating-width'], '520px');
         assert.strictEqual(container.styles['--ai-assistant-chat-height'], '420px');
+    });
+
+    it('renders the floating theme switch link with a single-escaped href and explicit label', function() {
+        const harness = createHarness(false, {
+            theme: {
+                id: 'floating-button',
+                placement: 'standalone'
+            },
+            strings: {
+                changeTheme: 'Change to Admin Classic display style'
+            },
+            urls: {
+                changeTheme: 'https://example.test/wp-admin/admin-post.php?action=ai_assistant_switch_theme&theme=admin-classic&_wpnonce=abc123'
+            }
+        });
+        const links = harness.context.jQuery('#ai-assistant-floating-menu').find('a').elements;
+
+        assert.strictEqual(links.length, 1);
+        assert.strictEqual(
+            links[0].attrs.href,
+            'https://example.test/wp-admin/admin-post.php?action=ai_assistant_switch_theme&theme=admin-classic&_wpnonce=abc123'
+        );
+        assert.strictEqual(links[0].textContent, 'Change to Admin Classic display style');
+        assert.doesNotMatch(links[0].attrs.href, /&amp;/);
     });
 
     it('moves the floating launcher by dragging without opening the panel', function() {
