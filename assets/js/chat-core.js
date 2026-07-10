@@ -78,6 +78,40 @@
         assistantPanelPreviousHeight: existingAiAssistant.assistantPanelPreviousHeight || 0,
         initialized: existingAiAssistant.initialized || false,
 
+        __: function(text) {
+            if (window.wp && window.wp.i18n && typeof window.wp.i18n.__ === 'function') {
+                return window.wp.i18n.__(text, 'ai-assistant');
+            }
+
+            return text;
+        },
+
+        _n: function(single, plural, number) {
+            if (window.wp && window.wp.i18n && typeof window.wp.i18n._n === 'function') {
+                return window.wp.i18n._n(single, plural, number, 'ai-assistant');
+            }
+
+            return number === 1 ? single : plural;
+        },
+
+        sprintf: function() {
+            if (window.wp && window.wp.i18n && typeof window.wp.i18n.sprintf === 'function') {
+                return window.wp.i18n.sprintf.apply(window.wp.i18n, arguments);
+            }
+
+            var args = Array.prototype.slice.call(arguments);
+            var format = String(args.shift() || '');
+            var index = 0;
+
+            return format.replace(/%([sd])/g, function(match) {
+                if (index >= args.length) {
+                    return match;
+                }
+
+                return String(args[index++]);
+            });
+        },
+
         getMessageTimestamp: function() {
             return Date.now ? Date.now() : new Date().getTime();
         },
@@ -481,7 +515,7 @@
                 e.stopPropagation();
                 self.hideConversationItemMenu();
                 var id = $(this).data('id');
-                if (confirm('Delete this conversation?')) {
+                if (confirm(self.__('Delete this conversation?'))) {
                     self.deleteConversation(id);
                 }
             });

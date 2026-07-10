@@ -2934,7 +2934,8 @@
                 var $heading = $('<div class="ai-tool-approval-heading"></div>');
                 var $title = $('<strong></strong>');
                 var $subtitle = $('<span></span>');
-                var $close = $('<button type="button" class="ai-tool-approval-close" aria-label="Keep approval pending">&times;</button>');
+                var $close = $('<button type="button" class="ai-tool-approval-close">&times;</button>')
+                    .attr('aria-label', this.__('Keep approval pending'));
                 var $body = $('<div class="ai-tool-approval-body"></div>');
 
                 $heading.append($title, $subtitle);
@@ -2950,8 +2951,11 @@
             var $title = $overlay.find('.ai-tool-approval-heading strong');
             var $subtitle = $overlay.find('.ai-tool-approval-heading span');
 
-            $title.text(count === 1 ? 'Approval required' : count + ' approvals required');
-            $subtitle.text('Review tool requests before the assistant changes the site.');
+            $title.text(count === 1
+                ? this.__('Approval required')
+                : this.sprintf(this._n('%d approval required', '%d approvals required', count), count)
+            );
+            $subtitle.text(this.__('Review tool requests before the assistant changes the site.'));
 
             actions.forEach(function(action) {
                 var $item = $('<div class="ai-tool-approval-item"></div>').attr('data-tool-id', action.id);
@@ -2965,7 +2969,9 @@
                 $meta.append($tool, $desc);
                 if (hasAbilityDetails) {
                     $desc.append(
-                        $('<button type="button" class="ai-ability-info-toggle" aria-label="Show ability details" aria-expanded="false">What\'s this?</button>')
+                        $('<button type="button" class="ai-ability-info-toggle" aria-expanded="false"></button>')
+                            .attr('aria-label', self.__('Show ability details'))
+                            .text(self.__("What's this?"))
                             .attr('data-tool-id', action.id)
                     );
                 }
@@ -2982,13 +2988,14 @@
                     : '';
 
                 $actions.append(
-                    $('<button type="button" class="ai-tool-skip ai-skip-btn">Skip</button>').attr('data-tool-id', action.id),
-                    $('<button type="button" class="ai-tool-approve ai-approve-btn">Approve</button>').attr('data-tool-id', action.id)
+                    $('<button type="button" class="ai-tool-skip ai-skip-btn"></button>').text(self.__('Skip')).attr('data-tool-id', action.id),
+                    $('<button type="button" class="ai-tool-approve ai-approve-btn"></button>').text(self.__('Approve')).attr('data-tool-id', action.id)
                 );
 
                 if (isAbilityExecute) {
                     $actions.append(
-                        $('<button type="button" class="ai-tool-approve-always ai-always-approve-btn">Always approve</button>')
+                        $('<button type="button" class="ai-tool-approve-always ai-always-approve-btn"></button>')
+                            .text(self.__('Always approve'))
                             .attr('data-tool-id', action.id)
                             .attr('data-ability', args.ability)
                     );
@@ -2996,7 +3003,8 @@
 
                 if (isRestApiWrite) {
                     $actions.append(
-                        $('<button type="button" class="ai-tool-approve-always ai-always-approve-btn">Always approve</button>')
+                        $('<button type="button" class="ai-tool-approve-always ai-always-approve-btn"></button>')
+                            .text(self.__('Always approve'))
                             .attr('data-tool-id', action.id)
                             .attr('data-rest-api', restApiPattern)
                     );
@@ -3020,11 +3028,11 @@
                     var $preview = $('<div class="ai-action-preview' + (autoExpand ? ' expanded' : '') + '"></div>')
                         .attr('data-language', preview.language || '')
                         .attr('data-is-edit', preview.isEdit ? '1' : '0');
-                    var previewLabel = preview.isEdit ? 'Show changes' : 'Show content';
+                    var previewLabel = preview.isEdit ? self.__('Show changes') : self.__('Show content');
                     var $toggle = $('<button type="button" class="ai-action-preview-toggle"></button>');
                     $toggle.append(
                         $('<span class="ai-action-preview-icon" aria-hidden="true">&gt;</span>'),
-                        document.createTextNode(previewLabel + ' (' + lineCount + ' line' + (lineCount !== 1 ? 's' : '') + ')')
+                        document.createTextNode(previewLabel + ' (' + self.sprintf(self._n('%d line', '%d lines', lineCount), lineCount) + ')')
                     );
                     var $content = $('<div class="ai-action-preview-content"><pre class="ai-code-preview"></pre></div>');
                     $preview.append($toggle, $content);
@@ -3038,7 +3046,8 @@
                 } else if (args && Object.keys(args).length > 0) {
                     var argsJson = JSON.stringify(args, null, 2);
                     if (argsJson && argsJson !== 'null') {
-                        var $details = $('<details class="ai-tool-approval-params"><summary>Parameters</summary><pre></pre></details>');
+                        var $details = $('<details class="ai-tool-approval-params"><summary></summary><pre></pre></details>');
+                        $details.find('summary').text(self.__('Parameters'));
                         $details.find('pre').text(argsJson);
                         $item.append($details);
                     }
@@ -3109,6 +3118,7 @@
         renderAbilityApprovalDetails: function(details, usedArguments) {
             details = details || {};
             usedArguments = usedArguments || {};
+            var self = this;
             var parametersByName = {};
             (Array.isArray(details.parameters) ? details.parameters : []).forEach(function(parameter) {
                 if (parameter && parameter.name) {
@@ -3122,12 +3132,12 @@
 
             $header.append($('<code></code>').text(details.id || ''));
             if (details.readonly) {
-                $header.append($('<span class="ai-ability-badge ai-ability-badge-readonly">Read-only</span>'));
+                $header.append($('<span class="ai-ability-badge ai-ability-badge-readonly"></span>').text(this.__('Read-only')));
             } else if (details.destructive) {
-                $header.append($('<span class="ai-ability-badge ai-ability-badge-destructive">Destructive</span>'));
+                $header.append($('<span class="ai-ability-badge ai-ability-badge-destructive"></span>').text(this.__('Destructive')));
             }
             if (details.approved) {
-                $header.append($('<span class="ai-ability-badge ai-ability-badge-approved">Always approved</span>'));
+                $header.append($('<span class="ai-ability-badge ai-ability-badge-approved"></span>').text(this.__('Always approved')));
             }
             $body.append($header);
 
@@ -3137,12 +3147,12 @@
 
             $body.append(
                 $('<p class="description ai-ability-info-description"></p>')
-                    .text(details.description || 'No description provided.')
+                    .text(details.description || this.__('No description provided.'))
             );
 
-            $body.append($('<div class="ai-ability-params-heading">Parameters</div>'));
+            $body.append($('<div class="ai-ability-params-heading"></div>').text(this.__('Parameters')));
             if (!usedNames.length) {
-                $body.append($('<p class="description ai-ability-no-params">No parameters used.</p>'));
+                $body.append($('<p class="description ai-ability-no-params"></p>').text(this.__('No parameters used.')));
             } else {
                 var $list = $('<div class="ai-ability-param-list"></div>');
                 usedNames.forEach(function(name) {
@@ -3157,7 +3167,7 @@
                     $head.append($('<code></code>').text(name));
                     $head.append($('<span class="ai-ability-param-type"></span>').text(parameter.type || 'any'));
                     if (parameter.required) {
-                        $head.append($('<span class="ai-ability-param-required">Required</span>'));
+                        $head.append($('<span class="ai-ability-param-required"></span>').text(self.__('Required')));
                     }
                     $param.append($head);
                     if (parameter.description) {

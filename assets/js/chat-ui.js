@@ -2,6 +2,40 @@
     'use strict';
 
     $.extend(window.aiAssistant, {
+        __: window.aiAssistant.__ || function(text) {
+            if (window.wp && window.wp.i18n && typeof window.wp.i18n.__ === 'function') {
+                return window.wp.i18n.__(text, 'ai-assistant');
+            }
+
+            return text;
+        },
+
+        _n: window.aiAssistant._n || function(single, plural, number) {
+            if (window.wp && window.wp.i18n && typeof window.wp.i18n._n === 'function') {
+                return window.wp.i18n._n(single, plural, number, 'ai-assistant');
+            }
+
+            return number === 1 ? single : plural;
+        },
+
+        sprintf: window.aiAssistant.sprintf || function() {
+            if (window.wp && window.wp.i18n && typeof window.wp.i18n.sprintf === 'function') {
+                return window.wp.i18n.sprintf.apply(window.wp.i18n, arguments);
+            }
+
+            var args = Array.prototype.slice.call(arguments);
+            var format = String(args.shift() || '');
+            var index = 0;
+
+            return format.replace(/%([sd])/g, function(match) {
+                if (index >= args.length) {
+                    return match;
+                }
+
+                return String(args[index++]);
+            });
+        },
+
         addMessage: function(role, content, extraClass, options) {
             var $messages = $('#ai-assistant-messages');
             if (extraClass && typeof extraClass === 'object') {
@@ -28,7 +62,7 @@
                 : null;
 
             if (fileContext) {
-                displayContent = fileContext.visibleText || 'Attached files';
+                displayContent = fileContext.visibleText || this.__('Attached files');
                 copyContent = displayContent;
             }
 
@@ -209,10 +243,10 @@
 
         getMessageActions: function(timestamp) {
             return '<div class="ai-message-actions">' +
-                '<button type="button" class="ai-action-btn ai-action-copy" title="Copy">' +
+                '<button type="button" class="ai-action-btn ai-action-copy" title="' + this.escapeAttribute(this.__('Copy')) + '">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 9h9a2 2 0 012 2v9a2 2 0 01-2 2h-9a2 2 0 01-2-2v-9a2 2 0 012-2z"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
                 '</button>' +
-                '<button type="button" class="ai-action-btn ai-action-summarize" title="Summarize conversation">' +
+                '<button type="button" class="ai-action-btn ai-action-summarize" title="' + this.escapeAttribute(this.__('Summarize conversation')) + '">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>' +
                 '</button>' +
                 this.getMessageTimestampHtml(timestamp) +
@@ -222,13 +256,13 @@
         getUserMessageActions: function(timestamp) {
             return '<div class="ai-message-actions">' +
                 this.getMessageTimestampHtml(timestamp) +
-                '<button type="button" class="ai-action-btn ai-action-copy" title="Copy">' +
+                '<button type="button" class="ai-action-btn ai-action-copy" title="' + this.escapeAttribute(this.__('Copy')) + '">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 9h9a2 2 0 012 2v9a2 2 0 01-2 2h-9a2 2 0 01-2-2v-9a2 2 0 012-2z"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
                 '</button>' +
-                '<button type="button" class="ai-action-btn ai-action-edit" title="Edit and resend">' +
+                '<button type="button" class="ai-action-btn ai-action-edit" title="' + this.escapeAttribute(this.__('Edit and resend')) + '">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
                 '</button>' +
-                '<button type="button" class="ai-action-btn ai-action-retry" title="Retry">' +
+                '<button type="button" class="ai-action-btn ai-action-retry" title="' + this.escapeAttribute(this.__('Retry')) + '">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>' +
                 '</button>' +
                 '</div>';
@@ -236,7 +270,7 @@
 
         getRetryErrorActions: function() {
             return '<div class="ai-message-actions ai-message-error-actions">' +
-                '<button type="button" class="ai-action-btn ai-action-retry-last" title="Retry last message">' +
+                '<button type="button" class="ai-action-btn ai-action-retry-last" title="' + this.escapeAttribute(this.__('Retry last message')) + '">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>' +
                 '</button>' +
                 '</div>';
@@ -991,15 +1025,15 @@
                 $card = this.getToolCardElement(toolId);
             }
 
-            $card.find('.ai-tool-card-status').text('Choose image');
+            $card.find('.ai-tool-card-status').text(this.__('Choose image'));
             $card.find('.ai-tool-card-spinner').hide();
             $card.find('.ai-tool-card-size').hide();
             $card.find('.ai-tool-card-actions').empty();
 
             var $cardPreview = $card.find('.ai-tool-card-preview').empty();
             var $cardNote = $('<div class="ai-image-picker-card-note"></div>');
-            var $cardNoteText = $('<span></span>').text('Image picker open');
-            var $reopen = $('<button type="button" class="button button-small ai-image-picker-reopen">Open picker</button>');
+            var $cardNoteText = $('<span></span>').text(this.__('Image picker open'));
+            var $reopen = $('<button type="button" class="button button-small ai-image-picker-reopen"></button>').text(this.__('Open picker'));
             $cardNote.append($cardNoteText, $reopen);
             $cardPreview.append($cardNote);
 
@@ -1007,21 +1041,22 @@
             var $dialog = $('<div class="ai-image-picker-dialog"></div>');
             var $header = $('<div class="ai-image-picker-header"></div>');
             var $headingWrap = $('<div class="ai-image-picker-heading"></div>');
-            var $titleText = $('<strong></strong>').text('Choose image');
-            var $subtitle = $('<span></span>').text(args && args.purpose ? args.purpose : 'Pick one result to continue');
-            var $close = $('<button type="button" class="ai-image-picker-close" aria-label="Cancel image selection">&times;</button>');
+            var $titleText = $('<strong></strong>').text(this.__('Choose image'));
+            var $subtitle = $('<span></span>').text(args && args.purpose ? args.purpose : this.__('Pick one result to continue'));
+            var $close = $('<button type="button" class="ai-image-picker-close">&times;</button>')
+                .attr('aria-label', this.__('Cancel image selection'));
             var $picker = $('<div class="ai-image-picker"></div>');
             var $controls = $('<div class="ai-image-picker-controls"></div>');
             var $input = $('<input type="search" class="ai-image-picker-query">')
-                .attr('placeholder', 'Search images')
+                .attr('placeholder', this.__('Search images'))
                 .val(query);
-            var $search = $('<button type="button" class="button button-small ai-image-picker-search">Search</button>');
-            var $more = $('<button type="button" class="button button-small ai-image-picker-more">More</button>').prop('hidden', true);
-            var $cancel = $('<button type="button" class="button button-small ai-image-picker-cancel">Cancel</button>');
+            var $search = $('<button type="button" class="button button-small ai-image-picker-search"></button>').text(this.__('Search'));
+            var $more = $('<button type="button" class="button button-small ai-image-picker-more"></button>').text(this.__('More')).prop('hidden', true);
+            var $cancel = $('<button type="button" class="button button-small ai-image-picker-cancel"></button>').text(this.__('Cancel'));
             var $upload = $('<div class="ai-image-picker-upload" tabindex="0"></div>');
-            var $uploadText = $('<span class="ai-image-picker-upload-text"></span>').text('Drop a photo here');
-            var $browse = $('<button type="button" class="button button-small ai-image-picker-browse">Choose file</button>');
-            var $fileInput = $('<input type="file" class="ai-image-picker-file-input" accept="image/*">').attr('aria-label', 'Choose image file');
+            var $uploadText = $('<span class="ai-image-picker-upload-text"></span>').text(this.__('Drop a photo here'));
+            var $browse = $('<button type="button" class="button button-small ai-image-picker-browse"></button>').text(this.__('Choose file'));
+            var $fileInput = $('<input type="file" class="ai-image-picker-file-input" accept="image/*">').attr('aria-label', this.__('Choose image file'));
             var $status = $('<div class="ai-image-picker-status" aria-live="polite"></div>');
             var $grid = $('<div class="ai-image-picker-grid"></div>');
 
@@ -1091,7 +1126,7 @@
                 if (done) return;
 
                 if (!file) {
-                    $status.text('Drop an image file.');
+                    $status.text(self.__('Drop an image file.'));
                     return;
                 }
 
@@ -1199,7 +1234,7 @@
 
                 var nextQuery = $input.val().trim();
                 if (!nextQuery) {
-                    $status.text('Enter a search term.');
+                    $status.text(self.__('Enter a search term.'));
                     return;
                 }
 
@@ -1210,7 +1245,7 @@
                     $grid.empty();
                 }
 
-                $status.text('Searching...');
+                $status.text(self.__('Searching...'));
                 $search.prop('disabled', true);
                 $more.prop('disabled', true);
 
@@ -1223,7 +1258,7 @@
                             lastFallbackFrom = nextQuery;
                             page = 1;
                             $input.val(broaderQuery);
-                            $status.text('Trying broader search: ' + broaderQuery);
+                            $status.text(self.sprintf(self.__('Trying broader search: %s'), broaderQuery));
                             $more.prop('hidden', true);
 
                             return self.fetchImageResults(broaderQuery, page).then(function(broaderResults) {
@@ -1233,7 +1268,7 @@
                                     $status.text('');
                                     $more.prop('hidden', false);
                                 } else {
-                                    $status.text('No images found.');
+                                    $status.text(self.__('No images found.'));
                                 }
                             });
                         }
@@ -1244,14 +1279,14 @@
                         $status.text('');
                         $more.prop('hidden', false);
                     } else {
-                        $status.text(nextPage ? 'No more images.' : 'No images found.');
+                        $status.text(nextPage ? self.__('No more images.') : self.__('No images found.'));
                         if (!nextPage) {
                             $more.prop('hidden', true);
                         }
                     }
                 }).catch(function() {
                     if (!done) {
-                        $status.text('Image search failed.');
+                        $status.text(self.__('Image search failed.'));
                     }
                 }).then(function() {
                     if (!done) {
@@ -1283,12 +1318,12 @@
             });
 
             $cancel.on('click', function() {
-                $status.text('Cancelled');
+                $status.text(self.__('Cancelled'));
                 finish({ cancelled: true, message: 'User cancelled image selection' });
             });
 
             $close.on('click', function() {
-                $status.text('Cancelled');
+                $status.text(self.__('Cancelled'));
                 finish({ cancelled: true, message: 'User cancelled image selection' });
             });
 
@@ -1366,19 +1401,19 @@
             var $output = $('<div class="ai-tool-output ai-picked-image-output"></div>');
             var $summary = $('<div class="ai-picked-image-summary"></div>');
             var $meta = $('<div class="ai-picked-image-meta"></div>');
-            var $title = $('<strong></strong>').text(output.title || 'Selected image');
+            var $title = $('<strong></strong>').text(output.title || this.__('Selected image'));
             var detailsParts = [];
             if (output.attachment_id) {
-                detailsParts.push('Attachment #' + output.attachment_id);
+                detailsParts.push(this.sprintf(this.__('Attachment #%s'), output.attachment_id));
             } else if (output.external) {
-                detailsParts.push('External URL');
+                detailsParts.push(this.__('External URL'));
             }
             if (output.creator) detailsParts.push(output.creator);
             if (output.license) detailsParts.push(output.license);
             if (output.note) detailsParts.push(output.note);
             var details = detailsParts.join(' - ');
             var $details = $('<span></span>').text(details);
-            var $link = $('<a target="_blank" rel="noopener noreferrer">Open image</a>').attr('href', output.source_url || output.url || output.landing_url);
+            var $link = $('<a target="_blank" rel="noopener noreferrer"></a>').text(this.__('Open image')).attr('href', output.source_url || output.url || output.landing_url);
 
             if (output.thumbnail || output.url) {
                 $summary.append($('<img>').attr({
@@ -1780,7 +1815,7 @@
 
             var $link = $('<a id="ai-assistant-ai-changes-link" class="ai-assistant-ai-changes-link"></a>')
                 .attr('href', link.url)
-                .text('View changed files');
+                .text(this.__('View changed files'));
             applyLinkTarget($link, link);
             $suggestion.append($link);
 
@@ -1818,7 +1853,7 @@
             }
 
             this.renderAiChangesSuggestion($.extend({
-                link_text: 'View changed files',
+                link_text: this.__('View changed files'),
                 open_in_current_window: true
             }, metadata));
         },
@@ -1889,10 +1924,10 @@
 
             var $links = $('<div class="ai-tool-result-links"></div>');
             if (editUrl) {
-                $links.append($('<a target="_blank" rel="noopener noreferrer">Edit</a>').attr('href', editUrl));
+                $links.append($('<a target="_blank" rel="noopener noreferrer"></a>').text(this.__('Edit')).attr('href', editUrl));
             }
             if (viewUrl) {
-                $links.append($('<a target="_blank" rel="noopener noreferrer">View</a>').attr('href', viewUrl));
+                $links.append($('<a target="_blank" rel="noopener noreferrer"></a>').text(this.__('View')).attr('href', viewUrl));
             }
             $card.append($links);
         },
@@ -1906,7 +1941,7 @@
             var $card = $('<div class="ai-tool-card ai-tool-card-completed">' +
                 '<div class="ai-tool-card-header">' +
                 '<span class="ai-tool-card-name">' + this.escapeHtml(toolName) + '</span>' +
-                '<span class="ai-tool-card-status">Completed</span>' +
+                '<span class="ai-tool-card-status">' + this.escapeHtml(this.__('Completed')) + '</span>' +
                 '</div>' +
                 '<div class="ai-tool-card-desc">' + this.escapeHtml(description) + '</div>' +
                 '<div class="ai-tool-card-preview"></div>' +
@@ -3781,18 +3816,18 @@
 
             switch (state) {
                 case 'ready':
-                    $status.text('Ready');
+                    $status.text(this.__('Ready'));
                     $spinner.hide();
                     $actions.empty();
                     break;
                 case 'checking':
-                    $status.text(options.message || 'Checking ability...');
+                    $status.text(options.message || this.__('Checking ability...'));
                     $spinner.show();
                     $actions.empty();
                     $card.find('.ai-tool-params, .ai-ability-approval-slot, .ai-ability-approval-details').remove();
                     break;
                 case 'pending':
-                    $status.text('Waiting for approval');
+                    $status.text(this.__('Waiting for approval'));
                     $spinner.hide();
                     var cardState = this.toolCardsState[toolId];
                     var $params = $card.find('.ai-tool-params');
@@ -3804,7 +3839,8 @@
                         if (!hasPreview) {
                             var pendingArgsJson = JSON.stringify(pendingArgs, null, 2);
                             if (pendingArgsJson !== 'null') {
-                                $params = $('<details class="ai-tool-params"><summary>Parameters</summary><pre></pre></details>');
+                                $params = $('<details class="ai-tool-params"><summary></summary><pre></pre></details>');
+                                $params.find('summary').text(this.__('Parameters'));
                                 $params.find('pre').text(pendingArgsJson);
                                 $card.find('.ai-tool-card-actions').before($params);
                             }
@@ -3815,7 +3851,9 @@
                     var hasAbilityDetails = !!(cardState && cardState.abilityDetails);
                     if (hasAbilityDetails) {
                         $card.find('.ai-tool-card-desc').append(
-                            $('<button class="ai-ability-info-toggle" type="button" aria-label="Show ability details" aria-expanded="false">What\'s this?</button>')
+                            $('<button class="ai-ability-info-toggle" type="button" aria-expanded="false"></button>')
+                                .attr('aria-label', this.__('Show ability details'))
+                                .text(this.__("What's this?"))
                                 .attr('data-tool-id', toolId)
                         );
                         $card.find('.ai-tool-card-actions').before(
@@ -3832,20 +3870,20 @@
                         : '';
                     var escapedToolId = this.escapeAttribute(toolId);
                     $actions.html(
-                        '<button class="ai-tool-approve ai-approve-btn" data-tool-id="' + escapedToolId + '">Approve</button>' +
-                        (isAbilityExecute ? '<button class="ai-tool-approve-always ai-always-approve-btn" data-tool-id="' + escapedToolId + '" data-ability="' + this.escapeAttribute(cardState.arguments.ability) + '">Always approve</button>' : '') +
-                        (isRestApiWrite ? '<button class="ai-tool-approve-always ai-always-approve-btn" data-tool-id="' + escapedToolId + '" data-rest-api="' + this.escapeAttribute(restApiPattern) + '">Always approve</button>' : '') +
-                        '<button class="ai-tool-skip ai-skip-btn" data-tool-id="' + escapedToolId + '">Skip</button>'
+                        '<button class="ai-tool-approve ai-approve-btn" data-tool-id="' + escapedToolId + '">' + this.escapeHtml(this.__('Approve')) + '</button>' +
+                        (isAbilityExecute ? '<button class="ai-tool-approve-always ai-always-approve-btn" data-tool-id="' + escapedToolId + '" data-ability="' + this.escapeAttribute(cardState.arguments.ability) + '">' + this.escapeHtml(this.__('Always approve')) + '</button>' : '') +
+                        (isRestApiWrite ? '<button class="ai-tool-approve-always ai-always-approve-btn" data-tool-id="' + escapedToolId + '" data-rest-api="' + this.escapeAttribute(restApiPattern) + '">' + this.escapeHtml(this.__('Always approve')) + '</button>' : '') +
+                        '<button class="ai-tool-skip ai-skip-btn" data-tool-id="' + escapedToolId + '">' + this.escapeHtml(this.__('Skip')) + '</button>'
                     );
                     break;
                 case 'executing':
-                    $status.text('Executing...');
+                    $status.text(this.__('Executing...'));
                     $spinner.show();
                     $actions.empty();
                     $card.find('.ai-tool-params, .ai-ability-approval-slot, .ai-ability-approval-details').remove();
                     break;
                 case 'completed':
-                    $status.text(options.message || 'Completed');
+                    $status.text(options.message || this.__('Completed'));
                     $spinner.hide();
                     $actions.empty();
                     $card.find('.ai-tool-card-size').hide();
@@ -3856,7 +3894,7 @@
                     }
                     break;
                 case 'error':
-                    $status.text(options.message || 'Error');
+                    $status.text(options.message || this.__('Error'));
                     $spinner.hide();
                     $actions.empty();
                     if (options.output) {
@@ -3866,7 +3904,7 @@
                     }
                     break;
                 case 'skipped':
-                    $status.text('Skipped by user');
+                    $status.text(this.__('Skipped by user'));
                     $spinner.hide();
                     $actions.empty();
                     $card.find('.ai-tool-params, .ai-ability-approval-slot, .ai-ability-approval-details').remove();
