@@ -1,6 +1,14 @@
 (function($) {
     'use strict';
 
+    function __(text) {
+        if (window.wp && window.wp.i18n && typeof window.wp.i18n.__ === 'function') {
+            return window.wp.i18n.__(text, 'ai-assistant');
+        }
+
+        return text;
+    }
+
     var AiChanges = {
         commitOffset: 0,
         commitsLoaded: false,
@@ -207,10 +215,10 @@
                         if (response.success) {
                             self.renderDiffPreview($code, response.data.diff || '', 'unified');
                         } else {
-                            $code.html('<span class="error">Failed to load diff</span>');
+                            $code.empty().append($('<span class="error"></span>').text(__('Failed to load diff')));
                         }
                     }).fail(function() {
-                        $code.html('<span class="error">Failed to load diff</span>');
+                        $code.empty().append($('<span class="error"></span>').text(__('Failed to load diff')));
                     });
                 }
             }
@@ -588,15 +596,17 @@
             var $renderer = $('<div class="ai-diff-renderer"></div>');
             var $toolbar = $('<div class="ai-diff-toolbar"></div>');
             var $stats = this.buildDiffStats(data.additions, data.deletions, 'ai-diff-stats');
-            var $views = $('<div class="ai-diff-view-switcher" role="group" aria-label="Diff view"></div>');
+            var $views = $('<div class="ai-diff-view-switcher" role="group"></div>')
+                .attr('aria-label', __('Diff view'));
             var self = this;
 
             ['unified', 'split', 'raw'].forEach(function(option) {
+                var label = option === 'split' ? __('Split') : (option === 'raw' ? __('Raw') : __('Unified'));
                 $('<button type="button" class="button button-small ai-diff-view-button"></button>')
                     .attr('aria-pressed', option === view ? 'true' : 'false')
                     .toggleClass('active', option === view)
                     .data('view', option)
-                    .text(option === 'split' ? 'Split' : option.charAt(0).toUpperCase() + option.substring(1))
+                    .text(label)
                     .appendTo($views);
             });
 
@@ -609,7 +619,7 @@
             }
 
             if (!data.files.length) {
-                $renderer.append($('<div class="ai-diff-empty"></div>').text('No diff to display.'));
+                $renderer.append($('<div class="ai-diff-empty"></div>').text(__('No diff to display.')));
                 return $renderer;
             }
 

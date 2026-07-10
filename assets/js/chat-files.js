@@ -291,17 +291,17 @@
             if (this.isUploadingFiles) {
                 html += '<div class="ai-attachment-chip ai-attachment-uploading">' +
                     '<span class="ai-attachment-spinner"></span>' +
-                    '<span>Reading ' + this.pendingUploadCount + ' file' + (this.pendingUploadCount === 1 ? '' : 's') + '...</span>' +
+                    '<span>' + this.escapeHtml(this.sprintf(this._n('Reading %d file...', 'Reading %d files...', this.pendingUploadCount), this.pendingUploadCount)) + '</span>' +
                     '</div>';
             }
 
             attachments.forEach(function(file, index) {
-                var name = file.original_name || file.name || 'Attachment';
-                var title = file.compacted ? 'Compacted preview' : 'Private text context';
+                var name = file.original_name || file.name || self.__('Attachment');
+                var title = file.compacted ? self.__('Compacted preview') : self.__('Private text context');
                 html += '<div class="ai-attachment-chip">' +
                     '<span class="ai-attachment-name" title="' + self.escapeHtml(title) + '">' + self.escapeHtml(name) + '</span>' +
-                    '<span class="ai-attachment-size">' + self.formatAttachmentBytes(file.size || 0) + (file.compacted ? ' compacted' : '') + '</span>' +
-                    '<button type="button" class="ai-attachment-remove" data-index="' + index + '" title="Remove attachment">&times;</button>' +
+                    '<span class="ai-attachment-size">' + self.formatAttachmentBytes(file.size || 0) + (file.compacted ? ' ' + self.escapeHtml(self.__('compacted')) : '') + '</span>' +
+                    '<button type="button" class="ai-attachment-remove" data-index="' + index + '" title="' + self.escapeHtml(self.__('Remove attachment')) + '">&times;</button>' +
                     '</div>';
             });
 

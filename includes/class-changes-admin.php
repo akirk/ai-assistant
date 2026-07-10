@@ -92,10 +92,12 @@ class Changes_Admin {
         wp_enqueue_script(
             'ai-assistant-changes',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/changes.js',
-            ['jquery', 'wp-codemirror'],
+            ['jquery', 'wp-codemirror', 'wp-i18n'],
             AI_ASSISTANT_VERSION,
             true
         );
+
+        wp_set_script_translations('ai-assistant-changes', 'ai-assistant', AI_ASSISTANT_PLUGIN_DIR . 'languages');
 
         wp_localize_script('ai-assistant-changes', 'aiChanges', [
             'ajaxUrl' => admin_url('admin-ajax.php'),

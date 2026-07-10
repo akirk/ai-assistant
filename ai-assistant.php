@@ -9,6 +9,7 @@
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: ai-assistant
+ * Domain Path: /languages
  * Requires at least: 6.0
  * Requires PHP: 7.4
  */
@@ -105,6 +106,8 @@ final class AI_Assistant {
     }
 
     public function init() {
+        load_plugin_textdomain('ai-assistant', false, dirname(AI_ASSISTANT_PLUGIN_BASENAME) . '/languages');
+
         // Initialize Connectors bridge (WordPress 7.0+)
         if (AI_Assistant\Connectors_Bridge::is_available()) {
             $this->connectors_bridge = new AI_Assistant\Connectors_Bridge();

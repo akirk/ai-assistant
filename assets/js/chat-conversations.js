@@ -1193,11 +1193,11 @@
                     if (response.success && response.data.conversations) {
                         self.renderSidebarConversations(response.data.conversations);
                     } else {
-                        $container.html('<div class="ai-sidebar-empty">No conversations yet</div>');
+                        $container.html('<div class="ai-sidebar-empty">' + self.escapeHtml(self.__('No conversations yet')) + '</div>');
                     }
                 },
                 error: function() {
-                    $container.html('<div class="ai-sidebar-empty">Failed to load</div>');
+                    $container.html('<div class="ai-sidebar-empty">' + self.escapeHtml(self.__('Failed to load')) + '</div>');
                 }
             });
         },
@@ -1207,7 +1207,7 @@
             var $container = $('#ai-sidebar-conversations');
 
             if (conversations.length === 0) {
-                $container.html('<div class="ai-sidebar-empty">No conversations yet</div>');
+                $container.html('<div class="ai-sidebar-empty">' + self.escapeHtml(self.__('No conversations yet')) + '</div>');
                 return;
             }
 
@@ -1229,15 +1229,15 @@
             var html = '';
 
             if (groups.today.length > 0) {
-                html += '<div class="ai-conv-date-group">Today</div>';
+                html += '<div class="ai-conv-date-group">' + self.escapeHtml(self.__('Today')) + '</div>';
                 html += self.renderConversationGroup(groups.today);
             }
             if (groups.yesterday.length > 0) {
-                html += '<div class="ai-conv-date-group">Yesterday</div>';
+                html += '<div class="ai-conv-date-group">' + self.escapeHtml(self.__('Yesterday')) + '</div>';
                 html += self.renderConversationGroup(groups.yesterday);
             }
             if (groups.older.length > 0) {
-                html += '<div class="ai-conv-date-group">Previous</div>';
+                html += '<div class="ai-conv-date-group">' + self.escapeHtml(self.__('Previous')) + '</div>';
                 html += self.renderConversationGroup(groups.older);
             }
 
@@ -1253,7 +1253,7 @@
                 var title = conv.title || '';
                 html += '<div class="ai-conv-item' + activeClass + '" data-id="' + conv.id + '">';
                 html += '<div class="ai-conv-item-title" title="' + self.escapeAttribute(title) + '">' + self.escapeHtml(title) + '</div>';
-                html += '<button type="button" class="ai-conv-item-delete" data-id="' + conv.id + '" title="Delete">&times;</button>';
+                html += '<button type="button" class="ai-conv-item-delete" data-id="' + conv.id + '" title="' + self.escapeAttribute(self.__('Delete')) + '">&times;</button>';
                 html += '</div>';
             });
             return html;
@@ -1271,7 +1271,7 @@
             var $modal = $('#ai-conversation-modal');
             var $list = $('#ai-conversation-list');
 
-            $list.html('<p>Loading...</p>');
+            $list.html('<p>' + this.escapeHtml(this.__('Loading...')) + '</p>');
             $modal.show();
 
             $.ajax({
@@ -1285,7 +1285,7 @@
                     if (response.success && response.data.conversations) {
                         var conversations = response.data.conversations;
                         if (conversations.length === 0) {
-                            $list.html('<p>No saved conversations.</p>');
+                            $list.html('<p>' + self.escapeHtml(self.__('No saved conversations.')) + '</p>');
                             return;
                         }
 
@@ -1293,20 +1293,20 @@
                         conversations.forEach(function(conv) {
                             html += '<div class="ai-conversation-item">';
                             html += '<div class="ai-conversation-item-title">' + self.escapeHtml(conv.title) + '</div>';
-                            html += '<div class="ai-conversation-item-meta">' + conv.message_count + ' messages &bull; ' + conv.date + '</div>';
+                            html += '<div class="ai-conversation-item-meta">' + self.escapeHtml(self.sprintf(self._n('%d message', '%d messages', conv.message_count), conv.message_count)) + ' &bull; ' + self.escapeHtml(conv.date) + '</div>';
                             html += '<div class="ai-conversation-item-actions">';
-                            html += '<button class="button button-primary button-small ai-conversation-load" data-id="' + conv.id + '">Load</button>';
-                            html += '<button class="button button-small ai-conversation-delete" data-id="' + conv.id + '">Delete</button>';
+                            html += '<button class="button button-primary button-small ai-conversation-load" data-id="' + conv.id + '">' + self.escapeHtml(self.__('Load')) + '</button>';
+                            html += '<button class="button button-small ai-conversation-delete" data-id="' + conv.id + '">' + self.escapeHtml(self.__('Delete')) + '</button>';
                             html += '</div>';
                             html += '</div>';
                         });
                         $list.html(html);
                     } else {
-                        $list.html('<p>Failed to load conversations.</p>');
+                        $list.html('<p>' + self.escapeHtml(self.__('Failed to load conversations.')) + '</p>');
                     }
                 },
                 error: function() {
-                    $list.html('<p>Error loading conversations.</p>');
+                    $list.html('<p>' + self.escapeHtml(self.__('Error loading conversations.')) + '</p>');
                 }
             });
         },
