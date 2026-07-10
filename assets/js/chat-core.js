@@ -46,7 +46,6 @@
         previousUrlContextAt: 0,
         conversationInteracted: false,
         standaloneContinuationOfferConversationId: 0,
-        isCompactingStandaloneContinuation: false,
         saveInProgress: false,
         savePending: false,
         savePendingSilent: true,
@@ -236,9 +235,9 @@
                 self.newChat();
             });
 
-            $(document).on('click', '#ai-assistant-area-compact-new-chat', function(e) {
+            $(document).on('click', '#ai-assistant-area-load-previous-chat', function(e) {
                 e.preventDefault();
-                self.compactCurrentConversationAndStartNewChat();
+                self.loadPreviousAvailableConversation();
             });
 
             $(document).on('click', '#ai-confirm-all', function(e) {
@@ -808,7 +807,7 @@
             $btn
                 .text(isQueueing ? 'Queue' : $btn.data('default-text'))
                 .attr('title', isQueueing ? 'Queue message' : '')
-                .prop('disabled', !this.isProviderConfigured() || this.isUploadingFiles || this.isCompactingStandaloneContinuation);
+                .prop('disabled', !this.isProviderConfigured() || this.isUploadingFiles);
             this.updateModelSelectLockState();
         },
 
@@ -940,7 +939,6 @@
                 this.conversationDirty ||
                 this.saveInProgress ||
                 this.isLoading ||
-                this.isCompactingStandaloneContinuation ||
                 hasPendingActions ||
                 this.getQueuedMessageCount() > 0
             );

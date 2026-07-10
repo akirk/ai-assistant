@@ -288,6 +288,13 @@
             );
         },
 
+        isCurrentUrlComponentDifferentFromPrevious: function(current) {
+            var origin = this.previousUrlComponent || '';
+            current = current || this.getCurrentUrlComponent();
+
+            return !!(origin && current && origin !== current);
+        },
+
         isCurrentConversationContextStale: function() {
             var maxAge = parseInt(this.newChatSuggestionMaxAgeMs, 10) || 60 * 60 * 1000;
             var contextAt = this.getLatestStoredMessageTimestamp() || parseInt(this.previousUrlContextAt, 10) || 0;
@@ -320,15 +327,26 @@
         getAreaChangeSuggestionHtml: function(isContinuationOffer) {
             if (isContinuationOffer) {
                 if (this.isCurrentConversationContextStale()) {
-                    return 'This previous conversation was loaded from your last page. ' +
-                        '<a href="#" id="ai-assistant-area-compact-new-chat">Compact it and start a new chat</a>, or continue here.';
+                    return 'Previous chat loaded. ' +
+                        '<a href="#" id="ai-assistant-area-new-chat">Start a new chat</a>, or continue here.';
                 }
 
-                return 'This previous conversation was loaded from your last page. ' +
+                return 'Previous chat loaded. ' +
                     '<a href="#" id="ai-assistant-area-new-chat">Start a new chat</a>, or continue here.';
             }
 
-            return 'Click to <a href="#" id="ai-assistant-area-new-chat">start a new chat</a> or just continue the conversation.';
+            return '<a href="#" id="ai-assistant-area-new-chat">Start a new chat</a>, or continue here.';
+        },
+
+        getPreviousConversationAvailableHtml: function(previous) {
+            previous = previous || {};
+            var title = previous.title || ('Conversation ' + previous.id);
+            var escapedTitle = this.escapeAttribute
+                ? this.escapeAttribute(title)
+                : String(title).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#039;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            return 'Previous chat available. ' +
+                '<a href="#" id="ai-assistant-area-load-previous-chat" title="' + escapedTitle + '">Continue it</a>.';
         },
 
         setAreaChangeSuggestionHtml: function($suggestion, html) {
@@ -356,6 +374,50 @@
             if (this.moveAiChangesSuggestionToEnd) {
                 this.moveAiChangesSuggestionToEnd();
             }
+        },
+
+        showPreviousConversationAvailableSuggestion: function(previous) {
+            previous = previous || {};
+            this.previousAvailableConversation = {
+                id: parseInt(previous.id, 10) || 0,
+                title: previous.title || ''
+            };
+
+            var $suggestion = this.ensureAreaChangeSuggestion();
+            this.setAreaChangeSuggestionHtml($suggestion, this.getPreviousConversationAvailableHtml(this.previousAvailableConversation));
+            $suggestion.prop('hidden', false);
+            if (this.moveAiChangesSuggestionToEnd) {
+                this.moveAiChangesSuggestionToEnd();
+            }
+            this.scrollToBottom(true);
+        },
+
+        positionPreviousConversationAvailableSuggestion: function() {
+            if (!this.previousAvailableConversation) {
+                return;
+            }
+
+            var $suggestion = $('#ai-assistant-area-suggestion');
+            if ($suggestion.length) {
+                $('#ai-assistant-messages').append($suggestion);
+            }
+        },
+
+        loadPreviousAvailableConversation: function() {
+            var previous = this.previousAvailableConversation || {};
+            var conversationId = parseInt(previous.id, 10) || 0;
+
+            if (!conversationId) {
+                return;
+            }
+
+            this.previousAvailableConversation = null;
+            if (this.markConversationInteracted) {
+                this.markConversationInteracted();
+            }
+            this.loadConversation(conversationId, {
+                updateHistory: false
+            });
         },
 
         updateAreaChangeSuggestion: function() {
@@ -992,6 +1054,31 @@
                         }
 
                         if (mostRecent) {
+                            if (
+                                options.offerStandaloneContinuation &&
+                                self.isStandaloneConversationPanel &&
+                                self.isStandaloneConversationPanel() &&
+                                self.isCurrentUrlComponentDifferentFromPrevious()
+                            ) {
+                                var $freshMessages = $('#ai-assistant-messages');
+                                self.conversationId = 0;
+                                self.conversationTitle = '';
+                                self.messages = [];
+                                self.standaloneContinuationOfferConversationId = 0;
+                                self.conversationProvider = self.getProvider ? self.getProvider() : '';
+                                self.conversationModel = self.getModel ? self.getModel() : '';
+                                $freshMessages.empty();
+                                self.loadWelcomeMessage();
+                                if (self.showCurrentAiChangesSuggestion) {
+                                    self.showCurrentAiChangesSuggestion();
+                                }
+                                $freshMessages.css('visibility', 'visible');
+                                self.updateTokenCount();
+                                self.updateExportButton();
+                                self.showPreviousConversationAvailableSuggestion(mostRecent);
+                                return;
+                            }
+
                             self.loadConversation(mostRecent.id, {
                                 updateHistory: options.updateHistory !== false,
                                 offerStandaloneContinuation: !!options.offerStandaloneContinuation
@@ -2054,39 +2141,6 @@
             });
         },
 
-        getOrGenerateConversationSummary: function(conversationId) {
-            var self = this;
-
-            return this.loadConversationSummarySource(conversationId).then(function(convData) {
-                if (convData.existing_summary) {
-                    return {
-                        convData: convData,
-                        summary: convData.existing_summary,
-                        generated: false,
-                        saved: true
-                    };
-                }
-
-                return self.generateConversationSummary(convData).then(function(summary) {
-                    return self.saveConversationSummaryValue(conversationId, summary).then(function() {
-                        return {
-                            convData: convData,
-                            summary: summary,
-                            generated: true,
-                            saved: true
-                        };
-                    }).catch(function() {
-                        return {
-                            convData: convData,
-                            summary: summary,
-                            generated: true,
-                            saved: false
-                        };
-                    });
-                });
-            });
-        },
-
         getConversationReferenceUrl: function(conversationId) {
             conversationId = parseInt(conversationId, 10) || 0;
             if (!conversationId) {
@@ -2118,27 +2172,6 @@
             return baseUrl + (baseUrl.indexOf('?') === -1 ? '?' : '&') + 'conversation=' + encodeURIComponent(conversationId);
         },
 
-        createConversationContinuationContext: function(previous, summary) {
-            previous = previous || {};
-
-            var title = previous.title || ('Conversation ' + previous.id);
-            var lines = [
-                'Previous conversation context. This is background only, not a new user request.',
-                '',
-                'Previous conversation: ' + title
-            ];
-
-            if (previous.id) {
-                lines.push('Previous conversation ID: ' + previous.id);
-            }
-            if (previous.url) {
-                lines.push('Previous conversation link: ' + previous.url);
-            }
-
-            lines.push('', 'Summary:', summary);
-            return lines.join('\n');
-        },
-
         showConversationContinuationReference: function(previous, compactedContext) {
             previous = previous || {};
             compactedContext = String(compactedContext || '');
@@ -2165,75 +2198,6 @@
                 '</div>'
             );
             this.scrollToBottom(true);
-        },
-
-        startNewChatWithConversationReference: function(previous, summary) {
-            previous = previous || {};
-            previous.id = parseInt(previous.id, 10) || 0;
-            previous.title = previous.title || ('Conversation ' + previous.id);
-            previous.url = previous.url || this.getConversationReferenceUrl(previous.id);
-
-            this.startNewChat();
-
-            var contextMessage = this.createStoredMessage('user', this.createConversationContinuationContext(previous, summary), {
-                _hidden: true,
-                _contextReference: {
-                    conversation_id: previous.id,
-                    title: previous.title,
-                    url: previous.url
-                }
-            });
-
-            this.messages.push(contextMessage);
-            this.updateTokenCount();
-            if (this.updateExportButton) {
-                this.updateExportButton();
-            }
-            this.showConversationContinuationReference(previous, contextMessage.content);
-            $('#ai-assistant-input').focus();
-        },
-
-        compactCurrentConversationAndStartNewChat: function() {
-            var self = this;
-            var conversationId = parseInt(this.conversationId, 10) || 0;
-
-            if (!conversationId || this.isCompactingStandaloneContinuation) {
-                return;
-            }
-
-            var previous = {
-                id: conversationId,
-                title: this.conversationTitle || ('Conversation ' + conversationId),
-                url: this.getConversationReferenceUrl(conversationId)
-            };
-            var $suggestion = $('#ai-assistant-area-suggestion');
-
-            this.isCompactingStandaloneContinuation = true;
-            this.updateSendButton();
-            $suggestion.addClass('is-loading').text('Compacting previous conversation...');
-
-            this.getOrGenerateConversationSummary(conversationId).then(function(result) {
-                previous.title = result.convData.title || previous.title;
-                previous.url = self.getConversationReferenceUrl(previous.id);
-                self.conversationInteracted = true;
-                self.standaloneContinuationOfferConversationId = 0;
-                self.storeCurrentUrlComponent();
-                self.startNewChatWithConversationReference(previous, result.summary);
-            }).catch(function(error) {
-                self.addMessage('error', 'Failed to compact previous conversation: ' + error.message);
-                if ($suggestion.length) {
-                    $suggestion.removeClass('is-loading');
-                    $('#ai-assistant-messages').append($suggestion);
-                    self.setAreaChangeSuggestionHtml($suggestion, self.getAreaChangeSuggestionHtml(true));
-                    $suggestion.prop('hidden', false);
-                    if (self.moveAiChangesSuggestionToEnd) {
-                        self.moveAiChangesSuggestionToEnd();
-                    }
-                }
-            }).finally(function() {
-                self.isCompactingStandaloneContinuation = false;
-                self.updateSendButton();
-            });
         },
 
         manualSummarizeConversation: function() {

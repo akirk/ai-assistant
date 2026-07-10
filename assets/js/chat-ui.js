@@ -2336,6 +2336,10 @@
                 this.showModelUpgradeNotice(provider, model);
                 this.showLegacyKeyMigrationNotice();
             }
+
+            if (this.positionPreviousConversationAvailableSuggestion) {
+                this.positionPreviousConversationAvailableSuggestion();
+            }
         },
 
         showModelUpgradeNotice: function(provider, model) {
