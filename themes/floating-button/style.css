@@ -656,3 +656,10 @@ body.ai-assistant-floating-button-moving .ai-assistant-standalone-trigger button
         width: min(var(--ai-assistant-floating-width, calc(100vw - 24px)), calc(100vw - 24px)) !important;
     }
 }
+
+@media screen and (max-width: 600px) {
+    .ai-assistant-standalone-wrap {
+        bottom: auto !important;
+        top: var(--ai-assistant-adminbar-offset, 0px) !important;
+    }
+}
