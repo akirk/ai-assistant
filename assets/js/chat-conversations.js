@@ -1060,21 +1060,8 @@
                                 self.isStandaloneConversationPanel() &&
                                 self.isCurrentUrlComponentDifferentFromPrevious()
                             ) {
-                                var $freshMessages = $('#ai-assistant-messages');
-                                self.conversationId = 0;
-                                self.conversationTitle = '';
-                                self.messages = [];
-                                self.standaloneContinuationOfferConversationId = 0;
-                                self.conversationProvider = self.getProvider ? self.getProvider() : '';
-                                self.conversationModel = self.getModel ? self.getModel() : '';
-                                $freshMessages.empty();
-                                self.loadWelcomeMessage();
-                                if (self.showCurrentAiChangesSuggestion) {
-                                    self.showCurrentAiChangesSuggestion();
-                                }
-                                $freshMessages.css('visibility', 'visible');
-                                self.updateTokenCount();
-                                self.updateExportButton();
+                                self.startNewChat({ updateHistory: false });
+                                $('#ai-assistant-messages').css('visibility', 'visible');
                                 self.showPreviousConversationAvailableSuggestion(mostRecent);
                                 return;
                             }

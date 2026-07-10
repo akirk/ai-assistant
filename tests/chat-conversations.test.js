@@ -115,6 +115,14 @@ function createJQuery(input, options) {
             },
             toggle() {
                 return this;
+            },
+            show() {
+                state.css.display = '';
+                return this;
+            },
+            hide() {
+                state.css.display = 'none';
+                return this;
             }
         };
     }
@@ -904,16 +912,41 @@ describe('loading recent conversations', function() {
         assistant.loadConversation = function(conversationId) {
             loadedConversationId = conversationId;
         };
+        assistant.getProvider = function() {
+            return 'openai';
+        };
+        assistant.getModel = function() {
+            return 'gpt-4.1';
+        };
         assistant.loadWelcomeMessage = function() {
             welcomeLoaded = true;
         };
+        assistant.updateSendButton = function() {};
         assistant.updateTokenCount = function() {
             tokenCountUpdated = true;
         };
         assistant.updateExportButton = function() {
             exportButtonUpdated = true;
         };
+        assistant.updateSummarizeButton = function() {};
+        assistant.updateSidebarSelection = function() {};
+        assistant.setNewChatControlState = function() {};
+        assistant.clearToolCards = function() {
+            this.toolCardsCleared = true;
+        };
+        assistant.clearQueuedMessages = function() {
+            this.queuedMessagesCleared = true;
+        };
+        assistant.renderPendingAttachments = function() {
+            this.pendingAttachmentsRendered = true;
+        };
         assistant.scrollToBottom = function() {};
+        assistant.messages = [{ role: 'user', content: 'Stale message' }];
+        assistant.pendingActions = [{ id: 'stale-action' }];
+        assistant.pendingAttachments = [{ name: 'stale-file.txt' }];
+        assistant.pendingNewChat = true;
+        assistant.pendingNewChatProvider = 'anthropic';
+        assistant.pendingNewChatModel = 'claude';
 
         assistant.loadMostRecentConversation({
             updateHistory: false,
@@ -926,6 +959,14 @@ describe('loading recent conversations', function() {
         assert.strictEqual(exportButtonUpdated, true);
         assert.strictEqual(assistant.conversationId, 0);
         assert.strictEqual(assistant.messages.length, 0);
+        assert.strictEqual(assistant.pendingActions.length, 0);
+        assert.strictEqual(assistant.pendingAttachments.length, 0);
+        assert.strictEqual(assistant.pendingNewChat, false);
+        assert.strictEqual(assistant.pendingNewChatProvider, '');
+        assert.strictEqual(assistant.pendingNewChatModel, '');
+        assert.strictEqual(assistant.toolCardsCleared, true);
+        assert.strictEqual(assistant.queuedMessagesCleared, true);
+        assert.strictEqual(assistant.pendingAttachmentsRendered, true);
         assert.strictEqual(assistant.previousAvailableConversation.id, 12);
         assert.match(jQuery('#ai-assistant-area-suggestion').html(), /Previous chat available/);
         assert.match(jQuery('#ai-assistant-area-suggestion').html(), /id="ai-assistant-area-load-previous-chat"/);
