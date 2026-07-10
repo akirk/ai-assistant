@@ -545,6 +545,9 @@ function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides
                     preloadCount++;
                 }
             }, assistantOverrides || {}),
+            requestAnimationFrame(callback) {
+                callback();
+            },
         },
         document: {
             nodeType: 9,
@@ -796,6 +799,33 @@ describe('chat bootstrap screen-meta latch', function() {
         harness.context.window.scrollY = 80;
         $(harness.context.window).trigger('scroll');
         assert.strictEqual(wrap.styles['--ai-assistant-adminbar-offset'], '0px');
+    });
+
+    it('keeps the wp-admin screen-meta latch attached to the mobile masterbar while scrolling', function() {
+        const harness = createHarness(false, {
+            testAdminbarVisible: true
+        });
+        const $ = harness.context.jQuery;
+        const linkWrap = harness.elements['ai-assistant-link-wrap'];
+        const screenMeta = harness.elements['screen-meta'];
+
+        harness.context.window.innerWidth = 390;
+        harness.context.document.documentElement.clientWidth = 390;
+
+        $(harness.context.window).trigger('resize');
+        assert.strictEqual(linkWrap.styles['--ai-assistant-link-top'], '46px');
+
+        harness.context.window.scrollY = 20;
+        $(harness.context.window).trigger('scroll');
+        assert.strictEqual(linkWrap.styles['--ai-assistant-link-top'], '26px');
+
+        harness.clickAssistant();
+        assert.strictEqual(screenMeta.styles['--ai-assistant-adminbar-offset'], '26px');
+
+        harness.context.window.scrollY = 80;
+        $(harness.context.window).trigger('scroll');
+        assert.strictEqual(linkWrap.styles['--ai-assistant-link-top'], '419px');
+        assert.strictEqual(screenMeta.styles['--ai-assistant-adminbar-offset'], '0px');
     });
 
     it('opens the floating launcher when pointer capture retargets click to the trigger', function() {
