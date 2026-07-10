@@ -1,29 +1,29 @@
 {
-	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
-	"meta": {
-		"title": "AI Assistant",
-		"description": "AI-powered chat interface for WordPress. Bring your own key or use a local LLM.",
-		"author": "Alex Kirk",
-		"categories": [
-			"Apps",
-			"AI"
-		]
-	},
-	"landingPage": "/ai-assistant/conversations/",
-	"login": true,
-	"steps": [
-		{
-			"step": "installPlugin",
-			"pluginData": {
-				"resource": "git:directory",
-				"url": "https://github.com/akirk/ai-assistant",
-				"ref": "dist/main",
-				"refType": "branch"
-			},
-			"options": {
-				"activate": true,
-				"targetFolderName": "ai-assistant"
-			}
-		}
-	]
+    "$schema": "https://playground.wordpress.net/blueprint-schema.json",
+    "meta": {
+        "title": "AI Assistant",
+        "description": "AI-powered chat interface for WordPress. Bring your own key or use a local LLM.",
+        "author": "Alex Kirk",
+        "categories": [
+            "Apps",
+            "AI"
+        ]
+    },
+    "landingPage": "/ai-assistant/conversations/",
+    "login": true,
+    "steps": [
+        {
+            "step": "installPlugin",
+            "pluginData": {
+                "resource": "git:directory",
+                "url": "https://github.com/akirk/ai-assistant",
+                "ref": "dist/pr-189",
+                "refType": "branch"
+            },
+            "options": {
+                "activate": true,
+                "targetFolderName": "ai-assistant"
+            }
+        }
+    ]
 }
