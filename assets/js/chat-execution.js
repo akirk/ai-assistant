@@ -3379,8 +3379,6 @@
                         default:
                             return 'Delegate read-only task';
                     }
-                case 'compact_context':
-                    return 'Compact older context for this request';
                 case 'environment_info':
                     return 'Get environment info';
                 case 'ability':

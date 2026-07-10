@@ -428,7 +428,6 @@
 
             if (this.isUploadingFiles) return;
             if (!message && attachments.length === 0) return;
-            if (this.isCompactingStandaloneContinuation) return;
 
             if (this.shouldQueueUserMessage()) {
                 this.queueUserMessage(message, attachments);
