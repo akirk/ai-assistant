@@ -3555,12 +3555,7 @@ LARGE TOOL RESULTS: If JSON contains `_truncated`, `_omitted_items`, or `_omitte
 PROMPT;
 
         if (!empty($ability_domains)) {
-            $prompt .= "ABILITY ROUTING: Plugin abilities are higher-level WordPress actions exposed by plugins. When a user request matches a known ability topic, use the ability workflow first because it preserves the plugin's own validation, permissions, and domain logic. Generic tools like db_query and find are fallback tools only after ability discovery shows no suitable capability.\n\n";
-            $prompt .= "The following topics are handled by plugin abilities. For these, ALWAYS use the ability tool — never db_query or find:\n";
-            foreach ($ability_domains as $slug => $keywords) {
-                $prompt .= "- $slug: $keywords\n";
-            }
-            $prompt .= "These slugs are ability categories/domains, not executable ability IDs. First call ability with action \"list\" and the matching category, then action \"get\" for the exact ability ID before executing.\n\n";
+            $prompt .= Integration_Inspector::get_ability_routing_prompt($ability_domains);
         }
 
         $prompt .= "For any other plugin-specific data or actions, check abilities first (ability action:list) before reaching for db_query.\n";

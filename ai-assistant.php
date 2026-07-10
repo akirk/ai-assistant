@@ -102,6 +102,10 @@ final class AI_Assistant {
         add_action('init', [$this, 'register_my_apps_integration'], 0);
         register_activation_hook(__FILE__, [$this, 'activate']);
         register_deactivation_hook(__FILE__, [$this, 'deactivate']);
+
+        if (defined('WP_CLI') && WP_CLI) {
+            \WP_CLI::add_command('ai-assistant', 'AI_Assistant\\CLI_Command');
+        }
     }
 
     public function init() {
