@@ -958,7 +958,7 @@
         if (hasScreenMeta) {
             $screenMetaLinks.prepend(
                 '<div id="ai-assistant-link-wrap" class="hide-if-no-js screen-meta-toggle">' +
-                    '<button type="button" id="ai-assistant-link" class="button show-settings" aria-controls="ai-assistant-wrap" aria-expanded="false">' +
+                    '<button type="button" id="ai-assistant-link" class="button button-compact show-settings" aria-controls="ai-assistant-wrap" aria-expanded="false">' +
                         escapeHtml(text('buttonText', 'AI Assistant')) +
                     '</button>' +
                 '</div>'
