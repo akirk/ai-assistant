@@ -61,6 +61,10 @@ function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides
         const screenMeta = register(new FakeElement('screen-meta'));
         screenMeta.visible = false;
 
+        const wpadminbar = register(new FakeElement('wpadminbar'));
+        wpadminbar.visible = !!(bootstrapOverrides && bootstrapOverrides.testAdminbarVisible);
+        wpadminbar.styles.height = '46px';
+
         const screenOptionsWrap = register(new FakeElement('screen-options-link-wrap'));
         screenOptionsWrap.classes.add('hide-if-no-js');
         screenOptionsWrap.classes.add('screen-meta-toggle');
@@ -378,6 +382,12 @@ function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides
                 return collection(elems.flatMap((element) => element.children));
             },
             outerHeight() {
+                if (elems[0] && elems[0].styles.height) {
+                    const elementHeight = parseFloat(elems[0].styles.height);
+                    if (Number.isFinite(elementHeight)) {
+                        return elementHeight;
+                    }
+                }
                 const height = elems[0] ? parseFloat(elems[0].styles['--ai-assistant-chat-height']) : NaN;
                 return Number.isFinite(height) ? height : 420;
             },
@@ -515,6 +525,10 @@ function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides
 
     const context = {
         window: {
+            innerWidth: 1024,
+            innerHeight: 768,
+            scrollY: 0,
+            pageYOffset: 0,
             aiAssistantBootstrap: Object.assign({
                 deferInit: true,
                 renderLatch: true,
@@ -536,7 +550,8 @@ function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides
             nodeType: 9,
             documentElement: {
                 clientWidth: 1024,
-                clientHeight: 768
+                clientHeight: 768,
+                scrollTop: 0
             },
             getElementById(id) {
                 return elements[id] || null;
@@ -755,6 +770,32 @@ describe('chat bootstrap screen-meta latch', function() {
 
         assert.strictEqual(pointerDownPrevented, false);
         assert.strictEqual(button.attrs['aria-expanded'], 'true');
+    });
+
+    it('lets the floating launcher follow the mobile masterbar until it scrolls away', function() {
+        const harness = createHarness(false, {
+            theme: {
+                id: 'floating-button',
+                placement: 'standalone'
+            },
+            testAdminbarVisible: true
+        });
+        const $ = harness.context.jQuery;
+        const wrap = harness.elements['ai-assistant-standalone-wrap'];
+
+        harness.context.window.innerWidth = 390;
+        harness.context.document.documentElement.clientWidth = 390;
+
+        $(harness.context.window).trigger('resize');
+        assert.strictEqual(wrap.styles['--ai-assistant-adminbar-offset'], '46px');
+
+        harness.context.window.scrollY = 20;
+        $(harness.context.window).trigger('scroll');
+        assert.strictEqual(wrap.styles['--ai-assistant-adminbar-offset'], '26px');
+
+        harness.context.window.scrollY = 80;
+        $(harness.context.window).trigger('scroll');
+        assert.strictEqual(wrap.styles['--ai-assistant-adminbar-offset'], '0px');
     });
 
     it('opens the floating launcher when pointer capture retargets click to the trigger', function() {
