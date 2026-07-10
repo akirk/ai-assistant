@@ -221,7 +221,7 @@
         return $masterbar.length && $masterbar.is(':visible') ? $masterbar.outerHeight() : 0;
     }
 
-    function getStandaloneAdminbarOffset() {
+    function getVisibleAdminbarOffset() {
         var offset = getAdminbarOffset();
         var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
         var scrollTop;
@@ -317,7 +317,7 @@
 
         $screenMeta.toggleClass('ai-assistant-screen-meta-sticky', !!enabled);
         if (enabled) {
-            $screenMeta.css('--ai-assistant-adminbar-offset', getAdminbarOffset() + 'px');
+            $screenMeta.css('--ai-assistant-adminbar-offset', getVisibleAdminbarOffset() + 'px');
         } else {
             $screenMeta[0].style.removeProperty('--ai-assistant-adminbar-offset');
         }
@@ -358,7 +358,7 @@
             return;
         }
 
-        adminbarOffset = getAdminbarOffset();
+        adminbarOffset = getVisibleAdminbarOffset();
         panelHeight = attachToPanel && $screenMeta && $screenMeta.length && $screenMeta.is(':visible') ? $screenMeta.outerHeight() : 0;
 
         $linkWrap
@@ -385,6 +385,15 @@
     }
 
     function bindScreenMeta($screenMeta, $button) {
+        var updateStickyPosition = function() {
+            if ($button.attr('aria-expanded') === 'true') {
+                setScreenMetaAssistantSticky($screenMeta, true);
+                setScreenMetaAssistantLatchSticky($screenMeta, $button, true, true);
+            } else {
+                setScreenMetaAssistantLatchSticky($screenMeta, $button, true, false);
+            }
+        };
+
         setScreenMetaAssistantLatchSticky($screenMeta, $button, true, false);
 
         $('#contextual-help-link, #show-settings-link')
@@ -399,14 +408,11 @@
                 }
             });
 
-        $(window).off('resize.aiAssistantScreenMeta').on('resize.aiAssistantScreenMeta', function() {
-            if ($button.attr('aria-expanded') === 'true') {
-                setScreenMetaAssistantSticky($screenMeta, true);
-                setScreenMetaAssistantLatchSticky($screenMeta, $button, true, true);
-            } else {
-                setScreenMetaAssistantLatchSticky($screenMeta, $button, true, false);
-            }
-        });
+        $(window)
+            .off('resize.aiAssistantScreenMeta')
+            .on('resize.aiAssistantScreenMeta', updateStickyPosition)
+            .off('scroll.aiAssistantScreenMeta')
+            .on('scroll.aiAssistantScreenMeta', updateStickyPosition);
 
         $(document).off('aiAssistantPanelHeightChange.aiAssistantScreenMeta').on('aiAssistantPanelHeightChange.aiAssistantScreenMeta', function() {
             if ($button.attr('aria-expanded') === 'true') {
@@ -463,7 +469,7 @@
         var $button = $trigger.find('button');
         var $menu = $wrap.find('#ai-assistant-floating-menu');
         var updateStandaloneOffset = function() {
-            var offset = getStandaloneAdminbarOffset();
+            var offset = getVisibleAdminbarOffset();
             $wrap.css('--ai-assistant-adminbar-offset', offset + 'px');
         };
 
