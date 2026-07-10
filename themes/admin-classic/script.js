@@ -370,6 +370,20 @@
             .addClass('ai-assistant-link-sticky');
     }
 
+    function syncScreenMetaAssistantLatchDuringAnimation($screenMeta, $button, attachToPanel) {
+        var $panel = getScreenMetaPanel($button);
+
+        function update() {
+            setScreenMetaAssistantLatchSticky($screenMeta, $button, true, attachToPanel);
+
+            if (($screenMeta && $screenMeta.is(':animated')) || ($panel.length && $panel.is(':animated'))) {
+                window.requestAnimationFrame(update);
+            }
+        }
+
+        window.requestAnimationFrame(update);
+    }
+
     function bindScreenMeta($screenMeta, $button) {
         setScreenMetaAssistantLatchSticky($screenMeta, $button, true, false);
 
@@ -420,6 +434,7 @@
                 closeScreenMetaPanel($wrap, $clicked);
             } else {
                 setScreenMetaAssistantSticky($screenMeta, true);
+                syncScreenMetaAssistantLatchDuringAnimation($screenMeta, $clicked, true);
                 openScreenMetaPanel($wrap, $clicked, function() {
                     setScreenMetaAssistantLatchSticky($screenMeta, $clicked, true, true);
                     focusInputAndScroll();
