@@ -2,17 +2,30 @@ name: Build dist branch
 
 on:
   push:
-    branches:
-      - '**'
+    branches-ignore:
+      - 'dist/**'
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
   delete:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: build-dist-${{ github.event_name }}-${{ github.ref_name || github.event.ref || github.event.pull_request.head.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    if: github.event_name == 'push' && !startsWith(github.ref_name, 'dist/')
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      DIST_REF: dist/${{ github.ref_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,27 +37,134 @@ jobs:
           tools: composer
 
       - name: Install production dependencies
-        run: composer install --no-dev --optimize-autoloader
+        if: hashFiles('composer.json') != ''
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
+      - name: Point blueprint at dist branch
+        run: |
+          php -r '
+          $path = "blueprint.json";
+          $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+          foreach ($data["steps"] as &$step) {
+              if (
+                  ($step["step"] ?? null) === "installPlugin" &&
+                  ($step["pluginData"]["resource"] ?? null) === "git:directory" &&
+                  isset($step["pluginData"]["ref"])
+              ) {
+                  $step["pluginData"]["ref"] = getenv("DIST_REF");
+              }
+          }
+          unset($step);
+          file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+          '
 
       - name: Push to dist branch
-        env:
-          BRANCH_NAME: ${{ github.ref_name }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f vendor/
-          git commit -m "Build: add vendor"
-          git push origin HEAD:dist/${BRANCH_NAME} --force
+          git add blueprint.json
+          if [ -d vendor ]; then
+            git add -f vendor/
+          fi
+          git diff --cached --quiet || git commit -m "Build: add vendor"
+          git push origin HEAD:refs/heads/${DIST_REF} --force
+
+  update-pr-description:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Add Playground link to PR description
+        uses: actions/github-script@v7
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        with:
+          script: |
+            const markerStart = '<!-- playground-link:start -->';
+            const markerEnd = '<!-- playground-link:end -->';
+            const distRef = `dist/${process.env.HEAD_REF}`;
+            const playgroundUrl = `https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/refs/heads/${distRef}/blueprint.json`;
+            const playgroundSection = [
+              markerStart,
+              '## WordPress Playground',
+              '',
+              'Test this PR in WordPress Playground:',
+              '',
+              playgroundUrl,
+              '',
+              `The linked blueprint loads the generated \`${distRef}\` branch, including Composer dependencies.`,
+              markerEnd,
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const pull_number = context.issue.number;
+            const currentBody = context.payload.pull_request.body || '';
+            const existingSection = /<!-- (?:[a-z0-9-]+-)?playground-link:start -->[\s\S]*?<!-- (?:[a-z0-9-]+-)?playground-link:end -->/;
+            const body = existingSection.test(currentBody)
+              ? currentBody.replace(existingSection, playgroundSection)
+              : [currentBody.trimEnd(), playgroundSection].filter(Boolean).join('\n\n');
+
+            await github.rest.pulls.update({
+              owner,
+              repo,
+              pull_number,
+              body,
+            });
 
   delete-dist:
     if: github.event_name == 'delete' && github.event.ref_type == 'branch' && !startsWith(github.event.ref, 'dist/')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Delete dist branch
+      - name: Delete dist branch and remove stale PR links
+        uses: actions/github-script@v7
         env:
           BRANCH_NAME: ${{ github.event.ref }}
-        run: |
-          git push origin ":refs/heads/dist/${BRANCH_NAME}" || true
+        with:
+          script: |
+            const markerPattern = /<!-- (?:[a-z0-9-]+-)?playground-link:start -->[\s\S]*?<!-- (?:[a-z0-9-]+-)?playground-link:end -->/;
+            const { owner, repo } = context.repo;
+            const branchName = process.env.BRANCH_NAME;
+
+            try {
+              await github.rest.git.deleteRef({
+                owner,
+                repo,
+                ref: `heads/dist/${branchName}`,
+              });
+            } catch (error) {
+              if (error.status !== 404 && error.status !== 422) {
+                throw error;
+              }
+            }
+
+            const head = `${owner}:${process.env.BRANCH_NAME}`;
+            const pulls = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: 'all',
+              head,
+              per_page: 100,
+            });
+
+            for (const pull of pulls) {
+              const currentBody = pull.body || '';
+              if (!markerPattern.test(currentBody)) {
+                continue;
+              }
+
+              const body = currentBody
+                .replace(markerPattern, '')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number: pull.number,
+                body,
+              });
+            }
