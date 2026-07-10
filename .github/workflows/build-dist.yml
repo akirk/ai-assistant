@@ -4,18 +4,53 @@ on:
   push:
     branches:
       - '**'
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
   delete:
 
 permissions:
   contents: write
+  pull-requests: write
+
+concurrency:
+  group: build-dist-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref_name || github.event.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    if: github.event_name == 'push' && !startsWith(github.ref_name, 'dist/')
+    if: >-
+      (github.event_name == 'push' && !startsWith(github.ref_name, 'dist/')) ||
+      (github.event_name == 'pull_request' &&
+        github.event.action != 'closed' &&
+        github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set dist metadata
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            dist_ref="dist/pr-${PR_NUMBER}"
+          else
+            dist_ref="dist/${REF_NAME}"
+          fi
+
+          playground_url="https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/${REPOSITORY}/refs/heads/${dist_ref}/blueprint.json"
+
+          echo "DIST_REF=${dist_ref}" >> "$GITHUB_ENV"
+          echo "PLAYGROUND_URL=${playground_url}" >> "$GITHUB_ENV"
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -24,17 +59,87 @@ jobs:
           tools: composer
 
       - name: Install production dependencies
-        run: composer install --no-dev --optimize-autoloader
+        if: hashFiles('composer.json') != ''
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
+      - name: Point blueprint at dist branch
+        run: |
+          php -r '
+          $path = "blueprint.json";
+          $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+          foreach ($data["steps"] as &$step) {
+              if (
+                  ($step["step"] ?? null) === "installPlugin" &&
+                  ($step["pluginData"]["resource"] ?? null) === "git:directory" &&
+                  isset($step["pluginData"]["ref"])
+              ) {
+                  $step["pluginData"]["ref"] = getenv("DIST_REF");
+              }
+          }
+          unset($step);
+          file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+          '
 
       - name: Push to dist branch
-        env:
-          BRANCH_NAME: ${{ github.ref_name }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f vendor/
-          git commit -m "Build: add vendor"
-          git push origin HEAD:dist/${BRANCH_NAME} --force
+          git add blueprint.json
+          if [ -d vendor ]; then
+            git add -f vendor/
+          fi
+          git diff --cached --quiet || git commit -m "Build: add vendor"
+          git push origin HEAD:refs/heads/${DIST_REF} --force
+
+      - name: Add Playground link to PR description
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const markerStart = '<!-- playground-link:start -->';
+            const markerEnd = '<!-- playground-link:end -->';
+            const playgroundSection = [
+              markerStart,
+              '## WordPress Playground',
+              '',
+              'Test this PR in WordPress Playground:',
+              '',
+              process.env.PLAYGROUND_URL,
+              '',
+              `The linked blueprint loads the generated \`${process.env.DIST_REF}\` branch, including Composer dependencies.`,
+              markerEnd,
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const pull_number = context.issue.number;
+            const currentBody = context.payload.pull_request.body || '';
+            const existingSection = /<!-- (?:[a-z0-9-]+-)?playground-link:start -->[\s\S]*?<!-- (?:[a-z0-9-]+-)?playground-link:end -->/;
+            const body = existingSection.test(currentBody)
+              ? currentBody.replace(existingSection, playgroundSection)
+              : [currentBody.trimEnd(), playgroundSection].filter(Boolean).join('\n\n');
+
+            await github.rest.pulls.update({
+              owner,
+              repo,
+              pull_number,
+              body,
+            });
+
+  delete-pr-dist:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Delete PR dist branch
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          git push origin ":refs/heads/dist/pr-${PR_NUMBER}" || true
 
   delete-dist:
     if: github.event_name == 'delete' && github.event.ref_type == 'branch' && !startsWith(github.event.ref, 'dist/')
