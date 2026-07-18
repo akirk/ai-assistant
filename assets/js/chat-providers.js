@@ -543,6 +543,8 @@
         },
 
         callLLM: async function() {
+            this.buildSystemPrompt();
+
             var provider = this.conversationProvider || this.getProvider();
 
             if (this.ensureBrowserProviderStatus && this._providerNeedsBrowserStatus && this._providerNeedsBrowserStatus(provider)) {
