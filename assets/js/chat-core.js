@@ -606,7 +606,29 @@
                 this.addMessage('error', 'Configuration error: system prompt not available. Please check plugin settings.');
                 return;
             }
+            this.addCurrentDateTimeContext();
             this.addAccessiblePageSelectorHints();
+        },
+
+        addCurrentDateTimeContext: function() {
+            var now = new Date();
+            var timeZone = '';
+
+            try {
+                if (window.Intl && Intl.DateTimeFormat) {
+                    timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+                }
+            } catch (e) {
+                timeZone = '';
+            }
+
+            this.systemPrompt += '\n\nCURRENT DATE/TIME:\n'
+                + '- Browser Local Date/Time: ' + now.toLocaleString() + '\n'
+                + '- UTC Date/Time: ' + now.toISOString();
+
+            if (timeZone) {
+                this.systemPrompt += '\n- Browser Time Zone: ' + timeZone;
+            }
         },
 
         addAccessiblePageSelectorHints: function() {
@@ -616,7 +638,11 @@
             }
 
             if (window.aiAssistantConfig) {
-                aiAssistantConfig.pageSelectorHints = [aiAssistantConfig.pageSelectorHints, hints].filter(Boolean).join('\n');
+                if (typeof aiAssistantConfig.initialPageSelectorHints === 'undefined') {
+                    aiAssistantConfig.initialPageSelectorHints = aiAssistantConfig.pageSelectorHints || '';
+                }
+
+                aiAssistantConfig.pageSelectorHints = [aiAssistantConfig.initialPageSelectorHints, hints].filter(Boolean).join('\n');
             }
 
             this.systemPrompt += '\n\nCURRENT PAGE CONTENT REGIONS (useful selectors for get_page_html):\n' + hints;
