@@ -186,6 +186,13 @@ class ChatUITest extends TestCase {
         $this->assertStringNotContainsString('&amp;', $config['urls']['changeTheme']);
     }
 
+    public function test_client_abilities_remain_on_server_executor_path(): void {
+        $config = $this->get_client_abilities_config();
+
+        $this->assertFalse($config['enabled']);
+        $this->assertTrue($config['fallbackToServer']);
+    }
+
     private function get_welcome_tips(): array {
         $chat_ui = new Chat_UI();
         $reflection = new ReflectionClass($chat_ui);
@@ -220,6 +227,15 @@ class ChatUITest extends TestCase {
         $method->setAccessible(true);
 
         return $method->invoke($chat_ui, true);
+    }
+
+    private function get_client_abilities_config(): array {
+        $chat_ui = new Chat_UI();
+        $reflection = new ReflectionClass($chat_ui);
+        $method = $reflection->getMethod('get_client_abilities_config');
+        $method->setAccessible(true);
+
+        return $method->invoke($chat_ui);
     }
 
     private function disable_assistant_theme_switch_tip(): void {
