@@ -28,7 +28,7 @@ jobs:
       DIST_REF: dist/${{ github.ref_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -76,7 +76,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Add Playground link to PR description
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         with:
@@ -120,7 +120,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Delete dist branch and remove stale PR links
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           BRANCH_NAME: ${{ github.event.ref }}
         with:
