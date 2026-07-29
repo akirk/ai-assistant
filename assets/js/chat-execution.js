@@ -1890,12 +1890,14 @@
         canUseFileToolEndpoint: function(toolName) {
             var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
             var fileTools = Array.isArray(config.fileEndpointTools) ? config.fileEndpointTools : [];
+            var enabledTools = Array.isArray(config.enabledTools) ? config.enabledTools : [];
 
             return !!(
                 config &&
                 config.fileToolsUrl &&
                 config.fileToolsToken &&
-                fileTools.indexOf(toolName) >= 0
+                fileTools.indexOf(toolName) >= 0 &&
+                enabledTools.indexOf(toolName) >= 0
             );
         },
 
@@ -1904,6 +1906,23 @@
             var toolName = toolCall.name || toolCall.tool;
             var args = toolCall.arguments || {};
             var mutatingFileTools = ['write_file', 'edit_file', 'delete_file'];
+            var enabledTools = (
+                typeof aiAssistantConfig !== 'undefined' &&
+                Array.isArray(aiAssistantConfig.enabledTools)
+            ) ? aiAssistantConfig.enabledTools : [];
+
+            if (enabledTools.indexOf(toolName) < 0) {
+                return Promise.resolve({
+                    id: toolCall.id,
+                    name: toolName,
+                    input: args,
+                    result: {
+                        error: 'File tool is disabled: ' + toolName,
+                        instruction: 'Ask the user to enable this tool in AI Assistant > Settings > Tool Permissions before trying again.'
+                    },
+                    success: false
+                });
+            }
 
             return fetch(aiAssistantConfig.fileToolsUrl, {
                 method: 'POST',
@@ -1975,6 +1994,84 @@
                     },
                     success: false
                 };
+            });
+        },
+
+        maybePreflightStreamingFileMutation: function(toolId, toolName, partialInput) {
+            if (['write_file', 'edit_file', 'delete_file'].indexOf(toolName) < 0) {
+                return;
+            }
+            if (!partialInput || typeof this.extractPartialJsonString !== 'function') {
+                return;
+            }
+
+            var path = this.extractPartialJsonString(partialInput, 'path');
+            if (!path) {
+                return;
+            }
+
+            this.streamingFilePreflights = this.streamingFilePreflights || {};
+            var key = toolId + ':' + toolName + ':' + path;
+            if (this.streamingFilePreflights[key]) {
+                return;
+            }
+            this.streamingFilePreflights[key] = true;
+
+            if (!this.canUseFileToolEndpoint(toolName)) {
+                return;
+            }
+
+            this.preflightStreamingFileMutation(toolId, toolName, path);
+        },
+
+        preflightStreamingFileMutation: function(toolId, toolName, path) {
+            var self = this;
+            fetch(aiAssistantConfig.fileToolsUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    token: aiAssistantConfig.fileToolsToken,
+                    action: 'preflight_file_mutation',
+                    target_tool: toolName,
+                    path: path,
+                    conversation_id: this.conversationId || 0
+                })
+            }).then(function(response) {
+                return response.json();
+            }).then(function(payload) {
+                if (!payload || !payload.success || !payload.data) {
+                    return;
+                }
+
+                var status = payload.data;
+                if (status.allowed || self.streamingFilePreflightDenied) {
+                    return;
+                }
+
+                self.streamingFilePreflightDenied = {
+                    id: toolId,
+                    name: toolName,
+                    path: path,
+                    status: status,
+                    reason: status.reason || ''
+                };
+
+                var message = (status.reason || 'File mutation is not writable.') + ' ' + path +
+                    (status.permissions ? ' permissions=' + status.permissions : '') +
+                    (status.owner !== null && status.owner !== undefined ? ' owner=' + status.owner : '') +
+                    (status.group !== null && status.group !== undefined ? ' group=' + status.group : '');
+
+                self.setToolCardState(toolId, 'error', { message: message });
+                if (self.addMessage) {
+                    self.addMessage('error', 'Stopped file write before content finished streaming: ' + message);
+                }
+                if (self.abortController) {
+                    self.abortController.abort();
+                }
+            }).catch(function() {
+                // Preflight is opportunistic. The normal file tool execution still enforces writeability.
             });
         },
 

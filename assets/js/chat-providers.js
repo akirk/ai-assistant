@@ -510,6 +510,8 @@
             this.streamComplete = false;
             this.executingToolCount = 0;
             this.processedToolIds = {};
+            this.streamingFilePreflights = {};
+            this.streamingFilePreflightDenied = null;
             this.pickImageToolCallInCurrentResponse = '';
             this.toolCallRounds = 0;
             this.consecutiveFailedToolRounds = 0;
@@ -581,6 +583,8 @@
             this.streamComplete = false;
             this.executingToolCount = 0;
             this.processedToolIds = {};
+            this.streamingFilePreflights = {};
+            this.streamingFilePreflightDenied = null;
             this.pickImageToolCallInCurrentResponse = '';
             this.pendingToolChecks = 0;
 

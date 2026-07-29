@@ -263,9 +263,10 @@ class SettingsTest extends TestCase {
 
         $prompt = $this->settings->get_system_prompt();
 
-        $this->assertStringContainsString('POST/PAGE DRAFTS: create actual drafts via REST', $prompt);
+        $this->assertStringContainsString('POST/PAGE CONTENT: create actual drafts via REST', $prompt);
         $this->assertStringContainsString('/wp/v2/posts', $prompt);
         $this->assertStringContainsString('status "draft"', $prompt);
+        $this->assertStringContainsString('For existing post content edits, prefer a domain-specific update ability', $prompt);
         $this->assertStringContainsString('Never publish/overwrite or use db_query', $prompt);
         $this->assertStringContainsString('report title, ID, edit URL.', $prompt);
     }
@@ -326,6 +327,21 @@ class SettingsTest extends TestCase {
         $this->assertStringContainsString('Modifying existing files is unavailable because edit_file is disabled.', $prompt);
         $this->assertStringContainsString('Deleting files is unavailable because delete_file is disabled.', $prompt);
         $this->assertStringNotContainsString('Use edit_file for modifying EXISTING files', $prompt);
+    }
+
+    public function test_system_prompt_lists_disabled_tools_for_permission_requests(): void {
+        $this->setEnabledToolCaps(array_diff(
+            array_keys($this->settings->get_all_tools_with_meta()),
+            ['rest_api', 'run_php']
+        ));
+
+        $prompt = $this->settings->get_system_prompt();
+
+        $this->assertStringContainsString('TOOL AVAILABILITY: You can call only enabled tools.', $prompt);
+        $this->assertStringContainsString('tell the user which tool or permission must be enabled', $prompt);
+        $this->assertStringContainsString('REST API (rest_api)', $prompt);
+        $this->assertStringContainsString('Run PHP (run_php)', $prompt);
+        $this->assertStringContainsString('AI Assistant > Settings > Tool Permissions', $prompt);
     }
 
     public function test_system_prompt_distinguishes_ability_domains_from_ids(): void {

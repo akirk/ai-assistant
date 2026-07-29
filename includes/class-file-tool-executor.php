@@ -268,6 +268,60 @@ class File_Tool_Executor {
         return (bool) preg_match('/\.php$/i', $path);
     }
 
+    public function preflight_file_mutation(string $tool_name, string $path): array {
+        if (!in_array($tool_name, ['write_file', 'edit_file', 'delete_file'], true)) {
+            throw new \Exception("Preflight is only available for file mutation tools");
+        }
+
+        $status = $this->file_status($path);
+        $writable = true;
+        $reason = '';
+
+        if ($tool_name === 'write_file') {
+            $writable = $status['exists'] ? (bool) $status['writable'] : (bool) $status['parent_writable'];
+            if (!$writable) {
+                $reason = $status['exists'] ? 'Existing file is not writable.' : 'Parent directory is not writable.';
+            }
+        } else {
+            $writable = (bool) $status['exists'] && (bool) $status['writable'];
+            if (!$status['exists']) {
+                $reason = 'File does not exist.';
+            } elseif (!$status['writable']) {
+                $reason = 'File is not writable.';
+            }
+        }
+
+        return array_merge($status, [
+            'tool'     => $tool_name,
+            'allowed'  => $writable,
+            'reason'   => $reason,
+        ]);
+    }
+
+    private function file_status(string $path): array {
+        $full_path = $this->resolve_path($path);
+        $exists = file_exists($full_path);
+        $parent = dirname($full_path);
+        $parent_exists = is_dir($parent);
+
+        $stat_path = $exists ? $full_path : ($parent_exists ? $parent : null);
+        $perms = $stat_path ? fileperms($stat_path) : false;
+
+        return [
+            'path'            => $path,
+            'exists'          => $exists,
+            'type'            => $exists ? (is_dir($full_path) ? 'directory' : 'file') : 'missing',
+            'readable'        => $exists ? is_readable($full_path) : false,
+            'writable'        => $exists ? is_writable($full_path) : false,
+            'parent'          => trim(str_replace('\\', '/', dirname($path)), '.'),
+            'parent_exists'   => $parent_exists,
+            'parent_writable' => $parent_exists ? is_writable($parent) : false,
+            'permissions'     => $perms === false ? null : substr(sprintf('%o', $perms), -4),
+            'owner'           => $stat_path ? @fileowner($stat_path) : null,
+            'group'           => $stat_path ? @filegroup($stat_path) : null,
+        ];
+    }
+
     private function lint_php_content(string $content): array {
         $previous_error_reporting = error_reporting(0);
 
