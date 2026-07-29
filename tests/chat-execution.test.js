@@ -336,6 +336,47 @@ describe('inspect_tool_result', function() {
         assert.doesNotMatch(inspected.result.content, /History/);
     });
 
+    it('uses offset excerpts for long single-line cached string searches', function() {
+        const assistant = createAssistant();
+        const content = '<p>' + 'alpha<br>'.repeat(800) + 'needle<br>' + 'omega<br>'.repeat(800) + '</p>';
+
+        assistant.rememberToolResultForInspection({
+            id: 'toolu_article',
+            name: 'ability',
+            success: true,
+            result: {
+                article: {
+                    content
+                }
+            }
+        });
+
+        const inspected = assistant.executeInspectToolResult({
+            id: 'inspect_long_line',
+            arguments: {
+                tool_use_id: 'toolu_article',
+                path: 'article.content',
+                search: 'needle',
+                after_lines: 200
+            }
+        });
+
+        assert.strictEqual(inspected.success, true);
+        assert.strictEqual(inspected.result.match_found, true);
+        assert.strictEqual(inspected.result.content_format, 'offset_excerpt');
+        assert.match(inspected.result.content, /needle/);
+        assert.strictEqual(inspected.result.truncated, true);
+        assert.strictEqual(inspected.result.next_offset, inspected.result.content_offset + inspected.result.content.length);
+        assert.deepEqual(JSON.parse(JSON.stringify(inspected.result.next_inspection)), {
+            tool_use_id: 'toolu_article',
+            path: 'article.content',
+            offset: inspected.result.next_offset,
+            max_length: 4096
+        });
+        assert.match(inspected.result.instruction, /offset to next_offset/);
+        assert.match(inspected.result.instruction, /Do not rerun the original broad tool call/);
+    });
+
     it('returns a structured array item and next occurrence for cached JSON searches', function() {
         const assistant = createAssistant();
 

@@ -1534,13 +1534,15 @@
         inspectCachedToolResultString: function(record, args, value) {
             var text = String(value || '');
             var maxLength = parseInt(args.max_length, 10);
-            maxLength = Number.isFinite(maxLength) && maxLength > 0 ? Math.min(maxLength, 65536) : 12000;
+            var hasExplicitMaxLength = Number.isFinite(maxLength) && maxLength > 0;
+            maxLength = hasExplicitMaxLength ? Math.min(maxLength, 65536) : 12000;
             var offset = parseInt(args.offset, 10);
             offset = Number.isFinite(offset) && offset > 0 ? offset : 0;
             var search = String(args.search || '');
             var path = String(args.path || '');
 
             if (search) {
+                var searchMaxLength = hasExplicitMaxLength ? maxLength : 4096;
                 var lines = text.split(/\r\n|\n|\r/);
                 var occurrence = parseInt(args.occurrence, 10);
                 occurrence = Number.isFinite(occurrence) && occurrence > 0 ? occurrence : 1;
@@ -1583,9 +1585,67 @@
                 var start = Math.max(0, matchIndex - beforeLines);
                 var end = Math.min(lines.length - 1, matchIndex + afterLines);
                 var content = lines.slice(start, end + 1).join('\n');
-                var truncated = content.length > maxLength;
+                var shouldUseOffsetWindow = lines.length <= 3 || content.length > searchMaxLength;
+
+                if (shouldUseOffsetWindow) {
+                    var matchOffset = -1;
+                    var searchFrom = 0;
+                    for (var matchCount = 0; matchCount < occurrence; matchCount++) {
+                        matchOffset = text.indexOf(search, searchFrom);
+                        if (matchOffset === -1) {
+                            break;
+                        }
+                        searchFrom = matchOffset + search.length;
+                    }
+
+                    var contextBefore = Math.min(1000, Math.floor(searchMaxLength / 4));
+                    var contentOffset = Math.max(0, matchOffset - contextBefore);
+                    content = text.substring(contentOffset, contentOffset + searchMaxLength);
+                    var nextOffset = contentOffset + content.length;
+                    var offsetTruncated = nextOffset < text.length;
+
+                    return {
+                        tool_use_id: record.id,
+                        tool: record.name,
+                        path: path,
+                        type: 'string',
+                        chars: text.length,
+                        search: search,
+                        occurrence: occurrence,
+                        match_found: true,
+                        match_offset: matchOffset,
+                        content_offset: contentOffset,
+                        content_format: 'offset_excerpt',
+                        content_note: 'The content field is a character-offset excerpt from a long or single-line cached string. Continue with offset/next_offset rather than rerunning the original tool.',
+                        content: content,
+                        truncated: offsetTruncated,
+                        next_offset: offsetTruncated ? nextOffset : null,
+                        matches_seen: found,
+                        more_matches_available: hasMoreMatches,
+                        next_occurrence: hasMoreMatches ? occurrence + 1 : null,
+                        next_inspection: offsetTruncated ? {
+                            tool_use_id: record.id,
+                            path: path,
+                            offset: nextOffset,
+                            max_length: searchMaxLength
+                        } : (hasMoreMatches ? {
+                            tool_use_id: record.id,
+                            path: path,
+                            search: search,
+                            occurrence: occurrence + 1,
+                            max_length: searchMaxLength
+                        } : null),
+                        instruction: offsetTruncated
+                            ? 'This cached string is long or mostly one line, so line windows are not useful. Call inspect_tool_result again with the same tool_use_id and path, and set offset to next_offset. Do not rerun the original broad tool call.'
+                            : (hasMoreMatches
+                                ? 'A later search match is available. Call inspect_tool_result again with the same tool_use_id, path, search, and occurrence=next_occurrence. Do not rerun the original broad tool call.'
+                                : 'No later search match was found in this cached result path.')
+                    };
+                }
+
+                var truncated = content.length > searchMaxLength;
                 if (truncated) {
-                    content = content.substring(0, maxLength);
+                    content = content.substring(0, searchMaxLength);
                 }
 
                 return {
@@ -1614,7 +1674,7 @@
                         occurrence: occurrence + 1,
                         before_lines: beforeLines,
                         after_lines: afterLines,
-                        max_length: maxLength
+                        max_length: searchMaxLength
                     } : null,
                     instruction: hasMoreMatches
                         ? 'The content field is a line excerpt and may not be valid standalone JSON. Another search match is available. Call inspect_tool_result again with the same tool_use_id, path, and search, and set occurrence to next_occurrence. Do not rerun the original broad tool call.'
