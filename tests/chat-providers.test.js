@@ -574,6 +574,33 @@ describe('provider request message sanitization', function() {
         assert.equal(parsed.size, originalContent.length);
     });
 
+    it('does not truncate a large string field when the whole tool result fits', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 32768,
+                maxToolResultStringChars: 8192,
+                maxToolResultArrayItems: 5
+            }
+        });
+        const articleContent = 'Article paragraph. '.repeat(700);
+
+        const content = assistant.stringifyToolResultForProvider({
+            ability: 'post-collection/get-article',
+            success: true,
+            article: {
+                id: 3641423,
+                title: 'Brad Garlinghouse Peanut Butter memo',
+                content: articleContent
+            }
+        }, 'anthropic', undefined, { toolUseId: 'toolu_article' });
+        const parsed = JSON.parse(content);
+
+        assert.strictEqual(parsed._truncated, undefined);
+        assert.strictEqual(parsed.article.content, articleContent);
+        assert.ok(content.length < 32768);
+        assert.ok(articleContent.length > 8192);
+    });
+
     it('preserves compacted result shape and tells the model inspect_tool_result can be repeated', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
@@ -612,7 +639,7 @@ describe('provider request message sanitization', function() {
     it('includes original char size metadata on compacted inspectable tool results', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
-                maxToolResultChars: 2048,
+                maxToolResultChars: 4096,
                 maxToolResultStringChars: 1024,
                 maxToolResultArrayItems: 5
             }
@@ -623,7 +650,7 @@ describe('provider request message sanitization', function() {
                 return {
                     id: index + 1,
                     title: 'Session ä ' + (index + 1),
-                    description: 'Details ' + 'x'.repeat(500)
+                    description: 'Details ' + 'x'.repeat(2000)
                 };
             })
         };
@@ -643,7 +670,7 @@ describe('provider request message sanitization', function() {
     it('preserves exact next inspection on compacted text inspect results', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
-                maxToolResultChars: 1200,
+                maxToolResultChars: 4096,
                 maxToolResultStringChars: 400,
                 maxToolResultArrayItems: 5
             }
@@ -662,7 +689,7 @@ describe('provider request message sanitization', function() {
             type: 'string',
             chars: 11938,
             content_format: 'offset_excerpt',
-            content: 'x'.repeat(2500),
+            content: 'x'.repeat(50000),
             truncated: true,
             _truncated: 'This inspect_tool_result response is incomplete. Continue with next_inspection exactly; do not rerun the original broad tool call.',
             next_offset: 2500,

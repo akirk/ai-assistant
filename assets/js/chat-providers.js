@@ -1306,6 +1306,11 @@
             var inspectionMetadata = {
                 originalResultChars: originalJson.length
             };
+
+            if (originalJson.length <= limits.maxResultChars) {
+                return originalJson;
+            }
+
             result = this.dedupeLargeProviderStrings(result);
             var compacted = this.compactProviderValue(result, limits, 0);
             if (options.toolUseId && this.isCompactedToolResultValue(compacted, 0)) {
