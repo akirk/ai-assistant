@@ -27,6 +27,18 @@ function loadExecutionMixin(config, options) {
             'write_file',
             'edit_file',
             'delete_file'
+        ],
+        enabledTools: [
+            'read_file',
+            'find',
+            'list_directory',
+            'search_files',
+            'search_content',
+            'write_file',
+            'edit_file',
+            'delete_file',
+            'execute_ability',
+            'rest_api'
         ]
     };
     const resolvedConfig = options.useDefaultConfig === false
@@ -52,6 +64,7 @@ function loadExecutionMixin(config, options) {
         aiAssistantConfig: resolvedConfig,
         URLSearchParams,
         jQuery: jQueryStub,
+        fetch: options.fetch,
         console
     };
 
@@ -136,6 +149,95 @@ describe('configured tool routing', function() {
 
         assert.strictEqual(assistant.canUseFileToolEndpoint('read_file'), false);
         assert.strictEqual(assistant.canUseFileToolEndpoint('edit_file'), false);
+    });
+
+    it('does not route disabled file tools to the direct endpoint', async function() {
+        const assistant = loadExecutionMixin({
+            fileToolsUrl: '/file-tools.php',
+            fileToolsToken: 'token',
+            fileEndpointTools: ['read_file', 'write_file'],
+            enabledTools: ['read_file']
+        }, { useDefaultConfig: false });
+
+        assert.strictEqual(assistant.canUseFileToolEndpoint('read_file'), true);
+        assert.strictEqual(assistant.canUseFileToolEndpoint('write_file'), false);
+
+        const result = await assistant.executeFileToolEndpoint({
+            id: 'toolu_disabled_write',
+            name: 'write_file',
+            arguments: { path: 'plugins/example/file.php', content: '<?php' }
+        });
+
+        assert.strictEqual(result.success, false);
+        assert.match(result.result.error, /File tool is disabled: write_file/);
+        assert.match(result.result.instruction, /Tool Permissions/);
+    });
+
+    it('aborts streaming when a file mutation target is not writable', async function() {
+        let aborted = false;
+        const messages = [];
+        const states = [];
+        const assistant = loadExecutionMixin({
+            fileToolsUrl: '/file-tools.php',
+            fileToolsToken: 'token',
+            fileEndpointTools: ['write_file'],
+            enabledTools: ['write_file']
+        }, {
+            useDefaultConfig: false,
+            fetch: async (url, options) => {
+                const body = JSON.parse(options.body);
+                assert.strictEqual(body.action, 'preflight_file_mutation');
+                assert.strictEqual(body.target_tool, 'write_file');
+                assert.strictEqual(body.path, 'plugins/example/file.php');
+                return {
+                async json() {
+                    return {
+                        success: true,
+                        data: {
+                            path: 'plugins/example/file.php',
+                            exists: true,
+                            allowed: false,
+                            reason: 'Existing file is not writable.',
+                            writable: false,
+                            parent_writable: true,
+                            permissions: '0644',
+                            owner: 1001,
+                            group: 1001
+                        }
+                    };
+                }
+            };
+            }
+        });
+
+        assistant.extractPartialJsonString = function(partialJson, key) {
+            const match = String(partialJson).match(new RegExp('"' + key + '"\\s*:\\s*"([^"]+)"'));
+            return match ? match[1] : '';
+        };
+        assistant.setToolCardState = function(id, state, details) {
+            states.push({ id, state, details });
+        };
+        assistant.addMessage = function(role, content) {
+            messages.push({ role, content });
+        };
+        assistant.abortController = {
+            abort() {
+                aborted = true;
+            }
+        };
+
+        assistant.maybePreflightStreamingFileMutation(
+            'toolu_write',
+            'write_file',
+            '{"path":"plugins/example/file.php","content":"'
+        );
+
+        await flushPromises();
+
+        assert.strictEqual(aborted, true);
+        assert.strictEqual(states[0].state, 'error');
+        assert.match(states[0].details.message, /Existing file is not writable/);
+        assert.match(messages[0].content, /Stopped file write before content finished streaming/);
     });
 });
 
@@ -234,6 +336,54 @@ describe('inspect_tool_result', function() {
         assert.doesNotMatch(inspected.result.content, /History/);
     });
 
+    it('uses offset excerpts for long single-line cached string searches', function() {
+        const assistant = createAssistant();
+        const content = '<p>' + 'alpha<br>'.repeat(800) + 'needle<br>' + 'omega<br>'.repeat(800) + '</p>';
+
+        assistant.rememberToolResultForInspection({
+            id: 'toolu_article',
+            name: 'ability',
+            success: true,
+            result: {
+                article: {
+                    content
+                }
+            }
+        });
+
+        const inspected = assistant.executeInspectToolResult({
+            id: 'inspect_long_line',
+            arguments: {
+                tool_use_id: 'toolu_article',
+                path: 'article.content',
+                search: 'needle',
+                after_lines: 200
+            }
+        });
+
+        assert.strictEqual(inspected.success, true);
+        assert.strictEqual(inspected.result.match_found, true);
+        assert.strictEqual(inspected.result.content_format, 'offset_excerpt');
+        assert.match(inspected.result.content, /needle/);
+        assert.strictEqual(inspected.result.truncated, true);
+        assert.strictEqual(inspected.result.next_offset, inspected.result.content_offset + inspected.result.content.length);
+        assert.deepEqual(JSON.parse(JSON.stringify(inspected.result.next_inspection)), {
+            tool_use_id: 'toolu_article',
+            path: 'article.content',
+            offset: inspected.result.next_offset,
+            max_length: 2500
+        });
+        assert.deepEqual(JSON.parse(JSON.stringify(inspected.result.next_inspections)), [{
+            tool_use_id: 'toolu_article',
+            path: 'article.content',
+            offset: inspected.result.next_offset,
+            max_length: 2500
+        }]);
+        assert.match(inspected.result._truncated, /Continue with next_inspection exactly/);
+        assert.match(inspected.result.instruction, /offset to next_offset/);
+        assert.match(inspected.result.instruction, /Do not rerun the original broad tool call/);
+    });
+
     it('returns a structured array item and next occurrence for cached JSON searches', function() {
         const assistant = createAssistant();
 
@@ -273,6 +423,12 @@ describe('inspect_tool_result', function() {
             search: 'Playground',
             occurrence: 2
         });
+        assert.deepEqual(JSON.parse(JSON.stringify(inspected.result.next_inspections)), [{
+            tool_use_id: 'toolu_schedule',
+            path: 'sessions',
+            search: 'Playground',
+            occurrence: 2
+        }]);
         assert.match(inspected.result.instruction, /Do not rerun the original broad tool call/);
     });
 

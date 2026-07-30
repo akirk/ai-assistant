@@ -3554,6 +3554,8 @@ LARGE TOOL RESULTS: If JSON contains `_truncated`, `_omitted_items`, or `_omitte
 
 PROMPT;
 
+        $prompt .= $this->get_tool_availability_prompt($enabled_tools) . "\n\n";
+
         if (!empty($ability_domains)) {
             $prompt .= "ABILITY ROUTING: Plugin abilities are higher-level WordPress actions exposed by plugins. When a user request matches a known ability topic, use the ability workflow first because it preserves the plugin's own validation, permissions, and domain logic. Generic tools like db_query and find are fallback tools only after ability discovery shows no suitable capability.\n\n";
             $prompt .= "The following topics are handled by plugin abilities. For these, ALWAYS use the ability tool — never db_query or find:\n";
@@ -3565,11 +3567,13 @@ PROMPT;
 
         $prompt .= "For any other plugin-specific data or actions, check abilities first (ability action:list) before reaching for db_query.\n";
 
+        $prompt .= "ABILITY APPROVAL AND AVAILABILITY: ability list/get results show the abilities that are actually registered and available to you. Approval is requested when you execute a non-read-only ability; approval does not reveal extra hidden abilities. If no listed ability can perform the requested change, say that the needed ability is missing and ask the user to enable another suitable tool (for example REST API or Run PHP) or add a plugin ability. Do not keep re-listing abilities or try unrelated tools.\n";
+
         $prompt .= "Only use db_query for custom reporting or cross-table queries that no ability covers.\n";
 
         $prompt .= <<<'PROMPT'
 
-POST/PAGE DRAFTS: create actual drafts via REST (/wp/v2/posts or /wp/v2/pages, status "draft") when tools allow. Never publish/overwrite or use db_query unless asked; use block-editor HTML and report title, ID, edit URL.
+POST/PAGE CONTENT: create actual drafts via REST (/wp/v2/posts or /wp/v2/pages, status "draft") when tools allow. For existing post content edits, prefer a domain-specific update ability when one exists; otherwise use REST only when the rest_api tool is enabled and the user has approved the write. Never publish/overwrite or use db_query unless asked; use block-editor HTML and report title, ID, edit URL. If neither a suitable update ability nor a write-capable tool is available, stop and tell the user what permission/tool is needed.
 
 PLUGIN CREATION:
 - For app-like plugins with their own UI, route, dashboard, workflow, logged-in experience, or standalone interface, load skill "wp-app" before acting.
@@ -3595,6 +3599,27 @@ PROMPT;
         $prompt = apply_filters('ai_assistant_system_prompt', $prompt, $enabled_tools, $wp_info, $this);
 
         $prompt .= $this->get_skills_prompt_summary($enabled_tools);
+
+        return $prompt;
+    }
+
+    private function get_tool_availability_prompt(array $enabled_tools): string {
+        $all_tools = $this->get_all_tools_with_meta();
+        $enabled_tools = array_values(array_intersect($enabled_tools, array_keys($all_tools)));
+        $disabled_tools = array_values(array_diff(array_keys($all_tools), $enabled_tools));
+
+        $format_tool_list = static function(array $tool_names) use ($all_tools): string {
+            $items = [];
+            foreach ($tool_names as $tool_name) {
+                $label = $all_tools[$tool_name]['label'] ?? $tool_name;
+                $items[] = $label . ' (' . $tool_name . ')';
+            }
+            return implode(', ', $items);
+        };
+
+        $prompt = 'TOOL AVAILABILITY: You can call only enabled tools. If a needed tool is disabled, do not call it or invent a replacement; tell the user which tool or permission must be enabled in AI Assistant > Settings > Tool Permissions.';
+        $prompt .= "\n- Enabled tools: " . ($enabled_tools ? $format_tool_list($enabled_tools) : 'none');
+        $prompt .= "\n- Disabled tools: " . ($disabled_tools ? $format_tool_list($disabled_tools) : 'none');
 
         return $prompt;
     }

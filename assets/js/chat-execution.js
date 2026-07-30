@@ -1534,13 +1534,15 @@
         inspectCachedToolResultString: function(record, args, value) {
             var text = String(value || '');
             var maxLength = parseInt(args.max_length, 10);
-            maxLength = Number.isFinite(maxLength) && maxLength > 0 ? Math.min(maxLength, 65536) : 12000;
+            var hasExplicitMaxLength = Number.isFinite(maxLength) && maxLength > 0;
+            maxLength = hasExplicitMaxLength ? Math.min(maxLength, 65536) : 12000;
             var offset = parseInt(args.offset, 10);
             offset = Number.isFinite(offset) && offset > 0 ? offset : 0;
             var search = String(args.search || '');
             var path = String(args.path || '');
 
             if (search) {
+                var searchMaxLength = hasExplicitMaxLength ? maxLength : 2500;
                 var lines = text.split(/\r\n|\n|\r/);
                 var occurrence = parseInt(args.occurrence, 10);
                 occurrence = Number.isFinite(occurrence) && occurrence > 0 ? occurrence : 1;
@@ -1583,9 +1585,68 @@
                 var start = Math.max(0, matchIndex - beforeLines);
                 var end = Math.min(lines.length - 1, matchIndex + afterLines);
                 var content = lines.slice(start, end + 1).join('\n');
-                var truncated = content.length > maxLength;
+                var matchLineLength = matchIndex >= 0 ? lines[matchIndex].length : 0;
+                var shouldUseOffsetWindow = lines.length <= 3 || matchLineLength > searchMaxLength || content.length > searchMaxLength;
+
+                if (shouldUseOffsetWindow) {
+                    var matchOffset = -1;
+                    var searchFrom = 0;
+                    for (var matchCount = 0; matchCount < occurrence; matchCount++) {
+                        matchOffset = text.indexOf(search, searchFrom);
+                        if (matchOffset === -1) {
+                            break;
+                        }
+                        searchFrom = matchOffset + search.length;
+                    }
+
+                    var contextBefore = Math.min(1000, Math.floor(searchMaxLength / 4));
+                    var contentOffset = Math.max(0, matchOffset - contextBefore);
+                    content = text.substring(contentOffset, contentOffset + searchMaxLength);
+                    var nextOffset = contentOffset + content.length;
+                    var offsetTruncated = nextOffset < text.length;
+
+                    return {
+                        tool_use_id: record.id,
+                        tool: record.name,
+                        path: path,
+                        type: 'string',
+                        chars: text.length,
+                        search: search,
+                        occurrence: occurrence,
+                        match_found: true,
+                        match_offset: matchOffset,
+                        content_offset: contentOffset,
+                        content_format: 'offset_excerpt',
+                        content_note: 'The content field is a character-offset excerpt from a long or single-line cached string. Continue with offset/next_offset rather than rerunning the original tool.',
+                        content: content,
+                        truncated: offsetTruncated,
+                        next_offset: offsetTruncated ? nextOffset : null,
+                        matches_seen: found,
+                        more_matches_available: hasMoreMatches,
+                        next_occurrence: hasMoreMatches ? occurrence + 1 : null,
+                        next_inspection: offsetTruncated ? {
+                            tool_use_id: record.id,
+                            path: path,
+                            offset: nextOffset,
+                            max_length: searchMaxLength
+                        } : (hasMoreMatches ? {
+                            tool_use_id: record.id,
+                            path: path,
+                            search: search,
+                            occurrence: occurrence + 1,
+                            max_length: searchMaxLength
+                        } : null),
+                        instruction: offsetTruncated
+                            ? 'This cached string is long or mostly one line, so line windows are not useful. Call inspect_tool_result again with the same tool_use_id and path, and set offset to next_offset. Do not rerun the original broad tool call.'
+                            : (hasMoreMatches
+                                ? 'A later search match is available. Call inspect_tool_result again with the same tool_use_id, path, search, and occurrence=next_occurrence. Do not rerun the original broad tool call.'
+                                : 'No later search match was found in this cached result path.')
+                    };
+                }
+
+                var truncated = content.length > searchMaxLength;
                 if (truncated) {
-                    content = content.substring(0, maxLength);
+                    content = content.substring(0, searchMaxLength);
                 }
 
                 return {
@@ -1614,7 +1675,7 @@
                         occurrence: occurrence + 1,
                         before_lines: beforeLines,
                         after_lines: afterLines,
-                        max_length: maxLength
+                        max_length: searchMaxLength
                     } : null,
                     instruction: hasMoreMatches
                         ? 'The content field is a line excerpt and may not be valid standalone JSON. Another search match is available. Call inspect_tool_result again with the same tool_use_id, path, and search, and set occurrence to next_occurrence. Do not rerun the original broad tool call.'
@@ -1794,6 +1855,22 @@
             return result;
         },
 
+        addInspectResultContinuationMetadata: function(result) {
+            if (!result || typeof result !== 'object') {
+                return result;
+            }
+
+            if (result.next_inspection && typeof result.next_inspection === 'object' && !Array.isArray(result.next_inspections)) {
+                result.next_inspections = [$.extend({}, result.next_inspection)];
+            }
+
+            if (result.truncated && result.next_inspection && !result._truncated) {
+                result._truncated = 'This inspect_tool_result response is incomplete. Continue with next_inspection exactly; do not rerun the original broad tool call.';
+            }
+
+            return result;
+        },
+
         executeInspectToolResult: function(toolCall) {
             var args = toolCall.arguments || {};
             var toolUseId = String(args.tool_use_id || args.tool_result_id || args.id || '').trim();
@@ -1878,6 +1955,8 @@
                 result.path_corrected = true;
             }
 
+            result = this.addInspectResultContinuationMetadata(result);
+
             return {
                 id: toolCall.id,
                 name: 'inspect_tool_result',
@@ -1890,12 +1969,14 @@
         canUseFileToolEndpoint: function(toolName) {
             var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
             var fileTools = Array.isArray(config.fileEndpointTools) ? config.fileEndpointTools : [];
+            var enabledTools = Array.isArray(config.enabledTools) ? config.enabledTools : [];
 
             return !!(
                 config &&
                 config.fileToolsUrl &&
                 config.fileToolsToken &&
-                fileTools.indexOf(toolName) >= 0
+                fileTools.indexOf(toolName) >= 0 &&
+                enabledTools.indexOf(toolName) >= 0
             );
         },
 
@@ -1904,6 +1985,23 @@
             var toolName = toolCall.name || toolCall.tool;
             var args = toolCall.arguments || {};
             var mutatingFileTools = ['write_file', 'edit_file', 'delete_file'];
+            var enabledTools = (
+                typeof aiAssistantConfig !== 'undefined' &&
+                Array.isArray(aiAssistantConfig.enabledTools)
+            ) ? aiAssistantConfig.enabledTools : [];
+
+            if (enabledTools.indexOf(toolName) < 0) {
+                return Promise.resolve({
+                    id: toolCall.id,
+                    name: toolName,
+                    input: args,
+                    result: {
+                        error: 'File tool is disabled: ' + toolName,
+                        instruction: 'Ask the user to enable this tool in AI Assistant > Settings > Tool Permissions before trying again.'
+                    },
+                    success: false
+                });
+            }
 
             return fetch(aiAssistantConfig.fileToolsUrl, {
                 method: 'POST',
@@ -1975,6 +2073,84 @@
                     },
                     success: false
                 };
+            });
+        },
+
+        maybePreflightStreamingFileMutation: function(toolId, toolName, partialInput) {
+            if (['write_file', 'edit_file', 'delete_file'].indexOf(toolName) < 0) {
+                return;
+            }
+            if (!partialInput || typeof this.extractPartialJsonString !== 'function') {
+                return;
+            }
+
+            var path = this.extractPartialJsonString(partialInput, 'path');
+            if (!path) {
+                return;
+            }
+
+            this.streamingFilePreflights = this.streamingFilePreflights || {};
+            var key = toolId + ':' + toolName + ':' + path;
+            if (this.streamingFilePreflights[key]) {
+                return;
+            }
+            this.streamingFilePreflights[key] = true;
+
+            if (!this.canUseFileToolEndpoint(toolName)) {
+                return;
+            }
+
+            this.preflightStreamingFileMutation(toolId, toolName, path);
+        },
+
+        preflightStreamingFileMutation: function(toolId, toolName, path) {
+            var self = this;
+            fetch(aiAssistantConfig.fileToolsUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    token: aiAssistantConfig.fileToolsToken,
+                    action: 'preflight_file_mutation',
+                    target_tool: toolName,
+                    path: path,
+                    conversation_id: this.conversationId || 0
+                })
+            }).then(function(response) {
+                return response.json();
+            }).then(function(payload) {
+                if (!payload || !payload.success || !payload.data) {
+                    return;
+                }
+
+                var status = payload.data;
+                if (status.allowed || self.streamingFilePreflightDenied) {
+                    return;
+                }
+
+                self.streamingFilePreflightDenied = {
+                    id: toolId,
+                    name: toolName,
+                    path: path,
+                    status: status,
+                    reason: status.reason || ''
+                };
+
+                var message = (status.reason || 'File mutation is not writable.') + ' ' + path +
+                    (status.permissions ? ' permissions=' + status.permissions : '') +
+                    (status.owner !== null && status.owner !== undefined ? ' owner=' + status.owner : '') +
+                    (status.group !== null && status.group !== undefined ? ' group=' + status.group : '');
+
+                self.setToolCardState(toolId, 'error', { message: message });
+                if (self.addMessage) {
+                    self.addMessage('error', 'Stopped file write before content finished streaming: ' + message);
+                }
+                if (self.abortController) {
+                    self.abortController.abort();
+                }
+            }).catch(function() {
+                // Preflight is opportunistic. The normal file tool execution still enforces writeability.
             });
         },
 

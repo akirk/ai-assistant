@@ -3424,6 +3424,9 @@
                         $card.find('.ai-tool-card-desc').text(desc);
                     }
                 }
+                if (typeof this.maybePreflightStreamingFileMutation === 'function') {
+                    this.maybePreflightStreamingFileMutation(toolId, toolName, partialInput);
+                }
             }
         },
 

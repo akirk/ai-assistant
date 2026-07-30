@@ -52,11 +52,33 @@ if (!is_array($request)) {
 
 try {
     $token = (string) ($request['token'] ?? '');
+    $action = (string) ($request['action'] ?? '');
     $tool_name = (string) ($request['tool'] ?? '');
     $arguments = $request['arguments'] ?? [];
     $conversation_id = isset($request['conversation_id']) ? (int) $request['conversation_id'] : null;
     if ($conversation_id === 0) {
         $conversation_id = null;
+    }
+
+    $payload = File_Tool_Auth::validate_token($token);
+
+    if ($action === 'preflight_file_mutation') {
+        $target_tool = (string) ($request['target_tool'] ?? '');
+        $path = (string) ($request['path'] ?? '');
+
+        if ($target_tool === '' || $path === '') {
+            throw new Exception('Preflight requires target_tool and path');
+        }
+
+        if (!File_Tool_Auth::can_execute_tool($target_tool, ['path' => $path], $payload)) {
+            throw new Exception("File tool token is not allowed to execute tool: $target_tool");
+        }
+
+        $file_tools = new File_Tool_Executor(WP_CONTENT_DIR, null);
+        ai_assistant_file_tools_send_json([
+            'success' => true,
+            'data'    => $file_tools->preflight_file_mutation($target_tool, $path),
+        ]);
     }
 
     if ($tool_name === '') {
@@ -67,7 +89,6 @@ try {
         throw new Exception('Tool arguments must be an object');
     }
 
-    $payload = File_Tool_Auth::validate_token($token);
     if (!File_Tool_Auth::can_execute_tool($tool_name, $arguments, $payload)) {
         throw new Exception("File tool token is not allowed to execute tool: $tool_name");
     }

@@ -510,6 +510,8 @@
             this.streamComplete = false;
             this.executingToolCount = 0;
             this.processedToolIds = {};
+            this.streamingFilePreflights = {};
+            this.streamingFilePreflightDenied = null;
             this.pickImageToolCallInCurrentResponse = '';
             this.toolCallRounds = 0;
             this.consecutiveFailedToolRounds = 0;
@@ -581,6 +583,8 @@
             this.streamComplete = false;
             this.executingToolCount = 0;
             this.processedToolIds = {};
+            this.streamingFilePreflights = {};
+            this.streamingFilePreflightDenied = null;
             this.pickImageToolCallInCurrentResponse = '';
             this.pendingToolChecks = 0;
 
@@ -1225,6 +1229,7 @@
 
             var hintToolUseId = String(toolUseId);
             var hint = null;
+            var truncatedInstruction = this.getProviderTruncatedInstruction();
 
             if (
                 !Array.isArray(value) &&
@@ -1238,12 +1243,16 @@
                     path: String(value.path || ''),
                     instruction: 'This inspect_tool_result response was compacted, but it inspected a cached original result. Continue inspecting that original result with this same tool_use_id and path; use the provided offset fields to request the next slice.'
                 };
+                truncatedInstruction = 'This inspect_tool_result response was compacted. Continue with _ai_assistant_compacted.inspect_tool_result.next_inspection exactly when present; do not rerun the original broad tool call.';
 
                 if (value.next_item_offset !== undefined && value.next_item_offset !== null) {
                     hint.item_offset = value.next_item_offset;
                     hint.instruction = 'This inspect_tool_result response was compacted, but it inspected a cached original result. Call inspect_tool_result again with this tool_use_id, path, and item_offset to continue the array slice.';
                 } else if (value.next_offset !== undefined && value.next_offset !== null) {
                     hint.offset = value.next_offset;
+                    if (value.next_inspection && typeof value.next_inspection === 'object') {
+                        hint.next_inspection = $.extend({}, value.next_inspection);
+                    }
                     hint.instruction = 'This inspect_tool_result response was compacted, but it inspected a cached original result. Call inspect_tool_result again with this tool_use_id, path, and offset to continue the text/JSON slice.';
                 }
             }
@@ -1256,7 +1265,7 @@
             }
 
             var metadata = {
-                _truncated: this.getProviderTruncatedInstruction(),
+                _truncated: truncatedInstruction,
                 reason: 'Tool result exceeded the provider-safe context budget and was compacted before being returned to the LLM.',
                 original_chars: options.originalResultChars,
                 inspect_tool_result: hint
@@ -1273,9 +1282,8 @@
                 return arrayValue;
             }
 
-            return $.extend({
-                _truncated: this.getProviderTruncatedInstruction()
-            }, value, {
+            return $.extend({}, value, {
+                _truncated: truncatedInstruction,
                 _ai_assistant_compacted: metadata
             });
         },
@@ -1298,6 +1306,11 @@
             var inspectionMetadata = {
                 originalResultChars: originalJson.length
             };
+
+            if (originalJson.length <= limits.maxResultChars) {
+                return originalJson;
+            }
+
             result = this.dedupeLargeProviderStrings(result);
             var compacted = this.compactProviderValue(result, limits, 0);
             if (options.toolUseId && this.isCompactedToolResultValue(compacted, 0)) {

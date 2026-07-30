@@ -574,6 +574,33 @@ describe('provider request message sanitization', function() {
         assert.equal(parsed.size, originalContent.length);
     });
 
+    it('does not truncate a large string field when the whole tool result fits', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 32768,
+                maxToolResultStringChars: 8192,
+                maxToolResultArrayItems: 5
+            }
+        });
+        const articleContent = 'Article paragraph. '.repeat(700);
+
+        const content = assistant.stringifyToolResultForProvider({
+            ability: 'post-collection/get-article',
+            success: true,
+            article: {
+                id: 3641423,
+                title: 'Brad Garlinghouse Peanut Butter memo',
+                content: articleContent
+            }
+        }, 'anthropic', undefined, { toolUseId: 'toolu_article' });
+        const parsed = JSON.parse(content);
+
+        assert.strictEqual(parsed._truncated, undefined);
+        assert.strictEqual(parsed.article.content, articleContent);
+        assert.ok(content.length < 32768);
+        assert.ok(articleContent.length > 8192);
+    });
+
     it('preserves compacted result shape and tells the model inspect_tool_result can be repeated', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
@@ -612,7 +639,7 @@ describe('provider request message sanitization', function() {
     it('includes original char size metadata on compacted inspectable tool results', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
-                maxToolResultChars: 2048,
+                maxToolResultChars: 4096,
                 maxToolResultStringChars: 1024,
                 maxToolResultArrayItems: 5
             }
@@ -623,7 +650,7 @@ describe('provider request message sanitization', function() {
                 return {
                     id: index + 1,
                     title: 'Session ä ' + (index + 1),
-                    description: 'Details ' + 'x'.repeat(500)
+                    description: 'Details ' + 'x'.repeat(2000)
                 };
             })
         };
@@ -638,6 +665,44 @@ describe('provider request message sanitization', function() {
         assert.strictEqual(parsed._ai_assistant_compacted._truncated, 'use inspect_tool_result with path/search for more');
         assert.strictEqual(parsed._ai_assistant_compacted.original_chars, originalJson.length);
         assert.strictEqual(parsed.original_result_bytes, undefined);
+    });
+
+    it('preserves exact next inspection on compacted text inspect results', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 4096,
+                maxToolResultStringChars: 400,
+                maxToolResultArrayItems: 5
+            }
+        });
+
+        const nextInspection = {
+            tool_use_id: 'toolu_article',
+            path: 'article.content',
+            offset: 2500,
+            max_length: 2500
+        };
+        const content = assistant.stringifyToolResultForProvider({
+            tool_use_id: 'toolu_article',
+            tool: 'ability',
+            path: 'article.content',
+            type: 'string',
+            chars: 11938,
+            content_format: 'offset_excerpt',
+            content: 'x'.repeat(50000),
+            truncated: true,
+            _truncated: 'This inspect_tool_result response is incomplete. Continue with next_inspection exactly; do not rerun the original broad tool call.',
+            next_offset: 2500,
+            next_inspection: nextInspection,
+            instruction: 'Call inspect_tool_result again with offset to next_offset.'
+        }, 'anthropic', undefined, { toolUseId: 'inspect_article' });
+        const parsed = JSON.parse(content);
+
+        assert.match(parsed._truncated, /Continue with _ai_assistant_compacted\.inspect_tool_result\.next_inspection exactly/);
+        assert.match(parsed._ai_assistant_compacted._truncated, /Continue with _ai_assistant_compacted\.inspect_tool_result\.next_inspection exactly/);
+        assert.deepEqual(parsed._ai_assistant_compacted.inspect_tool_result.next_inspection, nextInspection);
+        assert.strictEqual(parsed._ai_assistant_compacted.inspect_tool_result.offset, 2500);
+        assert.match(parsed._ai_assistant_compacted.inspect_tool_result.instruction, /offset/);
     });
 
     it('preserves top-level shape in last-resort provider summaries', function() {
@@ -795,7 +860,7 @@ describe('provider request message sanitization', function() {
         }, 'anthropic', undefined, { toolUseId: 'inspect_sessions' });
         const parsed = JSON.parse(content);
 
-        assert.strictEqual(parsed._truncated, true);
+        assert.match(parsed._truncated, /Continue with _ai_assistant_compacted\.inspect_tool_result/);
         assert.strictEqual(parsed.path, 'sessions');
         assert.strictEqual(parsed.item_count, 20);
         assert.ok(Array.isArray(parsed.value));
@@ -844,7 +909,7 @@ describe('provider request message sanitization', function() {
         }, 'anthropic', undefined, { toolUseId: 'inspect_result' });
         const parsed = JSON.parse(content);
 
-        assert.strictEqual(parsed._truncated, true);
+        assert.match(parsed._truncated, /Continue with _ai_assistant_compacted\.inspect_tool_result/);
         assert.strictEqual(parsed.tool_use_id, 'toolu_schedule');
         assert.strictEqual(parsed.path, 'result');
         assert.deepEqual(parsed.available_paths, ['result.sessions', 'result.tracks']);
