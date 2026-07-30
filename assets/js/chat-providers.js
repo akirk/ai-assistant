@@ -1229,6 +1229,7 @@
 
             var hintToolUseId = String(toolUseId);
             var hint = null;
+            var truncatedInstruction = this.getProviderTruncatedInstruction();
 
             if (
                 !Array.isArray(value) &&
@@ -1242,6 +1243,7 @@
                     path: String(value.path || ''),
                     instruction: 'This inspect_tool_result response was compacted, but it inspected a cached original result. Continue inspecting that original result with this same tool_use_id and path; use the provided offset fields to request the next slice.'
                 };
+                truncatedInstruction = 'This inspect_tool_result response was compacted. Continue with _ai_assistant_compacted.inspect_tool_result.next_inspection exactly when present; do not rerun the original broad tool call.';
 
                 if (value.next_item_offset !== undefined && value.next_item_offset !== null) {
                     hint.item_offset = value.next_item_offset;
@@ -1263,7 +1265,7 @@
             }
 
             var metadata = {
-                _truncated: this.getProviderTruncatedInstruction(),
+                _truncated: truncatedInstruction,
                 reason: 'Tool result exceeded the provider-safe context budget and was compacted before being returned to the LLM.',
                 original_chars: options.originalResultChars,
                 inspect_tool_result: hint
@@ -1280,9 +1282,8 @@
                 return arrayValue;
             }
 
-            return $.extend({
-                _truncated: this.getProviderTruncatedInstruction()
-            }, value, {
+            return $.extend({}, value, {
+                _truncated: truncatedInstruction,
                 _ai_assistant_compacted: metadata
             });
         },

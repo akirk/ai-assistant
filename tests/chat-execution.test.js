@@ -373,6 +373,13 @@ describe('inspect_tool_result', function() {
             offset: inspected.result.next_offset,
             max_length: 2500
         });
+        assert.deepEqual(JSON.parse(JSON.stringify(inspected.result.next_inspections)), [{
+            tool_use_id: 'toolu_article',
+            path: 'article.content',
+            offset: inspected.result.next_offset,
+            max_length: 2500
+        }]);
+        assert.match(inspected.result._truncated, /Continue with next_inspection exactly/);
         assert.match(inspected.result.instruction, /offset to next_offset/);
         assert.match(inspected.result.instruction, /Do not rerun the original broad tool call/);
     });
@@ -416,6 +423,12 @@ describe('inspect_tool_result', function() {
             search: 'Playground',
             occurrence: 2
         });
+        assert.deepEqual(JSON.parse(JSON.stringify(inspected.result.next_inspections)), [{
+            tool_use_id: 'toolu_schedule',
+            path: 'sessions',
+            search: 'Playground',
+            occurrence: 2
+        }]);
         assert.match(inspected.result.instruction, /Do not rerun the original broad tool call/);
     });
 

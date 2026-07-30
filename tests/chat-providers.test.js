@@ -664,12 +664,15 @@ describe('provider request message sanitization', function() {
             content_format: 'offset_excerpt',
             content: 'x'.repeat(2500),
             truncated: true,
+            _truncated: 'This inspect_tool_result response is incomplete. Continue with next_inspection exactly; do not rerun the original broad tool call.',
             next_offset: 2500,
             next_inspection: nextInspection,
             instruction: 'Call inspect_tool_result again with offset to next_offset.'
         }, 'anthropic', undefined, { toolUseId: 'inspect_article' });
         const parsed = JSON.parse(content);
 
+        assert.match(parsed._truncated, /Continue with _ai_assistant_compacted\.inspect_tool_result\.next_inspection exactly/);
+        assert.match(parsed._ai_assistant_compacted._truncated, /Continue with _ai_assistant_compacted\.inspect_tool_result\.next_inspection exactly/);
         assert.deepEqual(parsed._ai_assistant_compacted.inspect_tool_result.next_inspection, nextInspection);
         assert.strictEqual(parsed._ai_assistant_compacted.inspect_tool_result.offset, 2500);
         assert.match(parsed._ai_assistant_compacted.inspect_tool_result.instruction, /offset/);
@@ -830,7 +833,7 @@ describe('provider request message sanitization', function() {
         }, 'anthropic', undefined, { toolUseId: 'inspect_sessions' });
         const parsed = JSON.parse(content);
 
-        assert.strictEqual(parsed._truncated, true);
+        assert.match(parsed._truncated, /Continue with _ai_assistant_compacted\.inspect_tool_result/);
         assert.strictEqual(parsed.path, 'sessions');
         assert.strictEqual(parsed.item_count, 20);
         assert.ok(Array.isArray(parsed.value));
@@ -879,7 +882,7 @@ describe('provider request message sanitization', function() {
         }, 'anthropic', undefined, { toolUseId: 'inspect_result' });
         const parsed = JSON.parse(content);
 
-        assert.strictEqual(parsed._truncated, true);
+        assert.match(parsed._truncated, /Continue with _ai_assistant_compacted\.inspect_tool_result/);
         assert.strictEqual(parsed.tool_use_id, 'toolu_schedule');
         assert.strictEqual(parsed.path, 'result');
         assert.deepEqual(parsed.available_paths, ['result.sessions', 'result.tracks']);

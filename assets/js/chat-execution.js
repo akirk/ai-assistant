@@ -1855,6 +1855,22 @@
             return result;
         },
 
+        addInspectResultContinuationMetadata: function(result) {
+            if (!result || typeof result !== 'object') {
+                return result;
+            }
+
+            if (result.next_inspection && typeof result.next_inspection === 'object' && !Array.isArray(result.next_inspections)) {
+                result.next_inspections = [$.extend({}, result.next_inspection)];
+            }
+
+            if (result.truncated && result.next_inspection && !result._truncated) {
+                result._truncated = 'This inspect_tool_result response is incomplete. Continue with next_inspection exactly; do not rerun the original broad tool call.';
+            }
+
+            return result;
+        },
+
         executeInspectToolResult: function(toolCall) {
             var args = toolCall.arguments || {};
             var toolUseId = String(args.tool_use_id || args.tool_result_id || args.id || '').trim();
@@ -1938,6 +1954,8 @@
                 result.requested_path = resolved.requestedPath;
                 result.path_corrected = true;
             }
+
+            result = this.addInspectResultContinuationMetadata(result);
 
             return {
                 id: toolCall.id,
