@@ -7,6 +7,10 @@ use ReflectionClass;
 
 require_once dirname(__DIR__) . '/includes/class-chat-ui.php';
 
+if (!defined('AI_ASSISTANT_VERSION')) {
+    define('AI_ASSISTANT_VERSION', 'test');
+}
+
 /**
  * Unit tests for Chat_UI welcome tip matching.
  */
@@ -186,6 +190,35 @@ class ChatUITest extends TestCase {
         $this->assertStringNotContainsString('&amp;', $config['urls']['changeTheme']);
     }
 
+    public function test_bootstrap_assets_use_file_versions_and_match_runtime_scripts(): void {
+        $assets = $this->get_bootstrap_assets();
+        $script_ids = array_column($assets['scripts'], 'id');
+
+        $this->assertContains('ai-assistant-chat-context', $script_ids);
+        $this->assertContains('ai-assistant-chat-subagents', $script_ids);
+
+        $versioned_ids = [
+            'ai-assistant-chat-core',
+            'ai-assistant-chat-providers',
+            'ai-assistant-chat-execution',
+            'ai-assistant-chat-context',
+            'ai-assistant-chat-subagents',
+            'ai-assistant-theme-bootstrap',
+        ];
+
+        foreach ($assets['scripts'] as $script) {
+            if (!in_array($script['id'], $versioned_ids, true)) {
+                continue;
+            }
+
+            $this->assertArrayHasKey('version', $script);
+            $this->assertStringStartsWith(\AI_ASSISTANT_VERSION . '.', $script['version']);
+            $this->assertNotSame(\AI_ASSISTANT_VERSION, $script['version']);
+        }
+
+        $this->assertStringStartsWith(\AI_ASSISTANT_VERSION . '.', $assets['styles'][0]['version']);
+    }
+
     private function get_welcome_tips(): array {
         $chat_ui = new Chat_UI();
         $reflection = new ReflectionClass($chat_ui);
@@ -220,6 +253,15 @@ class ChatUITest extends TestCase {
         $method->setAccessible(true);
 
         return $method->invoke($chat_ui, true);
+    }
+
+    private function get_bootstrap_assets(): array {
+        $chat_ui = new Chat_UI();
+        $reflection = new ReflectionClass($chat_ui);
+        $method = $reflection->getMethod('get_bootstrap_assets');
+        $method->setAccessible(true);
+
+        return $method->invoke($chat_ui);
     }
 
     private function disable_assistant_theme_switch_tip(): void {
