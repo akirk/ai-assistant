@@ -1466,6 +1466,22 @@
             return output;
         },
 
+        sanitizeAnthropicContentBlocksForRequest: function(content) {
+            if (!Array.isArray(content)) {
+                return content;
+            }
+
+            return content.filter(function(block) {
+                return !(
+                    block &&
+                    (
+                        block.type === 'thinking' ||
+                        block.type === 'redacted_thinking'
+                    )
+                );
+            });
+        },
+
         compactProviderMessageForStorage: function(message) {
             if (!message || typeof message !== 'object') {
                 return message;
@@ -2493,7 +2509,20 @@
             }
 
             var requestMessages = prepared.messages.map(function(message) {
-                return this.stripMessageMetadata(message);
+                message = this.stripMessageMetadata(message);
+                if (message && Array.isArray(message.content)) {
+                    message = $.extend({}, message, {
+                        content: this.sanitizeAnthropicContentBlocksForRequest(message.content)
+                    });
+                }
+                return message;
+            }, this).filter(function(message) {
+                return !(
+                    message &&
+                    message.role === 'assistant' &&
+                    Array.isArray(message.content) &&
+                    message.content.length === 0
+                );
             }, this);
 
             return this.compactProviderMessagesForRequest(requestMessages, 'anthropic', options.mode || 'normal');
@@ -2595,6 +2624,17 @@
                 var stopReason = null;
                 var providerUsage = null;
                 var toolCardsArchivedBeforeText = false;
+                var streamState = {
+                    $reply: null,
+                    replyRemoved: true,
+                    $thinking: null,
+                    thinkingContent: '',
+                    thinkingStartTime: null,
+                    thinkingDurationMs: 0,
+                    thinkingFinalized: false,
+                    rawContent: '',
+                    textContent: ''
+                };
 
                 for await (var event of this.readSSEStream(response)) {
                     if (event.message && event.message.usage) {
@@ -2616,6 +2656,8 @@
                                 self.showToolProgress(currentBlock.name, 0, currentBlock.id);
                             } else if (currentBlock.type === 'text') {
                                 currentBlock.text = '';
+                            } else if (currentBlock.type === 'thinking') {
+                                currentBlock.thinking = '';
                             }
                             break;
 
@@ -2635,6 +2677,13 @@
                                     currentBlock.input += event.delta.partial_json;
                                     self.showToolProgress(currentBlock.name, currentBlock.input.length, currentBlock.id, currentBlock.input);
                                 }
+                            } else if (event.delta.type === 'thinking_delta') {
+                                if (currentBlock && currentBlock.type === 'thinking') {
+                                    currentBlock.thinking += event.delta.thinking || '';
+                                }
+                                if (streamState && event.delta.thinking) {
+                                    this.appendThinkingContent(streamState, event.delta.thinking);
+                                }
                             }
                             break;
 
@@ -2649,7 +2698,13 @@
                                     // Process tool immediately - don't wait for stream to end
                                     self.processToolCallImmediate(currentBlock.id, currentBlock.name, currentBlock.input, 'anthropic');
                                 }
-                                contentBlocks.push(currentBlock);
+                                if (currentBlock.type === 'thinking') {
+                                    if (streamState) {
+                                        this.finalizeThinkingState(streamState);
+                                    }
+                                } else if (currentBlock.type !== 'redacted_thinking') {
+                                    contentBlocks.push(currentBlock);
+                                }
                                 currentBlock = null;
                             }
                             break;
@@ -2675,7 +2730,12 @@
                 var filteredBlocks = contentBlocks.filter(function(block) {
                     return block.type !== 'text' || (block.text && block.text.length > 0);
                 });
-                var message = this.createStoredMessage('assistant', filteredBlocks);
+                var messageExtra = {};
+                if (streamState && streamState.thinkingContent && streamState.thinkingContent.trim()) {
+                    messageExtra._thinking = streamState.thinkingContent.trim();
+                    messageExtra._thinkingDurationMs = streamState.thinkingDurationMs || 0;
+                }
+                var message = this.createStoredMessage('assistant', filteredBlocks, messageExtra);
                 if (!textContent) {
                     $reply.remove();
                 } else {

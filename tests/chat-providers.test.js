@@ -65,6 +65,44 @@ function createInputJQuery(initialValue) {
 }
 
 describe('Anthropic message repair', function() {
+    it('removes Anthropic thinking blocks from request messages', function() {
+        const assistant = Object.assign(loadProvidersMixin(), {
+            messages: [
+                { role: 'user', content: 'Hello' },
+                {
+                    role: 'assistant',
+                    content: [
+                        { type: 'thinking' },
+                        { type: 'text', text: 'Hi' },
+                        { type: 'redacted_thinking', data: 'opaque' }
+                    ],
+                    _thinking: 'private reasoning'
+                },
+                {
+                    role: 'assistant',
+                    content: [
+                        { type: 'thinking' }
+                    ]
+                },
+                { role: 'user', content: 'Continue' }
+            ],
+            systemPrompt: '',
+            updateTokenCount() {},
+            autoSaveConversation() {}
+        });
+
+        const prepared = assistant.prepareAnthropicMessages();
+
+        assert.equal(JSON.stringify(prepared[1]), JSON.stringify({
+            role: 'assistant',
+            content: [
+                { type: 'text', text: 'Hi' }
+            ]
+        }));
+        assert.equal(prepared.length, 3);
+        assert.equal(prepared[2].content, 'Continue');
+    });
+
     it('inserts an unavailable tool_result before later user text when a tool_use was left unresolved', function() {
         const assistant = loadProvidersMixin();
         const repaired = assistant.repairAnthropicMessages([
@@ -231,13 +269,14 @@ describe('Anthropic message repair', function() {
 });
 
 describe('Pending approval send guard', function() {
-    it('does not call a provider while tool approvals are pending', function() {
+    it('does not call a provider while tool approvals are pending', async function() {
         const assistant = Object.assign(loadProvidersMixin(), {
             pendingActions: [{ id: 'toolu_1' }],
             conversationProvider: 'anthropic',
             setLoadingCalled: null,
             modalShown: false,
             providerCalled: false,
+            buildSystemPrompt() {},
             setLoading(value) {
                 this.setLoadingCalled = value;
             },
@@ -249,20 +288,21 @@ describe('Pending approval send guard', function() {
             }
         });
 
-        assistant.callLLM();
+        await assistant.callLLM();
 
         assert.equal(assistant.providerCalled, false);
         assert.equal(assistant.modalShown, true);
         assert.equal(assistant.setLoadingCalled, false);
     });
 
-    it('does not call a provider while an approval preflight is pending', function() {
+    it('does not call a provider while an approval preflight is pending', async function() {
         const assistant = Object.assign(loadProvidersMixin(), {
             pendingActions: [],
             pendingToolChecks: 1,
             conversationProvider: 'anthropic',
             setLoadingCalled: null,
             providerCalled: false,
+            buildSystemPrompt() {},
             setLoading(value) {
                 this.setLoadingCalled = value;
             },
@@ -271,7 +311,7 @@ describe('Pending approval send guard', function() {
             }
         });
 
-        assistant.callLLM();
+        await assistant.callLLM();
 
         assert.equal(assistant.providerCalled, false);
         assert.equal(assistant.setLoadingCalled, false);
@@ -746,6 +786,7 @@ describe('provider request message sanitization', function() {
             pendingActions: [],
             pendingToolChecks: 0,
             continuingToolLoop: true,
+            buildSystemPrompt() {},
             archiveToolCards() {
                 archiveCalls++;
             },
@@ -808,6 +849,7 @@ describe('provider request message sanitization', function() {
             conversationProvider: 'anthropic',
             pendingActions: [],
             pendingToolChecks: 0,
+            buildSystemPrompt() {},
             archiveToolCards() {
                 archiveCalls++;
             },
@@ -1736,6 +1778,75 @@ describe('provider token usage capture', function() {
         assert.strictEqual(attached.model, 'claude-test');
         assert.strictEqual(attached.usage.cache_creation_input_tokens, 10);
         assert.strictEqual(attached.usage.cache_read_input_tokens, 20);
+    });
+
+    it('stores streamed Anthropic thinking as metadata, not request content blocks', async function() {
+        let payload = null;
+        const thinkingBlocks = [];
+        const assistant = Object.assign(loadProvidersMixin(), {
+            messages: [{ role: 'user', content: 'Hello' }],
+            systemPrompt: 'System',
+            conversationModel: 'claude-test',
+            abortController: null,
+            getModel() {
+                return 'fallback-model';
+            },
+            getApiKey() {
+                return 'test-key';
+            },
+            getProviderEndpoint() {
+                return 'https://example.test/v1/messages';
+            },
+            getTools() {
+                return [];
+            },
+            fetchLLMProvider(provider, endpoint, headers, requestPayload) {
+                payload = requestPayload;
+                return Promise.resolve({ ok: true });
+            },
+            async *readSSEStream() {
+                yield { type: 'content_block_start', content_block: { type: 'thinking' } };
+                yield { type: 'content_block_delta', delta: { type: 'thinking_delta', thinking: 'Inspect first' } };
+                yield { type: 'content_block_stop' };
+                yield { type: 'content_block_start', content_block: { type: 'text', text: '' } };
+                yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hi' } };
+                yield { type: 'content_block_stop' };
+                yield { type: 'message_stop' };
+            },
+            startReply() {
+                return { remove() {} };
+            },
+            updateReply() {},
+            finalizeReply() {},
+            startThinking(options) {
+                const block = { options, content: '', finalized: false };
+                thinkingBlocks.push(block);
+                return block;
+            },
+            updateThinking(block, text) {
+                block.content = text;
+            },
+            finalizeThinking(block) {
+                block.finalized = true;
+            },
+            updateTokenCount() {},
+            autoSaveConversation() {},
+            processToolCalls() {},
+            sendQueuedMessagesIfAvailable() {
+                return false;
+            },
+            setLoading() {}
+        });
+
+        await assistant.callAnthropic();
+
+        assert.strictEqual(payload.messages[0].content, 'Hello');
+        assert.strictEqual(thinkingBlocks[0].content, 'Inspect first');
+        assert.strictEqual(thinkingBlocks[0].finalized, true);
+        assert.strictEqual(assistant.messages[1]._thinking, 'Inspect first');
+        assert.equal(JSON.stringify(assistant.messages[1].content), JSON.stringify([
+            { type: 'text', text: 'Hi' }
+        ]));
     });
 
     it('requests and stores OpenAI streaming usage on assistant messages', async function() {
