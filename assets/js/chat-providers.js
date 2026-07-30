@@ -1248,6 +1248,9 @@
                     hint.instruction = 'This inspect_tool_result response was compacted, but it inspected a cached original result. Call inspect_tool_result again with this tool_use_id, path, and item_offset to continue the array slice.';
                 } else if (value.next_offset !== undefined && value.next_offset !== null) {
                     hint.offset = value.next_offset;
+                    if (value.next_inspection && typeof value.next_inspection === 'object') {
+                        hint.next_inspection = $.extend({}, value.next_inspection);
+                    }
                     hint.instruction = 'This inspect_tool_result response was compacted, but it inspected a cached original result. Call inspect_tool_result again with this tool_use_id, path, and offset to continue the text/JSON slice.';
                 }
             }

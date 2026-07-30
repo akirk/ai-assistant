@@ -1542,7 +1542,7 @@
             var path = String(args.path || '');
 
             if (search) {
-                var searchMaxLength = hasExplicitMaxLength ? maxLength : 4096;
+                var searchMaxLength = hasExplicitMaxLength ? maxLength : 2500;
                 var lines = text.split(/\r\n|\n|\r/);
                 var occurrence = parseInt(args.occurrence, 10);
                 occurrence = Number.isFinite(occurrence) && occurrence > 0 ? occurrence : 1;
@@ -1585,7 +1585,8 @@
                 var start = Math.max(0, matchIndex - beforeLines);
                 var end = Math.min(lines.length - 1, matchIndex + afterLines);
                 var content = lines.slice(start, end + 1).join('\n');
-                var shouldUseOffsetWindow = lines.length <= 3 || content.length > searchMaxLength;
+                var matchLineLength = matchIndex >= 0 ? lines[matchIndex].length : 0;
+                var shouldUseOffsetWindow = lines.length <= 3 || matchLineLength > searchMaxLength || content.length > searchMaxLength;
 
                 if (shouldUseOffsetWindow) {
                     var matchOffset = -1;

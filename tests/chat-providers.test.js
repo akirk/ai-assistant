@@ -640,6 +640,41 @@ describe('provider request message sanitization', function() {
         assert.strictEqual(parsed.original_result_bytes, undefined);
     });
 
+    it('preserves exact next inspection on compacted text inspect results', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 1200,
+                maxToolResultStringChars: 400,
+                maxToolResultArrayItems: 5
+            }
+        });
+
+        const nextInspection = {
+            tool_use_id: 'toolu_article',
+            path: 'article.content',
+            offset: 2500,
+            max_length: 2500
+        };
+        const content = assistant.stringifyToolResultForProvider({
+            tool_use_id: 'toolu_article',
+            tool: 'ability',
+            path: 'article.content',
+            type: 'string',
+            chars: 11938,
+            content_format: 'offset_excerpt',
+            content: 'x'.repeat(2500),
+            truncated: true,
+            next_offset: 2500,
+            next_inspection: nextInspection,
+            instruction: 'Call inspect_tool_result again with offset to next_offset.'
+        }, 'anthropic', undefined, { toolUseId: 'inspect_article' });
+        const parsed = JSON.parse(content);
+
+        assert.deepEqual(parsed._ai_assistant_compacted.inspect_tool_result.next_inspection, nextInspection);
+        assert.strictEqual(parsed._ai_assistant_compacted.inspect_tool_result.offset, 2500);
+        assert.match(parsed._ai_assistant_compacted.inspect_tool_result.instruction, /offset/);
+    });
+
     it('preserves top-level shape in last-resort provider summaries', function() {
         const assistant = loadProvidersMixin();
         const summary = assistant.createProviderValueSummary({

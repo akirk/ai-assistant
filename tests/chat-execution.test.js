@@ -371,7 +371,7 @@ describe('inspect_tool_result', function() {
             tool_use_id: 'toolu_article',
             path: 'article.content',
             offset: inspected.result.next_offset,
-            max_length: 4096
+            max_length: 2500
         });
         assert.match(inspected.result.instruction, /offset to next_offset/);
         assert.match(inspected.result.instruction, /Do not rerun the original broad tool call/);
