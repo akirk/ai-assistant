@@ -40,6 +40,42 @@ jobs:
         if: hashFiles('composer.json') != ''
         run: composer install --no-dev --optimize-autoloader --no-interaction
 
+      - name: Stamp plugin version with source commit
+        run: |
+          PLUGIN_FILE="$(php -r '
+          foreach ( glob("*.php") as $file ) {
+              $contents = file_get_contents($file);
+              if ( preg_match("/^\\s*\\*\\s*Plugin Name:/m", $contents) ) {
+                  echo $file;
+                  exit(0);
+              }
+          }
+          fwrite(STDERR, "Could not find plugin main file.\n");
+          exit(1);
+          ')"
+          SOURCE_COMMIT="$(git rev-parse --short=12 HEAD)"
+          echo "PLUGIN_FILE=${PLUGIN_FILE}" >> "${GITHUB_ENV}"
+          PLUGIN_FILE="${PLUGIN_FILE}" SOURCE_COMMIT="${SOURCE_COMMIT}" php -r '
+          $path = getenv("PLUGIN_FILE");
+          $contents = file_get_contents($path);
+          $commit = getenv("SOURCE_COMMIT");
+          $updated = preg_replace_callback(
+              "/^(\\s*\\*\\s*Version:\\s*)([^\\r\\n]+)/m",
+              static function ( $matches ) use ( $commit ) {
+                  $base_version = preg_replace("/\\+[0-9a-f]+$/i", "", trim($matches[2]));
+                  return $matches[1] . $base_version . "+" . $commit;
+              },
+              $contents,
+              1,
+              $count
+          );
+          if ( 1 !== $count ) {
+              fwrite(STDERR, "Could not find plugin Version header in {$path}.\n");
+              exit(1);
+          }
+          file_put_contents($path, $updated);
+          '
+
       - name: Point blueprint at dist branch
         run: |
           php -r '
@@ -62,6 +98,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "${PLUGIN_FILE}"
           git add blueprint.json
           if [ -d vendor ]; then
             git add -f vendor/
