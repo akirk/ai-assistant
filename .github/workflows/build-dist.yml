@@ -45,7 +45,7 @@ jobs:
           PLUGIN_FILE="$(php -r '
           foreach ( glob("*.php") as $file ) {
               $contents = file_get_contents($file);
-              if ( preg_match("/^\\s*\\*\\s*Plugin Name:/m", $contents) ) {
+              if ( preg_match("/^\\s*\\*\\s*Plugin Name:/mi", $contents) ) {
                   echo $file;
                   exit(0);
               }
@@ -60,7 +60,7 @@ jobs:
           $contents = file_get_contents($path);
           $commit = getenv("SOURCE_COMMIT");
           $updated = preg_replace_callback(
-              "/^(\\s*\\*\\s*Version:\\s*)([^\\r\\n]+)/m",
+              "/^(\\s*\\*\\s*Version:\\s*)([^\\r\\n]+)/mi",
               static function ( $matches ) use ( $commit ) {
                   $base_version = preg_replace("/\\+[0-9a-f]+$/i", "", trim($matches[2]));
                   return $matches[1] . $base_version . "+" . $commit;
