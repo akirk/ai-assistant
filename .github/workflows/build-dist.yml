@@ -76,22 +76,27 @@ jobs:
           file_put_contents($path, $updated);
           '
 
-      - name: Point blueprint at dist branch
+      - name: Point blueprints at dist branch
         run: |
           php -r '
-          $path = "blueprint.json";
-          $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
-          foreach ($data["steps"] as &$step) {
-              if (
-                  ($step["step"] ?? null) === "installPlugin" &&
-                  ($step["pluginData"]["resource"] ?? null) === "git:directory" &&
-                  isset($step["pluginData"]["ref"])
-              ) {
-                  $step["pluginData"]["ref"] = getenv("DIST_REF");
+          $dist_ref = getenv("DIST_REF");
+          foreach (["blueprint.json", "demo.json"] as $path) {
+              if (!is_file($path)) {
+                  continue;
               }
+              $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+              foreach ($data["steps"] as &$step) {
+                  if (
+                      ($step["step"] ?? null) === "installPlugin" &&
+                      ($step["pluginData"]["resource"] ?? null) === "git:directory" &&
+                      isset($step["pluginData"]["ref"])
+                  ) {
+                      $step["pluginData"]["ref"] = $dist_ref;
+                  }
+              }
+              unset($step);
+              file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
           }
-          unset($step);
-          file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
           '
 
       - name: Push to dist branch
@@ -100,6 +105,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "${PLUGIN_FILE}"
           git add blueprint.json
+          if [ -f demo.json ]; then
+            git add demo.json
+          fi
           if [ -d vendor ]; then
             git add -f vendor/
           fi
@@ -112,23 +120,33 @@ jobs:
     permissions:
       pull-requests: write
     steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Add Playground link to PR description
         uses: actions/github-script@v9
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         with:
           script: |
+            const fs = require('fs');
             const markerStart = '<!-- playground-link:start -->';
             const markerEnd = '<!-- playground-link:end -->';
             const distRef = `dist/${process.env.HEAD_REF}`;
-            const playgroundUrl = `https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/refs/heads/${distRef}/blueprint.json`;
+            const playgroundUrl = (file) => `https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/refs/heads/${distRef}/${file}`;
+
+            const links = [`[Try this PR](${playgroundUrl('blueprint.json')})`];
+            if (fs.existsSync('demo.json')) {
+              links.push(`[Try with demo conversations](${playgroundUrl('demo.json')})`);
+            }
+
             const playgroundSection = [
               markerStart,
               '## WordPress Playground',
               '',
-              'Test this PR in WordPress Playground:',
-              '',
-              playgroundUrl,
+              `Test this PR in WordPress Playground: ${links.join(' · ')}`,
               '',
               `The linked blueprint loads the generated \`${distRef}\` branch, including Composer dependencies.`,
               markerEnd,
