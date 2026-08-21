@@ -2,6 +2,8 @@
 
 An AI-powered chat interface for WordPress. Bring your own API key or connect to a local LLM.
 
+[Try AI Assistant in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/ai-assistant/main/blueprint.json) · [Try it with demo conversations](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/ai-assistant/main/demo.json)
+
 ## Screenshots
 
 #### "Old Style"
