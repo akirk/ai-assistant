@@ -1,0 +1,41 @@
+<?php return array(
+    'root' => array(
+        'name' => 'akirk/ai-assistant',
+        'pretty_version' => 'dev-main',
+        'version' => 'dev-main',
+        'reference' => '02f6a3522ca7c3f7cc4074ebdb14f92ef2ed9fbc',
+        'type' => 'wordpress-plugin',
+        'install_path' => __DIR__ . '/../../',
+        'aliases' => array(),
+        'dev' => false,
+    ),
+    'versions' => array(
+        'akirk/ai-assistant' => array(
+            'pretty_version' => 'dev-main',
+            'version' => 'dev-main',
+            'reference' => '02f6a3522ca7c3f7cc4074ebdb14f92ef2ed9fbc',
+            'type' => 'wordpress-plugin',
+            'install_path' => __DIR__ . '/../../',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'akirk/create-wp-app' => array(
+            'pretty_version' => 'v1.4.2',
+            'version' => '1.4.2.0',
+            'reference' => '1a99995df81dca19a0bd64e129044f21e38a4e99',
+            'type' => 'wordpress-plugin',
+            'install_path' => __DIR__ . '/../akirk/create-wp-app',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'akirk/wp-app' => array(
+            'pretty_version' => 'v1.4.1',
+            'version' => '1.4.1.0',
+            'reference' => '0d7a4652c34b814fd52a1f4c2b15d23dc876627b',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../akirk/wp-app',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+    ),
+);

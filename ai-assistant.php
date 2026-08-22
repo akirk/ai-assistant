@@ -3,7 +3,7 @@
  * Plugin Name: AI Assistant
  * Plugin URI: https://github.com/akirk/ai-assistant
  * Description: AI-powered chat interface for WordPress. Bring your own key or use a local LLM.
- * Version: 1.1.1
+ * Version: 1.1.1+02f6a3522ca7
  * Author: Alex Kirk
  * Author URI: https://alex.kirk.at
  * License: GPL v2 or later
