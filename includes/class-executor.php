@@ -529,6 +529,14 @@ class Executor {
 
         $abilities = wp_get_abilities();
 
+        // The MCP file abilities duplicate the assistant's own file tools; hide them here.
+        $abilities = array_filter($abilities, function($ability) {
+            $cat = is_object($ability)
+                ? (method_exists($ability, 'get_category') ? $ability->get_category() : ($ability->category ?? ''))
+                : ($ability['category'] ?? '');
+            return $cat !== File_Abilities::CATEGORY;
+        });
+
         if (!empty($category)) {
             $get_cat = function($ability) {
                 return is_object($ability) ? ($ability->category ?? '') : ($ability['category'] ?? '');

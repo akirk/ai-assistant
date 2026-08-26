@@ -184,6 +184,15 @@ Plugins can add contextual first-message tips with `ai_assistant_welcome_tips`. 
 
 Plugins with browser UI can also register JavaScript callbacks for completed tool calls. For example, a page script can listen for its own `ability` execution and refresh visible UI after the server-side ability succeeds.
 
+### File Access for Outside Agents (MCP)
+
+The assistant's file tools can also be offered to agents running outside WordPress, such as Claude Code or claude.ai connected through an MCP server plugin like [MCP Adapter](https://github.com/WordPress/mcp-adapter). Enable it under **Settings → AI Assistant → File Access** to register these abilities (they are not registered at all while the setting is off):
+
+- `ai/read-file`, `ai/find` (read-only)
+- `ai/write-file`, `ai/edit-file`, `ai/delete-file` (destructive)
+
+The option can only be enabled while an MCP server plugin is active. Together with `ai/create-wp-app`, an outside agent can scaffold a plugin and then edit it. While enabled, a Site Health check (also shown on the File Access tab) lists plugins and themes the web server user cannot write to, for example because they are owned by a different system user. Every call goes through the same wp-content sandbox, PHP syntax check and AI Changes tracking as the in-browser tools, and each ability requires the corresponding tool to be enabled under Tool Permissions for the connected user, so read-only users get only the read-only abilities. The in-browser assistant does not list these abilities; it keeps using its own file tools. Unlike the in-browser tools there is no emergency recovery over MCP: a plugin fatal also takes the REST endpoint down, so a broken active plugin has to be fixed from the Plugins screen, the AI Changes screen or FTP.
+
 ### Tool Extension Hooks
 
 High-risk development tools are registered through hooks so they can later move into a companion plugin. The optional `dev-tools.php` module currently adds file mutation, plugin installation, and raw PHP execution with:
