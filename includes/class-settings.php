@@ -1755,11 +1755,15 @@ class Settings {
                         $ability_tool_names = $ability_name !== null ? File_Abilities::ABILITY_TOOLS[$ability_name] : [];
                         $shared_ability = count($ability_tool_names) > 1;
                         $own_switch = $ability_name !== null && !$shared_ability;
-                        // A shared ability gets one switch after the last of its tools.
-                        $shared_switch_here = $shared_ability && $name === end($ability_tool_names);
+                        // Tools sharing one ability are bracketed together with a single switch.
+                        $shared_first = $shared_ability && $name === reset($ability_tool_names);
+                        $shared_last = $shared_ability && $name === end($ability_tool_names);
                         ?>
                         <?php if ($own_switch) : ?>
                         <div class="ai-tool-row">
+                        <?php elseif ($shared_first) : ?>
+                        <div class="ai-tool-row ai-tool-row-shared">
+                            <div class="ai-tool-shared-items">
                         <?php endif; ?>
                         <label class="ai-tool-item">
                             <input type="checkbox"
@@ -1794,11 +1798,9 @@ class Settings {
                                 ?>
                             </label>
                         </div>
-                        <?php elseif ($shared_switch_here) :
-                            $shared_codes = array_map(fn($tool) => '<code>' . esc_html($tool) . '</code>', $ability_tool_names);
-                            $shared_last = array_pop($shared_codes);
-                            ?>
-                        <div class="ai-tool-row ai-tool-row-shared">
+                        <?php elseif ($shared_last) : ?>
+                            </div>
+                            <span class="ai-tool-brace" aria-hidden="true">}</span>
                             <label class="ai-tool-ability" title="<?php esc_attr_e('Also offer these tools to agents outside WordPress as one WordPress ability', 'ai-assistant'); ?>">
                                 <input type="checkbox"
                                        name="<?php echo esc_attr(File_Abilities::OPTION); ?>[]"
@@ -1807,13 +1809,10 @@ class Settings {
                                        <?php checked(array_intersect($ability_tool_names, $ability_tools) !== []); ?>
                                        <?php disabled($is_playground || !$abilities_available || array_intersect($ability_tool_names, $enabled) === []); ?>
                                        <?php if ($is_playground || !$abilities_available) echo 'data-ability-unavailable="1"'; ?>>
-                                <span aria-hidden="true">&#8627;</span>
                                 <?php
                                 printf(
-                                    /* translators: 1: comma-separated tool names, 2: last tool name, 3: ability name */
-                                    esc_html__('Expose %1$s and %2$s as %3$s ability', 'ai-assistant'),
-                                    implode(', ', $shared_codes),
-                                    $shared_last,
+                                    /* translators: %s: ability name */
+                                    esc_html__('Expose as %s ability', 'ai-assistant'),
                                     '<code>' . esc_html($ability_name) . '</code>'
                                 );
                                 ?>
@@ -2868,13 +2867,24 @@ class Settings {
             }
             .ai-tool-row-shared {
                 flex-wrap: nowrap;
-                padding: 2px 0 2px 22px;
+                align-items: center;
+                gap: 0;
             }
-            .ai-tool-row-shared .ai-tool-ability {
-                display: block;
+            .ai-tool-shared-items {
+                display: flex;
+                flex-direction: column;
+                gap: 3px;
+                min-width: 220px;
             }
-            .ai-tool-row-shared .ai-tool-ability input[type=checkbox] {
-                margin-right: 4px;
+            .ai-tool-brace {
+                font-family: Georgia, 'Times New Roman', serif;
+                font-weight: 300;
+                font-size: 78px;
+                line-height: 1;
+                color: #8c8f94;
+                transform: scaleX(0.6);
+                margin: 0 6px 0 -4px;
+                user-select: none;
             }
             .ai-tool-ability {
                 display: flex;
