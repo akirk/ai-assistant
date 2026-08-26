@@ -535,7 +535,11 @@ class Settings {
                 $enabled = isset($_POST['ai_assistant_enabled_tools'])
                     ? array_map('sanitize_key', (array) wp_unslash($_POST['ai_assistant_enabled_tools']))
                     : $this->get_effective_enabled_tools(get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools()));
-                return array_values(array_intersect(File_Abilities::all_tools(), (array) $value, $enabled));
+                $tools = [];
+                foreach ((array) $value as $name) {
+                    $tools = array_merge($tools, File_Abilities::ABILITY_TOOLS[$name] ?? [$name]);
+                }
+                return array_values(array_intersect(File_Abilities::all_tools(), $tools, $enabled));
             },
             'default' => [],
         ]);
@@ -1746,8 +1750,15 @@ class Settings {
                         <?php if ($is_always_enabled && !$is_playground) : ?>
                             <input type="hidden" name="ai_assistant_enabled_tools[]" value="<?php echo esc_attr($name); ?>">
                         <?php endif; ?>
-                        <?php $ability_name = in_array($group, $ability_groups, true) ? File_Abilities::get_ability_for_tool($name) : null; ?>
-                        <?php if ($ability_name !== null) : ?>
+                        <?php
+                        $ability_name = in_array($group, $ability_groups, true) ? File_Abilities::get_ability_for_tool($name) : null;
+                        $ability_tool_names = $ability_name !== null ? File_Abilities::ABILITY_TOOLS[$ability_name] : [];
+                        $shared_ability = count($ability_tool_names) > 1;
+                        $own_switch = $ability_name !== null && !$shared_ability;
+                        // A shared ability gets one switch after the last of its tools.
+                        $shared_switch_here = $shared_ability && $name === end($ability_tool_names);
+                        ?>
+                        <?php if ($own_switch) : ?>
                         <div class="ai-tool-row">
                         <?php endif; ?>
                         <label class="ai-tool-item">
@@ -1765,11 +1776,12 @@ class Settings {
                                 <span title="<?php esc_attr_e('Dangerous: can modify data or execute code', 'ai-assistant'); ?>">⚠</span>
                             <?php endif; ?>
                         </label>
-                        <?php if ($ability_name !== null) : ?>
+                        <?php if ($own_switch) : ?>
                             <label class="ai-tool-ability" title="<?php esc_attr_e('Also offer this tool to agents outside WordPress as a WordPress ability', 'ai-assistant'); ?>">
                                 <input type="checkbox"
                                        name="<?php echo esc_attr(File_Abilities::OPTION); ?>[]"
                                        value="<?php echo esc_attr($name); ?>"
+                                       data-tools="<?php echo esc_attr($name); ?>"
                                        <?php checked(in_array($name, $ability_tools, true)); ?>
                                        <?php disabled($is_playground || !$abilities_available || !in_array($name, $enabled, true)); ?>
                                        <?php if ($is_playground || !$abilities_available) echo 'data-ability-unavailable="1"'; ?>>
@@ -1777,6 +1789,31 @@ class Settings {
                                 printf(
                                     /* translators: %s: ability name */
                                     esc_html__('Expose as %s ability', 'ai-assistant'),
+                                    '<code>' . esc_html($ability_name) . '</code>'
+                                );
+                                ?>
+                            </label>
+                        </div>
+                        <?php elseif ($shared_switch_here) :
+                            $shared_codes = array_map(fn($tool) => '<code>' . esc_html($tool) . '</code>', $ability_tool_names);
+                            $shared_last = array_pop($shared_codes);
+                            ?>
+                        <div class="ai-tool-row ai-tool-row-shared">
+                            <label class="ai-tool-ability" title="<?php esc_attr_e('Also offer these tools to agents outside WordPress as one WordPress ability', 'ai-assistant'); ?>">
+                                <input type="checkbox"
+                                       name="<?php echo esc_attr(File_Abilities::OPTION); ?>[]"
+                                       value="<?php echo esc_attr($ability_name); ?>"
+                                       data-tools="<?php echo esc_attr(implode(' ', $ability_tool_names)); ?>"
+                                       <?php checked(array_intersect($ability_tool_names, $ability_tools) !== []); ?>
+                                       <?php disabled($is_playground || !$abilities_available || array_intersect($ability_tool_names, $enabled) === []); ?>
+                                       <?php if ($is_playground || !$abilities_available) echo 'data-ability-unavailable="1"'; ?>>
+                                <span aria-hidden="true">&#8627;</span>
+                                <?php
+                                printf(
+                                    /* translators: 1: comma-separated tool names, 2: last tool name, 3: ability name */
+                                    esc_html__('Expose %1$s and %2$s as %3$s ability', 'ai-assistant'),
+                                    implode(', ', $shared_codes),
+                                    $shared_last,
                                     '<code>' . esc_html($ability_name) . '</code>'
                                 );
                                 ?>
@@ -1937,13 +1974,15 @@ class Settings {
 
             // "Expose as ability" can only be on while the tool itself is on.
             function syncAbilitySwitches($group) {
-                $group.find('.ai-tool-row').each(function() {
-                    var $row = $(this);
-                    var toolOn = $row.find('input[name="ai_assistant_enabled_tools[]"]').is(':checked');
-                    var $ability = $row.find('.ai-tool-ability input[type=checkbox]');
-                    if (!$ability.length || $ability.attr('data-ability-unavailable')) {
+                $group.find('.ai-tool-ability input[type=checkbox]').each(function() {
+                    var $ability = $(this);
+                    if ($ability.attr('data-ability-unavailable')) {
                         return;
                     }
+                    var tools = String($ability.data('tools') || '').split(' ');
+                    var toolOn = tools.some(function(tool) {
+                        return $group.find('input[name="ai_assistant_enabled_tools[]"][value="' + tool + '"]').is(':checked');
+                    });
                     $ability.prop('disabled', !toolOn);
                     if (!toolOn) {
                         $ability.prop('checked', false);
@@ -2826,6 +2865,16 @@ class Settings {
             }
             .ai-tool-row .ai-tool-item {
                 min-width: 220px;
+            }
+            .ai-tool-row-shared {
+                flex-wrap: nowrap;
+                padding: 2px 0 2px 22px;
+            }
+            .ai-tool-row-shared .ai-tool-ability {
+                display: block;
+            }
+            .ai-tool-row-shared .ai-tool-ability input[type=checkbox] {
+                margin-right: 4px;
             }
             .ai-tool-ability {
                 display: flex;
