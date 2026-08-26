@@ -2628,7 +2628,8 @@ class Settings {
         <aside class="ai-tool-ability-footer">
             <?php if ($abilities_available) : ?>
             <p class="description">
-                <?php esc_html_e('Exposed tools are registered as WordPress abilities so agents outside WordPress can use them. They keep the tool permissions of the connected user, and every change is tracked in AI Changes.', 'ai-assistant'); ?>
+                <strong><?php esc_html_e('Why expose a file tool as an ability?', 'ai-assistant'); ?></strong>
+                <?php esc_html_e('So that agents outside WordPress can use it too. An exposed tool keeps the tool permissions of the connected user, and every change is tracked in AI Changes.', 'ai-assistant'); ?>
             </p>
             <p class="description">
                 <?php
