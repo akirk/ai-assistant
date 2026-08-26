@@ -1761,9 +1761,38 @@ class Settings {
                         ?>
                         <?php if ($own_switch) : ?>
                         <div class="ai-tool-row">
-                        <?php elseif ($shared_first) : ?>
-                        <div class="ai-tool-row ai-tool-row-shared">
-                            <div class="ai-tool-shared-items">
+                        <?php elseif ($shared_first) :
+                            $shared_on = array_values(array_intersect($ability_tool_names, $enabled));
+                            $shared_all = count($shared_on) === count($ability_tool_names);
+                            ?>
+                        <div class="ai-tool-row">
+                            <label class="ai-tool-item" title="<?php esc_attr_e('The assistant offers these tools to the model as one consolidated tool', 'ai-assistant'); ?>">
+                                <input type="checkbox"
+                                       class="ai-tool-parent-toggle"
+                                       data-tools="<?php echo esc_attr(implode(' ', $ability_tool_names)); ?>"
+                                       <?php checked($shared_all); ?>
+                                       <?php disabled($is_playground); ?>
+                                       <?php if ($shared_on !== [] && !$shared_all) echo 'data-indeterminate="1"'; ?>>
+                                <code><?php echo esc_html(substr($ability_name, strlen('ai/'))); ?></code>
+                            </label>
+                            <label class="ai-tool-ability" title="<?php esc_attr_e('Also offer these tools to agents outside WordPress as one WordPress ability', 'ai-assistant'); ?>">
+                                <input type="checkbox"
+                                       name="<?php echo esc_attr(File_Abilities::OPTION); ?>[]"
+                                       value="<?php echo esc_attr($ability_name); ?>"
+                                       data-tools="<?php echo esc_attr(implode(' ', $ability_tool_names)); ?>"
+                                       <?php checked(array_intersect($ability_tool_names, $ability_tools) !== []); ?>
+                                       <?php disabled($is_playground || !$abilities_available || $shared_on === []); ?>
+                                       <?php if ($is_playground || !$abilities_available) echo 'data-ability-unavailable="1"'; ?>>
+                                <?php
+                                printf(
+                                    /* translators: %s: ability name */
+                                    esc_html__('Expose as %s ability', 'ai-assistant'),
+                                    '<code>' . esc_html($ability_name) . '</code>'
+                                );
+                                ?>
+                            </label>
+                        </div>
+                        <div class="ai-tool-sub-items ai-tool-sub-tools">
                         <?php endif; ?>
                         <label class="ai-tool-item">
                             <input type="checkbox"
@@ -1799,24 +1828,6 @@ class Settings {
                             </label>
                         </div>
                         <?php elseif ($shared_last) : ?>
-                            </div>
-                            <span class="ai-tool-brace" aria-hidden="true">}</span>
-                            <label class="ai-tool-ability" title="<?php esc_attr_e('Also offer these tools to agents outside WordPress as one WordPress ability', 'ai-assistant'); ?>">
-                                <input type="checkbox"
-                                       name="<?php echo esc_attr(File_Abilities::OPTION); ?>[]"
-                                       value="<?php echo esc_attr($ability_name); ?>"
-                                       data-tools="<?php echo esc_attr(implode(' ', $ability_tool_names)); ?>"
-                                       <?php checked(array_intersect($ability_tool_names, $ability_tools) !== []); ?>
-                                       <?php disabled($is_playground || !$abilities_available || array_intersect($ability_tool_names, $enabled) === []); ?>
-                                       <?php if ($is_playground || !$abilities_available) echo 'data-ability-unavailable="1"'; ?>>
-                                <?php
-                                printf(
-                                    /* translators: %s: ability name */
-                                    esc_html__('Expose as %s ability', 'ai-assistant'),
-                                    '<code>' . esc_html($ability_name) . '</code>'
-                                );
-                                ?>
-                            </label>
                         </div>
                         <?php endif; ?>
                         <?php if ($name === 'rest_api') :
@@ -2006,6 +2017,34 @@ class Settings {
                 updateGroupToggle($group);
             }
 
+            function parentTools($parent, $group) {
+                var tools = String($parent.data('tools') || '').split(' ');
+                return $group.find('input[name="ai_assistant_enabled_tools[]"]').filter(function() {
+                    return tools.indexOf(this.value) !== -1;
+                });
+            }
+
+            function syncParentToggles($group) {
+                $group.find('.ai-tool-parent-toggle').each(function() {
+                    var $children = parentTools($(this), $group);
+                    var checkedCount = $children.filter(':checked').length;
+                    this.checked = checkedCount === $children.length;
+                    this.indeterminate = checkedCount > 0 && checkedCount < $children.length;
+                });
+            }
+
+            $('.ai-tool-parent-toggle').each(function() {
+                if ($(this).data('indeterminate')) this.indeterminate = true;
+            });
+
+            $(document).on('change', '.ai-tool-parent-toggle', function() {
+                var $group = $(this).closest('.ai-tool-group');
+                parentTools($(this), $group).not('[data-always-enabled="1"]').prop('checked', this.checked);
+                this.indeterminate = false;
+                updateGroupControls($group);
+                syncAbilitySwitches($group);
+            });
+
             $('.ai-group-toggle').on('change', function() {
                 var checked = this.checked;
                 var $group = $(this).closest('.ai-tool-group');
@@ -2013,6 +2052,7 @@ class Settings {
                     .not('[data-always-enabled="1"]')
                     .prop('checked', checked);
                 syncToolSubItems($group);
+                syncParentToggles($group);
                 syncAbilitySwitches($group);
                 this.indeterminate = false;
             });
@@ -2020,6 +2060,7 @@ class Settings {
             $(document).on('change', '.ai-tool-group-items input[type=checkbox][name="ai_assistant_enabled_tools[]"]', function() {
                 var $group = $(this).closest('.ai-tool-group');
                 updateGroupControls($group);
+                syncParentToggles($group);
                 syncAbilitySwitches($group);
             });
             // Toggle sub-items visibility
@@ -2865,51 +2906,11 @@ class Settings {
             .ai-tool-row .ai-tool-item {
                 min-width: 220px;
             }
-            .ai-tool-row-shared {
-                flex-wrap: nowrap;
-                align-items: center;
-                gap: 0;
-            }
-            .ai-tool-shared-items {
+            .ai-tool-sub-tools {
                 display: flex;
                 flex-direction: column;
                 gap: 3px;
-                min-width: 220px;
-            }
-            .ai-tool-brace {
-                font-family: Georgia, 'Times New Roman', serif;
-                font-weight: 300;
-                font-size: 78px;
-                line-height: 1;
-                color: #8c8f94;
-                transform: scaleX(0.6);
-                margin: 0 6px 0 -4px;
-                user-select: none;
-            }
-            .ai-tool-ability {
-                display: flex;
-                align-items: baseline;
-                gap: 4px;
-                font-size: 12px;
-                color: #50575e;
-                cursor: pointer;
-            }
-            .ai-tool-ability input[type=checkbox] {
-                flex-shrink: 0;
-                margin-top: 1px;
-            }
-            .ai-tool-ability-footer {
-                align-self: start;
-                border-left: 1px solid #dcdcde;
-                padding-left: 14px;
-                min-width: 0;
-            }
-            .ai-tool-ability-footer > .description:first-child {
-                margin-top: 0;
-            }
-            .ai-tool-ability-footer .ai-health-result {
-                margin-top: 8px;
-                max-width: none;
+                margin-bottom: 2px;
             }
             .ai-tool-sub-items {
                 margin-left: 20px;
