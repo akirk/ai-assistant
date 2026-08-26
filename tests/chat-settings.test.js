@@ -399,12 +399,111 @@ describe('chat settings model lifecycle', function() {
             }
         });
 
-        assert.strictEqual(assistant.getProvider(), 'lmstudio');
+        // Before the browser check has run, the local provider is not assumed
+        // to be usable, so the next provider in the priority list is picked.
+        assert.strictEqual(assistant.getProvider(), 'anthropic');
 
         await assistant.ensureBrowserProviderStatuses();
 
         assert.strictEqual(assistant.getProvider(), 'anthropic');
         assert.strictEqual(assistant.getModel(), 'claude-sonnet-4-6');
+    });
+
+    it('treats an unchecked browser-local Connector provider as unavailable', function() {
+        const assistant = loadSettingsMixin({
+            providers: {
+                source: 'connectors',
+                available: {
+                    lmstudio: {
+                        name: 'LM Studio',
+                        type: 'server',
+                        browserSupported: true,
+                        models: []
+                    }
+                }
+            },
+            storage: {
+                aiAssistant_providerPriority: JSON.stringify(['lmstudio'])
+            }
+        });
+
+        assert.strictEqual(assistant.isConfigured(), false);
+        assert.strictEqual(assistant._isProviderAvailable('lmstudio'), false);
+    });
+
+    it('treats a deferred browser-local Connector provider as unavailable until checked', function() {
+        const assistant = loadSettingsMixin({
+            providers: {
+                source: 'connectors',
+                deferred: true,
+                available: {
+                    lmstudio: {
+                        name: 'LM Studio',
+                        type: 'server',
+                        browserSupported: true,
+                        models: [],
+                        modelsDeferred: true
+                    }
+                }
+            }
+        });
+
+        assert.strictEqual(assistant._isProviderAvailable('lmstudio'), false);
+    });
+
+    it('re-checks a browser-local Connector provider once its status is stale', async function() {
+        let checks = 0;
+        let reachable = false;
+        const providers = {
+            source: 'connectors',
+            available: {
+                lmstudio: {
+                    name: 'LM Studio',
+                    type: 'server',
+                    browserSupported: true,
+                    models: []
+                },
+                anthropic: {
+                    name: 'Anthropic',
+                    type: 'cloud',
+                    serverSideAuth: true,
+                    models: [
+                        { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' }
+                    ]
+                }
+            }
+        };
+        const assistant = loadSettingsMixin({
+            providers,
+            storage: {
+                aiAssistant_providerPriority: JSON.stringify(['lmstudio', 'anthropic'])
+            },
+            browserStatusRegistry: {
+                check() {
+                    checks++;
+                    return Promise.resolve({
+                        providerId: 'lmstudio',
+                        reachable,
+                        status: reachable ? 'ready' : 'unreachable',
+                        models: reachable ? [{ id: 'local-model', name: 'Local Model' }] : []
+                    });
+                }
+            }
+        });
+
+        await assistant.ensureBrowserProviderStatuses();
+        await assistant.ensureBrowserProviderStatuses();
+        assert.strictEqual(checks, 1);
+        assert.strictEqual(assistant.getProvider(), 'anthropic');
+
+        // LM Studio gets started later; once the TTL has passed the next call re-checks.
+        reachable = true;
+        providers.available.lmstudio.browserStatusCheckedAt -= assistant.browserProviderStatusTtl;
+        await assistant.ensureBrowserProviderStatuses();
+
+        assert.strictEqual(checks, 2);
+        assert.strictEqual(assistant.getProvider(), 'lmstudio');
+        assert.strictEqual(assistant.getModel(), 'local-model');
     });
 
     it('uses browser-discovered models for a reachable local Connector provider', async function() {
