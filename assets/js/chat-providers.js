@@ -552,9 +552,25 @@
             if (this.ensureBrowserProviderStatus && this._providerNeedsBrowserStatus && this._providerNeedsBrowserStatus(provider)) {
                 await this.ensureBrowserProviderStatus(provider);
                 if (!this._isProviderAvailable(provider)) {
-                    this.addMessage('error', 'Provider "' + provider + '" is not reachable from this browser or has no usable loaded models.');
-                    this.setLoading(false);
-                    return;
+                    // The pinned provider (e.g. LM Studio from a conversation
+                    // started on another device) cannot be used from this
+                    // browser. Fall through the priority list instead of
+                    // leaving the conversation stuck.
+                    if (this.ensureBrowserProviderStatuses) {
+                        await this.ensureBrowserProviderStatuses();
+                    }
+                    var fallbackProvider = this.getProvider();
+                    if (fallbackProvider === provider || !this._isProviderAvailable(fallbackProvider)) {
+                        this.addMessage('error', 'Provider "' + provider + '" is not reachable from this browser or has no usable models, and no other provider is available.');
+                        this.setLoading(false);
+                        return;
+                    }
+                    this.addMessage('system', 'Provider "' + this.getProviderName(provider) + '" is not reachable from this browser. Continuing with "' + this.getProviderName(fallbackProvider) + '".');
+                    provider = fallbackProvider;
+                    this.conversationProvider = fallbackProvider;
+                    this.conversationModel = this.getModel();
+                    this.promptCacheKey = '';
+                    this.conversationDirty = true;
                 }
             }
 

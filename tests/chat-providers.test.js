@@ -268,6 +268,66 @@ describe('Anthropic message repair', function() {
     });
 });
 
+describe('Unreachable pinned provider fallthrough', function() {
+    function createAssistant(overrides) {
+        return Object.assign(loadProvidersMixin({
+            aiAssistantProviders: {
+                source: 'connectors',
+                available: {
+                    lmstudio: { name: 'LM Studio', type: 'server', browserSupported: true, models: [] },
+                    anthropic: { name: 'Anthropic', type: 'cloud', browserSupported: true, serverSideAuth: true, models: [{ id: 'claude-sonnet-4-6' }] }
+                }
+            }
+        }), {
+            conversationProvider: 'lmstudio',
+            conversationModel: 'local-model',
+            messages: [],
+            buildSystemPrompt() {},
+            setLoading() {},
+            hideToolProgress() {},
+            isConnectorsMode() { return true; },
+            getProviderName(id) { return id; },
+            _providerNeedsBrowserStatus(id) { return id === 'lmstudio'; },
+            ensureBrowserProviderStatus() { return Promise.resolve(); },
+            ensureBrowserProviderStatuses() { return Promise.resolve(); },
+            getModel() { return 'claude-sonnet-4-6'; },
+            addMessage(role, text) { this.logged.push([role, text]); },
+            logged: [],
+            callAnthropic() { this.anthropicCalled = true; },
+            callLocalLLM() { this.localCalled = true; }
+        }, overrides);
+    }
+
+    it('continues with the next available provider when the pinned one is unreachable', async function() {
+        const assistant = createAssistant({
+            _isProviderAvailable(id) { return id === 'anthropic'; },
+            getProvider() { return 'anthropic'; }
+        });
+
+        await assistant.callLLM();
+
+        assert.equal(assistant.anthropicCalled, true);
+        assert.equal(assistant.localCalled, undefined);
+        assert.equal(assistant.conversationProvider, 'anthropic');
+        assert.equal(assistant.conversationModel, 'claude-sonnet-4-6');
+        assert.equal(assistant.logged[0][0], 'system');
+    });
+
+    it('reports an error when no other provider is available either', async function() {
+        const assistant = createAssistant({
+            _isProviderAvailable() { return false; },
+            getProvider() { return 'lmstudio'; }
+        });
+
+        await assistant.callLLM();
+
+        assert.equal(assistant.anthropicCalled, undefined);
+        assert.equal(assistant.localCalled, undefined);
+        assert.equal(assistant.conversationProvider, 'lmstudio');
+        assert.equal(assistant.logged[0][0], 'error');
+    });
+});
+
 describe('Pending approval send guard', function() {
     it('does not call a provider while tool approvals are pending', async function() {
         const assistant = Object.assign(loadProvidersMixin(), {
