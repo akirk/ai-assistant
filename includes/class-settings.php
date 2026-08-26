@@ -2633,7 +2633,7 @@ class Settings {
             </p>
             <p class="description">
                 <?php
-                $mcp_adapter_link = '<a href="https://wordpress.org/plugins/mcp-adapter/">MCP Adapter</a>';
+                $mcp_adapter_link = '<a href="https://github.com/wordpress/mcp-adapter">MCP Adapter</a>';
                 $mcp_connect_link = '<a href="https://github.com/akirk/mcp-connect">MCP Connect</a>';
                 $has_mcp_connect = defined('MCP_OAUTH_VERSION');
                 if (File_Abilities::has_mcp_server() && $has_mcp_connect) {
