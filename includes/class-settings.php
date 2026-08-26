@@ -2632,17 +2632,27 @@ class Settings {
                 <?php esc_html_e('So that agents outside WordPress can use it too. An exposed tool keeps the tool permissions of the connected user, and every change is tracked in AI Changes.', 'ai-assistant'); ?>
             </p>
             <p class="description">
-                <?php if (File_Abilities::has_mcp_server()) : ?>
-                    <?php esc_html_e('Agents connect through the active MCP Adapter plugin.', 'ai-assistant'); ?>
-                <?php else : ?>
-                    <?php
+                <?php
+                $mcp_adapter_link = '<a href="https://wordpress.org/plugins/mcp-adapter/">MCP Adapter</a>';
+                $mcp_connect_link = '<a href="https://github.com/akirk/mcp-connect">MCP Connect</a>';
+                $has_mcp_connect = defined('MCP_OAUTH_VERSION');
+                if (File_Abilities::has_mcp_server() && $has_mcp_connect) {
+                    esc_html_e('Agents connect through the active MCP Adapter plugin; MCP Connect handles their login.', 'ai-assistant');
+                } elseif (File_Abilities::has_mcp_server()) {
                     printf(
-                        /* translators: %s: link to the MCP Adapter plugin */
-                        esc_html__('Install and activate %s to let agents connect.', 'ai-assistant'),
-                        '<a href="https://wordpress.org/plugins/mcp-adapter/">MCP Adapter</a>'
+                        /* translators: %s: link to the MCP Connect plugin */
+                        esc_html__('Agents connect through the active MCP Adapter plugin. Add %s to let claude.ai, Claude Code and similar clients log in with OAuth instead of an application password.', 'ai-assistant'),
+                        $mcp_connect_link
                     );
-                    ?>
-                <?php endif; ?>
+                } else {
+                    printf(
+                        /* translators: 1: link to the MCP Adapter plugin, 2: link to the MCP Connect plugin */
+                        esc_html__('Install and activate %1$s to let agents connect, plus %2$s so that claude.ai, Claude Code and similar clients can log in with OAuth.', 'ai-assistant'),
+                        $mcp_adapter_link,
+                        $mcp_connect_link
+                    );
+                }
+                ?>
             </p>
             <?php if ($group === 'File Writing') : ?>
                 <?php $this->render_health_result((new File_Access_Health())->run_test()); ?>
