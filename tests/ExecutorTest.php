@@ -587,6 +587,22 @@ class ExecutorTest extends TestCase {
         $this->assertArrayNotHasKey('result', $result);
     }
 
+    public function test_list_abilities_hides_mcp_file_abilities(): void {
+        $GLOBALS['wp_test_abilities']['demo/read'] = $this->createAbility(true);
+        $GLOBALS['wp_test_abilities']['ai/write-file'] = [
+            'label' => 'Write File',
+            'description' => 'MCP only',
+            'category' => \AI_Assistant\File_Abilities::CATEGORY,
+        ];
+
+        $result = $this->executor->execute_tool('ability', ['action' => 'list']);
+
+        $ids = array_column($result['abilities'], 'id');
+        $this->assertContains('demo/read', $ids);
+        $this->assertNotContains('ai/write-file', $ids);
+        $this->assertSame(1, $result['count']);
+    }
+
     public function test_read_only_permission_blocks_write_ability_execution(): void {
         $GLOBALS['wp_test_abilities']['demo/write'] = $this->createAbility(false);
 

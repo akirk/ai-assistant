@@ -363,6 +363,8 @@ if (!function_exists('esc_html_e'))          { function esc_html_e($text, $domai
 if (!function_exists('esc_attr'))            { function esc_attr($text) { return htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); } }
 if (!function_exists('esc_attr_e'))          { function esc_attr_e($text, $domain = '') { echo esc_attr($text); } }
 if (!function_exists('esc_url'))             { function esc_url($url) { return (string) $url; } }
+if (!function_exists('disabled'))            { function disabled($disabled, $current = true, $display = true) { $result = ((string) $disabled === (string) $current) ? ' disabled="disabled"' : ''; if ($display) { echo $result; } return $result; } }
+if (!function_exists('wp_kses_post'))        { function wp_kses_post($content) { return (string) $content; } }
 if (!function_exists('checked'))             { function checked($checked, $current = true, $display = true) { $result = ((string) $checked === (string) $current) ? ' checked="checked"' : ''; if ($display) { echo $result; } return $result; } }
 if (!function_exists('selected'))            { function selected($selected, $current = true, $display = true) { $result = ((string) $selected === (string) $current) ? ' selected="selected"' : ''; if ($display) { echo $result; } return $result; } }
 if (!function_exists('admin_url'))           { function admin_url($path = '') { return 'http://example.test/wp-admin/' . ltrim($path, '/'); } }
@@ -433,3 +435,5 @@ require_once $plugin_dir . '/includes/class-conversations.php';
 require_once $plugin_dir . '/includes/class-conversations-app.php';
 require_once $plugin_dir . '/includes/class-settings.php';
 require_once $plugin_dir . '/includes/class-wp-app-abilities.php';
+require_once $plugin_dir . '/includes/class-file-abilities.php';
+require_once $plugin_dir . '/includes/class-file-access-health.php';

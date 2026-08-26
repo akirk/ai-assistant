@@ -84,6 +84,8 @@ final class AI_Assistant {
     private $connectors_bridge;
     private $llm_proxy;
     private $wp_app_abilities;
+    private $file_abilities;
+    private $file_access_health;
     private $conversations_app;
     private $assistant_themes;
 
@@ -127,6 +129,9 @@ final class AI_Assistant {
         $this->plugin_checkout_badge = new AI_Assistant\Plugin_Checkout_Badge($this->git_tracker_manager);
         $this->conversations_app = new AI_Assistant\Conversations_App();
         $this->wp_app_abilities = new AI_Assistant\Wp_App_Abilities($this->git_tracker_manager);
+        $this->file_abilities = new AI_Assistant\File_Abilities($this->git_tracker_manager);
+        $this->file_access_health = new AI_Assistant\File_Access_Health();
+        $this->file_access_health->register();
     }
 
     /**

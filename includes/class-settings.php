@@ -528,6 +528,22 @@ class Settings {
             'default' => '1',
         ]);
 
+        register_setting('ai_assistant_settings', File_Abilities::OPTION, [
+            'type' => 'array',
+            'sanitize_callback' => function($value) {
+                // Ability exposure never exceeds the local tool permissions saved in the same request.
+                $enabled = isset($_POST['ai_assistant_enabled_tools'])
+                    ? array_map('sanitize_key', (array) wp_unslash($_POST['ai_assistant_enabled_tools']))
+                    : $this->get_effective_enabled_tools(get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools()));
+                $tools = [];
+                foreach ((array) $value as $name) {
+                    $tools = array_merge($tools, File_Abilities::ABILITY_TOOLS[$name] ?? [$name]);
+                }
+                return array_values(array_intersect(File_Abilities::all_tools(), $tools, $enabled));
+            },
+            'default' => [],
+        ]);
+
         register_setting('ai_assistant_settings', Assistant_Themes::OPTION, [
             'type' => 'string',
             'sanitize_callback' => function($value) {
@@ -539,22 +555,6 @@ class Settings {
             'default' => Assistant_Themes::DEFAULT_THEME,
         ]);
 
-        // Provider section (localStorage-based, rendered via callback)
-        add_settings_section(
-            'ai_assistant_provider_section',
-            __('LLM Provider Settings', 'ai-assistant'),
-            [$this, 'provider_section_callback'],
-            'ai-assistant-settings'
-        );
-
-        // Capabilities section (read-only display)
-        add_settings_section(
-            'ai_assistant_permissions_section',
-            __('Role Capabilities', 'ai-assistant'),
-            [$this, 'permissions_section_callback'],
-            'ai-assistant-settings'
-        );
-
         register_setting('ai_assistant_settings', 'ai_assistant_enabled_tools', [
             'type' => 'array',
             'sanitize_callback' => function($value) {
@@ -563,13 +563,6 @@ class Settings {
             },
             'default' => $this->get_default_enabled_tools(),
         ]);
-
-        add_settings_section(
-            'ai_assistant_tools_section',
-            __('Tool Permissions', 'ai-assistant'),
-            [$this, 'tools_section_callback'],
-            'ai-assistant-settings'
-        );
 
         register_setting('ai_assistant_settings', 'ai_assistant_auto_approved_abilities', [
             'type' => 'array',
@@ -1689,12 +1682,18 @@ class Settings {
             $group_tabs[$group] = 'ai-tool-tab-' . ($slug ?: 'group');
         }
         $first_group = key($by_group);
+        $abilities_available = function_exists('wp_register_ability');
+        $ability_tools = File_Abilities::get_exposed_tools();
+        $ability_groups = ['File Reading', 'File Writing'];
         ?>
-        <div class="ai-collapsible-content" data-section="tools">
+        <div class="ai-settings-tools">
             <?php if ($is_playground) : ?>
             <p><?php esc_html_e('All tools are automatically enabled in Playground. The controls below are read-only so you can inspect registered tools, abilities, and schemas.', 'ai-assistant'); ?></p>
             <?php foreach ($stored_enabled as $tool_name) : ?>
             <input type="hidden" name="ai_assistant_enabled_tools[]" value="<?php echo esc_attr($tool_name); ?>">
+            <?php endforeach; ?>
+            <?php foreach ($ability_tools as $tool_name) : ?>
+            <input type="hidden" name="<?php echo esc_attr(File_Abilities::OPTION); ?>[]" value="<?php echo esc_attr($tool_name); ?>">
             <?php endforeach; ?>
             <?php else : ?>
             <p><?php esc_html_e('Choose which tools the AI can use. ⚠ tools can modify files, run code, or install plugins.', 'ai-assistant'); ?></p>
@@ -1730,7 +1729,8 @@ class Settings {
 	                     role="tabpanel"
 	                     aria-labelledby="<?php echo esc_attr($tab_id . '-button'); ?>"
 	                     <?php if (!$is_active) echo 'hidden'; ?>>
-                <?php if ($group === 'Abilities') : ?>
+                <?php $has_side_panel = $group === 'Abilities' || in_array($group, $ability_groups, true); ?>
+                <?php if ($has_side_panel) : ?>
                 <div class="ai-abilities-tab-layout">
                     <div class="ai-abilities-main">
                 <?php endif; ?>
@@ -1750,6 +1750,50 @@ class Settings {
                         <?php if ($is_always_enabled && !$is_playground) : ?>
                             <input type="hidden" name="ai_assistant_enabled_tools[]" value="<?php echo esc_attr($name); ?>">
                         <?php endif; ?>
+                        <?php
+                        $ability_name = in_array($group, $ability_groups, true) ? File_Abilities::get_ability_for_tool($name) : null;
+                        $ability_tool_names = $ability_name !== null ? File_Abilities::ABILITY_TOOLS[$ability_name] : [];
+                        $shared_ability = count($ability_tool_names) > 1;
+                        $own_switch = $ability_name !== null && !$shared_ability;
+                        // Tools sharing one ability are bracketed together with a single switch.
+                        $shared_first = $shared_ability && $name === reset($ability_tool_names);
+                        $shared_last = $shared_ability && $name === end($ability_tool_names);
+                        ?>
+                        <?php if ($own_switch) : ?>
+                        <div class="ai-tool-row">
+                        <?php elseif ($shared_first) :
+                            $shared_on = array_values(array_intersect($ability_tool_names, $enabled));
+                            $shared_all = count($shared_on) === count($ability_tool_names);
+                            ?>
+                        <div class="ai-tool-row">
+                            <label class="ai-tool-item" title="<?php esc_attr_e('The assistant offers these tools to the model as one consolidated tool', 'ai-assistant'); ?>">
+                                <input type="checkbox"
+                                       class="ai-tool-parent-toggle"
+                                       data-tools="<?php echo esc_attr(implode(' ', $ability_tool_names)); ?>"
+                                       <?php checked($shared_all); ?>
+                                       <?php disabled($is_playground); ?>
+                                       <?php if ($shared_on !== [] && !$shared_all) echo 'data-indeterminate="1"'; ?>>
+                                <code><?php echo esc_html(substr($ability_name, strlen('ai/'))); ?></code>
+                            </label>
+                            <label class="ai-tool-ability" title="<?php esc_attr_e('Also offer these tools to agents outside WordPress as one WordPress ability', 'ai-assistant'); ?>">
+                                <input type="checkbox"
+                                       name="<?php echo esc_attr(File_Abilities::OPTION); ?>[]"
+                                       value="<?php echo esc_attr($ability_name); ?>"
+                                       data-tools="<?php echo esc_attr(implode(' ', $ability_tool_names)); ?>"
+                                       <?php checked(array_intersect($ability_tool_names, $ability_tools) !== []); ?>
+                                       <?php disabled($is_playground || !$abilities_available || $shared_on === []); ?>
+                                       <?php if ($is_playground || !$abilities_available) echo 'data-ability-unavailable="1"'; ?>>
+                                <?php
+                                printf(
+                                    /* translators: %s: ability name */
+                                    esc_html__('Expose as %s ability', 'ai-assistant'),
+                                    '<code>' . esc_html($ability_name) . '</code>'
+                                );
+                                ?>
+                            </label>
+                        </div>
+                        <div class="ai-tool-sub-items ai-tool-sub-tools">
+                        <?php endif; ?>
                         <label class="ai-tool-item">
                             <input type="checkbox"
                                    name="ai_assistant_enabled_tools[]"
@@ -1765,6 +1809,27 @@ class Settings {
                                 <span title="<?php esc_attr_e('Dangerous: can modify data or execute code', 'ai-assistant'); ?>">⚠</span>
                             <?php endif; ?>
                         </label>
+                        <?php if ($own_switch) : ?>
+                            <label class="ai-tool-ability" title="<?php esc_attr_e('Also offer this tool to agents outside WordPress as a WordPress ability', 'ai-assistant'); ?>">
+                                <input type="checkbox"
+                                       name="<?php echo esc_attr(File_Abilities::OPTION); ?>[]"
+                                       value="<?php echo esc_attr($name); ?>"
+                                       data-tools="<?php echo esc_attr($name); ?>"
+                                       <?php checked(in_array($name, $ability_tools, true)); ?>
+                                       <?php disabled($is_playground || !$abilities_available || !in_array($name, $enabled, true)); ?>
+                                       <?php if ($is_playground || !$abilities_available) echo 'data-ability-unavailable="1"'; ?>>
+                                <?php
+                                printf(
+                                    /* translators: %s: ability name */
+                                    esc_html__('Expose as %s ability', 'ai-assistant'),
+                                    '<code>' . esc_html($ability_name) . '</code>'
+                                );
+                                ?>
+                            </label>
+                        </div>
+                        <?php elseif ($shared_last) : ?>
+                        </div>
+                        <?php endif; ?>
                         <?php if ($name === 'rest_api') :
                             $auto_approved_rest = $this->get_auto_approved_rest_apis();
                             $hidden = !in_array('rest_api', $enabled, true) ? ' style="display:none"' : '';
@@ -1883,6 +1948,10 @@ class Settings {
                         </div>
                     </aside>
                 </div>
+                <?php elseif ($has_side_panel) : ?>
+                    </div>
+                    <?php $this->render_ability_group_footer($group, $abilities_available); ?>
+                </div>
                 <?php endif; ?>
 	                </div>
 	                <?php endforeach; ?>
@@ -1909,8 +1978,30 @@ class Settings {
                 });
             }
 
+            function toolCheckboxes($group) {
+                return $group.find('.ai-tool-group-items input[type=checkbox][name="ai_assistant_enabled_tools[]"]');
+            }
+
+            // "Expose as ability" can only be on while the tool itself is on.
+            function syncAbilitySwitches($group) {
+                $group.find('.ai-tool-ability input[type=checkbox]').each(function() {
+                    var $ability = $(this);
+                    if ($ability.attr('data-ability-unavailable')) {
+                        return;
+                    }
+                    var tools = String($ability.data('tools') || '').split(' ');
+                    var toolOn = tools.some(function(tool) {
+                        return $group.find('input[name="ai_assistant_enabled_tools[]"][value="' + tool + '"]').is(':checked');
+                    });
+                    $ability.prop('disabled', !toolOn);
+                    if (!toolOn) {
+                        $ability.prop('checked', false);
+                    }
+                });
+            }
+
             function updateGroupToggle($group) {
-                var $children = $group.find('.ai-tool-group-items > label > input[type=checkbox]');
+                var $children = toolCheckboxes($group);
                 var checkedCount = $children.filter(':checked').length;
                 var $toggle = $group.find('.ai-group-toggle')[0];
 
@@ -1926,18 +2017,51 @@ class Settings {
                 updateGroupToggle($group);
             }
 
+            function parentTools($parent, $group) {
+                var tools = String($parent.data('tools') || '').split(' ');
+                return $group.find('input[name="ai_assistant_enabled_tools[]"]').filter(function() {
+                    return tools.indexOf(this.value) !== -1;
+                });
+            }
+
+            function syncParentToggles($group) {
+                $group.find('.ai-tool-parent-toggle').each(function() {
+                    var $children = parentTools($(this), $group);
+                    var checkedCount = $children.filter(':checked').length;
+                    this.checked = checkedCount === $children.length;
+                    this.indeterminate = checkedCount > 0 && checkedCount < $children.length;
+                });
+            }
+
+            $('.ai-tool-parent-toggle').each(function() {
+                if ($(this).data('indeterminate')) this.indeterminate = true;
+            });
+
+            $(document).on('change', '.ai-tool-parent-toggle', function() {
+                var $group = $(this).closest('.ai-tool-group');
+                parentTools($(this), $group).not('[data-always-enabled="1"]').prop('checked', this.checked);
+                this.indeterminate = false;
+                updateGroupControls($group);
+                syncAbilitySwitches($group);
+            });
+
             $('.ai-group-toggle').on('change', function() {
                 var checked = this.checked;
                 var $group = $(this).closest('.ai-tool-group');
-                $group.find('.ai-tool-group-items > label > input[type=checkbox]')
+                toolCheckboxes($group)
                     .not('[data-always-enabled="1"]')
                     .prop('checked', checked);
                 syncToolSubItems($group);
+                syncParentToggles($group);
+                syncAbilitySwitches($group);
                 this.indeterminate = false;
             });
             // Update group toggle when child changes
-            $(document).on('change', '.ai-tool-group-items input[type=checkbox]', function() {
-                updateGroupControls($(this).closest('.ai-tool-group'));
+            $(document).on('change', '.ai-tool-group-items input[type=checkbox][name="ai_assistant_enabled_tools[]"]', function() {
+                var $group = $(this).closest('.ai-tool-group');
+                updateGroupControls($group);
+                syncParentToggles($group);
+                syncAbilitySwitches($group);
             });
             // Toggle sub-items visibility
             $(document).on('change', 'input[name="ai_assistant_enabled_tools[]"][value="execute_ability"]', function() {
@@ -2450,7 +2574,7 @@ class Settings {
             'ai_assistant_chat_only' => __('Chat Only', 'ai-assistant'),
         ];
         ?>
-        <div class="ai-collapsible-content" data-section="permissions">
+        <div class="ai-settings-roles">
             <p><?php esc_html_e('AI Assistant access is controlled via WordPress capabilities. The following shows the current capability assigned to each role.', 'ai-assistant'); ?></p>
             <table class="wp-list-table widefat fixed striped" style="max-width: 500px;">
                 <thead>
@@ -2494,6 +2618,22 @@ class Settings {
      */
     public function display_section_callback() {
         echo '<p>' . esc_html__('Configure where the AI Assistant appears.', 'ai-assistant') . '</p>';
+        ?>
+        <table class="form-table">
+            <tr>
+                <th scope="row"><?php esc_html_e('Frontend Access', 'ai-assistant'); ?></th>
+                <td><?php $this->frontend_field_callback(); ?></td>
+            </tr>
+            <tr>
+                <th scope="row"><label for="ai_assistant_theme"><?php esc_html_e('Assistant Theme', 'ai-assistant'); ?></label></th>
+                <td><?php $this->theme_field_callback(); ?></td>
+            </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e('In-page AI Changes', 'ai-assistant'); ?></th>
+                <td><?php $this->in_page_ai_changes_field_callback(); ?></td>
+            </tr>
+        </table>
+        <?php
     }
 
     /**
@@ -2531,6 +2671,99 @@ class Settings {
         <p class="description">
             <?php esc_html_e('When enabled, pages rendered by a plugin or theme with tracked AI Changes show the compact version log even when the current version is checked out. Old checked-out versions enable this automatically.', 'ai-assistant'); ?>
         </p>
+        <?php
+    }
+
+    /**
+     * Settings page tabs: slug => label + render callback, in display order.
+     */
+    private function get_settings_tabs(): array {
+        return [
+            'provider' => [
+                'label'    => __('LLM Provider', 'ai-assistant'),
+                'callback' => [$this, 'provider_section_callback'],
+            ],
+            'display' => [
+                'label'    => __('Display', 'ai-assistant'),
+                'callback' => [$this, 'display_section_callback'],
+            ],
+            'tools' => [
+                'label'    => __('Tool Permissions', 'ai-assistant'),
+                'callback' => [$this, 'tools_section_callback'],
+            ],
+            'roles' => [
+                'label'    => __('Role Capabilities', 'ai-assistant'),
+                'callback' => [$this, 'permissions_section_callback'],
+            ],
+        ];
+    }
+
+    /**
+     * Note under the file tool groups explaining the "Expose as ability"
+     * switches, plus the writability check under File Writing.
+     */
+    private function render_ability_group_footer(string $group, bool $abilities_available): void {
+        ?>
+        <aside class="ai-tool-ability-footer">
+            <?php if ($abilities_available) : ?>
+            <p class="description">
+                <strong><?php esc_html_e('Why expose a file tool as an ability?', 'ai-assistant'); ?></strong>
+                <?php esc_html_e('So that agents outside WordPress can use it too. An exposed tool keeps the tool permissions of the connected user, and every change is tracked in AI Changes.', 'ai-assistant'); ?>
+            </p>
+            <p class="description">
+                <?php
+                $mcp_adapter_link = '<a href="https://github.com/wordpress/mcp-adapter">MCP Adapter</a>';
+                $mcp_connect_link = '<a href="https://github.com/akirk/mcp-connect">MCP Connect</a>';
+                $has_mcp_connect = defined('MCP_OAUTH_VERSION');
+                if (File_Abilities::has_mcp_server() && $has_mcp_connect) {
+                    esc_html_e('Agents connect through the active MCP Adapter plugin; MCP Connect handles their login.', 'ai-assistant');
+                } elseif (File_Abilities::has_mcp_server()) {
+                    printf(
+                        /* translators: %s: link to the MCP Connect plugin */
+                        esc_html__('Agents connect through the active MCP Adapter plugin. Add %s to let claude.ai, Claude Code and similar clients log in with OAuth instead of an application password.', 'ai-assistant'),
+                        $mcp_connect_link
+                    );
+                } else {
+                    printf(
+                        /* translators: 1: link to the MCP Adapter plugin, 2: link to the MCP Connect plugin */
+                        esc_html__('Install and activate %1$s to let agents connect, plus %2$s so that claude.ai, Claude Code and similar clients can log in with OAuth.', 'ai-assistant'),
+                        $mcp_adapter_link,
+                        $mcp_connect_link
+                    );
+                }
+                ?>
+            </p>
+            <?php if ($group === 'File Writing') : ?>
+                <?php $this->render_health_result((new File_Access_Health())->run_test()); ?>
+            <?php endif; ?>
+            <?php else : ?>
+            <p class="description">
+                <?php esc_html_e('Exposing tools as abilities requires WordPress 6.9 or newer with the Abilities API.', 'ai-assistant'); ?>
+            </p>
+            <?php endif; ?>
+        </aside>
+        <?php
+    }
+
+    /**
+     * Render a Site Health test result inline.
+     */
+    private function render_health_result(array $result): void {
+        $status = in_array($result['status'] ?? '', ['good', 'recommended', 'critical'], true) ? $result['status'] : 'recommended';
+        ?>
+        <div class="ai-health-result ai-health-<?php echo esc_attr($status); ?>">
+            <p class="ai-health-label"><strong><?php echo esc_html($result['label'] ?? ''); ?></strong></p>
+            <?php echo wp_kses_post($result['description'] ?? ''); ?>
+            <p class="description">
+                <?php
+                printf(
+                    /* translators: %s: link to Site Health */
+                    esc_html__('While a file writing tool is exposed as an ability, this check also runs in %s.', 'ai-assistant'),
+                    '<a href="' . esc_url(admin_url('site-health.php')) . '">' . esc_html__('Site Health', 'ai-assistant') . '</a>'
+                );
+                ?>
+            </p>
+        </div>
         <?php
     }
 
@@ -2663,6 +2896,21 @@ class Settings {
             .ai-tool-item .description {
                 color: #787c82;
                 font-size: 12px;
+            }
+            .ai-tool-row {
+                display: flex;
+                align-items: baseline;
+                gap: 18px;
+                flex-wrap: wrap;
+            }
+            .ai-tool-row .ai-tool-item {
+                min-width: 220px;
+            }
+            .ai-tool-sub-tools {
+                display: flex;
+                flex-direction: column;
+                gap: 3px;
+                margin-bottom: 2px;
             }
             .ai-tool-sub-items {
                 margin-left: 20px;
@@ -2978,30 +3226,39 @@ class Settings {
             .ai-ability-category:first-child {
                 margin-top: 2px;
             }
-            .ai-collapsible-section h2 {
+            .ai-settings-tabs {
+                margin-top: 12px;
+            }
+            .ai-settings-tab-panel[hidden] {
+                display: none;
+            }
+            .ai-settings-tab-panel {
+                padding-top: 8px;
+            }
+            .ai-health-result {
+                border-left: 4px solid #00a32a;
+                background: #fff;
+                padding: 8px 12px;
+                max-width: 700px;
+            }
+            .ai-health-result.ai-health-recommended {
+                border-left-color: #dba617;
+            }
+            .ai-health-result.ai-health-critical {
+                border-left-color: #d63638;
+            }
+            .ai-health-result .ai-health-label {
+                margin: 0 0 6px;
+            }
+            .ai-health-result ul {
+                list-style: disc;
+                margin: 0 0 8px 20px;
+            }
+            .ai-health-result details {
+                margin: 0 0 8px;
+            }
+            .ai-health-result summary {
                 cursor: pointer;
-                user-select: none;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-            .ai-collapsible-section h2::before {
-                content: '\f345';
-                font-family: dashicons;
-                font-size: 20px;
-                transition: transform 0.2s;
-            }
-            .ai-collapsible-section.expanded h2::before {
-                transform: rotate(90deg);
-            }
-            .ai-collapsible-section .ai-collapsible-content {
-                overflow: hidden;
-                max-height: 0;
-                opacity: 0;
-                transition: max-height 0.3s ease-out, opacity 0.2s ease-out;
-            }
-            .ai-collapsible-section.expanded .ai-collapsible-content {
-                opacity: 1;
             }
             @media screen and (max-width: 960px) {
                 .ai-abilities-tab-layout {
@@ -3016,6 +3273,13 @@ class Settings {
                     overflow: visible;
                     position: static;
                 }
+                .ai-tool-ability-footer {
+                    margin-top: 12px;
+                    padding-left: 0;
+                    border-left: 0;
+                    border-top: 1px solid #dcdcde;
+                    padding-top: 10px;
+                }
             }
         </style>
 
@@ -3025,29 +3289,30 @@ class Settings {
             <form action="options.php" method="post" id="ai-assistant-settings-form" autocomplete="off">
                 <?php
                 settings_fields('ai_assistant_settings');
-                do_settings_sections('ai-assistant-settings');
+                $tabs = $this->get_settings_tabs();
                 ?>
 
-                <div class="ai-collapsible-section" data-section="display">
-                    <h2><?php esc_html_e('Display Settings', 'ai-assistant'); ?></h2>
-                    <div class="ai-collapsible-content">
-                        <?php $this->display_section_callback(); ?>
-                        <table class="form-table">
-                            <tr>
-                                <th scope="row"><?php esc_html_e('Frontend Access', 'ai-assistant'); ?></th>
-                                <td><?php $this->frontend_field_callback(); ?></td>
-                            </tr>
-                            <tr>
-                                <th scope="row"><label for="ai_assistant_theme"><?php esc_html_e('Assistant Theme', 'ai-assistant'); ?></label></th>
-                                <td><?php $this->theme_field_callback(); ?></td>
-                            </tr>
-                            <tr>
-                                <th scope="row"><?php esc_html_e('In-page AI Changes', 'ai-assistant'); ?></th>
-                                <td><?php $this->in_page_ai_changes_field_callback(); ?></td>
-                            </tr>
-                        </table>
-                    </div>
+                <nav class="nav-tab-wrapper ai-settings-tabs" role="tablist" aria-label="<?php esc_attr_e('Settings sections', 'ai-assistant'); ?>">
+                    <?php foreach ($tabs as $slug => $tab) : ?>
+                    <a href="#<?php echo esc_attr($slug); ?>"
+                       id="ai-settings-tab-<?php echo esc_attr($slug); ?>"
+                       class="nav-tab"
+                       role="tab"
+                       data-settings-tab="<?php echo esc_attr($slug); ?>"
+                       aria-controls="ai-settings-panel-<?php echo esc_attr($slug); ?>"><?php echo esc_html($tab['label']); ?></a>
+                    <?php endforeach; ?>
+                </nav>
+
+                <?php foreach ($tabs as $slug => $tab) : ?>
+                <div id="ai-settings-panel-<?php echo esc_attr($slug); ?>"
+                     class="ai-settings-tab-panel"
+                     role="tabpanel"
+                     aria-labelledby="ai-settings-tab-<?php echo esc_attr($slug); ?>"
+                     data-settings-tab="<?php echo esc_attr($slug); ?>"
+                     hidden>
+                    <?php call_user_func($tab['callback']); ?>
                 </div>
+                <?php endforeach; ?>
 
                 <?php submit_button(); ?>
             </form>
@@ -3096,86 +3361,39 @@ class Settings {
                 });
             });
 
-            // Wrap settings sections in collapsible containers
-            ['permissions', 'tools'].forEach(function(section) {
-                var $content = $('.ai-collapsible-content[data-section="' + section + '"]');
-                if ($content.length) {
-                    var $h2 = $content.prev('h2');
-                    if ($h2.length) {
-                        var $wrapper = $('<div class="ai-collapsible-section" data-section="' + section + '"></div>');
-                        $h2.before($wrapper);
-                        $wrapper.append($h2).append($content);
+            // Settings tabs
+            var tabKey = 'aiAssistant_settings_tab';
+            var $tabs = $('.ai-settings-tabs [data-settings-tab]');
+            var $panels = $('.ai-settings-tab-panel');
+
+            function activateTab(slug, remember) {
+                var $tab = $tabs.filter('[data-settings-tab="' + slug + '"]');
+                if (!$tab.length) {
+                    return false;
+                }
+                $tabs.removeClass('nav-tab-active').attr('aria-selected', 'false');
+                $tab.addClass('nav-tab-active').attr('aria-selected', 'true');
+                $panels.attr('hidden', true).filter('[data-settings-tab="' + slug + '"]').removeAttr('hidden');
+                if (remember) {
+                    localStorage.setItem(tabKey, slug);
+                    if (window.history && window.history.replaceState) {
+                        window.history.replaceState(null, '', '#' + slug);
                     }
                 }
-            });
-
-            function getSectionContent($section) {
-                return $section.children('.ai-collapsible-content');
+                return true;
             }
 
-            function expandSection($section, remember, animate) {
-                var $content = getSectionContent($section);
-                $section.addClass('expanded');
-
-                if (animate === false) {
-                    $content.css({
-                        'max-height': 'none',
-                        'overflow': 'visible'
-                    });
-                } else {
-                    $content.css({
-                        'max-height': $content[0].scrollHeight + 'px',
-                        'overflow': 'hidden'
-                    });
-                    window.setTimeout(function() {
-                        if ($section.hasClass('expanded')) {
-                            $content.css({
-                                'max-height': 'none',
-                                'overflow': 'visible'
-                            });
-                        }
-                    }, 320);
-                }
-
-                if (remember) {
-                    localStorage.setItem('aiAssistant_settings_' + $section.data('section') + '_expanded', '1');
-                }
-            }
-
-            function collapseSection($section) {
-                var $content = getSectionContent($section);
-                var sectionKey = 'aiAssistant_settings_' + $section.data('section') + '_expanded';
-
-                $content.css({
-                    'max-height': $content[0].scrollHeight + 'px',
-                    'overflow': 'hidden'
-                });
-                $content[0].offsetHeight;
-                $section.removeClass('expanded');
-                $content.css('max-height', '');
-                localStorage.removeItem(sectionKey);
-            }
-
-            // Collapsible toggle behavior
-            $(document).on('click', '.ai-collapsible-section h2', function() {
-                var $section = $(this).closest('.ai-collapsible-section');
-
-                if ($section.hasClass('expanded')) {
-                    collapseSection($section);
-                } else {
-                    expandSection($section, true, true);
-                }
+            $tabs.on('click', function(e) {
+                e.preventDefault();
+                activateTab($(this).data('settings-tab'), true);
             });
 
-            // Restore expanded state from localStorage
-            $('.ai-collapsible-section').each(function() {
-                var $section = $(this);
-                var sectionKey = 'aiAssistant_settings_' + $section.data('section') + '_expanded';
-
-                if (localStorage.getItem(sectionKey) === '1') {
-                    expandSection($section, false, false);
+            var initial = (window.location.hash || '').replace(/^#/, '');
+            if (!activateTab(initial, true)) {
+                if (!activateTab(localStorage.getItem(tabKey), true)) {
+                    activateTab($tabs.first().data('settings-tab'), false);
                 }
-            });
+            }
         });
         </script>
         <?php
