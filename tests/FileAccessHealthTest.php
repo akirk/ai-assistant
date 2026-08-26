@@ -60,7 +60,8 @@ class FileAccessHealthTest extends TestCase {
         $result = $this->health()->run_test();
         $this->assertSame('recommended', $result['status']);
         $this->assertStringContainsString('plugins/locked-plugin', $result['description']);
-        $this->assertStringContainsString('file-access', $result['actions']);
+        $this->assertStringContainsString('<details><summary>1 plugin or theme is not writable</summary>', $result['description']);
+        $this->assertStringContainsString('ai-assistant-settings', $result['actions']);
     }
 
     public function test_git_objects_are_ignored(): void {

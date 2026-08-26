@@ -27,21 +27,37 @@ class FileAbilitiesTest extends TestCase {
 
     public function test_disabled_by_default(): void {
         $this->assertFalse(File_Abilities::is_enabled());
+        $this->assertSame([], File_Abilities::get_exposed_tools());
     }
 
-    public function test_enabled_requires_option_and_mcp_server(): void {
-        $GLOBALS['wp_test_options'][File_Abilities::OPTION] = '1';
+    public function test_enabled_requires_an_exposed_tool(): void {
+        $GLOBALS['wp_test_options'][File_Abilities::OPTION] = ['edit_file', 'bogus'];
 
-        if (!File_Abilities::has_mcp_server()) {
-            $this->assertFalse(File_Abilities::is_enabled(), 'Option alone must not enable the abilities');
-            eval('namespace WP\\MCP\\Core; class McpAdapter {}');
-        }
-
-        $this->assertTrue(File_Abilities::has_mcp_server());
         $this->assertTrue(File_Abilities::is_enabled());
+        $this->assertSame(['edit_file'], File_Abilities::get_exposed_tools());
+        $this->assertTrue(File_Abilities::is_tool_exposed('edit_file'));
+        $this->assertFalse(File_Abilities::is_tool_exposed('write_file'));
+        $this->assertTrue(File_Abilities::exposes_write_tools());
 
-        $GLOBALS['wp_test_options'][File_Abilities::OPTION] = '';
+        $GLOBALS['wp_test_options'][File_Abilities::OPTION] = ['read_file'];
+        $this->assertFalse(File_Abilities::exposes_write_tools());
+
+        $GLOBALS['wp_test_options'][File_Abilities::OPTION] = [];
         $this->assertFalse(File_Abilities::is_enabled());
+    }
+
+    public function test_ability_for_tool(): void {
+        $this->assertSame('ai/read-file', File_Abilities::get_ability_for_tool('read_file'));
+        $this->assertSame('ai/find', File_Abilities::get_ability_for_tool('search_files'));
+        $this->assertSame('ai/delete-file', File_Abilities::get_ability_for_tool('delete_file'));
+        $this->assertNull(File_Abilities::get_ability_for_tool('run_php'));
+    }
+
+    public function test_only_abilities_with_exposed_tools_are_registered(): void {
+        $GLOBALS['wp_test_options'][File_Abilities::OPTION] = ['search_files', 'edit_file'];
+
+        $exposed = array_keys((new File_Abilities())->get_exposed_definitions());
+        $this->assertSame(['ai/find', 'ai/edit-file'], $exposed);
     }
 
     public function test_definitions_cover_file_tools_with_annotations(): void {
@@ -68,6 +84,7 @@ class FileAbilitiesTest extends TestCase {
     }
 
     public function test_permission_maps_to_tool_capabilities(): void {
+        $GLOBALS['wp_test_options'][File_Abilities::OPTION] = File_Abilities::all_tools();
         $abilities = new File_Abilities();
 
         $GLOBALS['wp_test_capabilities'] = ['ai_assistant_tool_read_file' => false];
@@ -85,6 +102,13 @@ class FileAbilitiesTest extends TestCase {
         $this->assertTrue($abilities->can_execute('find', ['text' => 'foo']));
         $this->assertFalse($abilities->can_execute('find', ['glob' => '*.php']));
         $this->assertFalse($abilities->can_execute('find', ['path' => 'plugins']));
+
+        // Capability alone is not enough: the sub-tool must be switched on for MCP.
+        $GLOBALS['wp_test_options'][File_Abilities::OPTION] = ['search_files'];
+        $GLOBALS['wp_test_capabilities'] = [];
+        $this->assertFalse($abilities->can_execute('find', ['text' => 'foo']));
+        $this->assertTrue($abilities->can_execute('find', ['glob' => '*.php']));
+        $this->assertFalse($abilities->can_execute('read_file', []));
     }
 
     public function test_write_edit_read_delete_round_trip(): void {

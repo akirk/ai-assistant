@@ -9,10 +9,10 @@ if (!defined('ABSPATH')) {
  * Site Health test for the file tools: which plugins and themes the PHP
  * process can actually write to.
  *
- * Outside agents connected through MCP have no way to notice that a plugin is
+ * Outside agents calling the abilities have no way to notice that a plugin is
  * owned by a different user until a write fails, so this surfaces it up front.
- * The test is registered with Site Health only while File Access is enabled;
- * the same result is rendered on the File Access settings tab.
+ * The test is registered with Site Health only while a file writing tool is
+ * exposed as an ability; the same result is rendered under Tool Permissions.
  */
 class File_Access_Health {
 
@@ -35,7 +35,7 @@ class File_Access_Health {
     }
 
     public function register(): void {
-        if (!File_Abilities::is_enabled()) {
+        if (!File_Abilities::exposes_write_tools()) {
             return;
         }
 
@@ -108,7 +108,7 @@ class File_Access_Health {
      */
     public function run_test(): array {
         $data = $this->check();
-        $settings_url = admin_url('options-general.php?page=ai-assistant-settings#file-access');
+        $settings_url = admin_url('options-general.php?page=ai-assistant-settings#tools');
 
         $result = [
             'label'       => __('AI Assistant can write to all plugins and themes', 'ai-assistant'),
@@ -119,7 +119,7 @@ class File_Access_Health {
             ],
             'description' => '<p>' . esc_html(sprintf(
                 /* translators: %d: number of plugins and themes */
-                _n('All %d plugin and theme directory is writable by the web server, so file tools and MCP clients can edit them.', 'All %d plugin and theme directories are writable by the web server, so file tools and MCP clients can edit them.', $data['checked'], 'ai-assistant'),
+                _n('All %d plugin and theme directory is writable by the web server, so the file tools and abilities can edit them.', 'All %d plugin and theme directories are writable by the web server, so the file tools and abilities can edit them.', $data['checked'], 'ai-assistant'),
                 $data['checked']
             )) . '</p>',
             'actions'     => '',
@@ -137,19 +137,20 @@ class File_Access_Health {
         $intro = $process_user !== ''
             ? sprintf(
                 /* translators: %s: system user name */
-                __('PHP runs as %s. File tools and MCP clients can only change files that user may write to.', 'ai-assistant'),
+                __('PHP runs as %s. The file tools and abilities can only change files that user may write to.', 'ai-assistant'),
                 '<code>' . esc_html($process_user) . '</code>'
             )
-            : esc_html__('File tools and MCP clients can only change files the web server user may write to.', 'ai-assistant');
+            : esc_html__('The file tools and abilities can only change files the web server user may write to.', 'ai-assistant');
 
-        $items = [];
+        $roots = [];
         foreach ($data['roots'] as $root) {
-            $items[] = '<li>' . sprintf(
+            $roots[] = '<li>' . sprintf(
                 /* translators: %s: directory path */
                 esc_html__('%s is not writable, so new plugins or themes cannot be created there.', 'ai-assistant'),
                 '<code>' . esc_html($root) . '</code>'
             ) . '</li>';
         }
+        $items = [];
         foreach ($data['unwritable'] as $entry) {
             if ($entry['owner'] !== '' && $entry['owner'] !== $process_user) {
                 $detail = sprintf(
@@ -167,7 +168,19 @@ class File_Access_Health {
             $items[] = '<li><code>' . esc_html($entry['path']) . '</code> &mdash; ' . $detail . '</li>';
         }
 
-        $result['description'] = '<p>' . $intro . '</p><ul>' . implode('', $items) . '</ul><p>'
+        $list = '';
+        if ($roots !== []) {
+            $list .= '<ul>' . implode('', $roots) . '</ul>';
+        }
+        if ($items !== []) {
+            $list .= '<details><summary>' . esc_html(sprintf(
+                /* translators: %d: number of plugins and themes */
+                _n('%d plugin or theme is not writable', '%d plugins or themes are not writable', count($items), 'ai-assistant'),
+                count($items)
+            )) . '</summary><ul>' . implode('', $items) . '</ul></details>';
+        }
+
+        $result['description'] = '<p>' . $intro . '</p>' . $list . '<p>'
             . esc_html__('Change the owner or permissions of these directories so the web server user can write to them, or leave them read-only if they should not be edited.', 'ai-assistant')
             . '</p>';
         $result['actions'] = sprintf(

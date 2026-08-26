@@ -529,11 +529,15 @@ class Settings {
         ]);
 
         register_setting('ai_assistant_settings', File_Abilities::OPTION, [
-            'type' => 'string',
+            'type' => 'array',
             'sanitize_callback' => function($value) {
-                return $value && File_Abilities::has_mcp_server() ? '1' : '';
+                // Ability exposure never exceeds the local tool permissions saved in the same request.
+                $enabled = isset($_POST['ai_assistant_enabled_tools'])
+                    ? array_map('sanitize_key', (array) wp_unslash($_POST['ai_assistant_enabled_tools']))
+                    : $this->get_effective_enabled_tools(get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools()));
+                return array_values(array_intersect(File_Abilities::all_tools(), (array) $value, $enabled));
             },
-            'default' => '',
+            'default' => [],
         ]);
 
         register_setting('ai_assistant_settings', Assistant_Themes::OPTION, [
@@ -1674,12 +1678,18 @@ class Settings {
             $group_tabs[$group] = 'ai-tool-tab-' . ($slug ?: 'group');
         }
         $first_group = key($by_group);
+        $abilities_available = function_exists('wp_register_ability');
+        $ability_tools = File_Abilities::get_exposed_tools();
+        $ability_groups = ['File Reading', 'File Writing'];
         ?>
         <div class="ai-settings-tools">
             <?php if ($is_playground) : ?>
             <p><?php esc_html_e('All tools are automatically enabled in Playground. The controls below are read-only so you can inspect registered tools, abilities, and schemas.', 'ai-assistant'); ?></p>
             <?php foreach ($stored_enabled as $tool_name) : ?>
             <input type="hidden" name="ai_assistant_enabled_tools[]" value="<?php echo esc_attr($tool_name); ?>">
+            <?php endforeach; ?>
+            <?php foreach ($ability_tools as $tool_name) : ?>
+            <input type="hidden" name="<?php echo esc_attr(File_Abilities::OPTION); ?>[]" value="<?php echo esc_attr($tool_name); ?>">
             <?php endforeach; ?>
             <?php else : ?>
             <p><?php esc_html_e('Choose which tools the AI can use. ⚠ tools can modify files, run code, or install plugins.', 'ai-assistant'); ?></p>
@@ -1735,6 +1745,10 @@ class Settings {
                         <?php if ($is_always_enabled && !$is_playground) : ?>
                             <input type="hidden" name="ai_assistant_enabled_tools[]" value="<?php echo esc_attr($name); ?>">
                         <?php endif; ?>
+                        <?php $ability_name = in_array($group, $ability_groups, true) ? File_Abilities::get_ability_for_tool($name) : null; ?>
+                        <?php if ($ability_name !== null) : ?>
+                        <div class="ai-tool-row">
+                        <?php endif; ?>
                         <label class="ai-tool-item">
                             <input type="checkbox"
                                    name="ai_assistant_enabled_tools[]"
@@ -1750,6 +1764,24 @@ class Settings {
                                 <span title="<?php esc_attr_e('Dangerous: can modify data or execute code', 'ai-assistant'); ?>">⚠</span>
                             <?php endif; ?>
                         </label>
+                        <?php if ($ability_name !== null) : ?>
+                            <label class="ai-tool-ability" title="<?php esc_attr_e('Also offer this tool to agents outside WordPress as a WordPress ability', 'ai-assistant'); ?>">
+                                <input type="checkbox"
+                                       name="<?php echo esc_attr(File_Abilities::OPTION); ?>[]"
+                                       value="<?php echo esc_attr($name); ?>"
+                                       <?php checked(in_array($name, $ability_tools, true)); ?>
+                                       <?php disabled($is_playground || !$abilities_available || !in_array($name, $enabled, true)); ?>
+                                       <?php if ($is_playground || !$abilities_available) echo 'data-ability-unavailable="1"'; ?>>
+                                <?php
+                                printf(
+                                    /* translators: %s: ability name */
+                                    esc_html__('Expose as %s ability', 'ai-assistant'),
+                                    '<code>' . esc_html($ability_name) . '</code>'
+                                );
+                                ?>
+                            </label>
+                        </div>
+                        <?php endif; ?>
                         <?php if ($name === 'rest_api') :
                             $auto_approved_rest = $this->get_auto_approved_rest_apis();
                             $hidden = !in_array('rest_api', $enabled, true) ? ' style="display:none"' : '';
@@ -1859,6 +1891,7 @@ class Settings {
                         <?php endif; ?>
                         <?php endforeach; ?>
 	                    </div>
+                    <?php if (in_array($group, $ability_groups, true)) $this->render_ability_group_footer($group, $abilities_available); ?>
 	                </div>
                 <?php if ($group === 'Abilities') : ?>
                     </div>
@@ -1894,8 +1927,28 @@ class Settings {
                 });
             }
 
+            function toolCheckboxes($group) {
+                return $group.find('.ai-tool-group-items input[type=checkbox][name="ai_assistant_enabled_tools[]"]');
+            }
+
+            // "Expose as ability" can only be on while the tool itself is on.
+            function syncAbilitySwitches($group) {
+                $group.find('.ai-tool-row').each(function() {
+                    var $row = $(this);
+                    var toolOn = $row.find('input[name="ai_assistant_enabled_tools[]"]').is(':checked');
+                    var $ability = $row.find('.ai-tool-ability input[type=checkbox]');
+                    if (!$ability.length || $ability.attr('data-ability-unavailable')) {
+                        return;
+                    }
+                    $ability.prop('disabled', !toolOn);
+                    if (!toolOn) {
+                        $ability.prop('checked', false);
+                    }
+                });
+            }
+
             function updateGroupToggle($group) {
-                var $children = $group.find('.ai-tool-group-items > label > input[type=checkbox]');
+                var $children = toolCheckboxes($group);
                 var checkedCount = $children.filter(':checked').length;
                 var $toggle = $group.find('.ai-group-toggle')[0];
 
@@ -1914,15 +1967,18 @@ class Settings {
             $('.ai-group-toggle').on('change', function() {
                 var checked = this.checked;
                 var $group = $(this).closest('.ai-tool-group');
-                $group.find('.ai-tool-group-items > label > input[type=checkbox]')
+                toolCheckboxes($group)
                     .not('[data-always-enabled="1"]')
                     .prop('checked', checked);
                 syncToolSubItems($group);
+                syncAbilitySwitches($group);
                 this.indeterminate = false;
             });
             // Update group toggle when child changes
-            $(document).on('change', '.ai-tool-group-items input[type=checkbox]', function() {
-                updateGroupControls($(this).closest('.ai-tool-group'));
+            $(document).on('change', '.ai-tool-group-items input[type=checkbox][name="ai_assistant_enabled_tools[]"]', function() {
+                var $group = $(this).closest('.ai-tool-group');
+                updateGroupControls($group);
+                syncAbilitySwitches($group);
             });
             // Toggle sub-items visibility
             $(document).on('change', 'input[name="ai_assistant_enabled_tools[]"][value="execute_ability"]', function() {
@@ -2556,55 +2612,53 @@ class Settings {
                 'label'    => __('Role Capabilities', 'ai-assistant'),
                 'callback' => [$this, 'permissions_section_callback'],
             ],
-            'file-access' => [
-                'label'    => __('File Access', 'ai-assistant'),
-                'callback' => [$this, 'file_access_section_callback'],
-            ],
         ];
     }
 
     /**
-     * File Access tab: how outside agents may reach the file tools.
+     * Note under the file tool groups explaining the "Expose as ability"
+     * switches, plus the writability check under File Writing.
      */
-    public function file_access_section_callback() {
-        $mcp_adapter_active = File_Abilities::has_mcp_server();
+    private function render_ability_group_footer(string $group, bool $abilities_available): void {
         ?>
-        <p><?php esc_html_e('The in-browser assistant always uses its own file tools, controlled under Tool Permissions. This section controls whether agents running outside WordPress can use them as well.', 'ai-assistant'); ?></p>
-        <table class="form-table">
-            <tr>
-                <th scope="row"><?php esc_html_e('MCP Clients', 'ai-assistant'); ?></th>
-                <td>
-                    <?php $this->mcp_file_abilities_field_callback(); ?>
-                    <?php if ($mcp_adapter_active) : ?>
-                    <p class="description">
-                        <?php
-                        printf(
-                            /* translators: %s: MCP server URL */
-                            esc_html__('MCP Adapter is active. Connect an MCP client to %s to use the abilities.', 'ai-assistant'),
-                            '<code>' . esc_html(rest_url('mcp/mcp-adapter-default-server')) . '</code>'
-                        );
-                        ?>
-                    </p>
-                    <?php else : ?>
-                    <p class="description">
-                        <?php
-                        printf(
-                            /* translators: %s: link to the MCP Adapter plugin */
-                            esc_html__('Requires an active MCP server plugin such as %s, which outside agents connect to.', 'ai-assistant'),
-                            '<a href="https://wordpress.org/plugins/mcp-adapter/">MCP Adapter</a>'
-                        );
-                        ?>
-                    </p>
-                    <?php endif; ?>
-                </td>
-            </tr>
-            <?php if ($mcp_adapter_active) : ?>
-            <tr>
-                <th scope="row"><?php esc_html_e('Writable Files', 'ai-assistant'); ?></th>
-                <td><?php $this->render_health_result((new File_Access_Health())->run_test()); ?></td>
-            </tr>
+        <div class="ai-tool-ability-footer">
+            <?php if ($abilities_available) : ?>
+            <p class="description">
+                <?php esc_html_e('Exposed tools are registered as WordPress abilities so agents outside WordPress can use them. They keep the tool permissions of the connected user, and every change is tracked in AI Changes.', 'ai-assistant'); ?>
+            </p>
+            <p class="description">
+                <?php
+                printf(
+                    /* translators: %s: REST API URL */
+                    esc_html__('Reachable through the Abilities REST API at %s', 'ai-assistant'),
+                    '<code>' . esc_html(rest_url('wp-abilities/v1/abilities')) . '</code>'
+                );
+                if (File_Abilities::has_mcp_server()) {
+                    echo ' ';
+                    printf(
+                        /* translators: %s: MCP server URL */
+                        esc_html__('and by MCP clients connected to %s.', 'ai-assistant'),
+                        '<code>' . esc_html(rest_url('mcp/mcp-adapter-default-server')) . '</code>'
+                    );
+                } else {
+                    echo ' ';
+                    printf(
+                        /* translators: %s: link to the MCP Adapter plugin */
+                        esc_html__('and, with an MCP server plugin such as %s, by MCP clients.', 'ai-assistant'),
+                        '<a href="https://wordpress.org/plugins/mcp-adapter/">MCP Adapter</a>'
+                    );
+                }
+                ?>
+            </p>
+            <?php if ($group === 'File Writing') : ?>
+                <?php $this->render_health_result((new File_Access_Health())->run_test()); ?>
             <?php endif; ?>
-        </table>
+            <?php else : ?>
+            <p class="description">
+                <?php esc_html_e('Exposing tools as abilities requires WordPress 6.9 or newer with the Abilities API.', 'ai-assistant'); ?>
+            </p>
+            <?php endif; ?>
+        </div>
         <?php
     }
 
@@ -2621,31 +2675,12 @@ class Settings {
                 <?php
                 printf(
                     /* translators: %s: link to Site Health */
-                    esc_html__('While File Access is enabled, this check also runs in %s.', 'ai-assistant'),
+                    esc_html__('While a file writing tool is exposed as an ability, this check also runs in %s.', 'ai-assistant'),
                     '<a href="' . esc_url(admin_url('site-health.php')) . '">' . esc_html__('Site Health', 'ai-assistant') . '</a>'
                 );
                 ?>
             </p>
         </div>
-        <?php
-    }
-
-    /**
-     * MCP file abilities checkbox field.
-     */
-    public function mcp_file_abilities_field_callback() {
-        ?>
-        <label>
-            <input type="checkbox"
-                   name="<?php echo esc_attr(File_Abilities::OPTION); ?>"
-                   value="1"
-                   <?php checked(File_Abilities::is_enabled()); ?>
-                   <?php disabled(!File_Abilities::has_mcp_server()); ?>>
-            <?php esc_html_e('Expose file tools to MCP clients', 'ai-assistant'); ?>
-        </label>
-        <p class="description">
-            <?php esc_html_e('Registers read, find, write, edit and delete file abilities in the Abilities API so an outside agent connected through an MCP server plugin can create or modify plugins. Each ability requires the matching tool under Tool Permissions for the connected user, so read-only users only get the read-only abilities. Every change is tracked in AI Changes.', 'ai-assistant'); ?>
-        </p>
         <?php
     }
 
@@ -2778,6 +2813,36 @@ class Settings {
             .ai-tool-item .description {
                 color: #787c82;
                 font-size: 12px;
+            }
+            .ai-tool-row {
+                display: flex;
+                align-items: baseline;
+                gap: 18px;
+                flex-wrap: wrap;
+            }
+            .ai-tool-row .ai-tool-item {
+                min-width: 220px;
+            }
+            .ai-tool-ability {
+                display: flex;
+                align-items: baseline;
+                gap: 4px;
+                font-size: 12px;
+                color: #50575e;
+                cursor: pointer;
+            }
+            .ai-tool-ability input[type=checkbox] {
+                flex-shrink: 0;
+                margin-top: 1px;
+            }
+            .ai-tool-ability-footer {
+                margin-top: 10px;
+                padding-top: 10px;
+                border-top: 1px solid #dcdcde;
+                max-width: 760px;
+            }
+            .ai-tool-ability-footer .ai-health-result {
+                margin-top: 8px;
             }
             .ai-tool-sub-items {
                 margin-left: 20px;
@@ -3120,6 +3185,12 @@ class Settings {
             .ai-health-result ul {
                 list-style: disc;
                 margin: 0 0 8px 20px;
+            }
+            .ai-health-result details {
+                margin: 0 0 8px;
+            }
+            .ai-health-result summary {
+                cursor: pointer;
             }
             @media screen and (max-width: 960px) {
                 .ai-abilities-tab-layout {

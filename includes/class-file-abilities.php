@@ -6,12 +6,16 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Exposes the wp-content file tools as WordPress Abilities so outside agents can
- * use them through an MCP server such as the MCP Adapter plugin.
+ * Exposes the wp-content file tools as WordPress Abilities so agents outside
+ * WordPress can use them, through the Abilities REST API or an MCP server
+ * plugin such as MCP Adapter.
  *
- * The abilities are only registered when the "Expose file tools to MCP clients"
- * setting is enabled. They are not meant for the in-browser assistant, which has
- * its own file tools; the built-in ability list hides this category.
+ * Each file tool has an "Expose as ability" switch under Tool Permissions; an
+ * ability is only registered while at least one of its tools is switched on.
+ * Exposure never exceeds the local tool permissions: the option is intersected
+ * with the enabled tools on save, and every call checks the tool capability.
+ * The abilities are not meant for the in-browser assistant, which has its own
+ * file tools; the built-in ability list hides this category.
  *
  * Every ability wraps File_Tool_Executor, so the wp-content sandbox, PHP lint
  * before writes, secret-file blocking and AI Changes tracking apply unchanged.
@@ -20,8 +24,21 @@ if (!defined('ABSPATH')) {
  */
 class File_Abilities {
 
-    public const OPTION = 'ai_assistant_mcp_file_abilities';
+    /** Option holding the file tool names exposed as abilities. */
+    public const OPTION = 'ai_assistant_ability_tools';
     public const CATEGORY = 'ai-assistant-files';
+
+    /** Ability name => file tools it wraps. */
+    public const ABILITY_TOOLS = [
+        'ai/read-file'   => ['read_file'],
+        'ai/find'        => ['list_directory', 'search_files', 'search_content'],
+        'ai/write-file'  => ['write_file'],
+        'ai/edit-file'   => ['edit_file'],
+        'ai/delete-file' => ['delete_file'],
+    ];
+
+    public const READ_TOOLS = ['read_file', 'list_directory', 'search_files', 'search_content'];
+    public const WRITE_TOOLS = ['write_file', 'edit_file', 'delete_file'];
 
     private ?Git_Tracker_Manager $git_tracker_manager;
     private ?File_Tool_Executor $executor = null;
@@ -43,15 +60,66 @@ class File_Abilities {
     }
 
     /**
-     * Enabled only when the option is on and an MCP server plugin can expose the
-     * abilities; without one they would have no consumer.
+     * True when at least one file tool is exposed as an ability.
      */
     public static function is_enabled(): bool {
-        return self::has_mcp_server() && (string) get_option(self::OPTION, '') === '1';
+        return self::get_exposed_tools() !== [];
     }
 
+    /**
+     * Whether an MCP server plugin is active that offers the abilities to MCP
+     * clients. Only informational; the Abilities REST API works without it.
+     */
     public static function has_mcp_server(): bool {
         return class_exists('\\WP\\MCP\\Core\\McpAdapter');
+    }
+
+    /**
+     * Ability name a tool is exposed through.
+     */
+    public static function get_ability_for_tool(string $tool_name): ?string {
+        foreach (self::ABILITY_TOOLS as $ability => $tools) {
+            if (in_array($tool_name, $tools, true)) {
+                return $ability;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * File tools switched on as abilities, in canonical order.
+     */
+    public static function get_exposed_tools(): array {
+        $stored = (array) get_option(self::OPTION, []);
+        return array_values(array_intersect(self::all_tools(), $stored));
+    }
+
+    public static function is_tool_exposed(string $tool_name): bool {
+        return in_array($tool_name, self::get_exposed_tools(), true);
+    }
+
+    public static function exposes_write_tools(): bool {
+        return array_intersect(self::WRITE_TOOLS, self::get_exposed_tools()) !== [];
+    }
+
+    public static function all_tools(): array {
+        return array_merge(self::READ_TOOLS, self::WRITE_TOOLS);
+    }
+
+    /**
+     * Abilities whose tools are switched on.
+     */
+    public function get_exposed_definitions(): array {
+        $exposed = self::get_exposed_tools();
+        $definitions = [];
+        foreach ($this->get_definitions() as $name => $definition) {
+            if (array_intersect(self::ABILITY_TOOLS[$name], $exposed) !== []) {
+                $definitions[$name] = $definition;
+            }
+        }
+
+        return $definitions;
     }
 
     private function add_init_safe_action(string $hook, string $method): void {
@@ -117,7 +185,7 @@ class File_Abilities {
             return;
         }
 
-        foreach ($this->get_definitions() as $name => $definition) {
+        foreach ($this->get_exposed_definitions() as $name => $definition) {
             wp_register_ability($name, $definition);
         }
 
@@ -266,8 +334,9 @@ class File_Abilities {
     }
 
     /**
-     * Map a tool to the ai_assistant_tool_* capability that guards it, mirroring
-     * File_Tool_Auth::is_tool_enabled().
+     * The tool must be exposed as an ability and the user must hold its
+     * ai_assistant_tool_* capability. find maps to a sub-tool by argument,
+     * mirroring File_Tool_Auth::is_tool_enabled().
      */
     public function can_execute(string $tool_name, $input): bool {
         $input = is_array($input) ? $input : [];
@@ -284,7 +353,7 @@ class File_Abilities {
                 break;
         }
 
-        return current_user_can('ai_assistant_tool_' . $tool_name);
+        return self::is_tool_exposed($tool_name) && current_user_can('ai_assistant_tool_' . $tool_name);
     }
 
     /**
