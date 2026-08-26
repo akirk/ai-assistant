@@ -2632,28 +2632,17 @@ class Settings {
                 <?php esc_html_e('So that agents outside WordPress can use it too. An exposed tool keeps the tool permissions of the connected user, and every change is tracked in AI Changes.', 'ai-assistant'); ?>
             </p>
             <p class="description">
-                <?php
-                printf(
-                    /* translators: %s: REST API URL */
-                    esc_html__('Reachable through the Abilities REST API at %s', 'ai-assistant'),
-                    '<code>' . esc_html(rest_url('wp-abilities/v1/abilities')) . '</code>'
-                );
-                if (File_Abilities::has_mcp_server()) {
-                    echo ' ';
-                    printf(
-                        /* translators: %s: MCP server URL */
-                        esc_html__('and by MCP clients connected to %s.', 'ai-assistant'),
-                        '<code>' . esc_html(rest_url('mcp/mcp-adapter-default-server')) . '</code>'
-                    );
-                } else {
-                    echo ' ';
+                <?php if (File_Abilities::has_mcp_server()) : ?>
+                    <?php esc_html_e('Agents connect through the active MCP Adapter plugin.', 'ai-assistant'); ?>
+                <?php else : ?>
+                    <?php
                     printf(
                         /* translators: %s: link to the MCP Adapter plugin */
-                        esc_html__('and, with an MCP server plugin such as %s, by MCP clients.', 'ai-assistant'),
+                        esc_html__('Install and activate %s to let agents connect.', 'ai-assistant'),
                         '<a href="https://wordpress.org/plugins/mcp-adapter/">MCP Adapter</a>'
                     );
-                }
-                ?>
+                    ?>
+                <?php endif; ?>
             </p>
             <?php if ($group === 'File Writing') : ?>
                 <?php $this->render_health_result((new File_Access_Health())->run_test()); ?>
