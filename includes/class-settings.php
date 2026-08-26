@@ -1725,7 +1725,8 @@ class Settings {
 	                     role="tabpanel"
 	                     aria-labelledby="<?php echo esc_attr($tab_id . '-button'); ?>"
 	                     <?php if (!$is_active) echo 'hidden'; ?>>
-                <?php if ($group === 'Abilities') : ?>
+                <?php $has_side_panel = $group === 'Abilities' || in_array($group, $ability_groups, true); ?>
+                <?php if ($has_side_panel) : ?>
                 <div class="ai-abilities-tab-layout">
                     <div class="ai-abilities-main">
                 <?php endif; ?>
@@ -1891,7 +1892,6 @@ class Settings {
                         <?php endif; ?>
                         <?php endforeach; ?>
 	                    </div>
-                    <?php if (in_array($group, $ability_groups, true)) $this->render_ability_group_footer($group, $abilities_available); ?>
 	                </div>
                 <?php if ($group === 'Abilities') : ?>
                     </div>
@@ -1900,6 +1900,10 @@ class Settings {
                             <?php esc_html_e('Select an ability to view its description and parameters.', 'ai-assistant'); ?>
                         </div>
                     </aside>
+                </div>
+                <?php elseif ($has_side_panel) : ?>
+                    </div>
+                    <?php $this->render_ability_group_footer($group, $abilities_available); ?>
                 </div>
                 <?php endif; ?>
 	                </div>
@@ -2621,7 +2625,7 @@ class Settings {
      */
     private function render_ability_group_footer(string $group, bool $abilities_available): void {
         ?>
-        <div class="ai-tool-ability-footer">
+        <aside class="ai-tool-ability-footer">
             <?php if ($abilities_available) : ?>
             <p class="description">
                 <?php esc_html_e('Exposed tools are registered as WordPress abilities so agents outside WordPress can use them. They keep the tool permissions of the connected user, and every change is tracked in AI Changes.', 'ai-assistant'); ?>
@@ -2658,7 +2662,7 @@ class Settings {
                 <?php esc_html_e('Exposing tools as abilities requires WordPress 6.9 or newer with the Abilities API.', 'ai-assistant'); ?>
             </p>
             <?php endif; ?>
-        </div>
+        </aside>
         <?php
     }
 
@@ -2836,13 +2840,17 @@ class Settings {
                 margin-top: 1px;
             }
             .ai-tool-ability-footer {
-                margin-top: 10px;
-                padding-top: 10px;
-                border-top: 1px solid #dcdcde;
-                max-width: 760px;
+                align-self: start;
+                border-left: 1px solid #dcdcde;
+                padding-left: 14px;
+                min-width: 0;
+            }
+            .ai-tool-ability-footer > .description:first-child {
+                margin-top: 0;
             }
             .ai-tool-ability-footer .ai-health-result {
                 margin-top: 8px;
+                max-width: none;
             }
             .ai-tool-sub-items {
                 margin-left: 20px;
@@ -3204,6 +3212,13 @@ class Settings {
                     max-height: none;
                     overflow: visible;
                     position: static;
+                }
+                .ai-tool-ability-footer {
+                    margin-top: 12px;
+                    padding-left: 0;
+                    border-left: 0;
+                    border-top: 1px solid #dcdcde;
+                    padding-top: 10px;
                 }
             }
         </style>
