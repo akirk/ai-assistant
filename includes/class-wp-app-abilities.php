@@ -110,6 +110,26 @@ class Wp_App_Abilities {
             ],
         ]);
 
+        if ($this->has_convert_to_wp_app_dependency()) {
+            wp_register_ability('ai/convert-to-wp-app', [
+                'label'               => __('Convert App to WpApp Plugin', 'ai-assistant'),
+                'description'         => __('Turns an existing single-page HTML app into a self-contained WordPress plugin powered by WpApp under wp-content/plugins. Pass the full index.html and any additional files inline; the app gets its own URL, WpApp head/body integration and a bundled WpApp runtime, so Composer is not required.', 'ai-assistant'),
+                'category'            => 'create-wp-app',
+                'input_schema'        => $this->get_convert_input_schema(),
+                'output_schema'       => $this->get_output_schema(),
+                'execute_callback'    => [$this, 'convert_app'],
+                'permission_callback' => [$this, 'can_scaffold_app'],
+                'meta'                => [
+                    'annotations'  => [
+                        'readonly'     => false,
+                        'destructive'  => true,
+                        'instructions' => 'Use this instead of create-wp-app when the app already exists as HTML, for example an app built in this conversation that the user wants on their WordPress site. Pass the complete index.html as index_html and every other file it references relatively (scripts, styles, images) in files. Do not write the files with file tools first. Keep external CDN URLs as they are; only relative URLs are rewritten. After conversion, call navigate with the returned app URL and concise link_text to offer opening the app.',
+                    ],
+                    'show_in_rest' => true,
+                ],
+            ]);
+        }
+
         $this->abilities_registered = true;
     }
 
@@ -118,7 +138,7 @@ class Wp_App_Abilities {
             return $domains;
         }
 
-        $domains['create-wp-app'] = 'wp app, wordpress app, wpapp, WpApp, app plugin, create wp app, scaffold app';
+        $domains['create-wp-app'] = 'wp app, wordpress app, wpapp, WpApp, app plugin, create wp app, scaffold app, convert app, publish app, install app, html app';
         return $domains;
     }
 
@@ -210,6 +230,268 @@ class Wp_App_Abilities {
         }
 
         return $response;
+    }
+
+    /**
+     * Converts an inline single-page HTML app into a WpApp plugin.
+     *
+     * @param array $input index_html, optional files map, slug, naming and flags.
+     * @return array|\WP_Error
+     */
+    public function convert_app($input) {
+        if (!$this->has_convert_to_wp_app_dependency()) {
+            return $this->error('missing_dependency', 'The convert-to-wp-app library or the akirk/wp-app runtime is not available.');
+        }
+
+        $input = is_array($input) ? $input : [];
+        $base_slug = $this->normalize_slug((string) ($input['slug'] ?? ''));
+        if ($base_slug === '') {
+            return $this->error('missing_slug', 'A valid plugin slug is required.');
+        }
+        $slug = $this->ensure_mywp_suffix($base_slug);
+        $display_slug = $this->strip_mywp_suffix($base_slug);
+
+        $index_html = isset($input['index_html']) && is_string($input['index_html']) ? $input['index_html'] : '';
+        if (trim($index_html) === '') {
+            return $this->error('missing_index_html', 'index_html must contain the complete HTML of the app.');
+        }
+        if (!preg_match('/<body\b/i', $index_html)) {
+            return $this->error('invalid_index_html', 'index_html must be a complete HTML document with a <body> element.');
+        }
+
+        $files = $this->normalize_inline_files($input['files'] ?? []);
+        if ($files instanceof \WP_Error || (is_array($files) && isset($files['error']))) {
+            return $files;
+        }
+
+        $plugins_dir = defined('WP_PLUGIN_DIR') ? WP_PLUGIN_DIR : trailingslashit(WP_CONTENT_DIR) . 'plugins';
+        $target_dir = $plugins_dir . DIRECTORY_SEPARATOR . $slug;
+        $plugin_file = $slug . '.php';
+        $overwrite = !empty($input['overwrite']);
+        $target_existed = is_dir($target_dir);
+
+        if ($target_existed && !$overwrite) {
+            return $this->error('plugin_exists', "The plugin directory already exists: {$slug}");
+        }
+
+        $plugin_name = $this->string_arg($input, 'plugin_name', convert_to_wp_app_title($display_slug));
+        $url_path = $this->normalize_mywp_url_path($input['url_path'] ?? $slug, $slug);
+        $author = $this->string_arg($input, 'author', '');
+
+        $staging_dir = $this->create_staging_dir($slug);
+        if ($staging_dir === null) {
+            return $this->error('staging_failed', 'Could not create a temporary directory for the app files.');
+        }
+
+        try {
+            file_put_contents($staging_dir . '/index.html', $index_html);
+            foreach ($files as $path => $content) {
+                $full = $staging_dir . '/' . $path;
+                convert_to_wp_app_mkdir(dirname($full));
+                file_put_contents($full, $content);
+            }
+
+            if (!convert_to_wp_app_is_deployable_index($staging_dir . '/index.html')) {
+                return $this->error('not_deployable', 'index_html looks like a bundler development entry (it references /src/ or %PUBLIC_URL%). Build the app first and pass the built index.html.');
+            }
+
+            if ($target_existed) {
+                convert_to_wp_app_remove_directory($target_dir);
+            }
+            convert_to_wp_app_mkdir($target_dir);
+
+            $asset_dir = $target_dir . '/app';
+            convert_to_wp_app_copy_directory($staging_dir, $asset_dir);
+
+            $template = convert_to_wp_app_create_template($index_html, $slug);
+            convert_to_wp_app_mkdir($target_dir . '/templates');
+            file_put_contents($target_dir . '/templates/index.php', $template);
+
+            convert_to_wp_app_copy_wp_app_runtime($this->get_wp_app_source_dir(), $target_dir);
+            file_put_contents($target_dir . '/vendor/autoload.php', convert_to_wp_app_autoload_php());
+            file_put_contents($target_dir . '/' . $plugin_file, convert_to_wp_app_plugin_php($slug, $plugin_name, $url_path, $author));
+        } catch (\Throwable $e) {
+            return $this->error('convert_failed', $e->getMessage());
+        } finally {
+            convert_to_wp_app_remove_directory($staging_dir);
+        }
+
+        $activated = false;
+        $warnings = [];
+        if (!isset($input['activate']) || !empty($input['activate'])) {
+            $activation = $this->activate_plugin($slug . '/' . $plugin_file);
+            $activated = $activation['activated'];
+            $warnings = array_merge($warnings, $activation['warnings']);
+            if (!$activated) {
+                $message = !empty($warnings)
+                    ? implode(' ', $warnings)
+                    : 'WordPress sandboxed activation did not complete.';
+                return $this->error('activation_failed', 'Plugin converted but activation failed: ' . $message);
+            }
+            if (function_exists('flush_rewrite_rules')) {
+                flush_rewrite_rules();
+            }
+        }
+
+        $created_files = $this->relative_created_files($target_dir);
+        if (!$target_existed) {
+            $this->track_created_files($slug, $created_files, $plugin_name, sprintf('Convert %s into a WpApp plugin', $plugin_name));
+        }
+
+        $response = [
+            'plugin_dir'    => $target_dir,
+            'plugin_file'   => $target_dir . DIRECTORY_SEPARATOR . $plugin_file,
+            'plugin_slug'   => $slug,
+            'url_path'      => $url_path,
+            'url'           => function_exists('home_url') ? home_url('/' . trim($url_path, '/') . '/') : '/' . trim($url_path, '/') . '/',
+            'activated'     => $activated,
+            'created_files' => $created_files,
+            'messages'      => [sprintf('Converted %d file(s) into the %s plugin.', count($files) + 1, $slug)],
+            'warnings'      => $warnings,
+        ];
+
+        if ($this->git_tracker_manager !== null) {
+            $ai_changes = $this->git_tracker_manager->get_ai_changes_metadata_for_path('plugins/' . $slug . '/' . $plugin_file);
+            if ($ai_changes !== null) {
+                $response['ai_changes'] = $ai_changes;
+            }
+        }
+
+        return $response;
+    }
+
+    /**
+     * Validates the inline files map and decodes base64 entries.
+     *
+     * @return array<string,string>|\WP_Error|array
+     */
+    private function normalize_inline_files($files) {
+        if ($files === null || $files === '' || $files === []) {
+            return [];
+        }
+        if (!is_array($files)) {
+            return $this->error('invalid_files', 'files must be an object mapping relative paths to contents.');
+        }
+
+        $normalized = [];
+        foreach ($files as $path => $content) {
+            $path = str_replace('\\', '/', trim((string) $path));
+            $path = (string) preg_replace('#/+#', '/', $path);
+            $segments = explode('/', $path);
+            $invalid = $path === ''
+                || $path[0] === '/'
+                || preg_match('/^[a-z]:/i', $path)
+                || $path === 'index.html'
+                || strpos($path, "\0") !== false
+                || in_array('..', $segments, true)
+                || in_array('', $segments, true)
+                || in_array('.', $segments, true)
+                || $segments[0] === '.git';
+            if ($invalid) {
+                return $this->error('invalid_file_path', "Invalid file path in files: {$path}");
+            }
+
+            if (is_array($content)) {
+                if (!isset($content['base64']) || !is_string($content['base64'])) {
+                    return $this->error('invalid_file_content', "Binary entries need a base64 key: {$path}");
+                }
+                $decoded = base64_decode($content['base64'], true);
+                if ($decoded === false) {
+                    return $this->error('invalid_file_content', "Could not decode base64 content: {$path}");
+                }
+                $content = $decoded;
+            } elseif (!is_string($content)) {
+                return $this->error('invalid_file_content', "File contents must be a string or a {\"base64\": ...} object: {$path}");
+            }
+
+            $normalized[$path] = $content;
+        }
+
+        return $normalized;
+    }
+
+    private function create_staging_dir(string $slug): ?string {
+        $base = function_exists('get_temp_dir') ? get_temp_dir() : sys_get_temp_dir();
+        $base = rtrim(str_replace('\\', '/', (string) $base), '/');
+        if ($base === '' || !is_dir($base) || !is_writable($base)) {
+            $base = rtrim(str_replace('\\', '/', WP_CONTENT_DIR), '/') . '/upgrade';
+        }
+
+        for ($i = 0; $i < 5; $i++) {
+            $dir = $base . '/convert-to-wp-app-' . $slug . '-' . bin2hex(random_bytes(4));
+            if (!is_dir($dir) && @mkdir($dir, 0700, true)) {
+                return $dir;
+            }
+        }
+
+        return null;
+    }
+
+    private function has_convert_to_wp_app_dependency(): bool {
+        if (!function_exists('convert_to_wp_app_create_template')) {
+            $lib = dirname(__DIR__) . '/includes/convert-to-wp-app/playground-convert.php';
+            if (file_exists($lib)) {
+                require_once $lib;
+            }
+        }
+
+        return function_exists('convert_to_wp_app_create_template') && $this->get_wp_app_source_dir() !== null;
+    }
+
+    private function get_convert_input_schema(): array {
+        return [
+            'type'                 => 'object',
+            'properties'           => [
+                'slug' => [
+                    'type'        => 'string',
+                    'description' => 'Plugin slug and directory basename for the app, e.g. timetable. Do not include the generic word app unless the user named it that way. A single -mywp suffix is appended automatically when missing.',
+                    'pattern'     => '^[a-z0-9][a-z0-9-]*$',
+                ],
+                'index_html' => [
+                    'type'        => 'string',
+                    'description' => 'The complete index.html of the app, including <head> and <body>. Its <title> is replaced by the WordPress app title; relative src/href URLs are rewritten to the plugin asset directory.',
+                ],
+                'files' => [
+                    'type'        => 'object',
+                    'description' => 'Additional files referenced by index.html, keyed by relative path (e.g. "app.js", "css/style.css"). Values are the text content, or {"base64": "..."} for binary files such as images.',
+                    'additionalProperties' => [
+                        'oneOf' => [
+                            ['type' => 'string'],
+                            [
+                                'type'                 => 'object',
+                                'properties'           => ['base64' => ['type' => 'string']],
+                                'required'             => ['base64'],
+                                'additionalProperties' => false,
+                            ],
+                        ],
+                    ],
+                ],
+                'plugin_name' => [
+                    'type'        => 'string',
+                    'description' => 'Human-readable plugin and app name. Defaults to title case from slug.',
+                ],
+                'author' => [
+                    'type'        => 'string',
+                    'description' => 'Optional plugin author display name.',
+                ],
+                'url_path' => [
+                    'type'        => 'string',
+                    'description' => 'URL path where the app should be mounted. Defaults to slug. A single -mywp suffix is appended to the final path segment when missing.',
+                ],
+                'activate' => [
+                    'type'        => 'boolean',
+                    'description' => 'Whether to activate the generated plugin after conversion.',
+                    'default'     => true,
+                ],
+                'overwrite' => [
+                    'type'        => 'boolean',
+                    'description' => 'Whether to replace an existing plugin directory with the same slug.',
+                    'default'     => false,
+                ],
+            ],
+            'required'             => ['slug', 'index_html'],
+            'additionalProperties' => false,
+        ];
     }
 
     private function get_input_schema(): array {
@@ -412,12 +694,12 @@ class Wp_App_Abilities {
         return $files;
     }
 
-    private function track_created_files(string $slug, array $created_files, string $plugin_name): void {
+    private function track_created_files(string $slug, array $created_files, string $plugin_name, ?string $reason = null): void {
         if ($this->git_tracker_manager === null || empty($created_files)) {
             return;
         }
 
-        $reason = sprintf('Scaffold %s WpApp plugin', $plugin_name);
+        $reason = $reason ?? sprintf('Scaffold %s WpApp plugin', $plugin_name);
         $changes = [];
 
         foreach ($created_files as $file) {
