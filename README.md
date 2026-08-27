@@ -4,6 +4,8 @@ An AI-powered chat interface for WordPress. Bring your own API key or connect to
 
 [Try AI Assistant in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/ai-assistant/main/blueprint.json) · [Try it with demo conversations](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/ai-assistant/main/demo.json)
 
+[Try it in OpenStation](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/ai-assistant/main/blueprint-openstation.json) — the same app opened in desktop mode with the [OpenStation](https://github.com/WordPress/openstation) plugin.
+
 ## Screenshots
 
 #### "Old Style"
