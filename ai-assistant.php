@@ -163,6 +163,10 @@ final class AI_Assistant {
         $apps['ai-assistant'] = [
             'name' => __('AI Assistant', 'ai-assistant'),
             'dashicon' => 'dashicons-format-chat',
+            // Same tile as the WordPress/blueprints catalog entry.
+            'icon_background' => 'linear-gradient(135deg, #8e2de2, #4a00e0)',
+            'icon_color' => '#fff',
+            'icon_shadow' => true,
             'url' => AI_Assistant\Conversations_App::get_url(),
         ];
 
