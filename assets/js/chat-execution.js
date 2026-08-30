@@ -270,9 +270,6 @@
                         var errorMsg = result.result?.error || 'Failed';
                         self.setToolCardState(result.id, 'error', { message: errorMsg, output: result.result });
                     }
-                    if (self.notifyToolCallCallbacks) {
-                        self.notifyToolCallCallbacks(result, provider);
-                    }
                 });
                 self.handleToolResults(results, provider);
             }).catch(function(error) {
@@ -2651,9 +2648,6 @@
                     } else {
                         self.setToolCardState(result.id, 'error', { message: result.result?.error || 'Failed', output: result.result });
                     }
-                    if (self.notifyToolCallCallbacks) {
-                        self.notifyToolCallCallbacks(result, provider);
-                    }
                     self.pendingToolResults.push(result);
                     self.checkAllToolsResolved();
                 }).catch(function(error) {
@@ -2905,6 +2899,18 @@
 
             this.updateTokenCount();
 
+            // Tool call callbacks run only after the results are in the message
+            // history and the conversation is saved: a callback may navigate away
+            // (e.g. reload the page), and the page-exit save must not persist a
+            // tool_use without its tool_result, or the reloaded conversation would
+            // ask for the same execution again.
+            this.autoSaveConversation();
+            allResults.forEach(function(result) {
+                if (self.notifyToolCallCallbacks) {
+                    self.notifyToolCallCallbacks(result, result._provider || provider);
+                }
+            });
+
             if (navigateResult && !sentQueuedMessages) {
                 var suggestionContent = this.getNavigationSuggestionContent(navigateResult.result);
                 var suggestionMessage = this.createStoredMessage('assistant', suggestionContent);
@@ -2915,8 +2921,6 @@
                 this.autoSaveConversation();
                 return;
             }
-
-            this.autoSaveConversation();
 
             if (sentQueuedMessages) {
                 this.toolCallRounds = 0;
@@ -3050,9 +3054,9 @@
                         var errorMsg = result.result?.error || 'Failed';
                         self.setToolCardState(result.id, 'error', { message: errorMsg, output: result.result });
                     }
-                    if (self.notifyToolCallCallbacks) {
-                        self.notifyToolCallCallbacks(result, providersById[result.id] || resultProvider);
-                    }
+                });
+                results.forEach(function(result) {
+                    result._provider = providersById[result.id] || resultProvider;
                 });
                 self.handleToolResults(results, resultProvider);
             }).catch(function(error) {
