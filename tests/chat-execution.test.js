@@ -1021,9 +1021,46 @@ describe('auto-approved pending actions', function() {
 });
 
 describe('tool call callbacks', function() {
-    it('notifies subscribers after executing tools', async function() {
-        const notifications = [];
-        let handled = false;
+    it('notifies subscribers only after the tool result is stored and saved', function() {
+        const events = [];
+        const assistant = createAssistant({
+            streamComplete: true,
+            pendingToolResults: [],
+            messages: [],
+            deduplicateFileReads() {},
+            updateTokenCount() {},
+            autoSaveConversation() {
+                events.push('save:' + assistant.messages.length);
+            },
+            notifyToolCallCallbacks(result, provider) {
+                events.push('notify:' + result.name + ':' + provider + ':' + assistant.messages.length);
+            },
+            callLLM() {
+                events.push('llm');
+            }
+        });
+
+        assistant.handleToolResults([
+            {
+                id: 'toolu_1',
+                name: 'ability',
+                input: { action: 'execute', ability: 'memex/save-note' },
+                result: { ok: true },
+                success: true
+            }
+        ], 'anthropic');
+
+        assert.deepStrictEqual(events, [
+            'save:1',
+            'notify:ability:anthropic:1',
+            'llm'
+        ]);
+        assert.strictEqual(assistant.messages[0].content[0].tool_use_id, 'toolu_1');
+    });
+
+    it('does not notify subscribers before all tool results are stored', async function() {
+        let notified = 0;
+        let handled = 0;
         const assistant = createAssistant({
             executeSingleTool(toolCall) {
                 return Promise.resolve({
@@ -1034,11 +1071,11 @@ describe('tool call callbacks', function() {
                     success: true
                 });
             },
-            notifyToolCallCallbacks(result, provider) {
-                notifications.push({ result, provider });
+            notifyToolCallCallbacks() {
+                notified++;
             },
             handleToolResults() {
-                handled = true;
+                handled++;
             }
         });
 
@@ -1055,10 +1092,8 @@ describe('tool call callbacks', function() {
 
         await new Promise(resolve => setTimeout(resolve, 0));
 
-        assert.strictEqual(notifications.length, 1);
-        assert.strictEqual(notifications[0].result.name, 'ability');
-        assert.strictEqual(notifications[0].provider, 'anthropic');
-        assert.strictEqual(handled, true);
+        assert.strictEqual(handled, 1);
+        assert.strictEqual(notified, 0);
     });
 });
 
