@@ -192,11 +192,11 @@ if ( ! function_exists( 'convert_to_wp_app_playground' ) ) {
 		$head = convert_to_wp_app_rewrite_asset_urls( $head, $source_public_path );
 		$body = convert_to_wp_app_rewrite_asset_urls( $body, $source_public_path );
 
-		$title_tag = '<title><?php echo wp_app_title(); ?></title>';
+		$title_tag = '<title><?php wp_app_the_title(); ?></title>';
 		if ( preg_match( '/<title\b[^>]*>(.*?)<\/title>/is', $head, $title_match ) ) {
 			$title = trim( html_entity_decode( strip_tags( $title_match[1] ), ENT_QUOTES ) );
 			if ( $title !== '' ) {
-				$title_tag = '<title><?php echo wp_app_title( ' . var_export( $title, true ) . ' ); ?></title>';
+				$title_tag = '<title><?php wp_app_the_title( ' . var_export( $title, true ) . ' ); ?></title>';
 			}
 		}
 		$head = preg_replace( '/<title\b[^>]*>.*?<\/title>/is', $title_tag, $head, 1, $count );
@@ -321,9 +321,9 @@ try {
 \$html = \$onepager_rewrite_route_links( \$onepager_rewrite_assets( \$html ) );
 \$head = \$onepager_extract_tag( \$html, 'head' );
 \$body = \$onepager_extract_tag( \$html, 'body' );
-\$head = preg_replace( '/<title\\b[^>]*>.*?<\\/title>/is', '<title>' . wp_app_title() . '</title>', \$head, 1, \$count );
+\$head = preg_replace( '/<title\\b[^>]*>.*?<\\/title>/is', '<title>' . esc_html( wp_app_get_title() ) . '</title>', \$head, 1, \$count );
 if ( \$count === 0 ) {
-    \$head = '<title>' . wp_app_title() . '</title>' . "\\n" . ltrim( \$head );
+    \$head = '<title>' . esc_html( wp_app_get_title() ) . '</title>' . "\\n" . ltrim( \$head );
 }
 ?>
 <!DOCTYPE html>
