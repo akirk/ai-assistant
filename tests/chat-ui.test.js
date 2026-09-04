@@ -1488,7 +1488,7 @@ describe('tool result display', function() {
 
         const display = assistant.getToolResultDisplay('ability', {
             _truncated: true,
-            ability: 'wordcamp-companion/get-schedule',
+            ability: 'session-planner-for-wordcamps/get-schedule',
             success: true,
             type: 'object',
             keys: {
@@ -1507,7 +1507,7 @@ describe('tool result display', function() {
 
         assert.strictEqual(display.language, 'json');
         assert.strictEqual(display.label, 'Result');
-        assert.match(display.text, /wordcamp-companion\/get-schedule/);
+        assert.match(display.text, /session-planner-for-wordcamps\/get-schedule/);
         assert.match(display.text, /_ai_assistant_compacted/);
         assert.doesNotMatch(display.text, /undefined/);
     });
@@ -1516,7 +1516,7 @@ describe('tool result display', function() {
         const assistant = loadUiMixin();
 
         const display = assistant.getToolResultDisplay('ability', {
-            ability: 'wordcamp-companion/get-plan',
+            ability: 'session-planner-for-wordcamps/get-plan',
             success: true,
             selected_event_url: 'https://europe.wordcamp.org/2026/',
             selected_wordcamp_term_id: 2,
@@ -1530,7 +1530,7 @@ describe('tool result display', function() {
 
         assert.strictEqual(display.language, 'json');
         assert.strictEqual(display.label, 'Result');
-        assert.match(display.text, /wordcamp-companion\/get-plan/);
+        assert.match(display.text, /session-planner-for-wordcamps\/get-plan/);
         assert.match(display.text, /selected_event_url/);
         assert.match(display.text, /What’s new in WordPress Playground/);
     });
