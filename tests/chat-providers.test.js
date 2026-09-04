@@ -808,7 +808,7 @@ describe('provider request message sanitization', function() {
     it('preserves top-level shape in last-resort provider summaries', function() {
         const assistant = loadProvidersMixin();
         const summary = assistant.createProviderValueSummary({
-            ability: 'wordcamp-companion/get-schedule',
+            ability: 'session-planner-for-wordcamps/get-schedule',
             success: true,
             event_url: 'https://europe.wordcamp.org/2026/',
             sessions: Array.from({ length: 20 }, function(_, index) {
@@ -820,7 +820,7 @@ describe('provider request message sanitization', function() {
             })
         });
 
-        assert.strictEqual(summary.ability, 'wordcamp-companion/get-schedule');
+        assert.strictEqual(summary.ability, 'session-planner-for-wordcamps/get-schedule');
         assert.strictEqual(summary.success, true);
         assert.strictEqual(summary.event_url, 'https://europe.wordcamp.org/2026/');
         assert.ok(Array.isArray(summary.sessions));

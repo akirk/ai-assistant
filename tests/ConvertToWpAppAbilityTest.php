@@ -76,7 +76,7 @@ HTML;
         $this->assertStringContainsString("'counter-mywp'", $plugin);
 
         $template = file_get_contents($dir . '/templates/index.php');
-        $this->assertStringContainsString("<title><?php echo wp_app_title( 'Counter' ); ?></title>", $template);
+        $this->assertStringContainsString("<title><?php wp_app_the_title( 'Counter' ); ?></title>", $template);
         $this->assertStringNotContainsString('<title>Counter</title>', $template);
         $this->assertStringContainsString("\$asset_url( 'app.js' )", $template);
         $this->assertStringContainsString("\$asset_url( 'css/style.css' )", $template);
