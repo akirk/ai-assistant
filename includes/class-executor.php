@@ -359,7 +359,14 @@ class Executor {
 
             $decoded = json_decode($value, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new \Exception("$tool requires 'arguments' to be an object or valid JSON object: " . json_last_error_msg());
+                // Models sometimes stringify the arguments object and append the
+                // closing brace of the enclosing tool input, leaving trailing
+                // characters after an otherwise complete object.
+                $balanced = $this->extract_leading_json_object($value);
+                $decoded = $balanced === null ? null : json_decode($balanced, true);
+                if ($balanced === null || json_last_error() !== JSON_ERROR_NONE) {
+                    throw new \Exception("$tool requires 'arguments' to be an object or valid JSON object: " . json_last_error_msg());
+                }
             }
 
             if (!is_array($decoded)) {
@@ -370,6 +377,58 @@ class Executor {
         }
 
         throw new \Exception("$tool requires 'arguments' to be an object or valid JSON object");
+    }
+
+    /**
+     * Return the substring from the first "{" up to its matching "}", or null
+     * when the string does not start a balanced object.
+     */
+    private function extract_leading_json_object(string $value): ?string {
+        $start = strpos($value, '{');
+        if ($start === false) {
+            return null;
+        }
+
+        $depth = 0;
+        $in_string = false;
+        $escaped = false;
+        $length = strlen($value);
+
+        for ($i = $start; $i < $length; $i++) {
+            $char = $value[$i];
+
+            if ($escaped) {
+                $escaped = false;
+                continue;
+            }
+
+            if ($char === '\\') {
+                if ($in_string) {
+                    $escaped = true;
+                }
+                continue;
+            }
+
+            if ($char === '"') {
+                $in_string = !$in_string;
+                continue;
+            }
+
+            if ($in_string) {
+                continue;
+            }
+
+            if ($char === '{') {
+                $depth++;
+            } elseif ($char === '}') {
+                $depth--;
+                if ($depth === 0) {
+                    return substr($value, $start, $i - $start + 1);
+                }
+            }
+        }
+
+        return null;
     }
 
     // ===== DATABASE OPERATIONS =====
