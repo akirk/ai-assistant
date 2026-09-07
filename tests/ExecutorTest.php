@@ -673,6 +673,22 @@ class ExecutorTest extends TestCase {
         $this->assertArrayNotHasKey('result', $result);
     }
 
+    public function test_ability_accepts_stringified_arguments_with_trailing_brace(): void {
+        $GLOBALS['wp_test_abilities']['demo/write'] = $this->createAbility(false);
+
+        $result = $this->executor->execute_tool('ability', [
+            'action' => 'execute',
+            'ability' => 'demo/write',
+            'arguments' => '{"title":"Healthy Aging","content":"Part of [[WpApp Ideas]]."}}',
+        ]);
+
+        $this->assertTrue($result['success']);
+        $this->assertEquals([
+            'title' => 'Healthy Aging',
+            'content' => 'Part of [[WpApp Ideas]].',
+        ], $result['input']);
+    }
+
     public function test_ability_rejects_invalid_stringified_arguments(): void {
         $GLOBALS['wp_test_abilities']['demo/write'] = $this->createAbility(false);
 
