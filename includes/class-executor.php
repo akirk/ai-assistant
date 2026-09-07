@@ -6,91 +6,39 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Tool Executor - Handles execution of AI tools
+ * Executes the read-only and WordPress data tools provided by the base plugin.
+ *
+ * File mutation, plugin installation, raw PHP, Git tracking, and WpApp
+ * scaffolding live in the optional Patch Assistant companion plugin.
  */
 class Executor {
 
     private $tools;
-    private $file_tools;
 
-    public function __construct(Tools $tools, ?Git_Tracker_Manager $git_tracker_manager = null) {
+    public function __construct(Tools $tools, $git_tracker_manager = null) {
         $this->tools = $tools;
-        $this->file_tools = new File_Tool_Executor(WP_CONTENT_DIR, $git_tracker_manager);
     }
 
-    public function execute_file_tool(string $tool_name, array $arguments, ?int $conversation_id = null): array {
-        return $this->file_tools->execute($tool_name, $arguments, $conversation_id);
-    }
-
-    /**
-     * Execute a tool
-     *
-     * @param string $tool_name Tool name
-     * @param array $arguments Tool arguments
-     * @param string $permission User permission level
-     * @param int|null $conversation_id Optional conversation ID for tracking
-     * @return mixed Tool result
-     */
     public function execute_tool(string $tool_name, array $arguments, string $permission = 'full', ?int $conversation_id = null) {
-        // Validate permission
-        $read_only_tools = [
-            'read_file', 'list_directory', 'search_files', 'search_content',
-            'db_query', 'get_plugins', 'get_themes',
+        $read_only = [
+            'db_query', 'get_plugins', 'get_themes', 'environment_info',
             'list_abilities', 'get_ability', 'list_skills', 'get_skill',
-            'find', 'environment_info',
+            'ability', 'skill',
         ];
-
-        /**
-         * Filters tool names that are permitted for read-only users.
-         *
-         * @param array<int,string> $read_only_tools Read-only tool names.
-         * @param string            $tool_name       Requested tool name.
-         * @param array             $arguments       Requested tool arguments.
-         */
-        $read_only_tools = apply_filters('ai_assistant_read_only_tool_names', $read_only_tools, $tool_name, $arguments);
-
-        // Consolidated 'ability' tool: read-only for list/get, full for execute
-        if ($tool_name === 'ability') {
-            $action = $arguments['action'] ?? '';
-            if ($action !== 'execute') {
-                $read_only_tools[] = 'ability';
-            }
-        }
-
-        // Consolidated 'skill' tool is always read-only
-        if ($tool_name === 'skill') {
-            $read_only_tools[] = 'skill';
-        }
-
-        $is_readonly_ability_execution = $this->is_readonly_ability_execution($tool_name, $arguments);
-
-        if ($permission === 'read_only' && !in_array($tool_name, $read_only_tools, true) && !$is_readonly_ability_execution) {
-            throw new \Exception("Tool '$tool_name' requires full access permission");
-        }
+        $read_only = apply_filters('ai_assistant_read_only_tool_names', $read_only, $tool_name, $arguments);
 
         if ($permission === 'chat_only') {
             throw new \Exception("Tool execution not allowed with chat-only permission");
         }
 
-        // For consolidated tools, check component permissions
-        if (!$this->check_tool_permission($tool_name, $arguments, $permission)) {
-            throw new \Exception(
-                "Tool '$tool_name' is not enabled. Enable it in AI Assistant → Settings → Tool Permissions."
-            );
+        if ($permission === 'read_only' && !in_array($tool_name, $read_only, true)) {
+            throw new \Exception("Tool '$tool_name' requires full access permission");
         }
 
-        /**
-         * Lets extension modules execute tools outside the core switch.
-         *
-         * Return null to leave the tool unhandled by the extension layer.
-         *
-         * @param mixed|null $result          Extension result, or null to continue.
-         * @param string     $tool_name       Requested tool name.
-         * @param array      $arguments       Requested tool arguments.
-         * @param string     $permission      Effective AI Assistant permission level.
-         * @param int|null   $conversation_id Conversation ID for tracking.
-         * @param Executor   $this            Executor instance.
-         */
+        if (!$this->has_tool_permission($tool_name, $arguments)) {
+            throw new \Exception("Tool '$tool_name' is not enabled. Enable it in AI Assistant → Settings → Tool Permissions.");
+        }
+
         $extension_result = apply_filters(
             'ai_assistant_execute_tool',
             null,
@@ -104,741 +52,142 @@ class Executor {
             return $extension_result;
         }
 
-        // Execute the tool
         switch ($tool_name) {
-            // File operations
-            case 'read_file':
-            case 'find':
-            case 'list_directory':
-            case 'search_files':
-            case 'search_content':
-                return $this->execute_file_tool($tool_name, $arguments, $conversation_id);
-
-            // Database operations
             case 'db_query':
-                return $this->db_query($this->get_string_arg($arguments, 'sql', $tool_name));
-
-            // WordPress operations
+                return $this->db_query((string) ($arguments['sql'] ?? ''));
             case 'get_plugins':
                 return $this->get_plugins();
             case 'get_themes':
                 return $this->get_themes();
-            case 'navigate':
-                return $this->navigate(
-                    $this->get_string_arg($arguments, 'url', $tool_name),
-                    $this->get_string_arg($arguments, 'link_text', $tool_name, '')
-                );
-
-            // Environment info
             case 'environment_info':
                 return $this->get_environment_info(!empty($arguments['include_inactive']));
-
-            // Consolidated ability tool (replaces list_abilities, get_ability, execute_ability)
             case 'ability':
-                return $this->execute_ability_consolidated($arguments);
-
-            // Legacy ability tool names
+                return $this->execute_ability_tool($arguments);
             case 'list_abilities':
-                return $this->list_abilities($this->get_string_arg($arguments, 'category', $tool_name, ''));
+                return $this->list_abilities((string) ($arguments['category'] ?? ''));
             case 'get_ability':
-                return $this->get_ability($this->get_string_arg($arguments, 'ability', $tool_name));
+                return $this->get_ability((string) ($arguments['ability'] ?? ''));
             case 'execute_ability':
-                $ability = $this->get_string_arg($arguments, 'ability', $tool_name);
-                $ability_args = $this->get_ability_arguments_arg($arguments, $tool_name);
-                return $this->execute_ability($ability, $ability_args);
-
-            // Consolidated skill tool (replaces list_skills, get_skill)
+                return $this->execute_ability((string) ($arguments['ability'] ?? ''), $arguments['arguments'] ?? []);
             case 'skill':
-                return $this->execute_skill_consolidated($arguments);
-
-            // Legacy skill tool names
+                return $this->execute_skill_tool($arguments);
             case 'list_skills':
-                return $this->list_skills($this->get_string_arg($arguments, 'category', $tool_name, ''));
+                return Skill_Registry::get_available_skills((string) ($arguments['category'] ?? ''));
             case 'get_skill':
-                return $this->get_skill($this->get_string_arg($arguments, 'skill', $tool_name));
-
+                return Skill_Registry::get_skill((string) ($arguments['skill'] ?? '')) ?: ['error' => 'Skill not found'];
             default:
                 throw new \Exception("Unknown tool: $tool_name");
         }
     }
 
-    /**
-     * Check tool permission, handling consolidated tool name mapping.
-     */
-    private function check_tool_permission(string $tool_name, array $arguments, string $permission = 'full'): bool {
-        // Consolidated tools map to component permissions
-        switch ($tool_name) {
-            case 'find':
-                $text = $arguments['text'] ?? '';
-                $glob = $arguments['glob'] ?? '';
-                if ($text) {
-                    return current_user_can('ai_assistant_tool_search_content');
-                }
-                if ($glob) {
-                    return current_user_can('ai_assistant_tool_search_files');
-                }
-                return current_user_can('ai_assistant_tool_list_directory');
-
-            case 'ability':
-                $action = $arguments['action'] ?? 'list';
-                if ($action === 'execute' && $this->can_execute_readonly_ability($tool_name, $arguments, $permission)) {
-                    return true;
-                }
-                $map = ['list' => 'list_abilities', 'get' => 'get_ability', 'execute' => 'execute_ability'];
-                $cap = $map[$action] ?? 'list_abilities';
-                return current_user_can('ai_assistant_tool_' . $cap);
-
-            case 'skill':
-                $action = $arguments['action'] ?? 'list';
-                $cap = $action === 'get' ? 'get_skill' : 'list_skills';
-                return current_user_can('ai_assistant_tool_' . $cap);
-
-            case 'environment_info':
-                // Read-only, allow if user can use any tool
-                return current_user_can('ai_assistant_tool_read_file') ||
-                       current_user_can('ai_assistant_tool_run_php');
-
-            default:
-                if ($tool_name === 'execute_ability' && $this->can_execute_readonly_ability($tool_name, $arguments, $permission)) {
-                    return true;
-                }
-                return current_user_can('ai_assistant_tool_' . $tool_name);
-        }
-    }
-
-    private function is_readonly_ability_execution(string $tool_name, array $arguments): bool {
+    private function has_tool_permission(string $tool_name, array $arguments): bool {
         if ($tool_name === 'ability') {
-            return ($arguments['action'] ?? '') === 'execute' &&
-                !empty($arguments['ability']) &&
-                Ability_Annotations::is_readonly_execution((string) $arguments['ability']);
+            $tool_name = ['list' => 'list_abilities', 'get' => 'get_ability', 'execute' => 'execute_ability'][$arguments['action'] ?? 'list'] ?? 'list_abilities';
+        } elseif ($tool_name === 'skill') {
+            $tool_name = ($arguments['action'] ?? 'list') === 'get' ? 'get_skill' : 'list_skills';
         }
-
-        if ($tool_name === 'execute_ability') {
-            return !empty($arguments['ability']) &&
-                Ability_Annotations::is_readonly_execution((string) $arguments['ability']);
-        }
-
-        return false;
+        return current_user_can('ai_assistant_tool_' . $tool_name);
     }
-
-    private function can_execute_readonly_ability(string $tool_name, array $arguments, string $permission): bool {
-        if ($permission !== 'read_only' || !$this->is_readonly_ability_execution($tool_name, $arguments)) {
-            return false;
-        }
-
-        return $this->is_tool_enabled_by_option('execute_ability');
-    }
-
-    private function is_tool_enabled_by_option(string $tool_name): bool {
-        if (function_exists('ai_assistant_is_playground') && \ai_assistant_is_playground()) {
-            return true;
-        }
-
-        $enabled = get_option('ai_assistant_enabled_tools', Settings::default_enabled_tools());
-        return in_array($tool_name, (array) $enabled, true);
-    }
-
-    /**
-     * Execute the consolidated 'ability' tool.
-     */
-    private function execute_ability_consolidated(array $arguments) {
-        $action = $arguments['action'] ?? 'list';
-
-        switch ($action) {
-            case 'list':
-                return $this->list_abilities($arguments['category'] ?? '');
-            case 'get':
-                if (empty($arguments['ability'])) {
-                    throw new \Exception("ability tool with action 'get' requires 'ability' argument");
-                }
-                return $this->get_ability($arguments['ability']);
-            case 'execute':
-                if (empty($arguments['ability'])) {
-                    throw new \Exception("ability tool with action 'execute' requires 'ability' argument");
-                }
-                return $this->execute_ability($arguments['ability'], $this->get_ability_arguments_arg($arguments, 'ability'));
-            default:
-                throw new \Exception("Unknown ability action: $action");
-        }
-    }
-
-    /**
-     * Execute the consolidated 'skill' tool.
-     */
-    private function execute_skill_consolidated(array $arguments) {
-        $action = $arguments['action'] ?? 'list';
-
-        switch ($action) {
-            case 'list':
-                return $this->list_skills($arguments['category'] ?? '');
-            case 'get':
-                if (empty($arguments['skill'])) {
-                    throw new \Exception("skill tool with action 'get' requires 'skill' argument");
-                }
-                return $this->get_skill($arguments['skill']);
-            default:
-                throw new \Exception("Unknown skill action: $action");
-        }
-    }
-
-    /**
-     * Get environment info (plugins, themes, WordPress version, etc.)
-     */
-    private function get_environment_info(bool $include_inactive = false): array {
-        $theme = wp_get_theme();
-        $info = [
-            'wp'      => get_bloginfo('version'),
-            'php'     => PHP_VERSION,
-            'theme'   => $theme->get_template(),
-            'plugins' => [],
-        ];
-        if ($include_inactive) {
-            $info['inactive'] = [];
-        }
-
-        if (!function_exists('get_plugins')) {
-            require_once ABSPATH . 'wp-admin/includes/plugin.php';
-        }
-        $all_plugins  = get_plugins();
-        $active_slugs = get_option('active_plugins', []);
-
-        foreach ($all_plugins as $file => $data) {
-            $slug = dirname($file) === '.' ? basename($file, '.php') : dirname($file);
-            if (in_array($file, $active_slugs)) {
-                $info['plugins'][$slug] = $this->get_plugin_environment_summary($data);
-            } elseif ($include_inactive) {
-                $info['inactive'][$slug] = $this->get_plugin_environment_summary($data);
-            }
-        }
-
-        return $info;
-    }
-
-    private function get_plugin_environment_summary(array $plugin_data): array {
-        return [
-            'title'       => $this->clean_plugin_text($plugin_data['Name'] ?? ''),
-            'description' => $this->clean_plugin_text($plugin_data['Description'] ?? ''),
-        ];
-    }
-
-    private function clean_plugin_text(string $text): string {
-        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $text = trim(strip_tags($text));
-        return preg_replace('/\s+/', ' ', $text) ?? $text;
-    }
-
-    private function get_string_arg(array $args, string $name, string $tool, ?string $default = null): string {
-        if (!isset($args[$name])) {
-            if ($default !== null) {
-                return $default;
-            }
-            throw new \Exception("$tool requires '$name' argument");
-        }
-        $value = $args[$name];
-        if (is_array($value)) {
-            return json_encode($value);
-        }
-        return (string) $value;
-    }
-
-    private function get_ability_arguments_arg(array $args, string $tool): array {
-        if (!array_key_exists('arguments', $args) || $args['arguments'] === null) {
-            return [];
-        }
-
-        $value = $args['arguments'];
-        if (is_array($value)) {
-            return $value;
-        }
-
-        if (is_string($value)) {
-            $value = trim($value);
-            if ($value === '') {
-                return [];
-            }
-
-            $decoded = json_decode($value, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                // Models sometimes stringify the arguments object and append the
-                // closing brace of the enclosing tool input, leaving trailing
-                // characters after an otherwise complete object.
-                $balanced = $this->extract_leading_json_object($value);
-                $decoded = $balanced === null ? null : json_decode($balanced, true);
-                if ($balanced === null || json_last_error() !== JSON_ERROR_NONE) {
-                    throw new \Exception("$tool requires 'arguments' to be an object or valid JSON object: " . json_last_error_msg());
-                }
-            }
-
-            if (!is_array($decoded)) {
-                throw new \Exception("$tool requires 'arguments' to be an object or valid JSON object");
-            }
-
-            return $decoded;
-        }
-
-        throw new \Exception("$tool requires 'arguments' to be an object or valid JSON object");
-    }
-
-    /**
-     * Return the substring from the first "{" up to its matching "}", or null
-     * when the string does not start a balanced object.
-     */
-    private function extract_leading_json_object(string $value): ?string {
-        $start = strpos($value, '{');
-        if ($start === false) {
-            return null;
-        }
-
-        $depth = 0;
-        $in_string = false;
-        $escaped = false;
-        $length = strlen($value);
-
-        for ($i = $start; $i < $length; $i++) {
-            $char = $value[$i];
-
-            if ($escaped) {
-                $escaped = false;
-                continue;
-            }
-
-            if ($char === '\\') {
-                if ($in_string) {
-                    $escaped = true;
-                }
-                continue;
-            }
-
-            if ($char === '"') {
-                $in_string = !$in_string;
-                continue;
-            }
-
-            if ($in_string) {
-                continue;
-            }
-
-            if ($char === '{') {
-                $depth++;
-            } elseif ($char === '}') {
-                $depth--;
-                if ($depth === 0) {
-                    return substr($value, $start, $i - $start + 1);
-                }
-            }
-        }
-
-        return null;
-    }
-
-    // ===== DATABASE OPERATIONS =====
 
     private function db_query(string $sql): array {
         global $wpdb;
-
-        // Security: Only allow read-only queries
         $sql = trim($sql);
-        $first_word = strtoupper(strtok($sql, " \t\n\r"));
-        if (!in_array($first_word, ['SELECT', 'DESCRIBE', 'DESC', 'SHOW'], true)) {
-            throw new \Exception("Only SELECT, DESCRIBE, and SHOW queries are allowed with db_query. Use run_php for modifications.");
+        $first = strtoupper(strtok($sql, " \t\n\r"));
+        if (!in_array($first, ['SELECT', 'DESCRIBE', 'DESC', 'SHOW'], true)) {
+            throw new \Exception('Only read-only database queries are allowed.');
         }
-
-        // Restrict SHOW to table-related forms only (block SHOW VARIABLES, SHOW STATUS, etc.)
-        if ($first_word === 'SHOW') {
-            $second_word = strtoupper(strtok(" \t\n\r"));
-            if (!in_array($second_word, ['TABLES', 'COLUMNS', 'INDEX', 'INDEXES', 'KEYS', 'CREATE', 'FULL'], true)) {
-                throw new \Exception("SHOW is restricted to table-related queries (SHOW TABLES, SHOW COLUMNS, SHOW INDEX, SHOW CREATE TABLE).");
-            }
-        }
-
-        // Replace {prefix} placeholder
         $sql = str_replace('{prefix}', $wpdb->prefix, $sql);
-
-        $wpdb->suppress_errors(true);
         $results = $wpdb->get_results($sql, ARRAY_A);
-        $wpdb->suppress_errors(false);
-
         if ($wpdb->last_error) {
-            throw new \Exception("Database error: " . $wpdb->last_error);
+            throw new \Exception('Database error: ' . $wpdb->last_error);
         }
-
-        // Truncate large fields to avoid flooding the context window.
-        // post_content on ai_conversation posts is base64-encoded JSON and can be enormous.
-        $max_field_length = 500;
-        $results = array_map(function($row) use ($max_field_length) {
-            $is_ai_conversation = isset($row['post_type']) && $row['post_type'] === 'ai_conversation';
-            foreach ($row as $key => $value) {
-                if (!is_string($value)) continue;
-                if ($is_ai_conversation && $key === 'post_content') {
-                    $row[$key] = '[ai_conversation post_content omitted — use summarize_conversation tool instead]';
-                } elseif (strlen($value) > $max_field_length) {
-                    $row[$key] = substr($value, 0, $max_field_length) . '… [truncated]';
-                }
-            }
-            return $row;
-        }, $results);
-
-        return [
-            'query' => $sql,
-            'rows' => $results,
-            'count' => count($results),
-        ];
+        return ['query' => $sql, 'rows' => $results, 'count' => count($results)];
     }
-
-    // ===== WORDPRESS OPERATIONS =====
 
     private function get_plugins(): array {
         if (!function_exists('get_plugins')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
-
-        $all_plugins = get_plugins();
-        $active_plugins = get_option('active_plugins', []);
-
+        $active = (array) get_option('active_plugins', []);
         $plugins = [];
-        foreach ($all_plugins as $plugin_file => $plugin_data) {
+        foreach (get_plugins() as $file => $data) {
             $plugins[] = [
-                'file' => $plugin_file,
-                'name' => $plugin_data['Name'],
-                'version' => $plugin_data['Version'],
-                'description' => $plugin_data['Description'],
-                'author' => $plugin_data['Author'],
-                'active' => in_array($plugin_file, $active_plugins),
+                'file' => $file,
+                'name' => $data['Name'] ?? '',
+                'version' => $data['Version'] ?? '',
+                'description' => $data['Description'] ?? '',
+                'author' => $data['Author'] ?? '',
+                'active' => in_array($file, $active, true),
             ];
         }
-
-        return [
-            'plugins' => $plugins,
-            'total' => count($plugins),
-            'active_count' => count($active_plugins),
-        ];
+        return ['plugins' => $plugins, 'total' => count($plugins), 'active_count' => count($active)];
     }
 
     private function get_themes(): array {
-        $all_themes = wp_get_themes();
-        $active_theme = get_stylesheet();
-
+        $active = get_stylesheet();
         $themes = [];
-        foreach ($all_themes as $theme_slug => $theme) {
+        foreach (wp_get_themes() as $slug => $theme) {
             $themes[] = [
-                'slug' => $theme_slug,
+                'slug' => $slug,
                 'name' => $theme->get('Name'),
                 'version' => $theme->get('Version'),
                 'description' => $theme->get('Description'),
                 'author' => $theme->get('Author'),
-                'active' => $theme_slug === $active_theme,
+                'active' => $slug === $active,
             ];
         }
+        return ['themes' => $themes, 'total' => count($themes), 'active' => $active];
+    }
 
+    private function get_environment_info(bool $include_inactive): array {
         return [
-            'themes' => $themes,
-            'total' => count($themes),
-            'active' => $active_theme,
+            'wp' => get_bloginfo('version'),
+            'php' => PHP_VERSION,
+            'theme' => wp_get_theme()->get_template(),
+            'plugins' => $this->get_plugins(),
+            'include_inactive' => $include_inactive,
         ];
     }
 
-    private function navigate(string $url, string $link_text = ''): array {
-        $home_url = home_url();
-        $validated_url = null;
-
-        // Handle relative URLs
-        if (strpos($url, '/') === 0) {
-            $validated_url = home_url($url);
-        } elseif (strpos($url, $home_url) === 0) {
-            $validated_url = $url;
-        } else {
-            throw new \Exception("Invalid URL: The URL must be within the WordPress site (must start with '$home_url' or be a relative path starting with '/')");
-        }
-
-        // Block ThickBox/iframe URLs that won't have AI assistant access
-        if (strpos($validated_url, 'TB_iframe=true') !== false ||
-            strpos($validated_url, 'tab=plugin-information') !== false) {
-            throw new \Exception("Cannot navigate to modal/iframe URLs (like plugin information popups) as the AI assistant won't be available there. Try navigating to the main plugin page instead.");
-        }
-
-        $link_text = trim(wp_strip_all_tags($link_text));
-        $link_text = preg_replace('/[\r\n\t]+/', ' ', $link_text);
-        $link_text = preg_replace('/[\[\]\(\)]+/', ' ', $link_text);
-        $link_text = preg_replace('/\s+/', ' ', $link_text);
-        if ($link_text === '') {
-            $link_text = 'Open this page';
-        }
-        if (strlen($link_text) > 80) {
-            $link_text = rtrim(substr($link_text, 0, 77)) . '...';
-        }
-
-        return [
-            'url' => $validated_url,
-            'link_text' => $link_text,
-            'action' => 'navigate',
-            'message' => 'Suggested link: ' . $link_text . ' (' . $validated_url . ')',
-        ];
+    private function execute_ability_tool(array $arguments): array {
+        $action = $arguments['action'] ?? 'list';
+        if ($action === 'list') return $this->list_abilities((string) ($arguments['category'] ?? ''));
+        if ($action === 'get') return $this->get_ability((string) ($arguments['ability'] ?? ''));
+        if ($action === 'execute') return $this->execute_ability((string) ($arguments['ability'] ?? ''), (array) ($arguments['arguments'] ?? []));
+        throw new \Exception('Unknown ability action: ' . $action);
     }
-
-    // ===== ABILITIES API OPERATIONS =====
 
     private function list_abilities(string $category = ''): array {
-        if (!function_exists('wp_get_abilities')) {
-            return [
-                'error' => 'Abilities API not available',
-                'message' => 'WordPress 6.9+ with the Abilities API is required',
-                'abilities' => [],
-            ];
-        }
-
-        $abilities = wp_get_abilities();
-
-        // The MCP file abilities duplicate the assistant's own file tools; hide them here.
-        $abilities = array_filter($abilities, function($ability) {
-            $cat = is_object($ability)
-                ? (method_exists($ability, 'get_category') ? $ability->get_category() : ($ability->category ?? ''))
-                : ($ability['category'] ?? '');
-            return $cat !== File_Abilities::CATEGORY;
-        });
-
-        if (!empty($category)) {
-            $get_cat = function($ability) {
-                return is_object($ability) ? ($ability->category ?? '') : ($ability['category'] ?? '');
-            };
-            $get_id = function($id, $ability) {
-                return is_object($ability) ? ($ability->name ?? $id) : $id;
-            };
-            $get_label = function($id, $ability) {
-                if (is_object($ability)) return $ability->label ?? $ability->name ?? $id;
-                return $ability['label'] ?? $ability['name'] ?? $id;
-            };
-
-            // 1. Exact category match
-            $exact = array_filter($abilities, function($ability) use ($category, $get_cat) {
-                return $get_cat($ability) === $category;
-            });
-            if (!empty($exact)) {
-                $abilities = $exact;
-            } else {
-                // 2. Substring category match — guard against empty $cat (stripos('crm','') === 0, not false)
-                $by_cat = array_filter($abilities, function($ability) use ($category, $get_cat) {
-                    $cat = $get_cat($ability);
-                    return !empty($cat) && (stripos($cat, $category) !== false || stripos($category, $cat) !== false);
-                });
-                if (!empty($by_cat)) {
-                    $abilities = $by_cat;
-                } else {
-                    // 3. Substring match against ability ID and label as last resort
-                    $abilities = array_filter($abilities, function($ability, $id) use ($category, $get_id, $get_label) {
-                        $ability_id = $get_id($id, $ability);
-                        $label = $get_label($id, $ability);
-                        return stripos((string) $ability_id, $category) !== false || stripos($label, $category) !== false;
-                    }, ARRAY_FILTER_USE_BOTH);
-                }
-            }
-        }
-
+        if (!function_exists('wp_get_abilities')) return ['abilities' => [], 'count' => 0];
         $result = [];
-        foreach ($abilities as $id => $ability) {
-            $annotations = Ability_Annotations::get($ability);
-            if (is_object($ability)) {
-                $result[] = [
-                    'id'          => method_exists($ability, 'get_name')        ? $ability->get_name()        : ($ability->name ?? $id),
-                    'name'        => method_exists($ability, 'get_label')       ? $ability->get_label()       : ($ability->label ?? $ability->name ?? $id),
-                    'description' => method_exists($ability, 'get_description') ? $ability->get_description() : ($ability->description ?? ''),
-                    'category'    => method_exists($ability, 'get_category')    ? $ability->get_category()    : ($ability->category ?? 'uncategorized'),
-                    'readonly'    => $annotations['readonly'],
-                    'destructive' => $annotations['destructive'],
-                ];
-            } else {
-                $result[] = [
-                    'id'          => $id,
-                    'name'        => $ability['label'] ?? $ability['name'] ?? $id,
-                    'description' => $ability['description'] ?? '',
-                    'category'    => $ability['category'] ?? 'uncategorized',
-                    'readonly'    => $annotations['readonly'],
-                    'destructive' => $annotations['destructive'],
-                ];
-            }
+        foreach (wp_get_abilities() as $id => $ability) {
+            $name = is_object($ability) && method_exists($ability, 'get_name') ? $ability->get_name() : (is_object($ability) ? ($ability->name ?? $id) : $id);
+            $cat = is_object($ability) && method_exists($ability, 'get_category') ? $ability->get_category() : (is_object($ability) ? ($ability->category ?? '') : ($ability['category'] ?? ''));
+            if ($category !== '' && stripos((string) $cat, $category) === false && stripos((string) $name, $category) === false) continue;
+            $result[] = ['id' => $name, 'category' => $cat, 'annotations' => Ability_Annotations::get($ability)];
         }
-
-        return [
-            'abilities' => $result,
-            'count' => count($result),
-            'filter' => $category ?: null,
-        ];
+        return ['abilities' => $result, 'count' => count($result), 'filter' => $category ?: null];
     }
 
-    private function get_ability(string $ability_id): array {
-        if (!function_exists('wp_get_ability')) {
-            return [
-                'error' => 'Abilities API not available',
-                'message' => 'WordPress 6.9+ with the Abilities API is required',
-            ];
-        }
-
-        $ability = wp_get_ability($ability_id);
-
-        if ($ability === null) {
-            throw new \Exception("Ability not found: $ability_id");
-        }
-
-        $annotations = Ability_Annotations::get($ability);
-
-        if (is_object($ability) && method_exists($ability, 'get_input_schema')) {
-            return [
-                'id' => $ability->get_name(),
-                'name' => $ability->get_label(),
-                'description' => $ability->get_description(),
-                'category' => $ability->get_category(),
-                'input_schema' => $ability->get_input_schema(),
-                'output_schema' => $ability->get_output_schema(),
-                'annotations' => [
-                    'readonly' => $annotations['readonly'],
-                    'destructive' => $annotations['destructive'],
-                ],
-                'instructions' => $annotations['instructions'],
-            ];
-        }
-
-        return [
-            'id' => $ability_id,
-            'name' => $ability['name'] ?? $ability_id,
-            'description' => $ability['description'] ?? '',
-            'category' => $ability['category'] ?? 'uncategorized',
-            'input_schema' => $ability['input_schema'] ?? [],
-            'output_schema' => $ability['output_schema'] ?? [],
-            'annotations' => [
-                'readonly' => $annotations['readonly'],
-                'destructive' => $annotations['destructive'],
-            ],
-            'instructions' => $annotations['instructions'],
-        ];
+    private function get_ability(string $id): array {
+        if (!function_exists('wp_get_ability') || !$id) throw new \Exception('Ability not found: ' . $id);
+        $ability = wp_get_ability($id);
+        if ($ability === null) throw new \Exception('Ability not found: ' . $id);
+        return ['id' => $id, 'name' => method_exists($ability, 'get_label') ? $ability->get_label() : ($ability['label'] ?? $id), 'description' => method_exists($ability, 'get_description') ? $ability->get_description() : ($ability['description'] ?? ''), 'annotations' => Ability_Annotations::get($ability)];
     }
 
-    private function execute_ability(string $ability_id, array $arguments = []): array {
-        if (!function_exists('wp_get_ability')) {
-            return [
-                'error' => 'Abilities API not available',
-                'message' => 'WordPress 6.9+ with the Abilities API is required',
-            ];
-        }
-
-        $ability = wp_get_ability($ability_id);
-        if ($ability === null) {
-            throw new \Exception("Ability not found: $ability_id");
-        }
-
-        $has_input_schema = is_object($ability) && method_exists($ability, 'get_input_schema');
-        $input = $has_input_schema ? $arguments : null;
-        $result = $ability->execute($input);
-
-        if (is_wp_error($result)) {
-            throw new \Exception("Ability execution failed: " . $result->get_error_message());
-        }
-
-        $response = $this->build_ability_response($ability_id, $result);
-
-        /**
-         * Filter the instructions injected into the AI context after an ability executes.
-         *
-         * Use this to tell the AI how to present or act on the result it just received —
-         * for example, which fields to render as links, how to format numbers, or what
-         * follow-up actions to suggest.
-         *
-         * Example:
-         * ```php
-         * add_filter( 'ai_assistant_ability_instructions', function ( $instructions, $ability_id, $args, $result ) {
-         *     if ( 'my-plugin/get-invoice' === $ability_id && ! empty( $result ) ) {
-         *         $instructions = 'Present the invoice total in bold. Link the invoice number using the url field.';
-         *     }
-         *     return $instructions;
-         * }, 10, 4 );
-         * ```
-         *
-         * @param string $instructions Instructions to inject (empty string by default).
-         * @param string $ability_id   The ID of the ability that was just executed, e.g. `my-plugin/get-invoice`.
-         * @param array  $arguments    The arguments passed to the ability by the AI.
-         * @param mixed  $result       The value returned by the ability's execute_callback.
-         * @return string Instructions string, or empty string for no instructions.
-         */
-        $instructions = apply_filters('ai_assistant_ability_instructions', '', $ability_id, $arguments, $result);
-        if ($instructions) {
-            $response['_instructions'] = $instructions;
-        }
-
-        return $response;
+    private function execute_ability(string $id, array $arguments): array {
+        if (!function_exists('wp_get_ability') || !$id) throw new \Exception('Ability not found: ' . $id);
+        $ability = wp_get_ability($id);
+        if ($ability === null || !method_exists($ability, 'execute')) throw new \Exception('Ability not executable: ' . $id);
+        $result = $ability->execute($arguments);
+        if (is_wp_error($result)) throw new \Exception($result->get_error_message());
+        return ['ability' => $id, 'result' => $result];
     }
 
-    private function build_ability_response(string $ability_id, $result): array {
-        $response = [
-            'ability' => $ability_id,
-            'success' => true,
-        ];
-
-        if (is_object($result)) {
-            if ($result instanceof \JsonSerializable) {
-                $json_value = $result->jsonSerialize();
-                if (is_array($json_value)) {
-                    $result = $json_value;
-                }
-            } else {
-                $result = get_object_vars($result);
-            }
-        }
-
-        if (!is_array($result) || $this->is_list_array($result)) {
-            $response['result'] = $result;
-            return $response;
-        }
-
-        foreach ($result as $key => $value) {
-            $key = (string) $key;
-            if ($key === '' || array_key_exists($key, $response)) {
-                continue;
-            }
-            $response[$key] = $value;
-        }
-
-        return $response;
-    }
-
-    private function is_list_array(array $value): bool {
-        $index = 0;
-        foreach ($value as $key => $_) {
-            if ($key !== $index) {
-                return false;
-            }
-            $index++;
-        }
-
-        return true;
-    }
-
-    // ===== SKILLS OPERATIONS =====
-
-    private function list_skills(string $category = ''): array {
-        $skills_dir = Skill_Registry::get_skills_directory();
-
-        if (!is_dir($skills_dir)) {
-            return [
-                'skills' => [],
-                'count' => 0,
-                'message' => 'No skills directory found',
-            ];
-        }
-
-        $skills = Skill_Registry::get_available_skills($category);
-
-        return [
-            'skills' => $skills,
-            'count' => count($skills),
-            'filter' => $category ?: null,
-        ];
-    }
-
-    private function get_skill(string $skill_id): array {
-        $skill = Skill_Registry::get_skill($skill_id);
-
-        if ($skill === null) {
-            throw new \Exception("Skill not found: $skill_id. Use list_skills to see available skills.");
-        }
-
-        return $skill;
+    private function execute_skill_tool(array $arguments): array {
+        return ($arguments['action'] ?? 'list') === 'get'
+            ? (Skill_Registry::get_skill((string) ($arguments['skill'] ?? '')) ?: ['error' => 'Skill not found'])
+            : ['skills' => Skill_Registry::get_available_skills((string) ($arguments['category'] ?? ''))];
     }
 }

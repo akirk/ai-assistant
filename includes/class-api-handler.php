@@ -27,6 +27,10 @@ class API_Handler {
         add_action('wp_ajax_ai_assistant_wpok', [$this, 'handle_wpok']);
     }
 
+    public function set_executor($executor): void {
+        $this->executor = $executor;
+    }
+
     /**
      * Lightweight AJAX endpoint used to confirm WordPress is OK after recovery.
      */
@@ -49,6 +53,10 @@ class API_Handler {
      */
     public function handle_execute_tool() {
         check_ajax_referer('ai_assistant_chat', '_wpnonce');
+
+        if (!$this->executor || !is_object($this->executor)) {
+            wp_send_json_error(['message' => 'Tool execution is provided by the Patch Assistant companion plugin.'], 503);
+        }
 
         if (!current_user_can('ai_assistant_full') && !current_user_can('ai_assistant_read_only')) {
             wp_send_json_error(['message' => 'Tool execution not allowed']);

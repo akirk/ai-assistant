@@ -1,7 +1,7 @@
 <?php
 namespace AI_Assistant\Tests;
 
-require_once dirname(__DIR__) . '/includes/class-changes-admin.php';
+require_once dirname(__DIR__, 2) . '/patch-assistant/includes/class-changes-admin.php';
 
 use AI_Assistant\Changes_Admin;
 use AI_Assistant\Git_Tracker_Manager;

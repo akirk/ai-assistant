@@ -257,7 +257,7 @@ class Settings {
 
     public static function default_enabled_tools(): array {
         $tools = [
-            'read_file', 'list_directory', 'search_files', 'search_content', 'db_query',
+            'db_query',
             'rest_api', 'environment_info', 'get_plugins', 'get_themes',
             'list_abilities', 'get_ability', 'execute_ability', 'navigate', 'get_page_html',
             'pick_image', 'summarize_conversation', 'inspect_tool_result', 'delegate', 'list_skills', 'get_skill',
@@ -310,10 +310,6 @@ class Settings {
 
     public function get_all_tools_with_meta() {
         $tools = [
-            'read_file'              => ['label' => 'Read File',               'group' => 'File Reading',    'dangerous' => false],
-            'list_directory'         => ['label' => 'List Directory',          'group' => 'File Reading',    'dangerous' => false],
-            'search_files'           => ['label' => 'Search Files',            'group' => 'File Reading',    'dangerous' => false],
-            'search_content'         => ['label' => 'Search Content',          'group' => 'File Reading',    'dangerous' => false],
             'db_query'               => ['label' => 'DB Query',                'group' => 'Database',        'dangerous' => false],
             'environment_info'       => ['label' => 'Environment Info',        'group' => 'WordPress',       'dangerous' => false],
             'get_plugins'            => ['label' => 'Get Plugins',             'group' => 'WordPress',       'dangerous' => false],
@@ -359,13 +355,7 @@ class Settings {
     }
 
     public function get_file_endpoint_tools(): array {
-        $tools = [
-            'read_file',
-            'find',
-            'list_directory',
-            'search_files',
-            'search_content',
-        ];
+        $tools = [];
 
         return array_values(array_unique(array_filter((array) apply_filters('ai_assistant_file_endpoint_tools', $tools))));
     }
@@ -520,29 +510,30 @@ class Settings {
             'default' => '1',
         ]);
 
-        register_setting('ai_assistant_settings', Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, [
-            'type' => 'string',
-            'sanitize_callback' => function($value) {
-                return $value ? '1' : '';
-            },
-            'default' => '1',
-        ]);
+        if (class_exists(__NAMESPACE__ . '\\Plugin_Checkout_Badge')) {
+            register_setting('ai_assistant_settings', Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, [
+                'type' => 'string',
+                'sanitize_callback' => function($value) { return $value ? '1' : ''; },
+                'default' => '1',
+            ]);
+        }
 
-        register_setting('ai_assistant_settings', File_Abilities::OPTION, [
-            'type' => 'array',
-            'sanitize_callback' => function($value) {
-                // Ability exposure never exceeds the local tool permissions saved in the same request.
-                $enabled = isset($_POST['ai_assistant_enabled_tools'])
-                    ? array_map('sanitize_key', (array) wp_unslash($_POST['ai_assistant_enabled_tools']))
-                    : $this->get_effective_enabled_tools(get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools()));
-                $tools = [];
-                foreach ((array) $value as $name) {
-                    $tools = array_merge($tools, File_Abilities::ABILITY_TOOLS[$name] ?? [$name]);
-                }
-                return array_values(array_intersect(File_Abilities::all_tools(), $tools, $enabled));
-            },
-            'default' => [],
-        ]);
+        if (class_exists(__NAMESPACE__ . '\\File_Abilities')) {
+            register_setting('ai_assistant_settings', File_Abilities::OPTION, [
+                'type' => 'array',
+                'sanitize_callback' => function($value) {
+                    $enabled = isset($_POST['ai_assistant_enabled_tools'])
+                        ? array_map('sanitize_key', (array) wp_unslash($_POST['ai_assistant_enabled_tools']))
+                        : $this->get_effective_enabled_tools(get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools()));
+                    $tools = [];
+                    foreach ((array) $value as $name) {
+                        $tools = array_merge($tools, File_Abilities::ABILITY_TOOLS[$name] ?? [$name]);
+                    }
+                    return array_values(array_intersect(File_Abilities::all_tools(), $tools, $enabled));
+                },
+                'default' => [],
+            ]);
+        }
 
         register_setting('ai_assistant_settings', Assistant_Themes::OPTION, [
             'type' => 'string',
@@ -1683,7 +1674,7 @@ class Settings {
         }
         $first_group = key($by_group);
         $abilities_available = function_exists('wp_register_ability');
-        $ability_tools = File_Abilities::get_exposed_tools();
+        $ability_tools = class_exists(__NAMESPACE__ . '\\File_Abilities') ? File_Abilities::get_exposed_tools() : [];
         $ability_groups = ['File Reading', 'File Writing'];
         ?>
         <div class="ai-settings-tools">
@@ -2659,6 +2650,9 @@ class Settings {
      * In-page AI Changes display checkbox field.
      */
     public function in_page_ai_changes_field_callback() {
+        if (!class_exists(__NAMESPACE__ . '\\Plugin_Checkout_Badge')) {
+            return;
+        }
         $show_in_page_ai_changes = get_option(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, '1');
         ?>
         <label>
@@ -2715,9 +2709,10 @@ class Settings {
                 $mcp_adapter_link = '<a href="https://github.com/wordpress/mcp-adapter">MCP Adapter</a>';
                 $mcp_connect_link = '<a href="https://github.com/akirk/mcp-connect">MCP Connect</a>';
                 $has_mcp_connect = defined('MCP_OAUTH_VERSION');
-                if (File_Abilities::has_mcp_server() && $has_mcp_connect) {
+                $has_file_abilities = class_exists(__NAMESPACE__ . '\\File_Abilities');
+                if ($has_file_abilities && File_Abilities::has_mcp_server() && $has_mcp_connect) {
                     esc_html_e('Agents connect through the active MCP Adapter plugin; MCP Connect handles their login.', 'ai-assistant');
-                } elseif (File_Abilities::has_mcp_server()) {
+                } elseif ($has_file_abilities && File_Abilities::has_mcp_server()) {
                     printf(
                         /* translators: %s: link to the MCP Connect plugin */
                         esc_html__('Agents connect through the active MCP Adapter plugin. Add %s to let claude.ai, Claude Code and similar clients log in with OAuth instead of an application password.', 'ai-assistant'),
@@ -2733,7 +2728,7 @@ class Settings {
                 }
                 ?>
             </p>
-            <?php if ($group === 'File Writing') : ?>
+            <?php if ($group === 'File Writing' && class_exists(__NAMESPACE__ . '\\File_Access_Health')) : ?>
                 <?php $this->render_health_result((new File_Access_Health())->run_test()); ?>
             <?php endif; ?>
             <?php else : ?>

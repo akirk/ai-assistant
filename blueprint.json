@@ -24,6 +24,19 @@
 				"activate": true,
 				"targetFolderName": "ai-assistant"
 			}
+		},
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "git:directory",
+				"url": "https://github.com/akirk/patch-assistant",
+				"ref": "main",
+				"refType": "branch"
+			},
+			"options": {
+				"activate": true,
+				"targetFolderName": "patch-assistant"
+			}
 		}
 	]
 }

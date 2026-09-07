@@ -411,6 +411,7 @@ if (!class_exists('WP_Error')) {
 
 // Manual class loading (no Composer autoloader)
 $plugin_dir = dirname(__DIR__);
+$patch_plugin_dir = dirname($plugin_dir) . '/patch-assistant';
 $vendor_autoload = $plugin_dir . '/vendor/autoload.php';
 if (file_exists($vendor_autoload)) {
     require_once $vendor_autoload;
@@ -419,21 +420,28 @@ if (file_exists($vendor_autoload)) {
 require_once $plugin_dir . '/includes/class-tools.php';
 require_once $plugin_dir . '/includes/class-ability-annotations.php';
 require_once $plugin_dir . '/includes/class-skill-registry.php';
-require_once $plugin_dir . '/includes/class-file-tool-auth.php';
-require_once $plugin_dir . '/includes/class-emergency-plugin-guard.php';
-require_once $plugin_dir . '/includes/class-file-tool-executor.php';
-require_once $plugin_dir . '/includes/class-plugin-recovery-admin.php';
 require_once $plugin_dir . '/includes/class-executor.php';
-require_once $plugin_dir . '/dev-tools.php';
 require_once $plugin_dir . '/includes/class-api-handler.php';
-require_once $plugin_dir . '/includes/class-git-tracker.php';
-require_once $plugin_dir . '/includes/class-git-tracker-manager.php';
-require_once $plugin_dir . '/includes/class-plugin-checkout-badge.php';
 require_once $plugin_dir . '/includes/class-admin-colors.php';
 require_once $plugin_dir . '/includes/class-assistant-themes.php';
 require_once $plugin_dir . '/includes/class-conversations.php';
 require_once $plugin_dir . '/includes/class-conversations-app.php';
 require_once $plugin_dir . '/includes/class-settings.php';
-require_once $plugin_dir . '/includes/class-wp-app-abilities.php';
-require_once $plugin_dir . '/includes/class-file-abilities.php';
-require_once $plugin_dir . '/includes/class-file-access-health.php';
+
+// Patch Assistant-only classes are loaded explicitly for the development-tool tests.
+foreach ([
+    '/includes/class-file-tool-auth.php',
+    '/includes/class-emergency-plugin-guard.php',
+    '/includes/class-file-tool-executor.php',
+    '/includes/class-plugin-recovery-admin.php',
+    '/includes/class-git-tracker.php',
+    '/includes/class-git-tracker-manager.php',
+    '/includes/class-plugin-checkout-badge.php',
+    '/includes/class-wp-app-abilities.php',
+    '/includes/class-file-abilities.php',
+    '/includes/class-file-access-health.php',
+    '/includes/class-changes-admin.php',
+] as $rw_file) {
+    require_once $patch_plugin_dir . $rw_file;
+}
+require_once $patch_plugin_dir . '/dev-tools.php';

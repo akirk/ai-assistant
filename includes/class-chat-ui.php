@@ -263,12 +263,8 @@ class Chat_UI {
         return [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('ai_assistant_chat'),
-            'fileToolsUrl' => AI_ASSISTANT_PLUGIN_URL . 'file-tools.php',
-            'fileToolsToken' => File_Tool_Auth::create_token(
-                $settings->get_user_permission_level(),
-                $settings->get_user_enabled_tools(),
-                get_current_user_id()
-            ),
+            'fileToolsUrl' => apply_filters('ai_assistant_file_tools_url', ''),
+            'fileToolsToken' => apply_filters('ai_assistant_file_tools_token', ''),
             'toolDefinitions' => $settings->get_client_tool_definitions(),
             'destructiveTools' => $settings->get_destructive_tools(),
             'fileEndpointTools' => $settings->get_file_endpoint_tools(),
