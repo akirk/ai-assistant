@@ -80,7 +80,7 @@ jobs:
         run: |
           php -r '
           $dist_ref = getenv("DIST_REF");
-          foreach (["blueprint.json", "demo.json"] as $path) {
+          foreach (["blueprint.json", "blueprint-standalone.json", "demo.json"] as $path) {
               if (!is_file($path)) {
                   continue;
               }
@@ -137,7 +137,10 @@ jobs:
             const distRef = `dist/${process.env.HEAD_REF}`;
             const playgroundUrl = (file) => `https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/refs/heads/${distRef}/${file}`;
 
-            const links = [`[Try this PR](${playgroundUrl('blueprint.json')})`];
+            const links = [
+              `[Try this PR](${playgroundUrl('blueprint.json')})`,
+              `[Try standalone](${playgroundUrl('blueprint-standalone.json')})`,
+            ];
             if (fs.existsSync('demo.json')) {
               links.push(`[Try with demo conversations](${playgroundUrl('demo.json')})`);
             }
