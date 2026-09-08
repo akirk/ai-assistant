@@ -873,13 +873,16 @@
             ability = ability || {};
             var annotations = this.getClientAbilityAnnotations(ability);
             var id = ability.name || ability.id || '';
+            var inputSchema = ability.input_schema || {};
             return {
                 id: id,
                 name: ability.label || id,
                 description: ability.description || '',
                 category: ability.category || 'uncategorized',
                 readonly: !!annotations.readonly,
-                destructive: !!annotations.destructive
+                destructive: !!annotations.destructive,
+                has_schema: !!ability.input_schema,
+                input_schema: inputSchema
             };
         },
 
@@ -891,12 +894,13 @@
                 name: summary.name,
                 description: summary.description,
                 category: summary.category,
-                input_schema: ability.input_schema || {},
+                input_schema: summary.input_schema,
                 output_schema: ability.output_schema || {},
                 annotations: {
                     readonly: !!annotations.readonly,
                     destructive: !!annotations.destructive
                 },
+                has_schema: summary.has_schema,
                 instructions: annotations.instructions || ability.instructions || ''
             };
         },

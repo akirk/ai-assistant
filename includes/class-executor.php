@@ -184,7 +184,15 @@ class Executor {
             $name = is_object($ability) && method_exists($ability, 'get_name') ? $ability->get_name() : (is_object($ability) ? ($ability->name ?? $id) : $id);
             $cat = is_object($ability) && method_exists($ability, 'get_category') ? $ability->get_category() : (is_object($ability) ? ($ability->category ?? '') : ($ability['category'] ?? ''));
             if ($category !== '' && stripos((string) $cat, $category) === false && stripos((string) $name, $category) === false) continue;
-            $result[] = ['id' => $name, 'category' => $cat, 'annotations' => Ability_Annotations::get($ability)];
+            $details = Ability_Annotations::get_details($id, $ability);
+            $result[] = [
+                'id' => $details['id'],
+                'category' => $details['category'],
+                'annotations' => $details['annotations'],
+                'has_schema' => $details['has_schema'],
+                'input_schema' => $details['input_schema'],
+                'parameters' => $details['parameters'],
+            ];
         }
         return ['abilities' => $result, 'count' => count($result), 'filter' => $category ?: null];
     }
@@ -193,7 +201,18 @@ class Executor {
         if (!function_exists('wp_get_ability') || !$id) throw new \Exception('Ability not found: ' . $id);
         $ability = wp_get_ability($id);
         if ($ability === null) throw new \Exception('Ability not found: ' . $id);
-        return ['id' => $id, 'name' => method_exists($ability, 'get_label') ? $ability->get_label() : ($ability['label'] ?? $id), 'description' => method_exists($ability, 'get_description') ? $ability->get_description() : ($ability['description'] ?? ''), 'annotations' => Ability_Annotations::get($ability)];
+        $details = Ability_Annotations::get_details($id, $ability);
+        return [
+            'id' => $details['id'],
+            'name' => $details['label'],
+            'description' => $details['description'],
+            'category' => $details['category'],
+            'annotations' => $details['annotations'],
+            'has_schema' => $details['has_schema'],
+            'input_schema' => $details['input_schema'],
+            'parameters' => $details['parameters'],
+            'raw_schema' => $details['raw_schema'],
+        ];
     }
 
     private function execute_ability(string $id, array $arguments): array {

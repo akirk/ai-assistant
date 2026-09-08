@@ -136,6 +136,7 @@ class Ability_Annotations {
                 'instructions' => $annotations['instructions'],
             ],
             'has_schema'  => $schema !== null,
+            'input_schema' => $schema ?? [],
             'parameters'  => $schema !== null ? self::get_schema_parameters($schema) : [],
             'raw_schema'  => $schema !== null && !empty($schema) ? self::encode_json($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : '',
         ];
