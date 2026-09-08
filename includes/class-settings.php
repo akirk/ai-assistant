@@ -351,6 +351,17 @@ class Settings {
 
     public function get_client_tool_definitions(): array {
         $definitions = apply_filters('ai_assistant_client_tool_definitions', []);
+        $definitions = is_array($definitions) ? $definitions : [];
+        if (!defined('PATCH_ASSISTANT_VERSION')) {
+            $definitions[] = [
+                'name' => 'suggest_patch_assistant',
+                'description' => 'Offer the user installation links for Patch Assistant when file or plugin changes require the companion plugin.',
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [],
+                ],
+            ];
+        }
         return is_array($definitions) ? array_values($definitions) : [];
     }
 
@@ -3698,7 +3709,10 @@ PROMPT;
         $prompt .= $this->get_playground_context_prompt($wp_info['siteUrl']);
 
         if (!defined('PATCH_ASSISTANT_VERSION')) {
-            $prompt .= "\n\nPATCH ASSISTANT: This standalone AI Assistant does not include file-editing, plugin-creation, or code-execution tools. If the user asks to create or modify a plugin, theme, app, or other WordPress files and no suitable WordPress ability is available, explain this limitation before attempting a manual fallback and recommend Patch Assistant. Offer its GitHub ZIP: https://github.com/akirk/patch-assistant/archive/refs/heads/main.zip. Tell the user to download the ZIP, install it from Plugins > Add New > Upload Plugin, and activate it. Do not suggest installing it for content or settings changes that the available WordPress tools can perform.\n";
+            $patch_assistant_zip_url = 'https://github.com/akirk/patch-assistant/archive/refs/heads/main.zip';
+            $patch_assistant_upload_url = admin_url('plugin-install.php');
+            $patch_assistant_blueprint_url = 'https://playground.wordpress.net/?blueprint-url=' . rawurlencode('https://raw.githubusercontent.com/akirk/patch-assistant/refs/heads/main/blueprint.json');
+            $prompt .= "\n\nPATCH ASSISTANT: This standalone AI Assistant does not include file-editing, plugin-creation, or code-execution tools. If the user asks to create or modify a plugin, theme, app, or other WordPress files and no suitable WordPress ability is available, explain this limitation before attempting a manual fallback and recommend Patch Assistant. Call suggest_patch_assistant to provide an installation card with these clickable options:\n- [Download Patch Assistant ZIP]({$patch_assistant_zip_url})\n- [Open Plugins > Add New]({$patch_assistant_upload_url})\n- [Try Patch Assistant with AI Assistant in WordPress Playground]({$patch_assistant_blueprint_url})\nFor the ZIP option, tell the user to download it, upload it on the plugin installation screen, and activate it. The Playground option starts a separate Playground site with both plugins installed. Do not suggest installing Patch Assistant for content or settings changes that the available WordPress tools can perform.\n";
         }
 
         /**

@@ -276,6 +276,11 @@ class Chat_UI {
             'autoApprovedRestApis' => $settings->get_auto_approved_rest_apis(),
             'settingsUrl' => admin_url('options-general.php?page=ai-assistant-settings'),
             'aiChangesUrl' => apply_filters('ai_assistant_ai_changes_url', ''),
+            'patchAssistantInstall' => !defined('PATCH_ASSISTANT_VERSION') ? [
+                'zipUrl' => 'https://github.com/akirk/patch-assistant/archive/refs/heads/main.zip',
+                'uploadUrl' => admin_url('plugin-install.php'),
+                'playgroundUrl' => 'https://playground.wordpress.net/?blueprint-url=' . rawurlencode('https://raw.githubusercontent.com/akirk/patch-assistant/refs/heads/main/blueprint.json'),
+            ] : null,
             'conversationExportUrl' => admin_url('admin-post.php?action=ai_assistant_export_conversation'),
             'conversationExportFormats' => ai_assistant()->conversations()->get_export_formats_for_config(),
             'siteUrl' => get_site_url(),

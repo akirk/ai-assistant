@@ -1853,6 +1853,9 @@
             if (toolName === 'rest_api') {
                 this.renderRestApiResultLinks($card, output);
             }
+            if (toolName === 'suggest_patch_assistant') {
+                this.renderPatchAssistantInstallLinks($card, output);
+            }
 
             var display = this.getToolResultDisplay(toolName, output);
             if (!display || !display.text || !display.text.trim()) return;
@@ -1895,6 +1898,26 @@
                 $links.append($('<a target="_blank" rel="noopener noreferrer">View</a>').attr('href', viewUrl));
             }
             $card.append($links);
+        },
+
+        renderPatchAssistantInstallLinks: function($card, output) {
+            if (!output || typeof output !== 'object') return;
+
+            var links = [
+                { key: 'zipUrl', label: 'Download Patch Assistant ZIP' },
+                { key: 'uploadUrl', label: 'Open Plugins > Add New' },
+                { key: 'playgroundUrl', label: 'Try it in WordPress Playground' }
+            ];
+            var $links = $('<div class="ai-tool-result-links ai-patch-assistant-install-links"></div>');
+            links.forEach(function(link) {
+                if (!output[link.key]) return;
+                $links.append($('<a target="_blank" rel="noopener noreferrer"></a>')
+                    .attr('href', output[link.key])
+                    .text(link.label));
+            });
+            if ($links.children().length) {
+                $card.append($links);
+            }
         },
 
         addToolUseMessage: function(toolName, input, $container, result) {
