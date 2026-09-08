@@ -160,20 +160,44 @@ class Executor {
     }
 
     private function get_environment_info(bool $include_inactive): array {
-        return [
+        $plugin_data = function_exists('get_plugins') ? get_plugins() : [];
+        $active_plugins = (array) get_option('active_plugins', []);
+        $plugins = [];
+        $inactive = [];
+        foreach ($plugin_data as $file => $data) {
+            $parts = explode('/', $file);
+            $key = count($parts) > 1 ? $parts[0] : pathinfo($file, PATHINFO_FILENAME);
+            $entry = [
+                'file' => $file,
+                'title' => $data['Name'] ?? '',
+                'description' => $data['Description'] ?? '',
+                'version' => $data['Version'] ?? '',
+            ];
+            if (in_array($file, $active_plugins, true)) {
+                $plugins[$key] = $entry;
+            } elseif ($include_inactive) {
+                $inactive[$key] = $entry;
+            }
+        }
+
+        $environment = [
             'wp' => get_bloginfo('version'),
             'php' => PHP_VERSION,
             'theme' => wp_get_theme()->get_template(),
-            'plugins' => $this->get_plugins(),
+            'plugins' => $plugins,
             'include_inactive' => $include_inactive,
         ];
+        if ($include_inactive) {
+            $environment['inactive'] = $inactive;
+        }
+        return $environment;
     }
 
     private function execute_ability_tool(array $arguments): array {
         $action = $arguments['action'] ?? 'list';
         if ($action === 'list') return $this->list_abilities((string) ($arguments['category'] ?? ''));
         if ($action === 'get') return $this->get_ability((string) ($arguments['ability'] ?? ''));
-        if ($action === 'execute') return $this->execute_ability((string) ($arguments['ability'] ?? ''), (array) ($arguments['arguments'] ?? []));
+        if ($action === 'execute') return $this->execute_ability((string) ($arguments['ability'] ?? ''), $arguments['arguments'] ?? []);
         throw new \Exception('Unknown ability action: ' . $action);
     }
 
@@ -196,8 +220,19 @@ class Executor {
         return ['id' => $id, 'name' => method_exists($ability, 'get_label') ? $ability->get_label() : ($ability['label'] ?? $id), 'description' => method_exists($ability, 'get_description') ? $ability->get_description() : ($ability['description'] ?? ''), 'annotations' => Ability_Annotations::get($ability)];
     }
 
-    private function execute_ability(string $id, array $arguments): array {
+    private function execute_ability(string $id, $arguments): array {
         if (!function_exists('wp_get_ability') || !$id) throw new \Exception('Ability not found: ' . $id);
+        if (is_string($arguments)) {
+            $decoded = json_decode($arguments, true);
+            $trimmed_arguments = trim($arguments);
+            if (!is_array($decoded) && substr($trimmed_arguments, -2) === '}}') {
+                $decoded = json_decode(rtrim($trimmed_arguments, '}') . '}', true);
+            }
+            if (!is_array($decoded)) {
+                throw new \Exception("ability requires 'arguments' to be an object or valid JSON object");
+            }
+            $arguments = $decoded;
+        }
         $ability = wp_get_ability($id);
         if ($ability === null || !method_exists($ability, 'execute')) throw new \Exception('Ability not executable: ' . $id);
         $result = $ability->execute($arguments);
