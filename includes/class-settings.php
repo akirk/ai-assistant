@@ -510,14 +510,6 @@ class Settings {
             'default' => '1',
         ]);
 
-        if (class_exists(__NAMESPACE__ . '\\Plugin_Checkout_Badge')) {
-            register_setting('ai_assistant_settings', Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, [
-                'type' => 'string',
-                'sanitize_callback' => function($value) { return $value ? '1' : ''; },
-                'default' => '1',
-            ]);
-        }
-
         if (class_exists(__NAMESPACE__ . '\\File_Abilities')) {
             register_setting('ai_assistant_settings', File_Abilities::OPTION, [
                 'type' => 'array',
@@ -2619,11 +2611,8 @@ class Settings {
                 <th scope="row"><label for="ai_assistant_theme"><?php esc_html_e('Assistant Theme', 'ai-assistant'); ?></label></th>
                 <td><?php $this->theme_field_callback(); ?></td>
             </tr>
-            <tr>
-                <th scope="row"><?php esc_html_e('In-page AI Changes', 'ai-assistant'); ?></th>
-                <td><?php $this->in_page_ai_changes_field_callback(); ?></td>
-            </tr>
         </table>
+        <?php do_action('ai_assistant_settings_display_fields'); ?>
         <?php
     }
 
@@ -2642,28 +2631,6 @@ class Settings {
         </label>
         <p class="description">
             <?php esc_html_e('When enabled, logged-in users with access will see the AI Assistant button on the frontend of your site.', 'ai-assistant'); ?>
-        </p>
-        <?php
-    }
-
-    /**
-     * In-page AI Changes display checkbox field.
-     */
-    public function in_page_ai_changes_field_callback() {
-        if (!class_exists(__NAMESPACE__ . '\\Plugin_Checkout_Badge')) {
-            return;
-        }
-        $show_in_page_ai_changes = get_option(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, '1');
-        ?>
-        <label>
-            <input type="checkbox"
-                   name="<?php echo esc_attr(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES); ?>"
-                   value="1"
-                   <?php checked($show_in_page_ai_changes, '1'); ?>>
-            <?php esc_html_e('Always show in-page AI Changes', 'ai-assistant'); ?>
-        </label>
-        <p class="description">
-            <?php esc_html_e('When enabled, pages rendered by a plugin or theme with tracked AI Changes show the compact version log even when the current version is checked out. Old checked-out versions enable this automatically.', 'ai-assistant'); ?>
         </p>
         <?php
     }

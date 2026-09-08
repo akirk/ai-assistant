@@ -72,16 +72,8 @@ final class AI_Assistant {
     private $tools;
     private $executor;
     private $conversations;
-    private $git_tracker_manager;
-    private $plugin_downloads;
-    private $changes_admin;
-    private $plugin_recovery_admin;
-    private $plugin_checkout_badge;
     private $connectors_bridge;
     private $llm_proxy;
-    private $wp_app_abilities;
-    private $file_abilities;
-    private $file_access_health;
     private $conversations_app;
     private $assistant_themes;
 
@@ -176,10 +168,6 @@ final class AI_Assistant {
 
     public function assistant_themes() {
         return $this->assistant_themes;
-    }
-
-    public function plugin_checkout_badge() {
-        return $this->plugin_checkout_badge;
     }
 
     /**
