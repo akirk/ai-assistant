@@ -15,6 +15,13 @@ If the app already exists as a single HTML page (for example one built earlier i
 
 Do not hand-write the scaffold first. Use the WordPress Ability API integration from `akirk/create-wp-app` so the package owns scaffolding, dependency copying, file layout, and future template changes.
 
+If `ai/create-wp-app` is unavailable and Patch Assistant is not installed, explain
+that this standalone assistant cannot create or modify the required plugin files.
+Before attempting a manual fallback, recommend Patch Assistant and offer its
+GitHub ZIP: https://github.com/akirk/patch-assistant/archive/refs/heads/main.zip.
+Tell the user to install it from Plugins > Add New > Upload Plugin and activate it.
+Only continue with a manual fallback if the user explicitly chooses that route.
+
 ## Workflow
 
 1. Use the `ability` tool to list abilities with category `create-wp-app`.
