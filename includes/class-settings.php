@@ -358,7 +358,7 @@ class Settings {
                 'description' => 'Offer the user installation links for Patch Assistant when file or plugin changes require the companion plugin.',
                 'input_schema' => [
                     'type' => 'object',
-                    'properties' => [],
+                    'properties' => (object) [],
                 ],
             ];
         }
