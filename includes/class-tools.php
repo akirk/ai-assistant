@@ -15,7 +15,6 @@ class Tools {
      */
     public function get_all_tools(): array {
         $tools = array_merge(
-            $this->get_file_tools(),
             $this->get_database_tools(),
             $this->get_wordpress_tools(),
             $this->get_abilities_tools(),
@@ -39,10 +38,6 @@ class Tools {
      */
     public function get_read_only_tools(): array {
         $tools = [
-            $this->tool_read_file(),
-            $this->tool_list_directory(),
-            $this->tool_search_files(),
-            $this->tool_search_content(),
             $this->tool_db_query(),
             $this->tool_get_plugins(),
             $this->tool_get_themes(),

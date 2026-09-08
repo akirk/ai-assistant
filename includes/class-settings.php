@@ -257,7 +257,7 @@ class Settings {
 
     public static function default_enabled_tools(): array {
         $tools = [
-            'read_file', 'list_directory', 'search_files', 'search_content', 'db_query',
+            'db_query',
             'rest_api', 'environment_info', 'get_plugins', 'get_themes',
             'list_abilities', 'get_ability', 'execute_ability', 'navigate', 'get_page_html',
             'pick_image', 'summarize_conversation', 'inspect_tool_result', 'delegate', 'list_skills', 'get_skill',
@@ -310,10 +310,6 @@ class Settings {
 
     public function get_all_tools_with_meta() {
         $tools = [
-            'read_file'              => ['label' => 'Read File',               'group' => 'File Reading',    'dangerous' => false],
-            'list_directory'         => ['label' => 'List Directory',          'group' => 'File Reading',    'dangerous' => false],
-            'search_files'           => ['label' => 'Search Files',            'group' => 'File Reading',    'dangerous' => false],
-            'search_content'         => ['label' => 'Search Content',          'group' => 'File Reading',    'dangerous' => false],
             'db_query'               => ['label' => 'DB Query',                'group' => 'Database',        'dangerous' => false],
             'environment_info'       => ['label' => 'Environment Info',        'group' => 'WordPress',       'dangerous' => false],
             'get_plugins'            => ['label' => 'Get Plugins',             'group' => 'WordPress',       'dangerous' => false],
@@ -355,17 +351,22 @@ class Settings {
 
     public function get_client_tool_definitions(): array {
         $definitions = apply_filters('ai_assistant_client_tool_definitions', []);
+        $definitions = is_array($definitions) ? $definitions : [];
+        if (!defined('PATCH_ASSISTANT_VERSION')) {
+            $definitions[] = [
+                'name' => 'suggest_patch_assistant',
+                'description' => 'Offer the user installation links for Patch Assistant when file or plugin changes require the companion plugin.',
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => (object) [],
+                ],
+            ];
+        }
         return is_array($definitions) ? array_values($definitions) : [];
     }
 
     public function get_file_endpoint_tools(): array {
-        $tools = [
-            'read_file',
-            'find',
-            'list_directory',
-            'search_files',
-            'search_content',
-        ];
+        $tools = [];
 
         return array_values(array_unique(array_filter((array) apply_filters('ai_assistant_file_endpoint_tools', $tools))));
     }
@@ -520,29 +521,22 @@ class Settings {
             'default' => '1',
         ]);
 
-        register_setting('ai_assistant_settings', Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, [
-            'type' => 'string',
-            'sanitize_callback' => function($value) {
-                return $value ? '1' : '';
-            },
-            'default' => '1',
-        ]);
-
-        register_setting('ai_assistant_settings', File_Abilities::OPTION, [
-            'type' => 'array',
-            'sanitize_callback' => function($value) {
-                // Ability exposure never exceeds the local tool permissions saved in the same request.
-                $enabled = isset($_POST['ai_assistant_enabled_tools'])
-                    ? array_map('sanitize_key', (array) wp_unslash($_POST['ai_assistant_enabled_tools']))
-                    : $this->get_effective_enabled_tools(get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools()));
-                $tools = [];
-                foreach ((array) $value as $name) {
-                    $tools = array_merge($tools, File_Abilities::ABILITY_TOOLS[$name] ?? [$name]);
-                }
-                return array_values(array_intersect(File_Abilities::all_tools(), $tools, $enabled));
-            },
-            'default' => [],
-        ]);
+        if (class_exists(__NAMESPACE__ . '\\File_Abilities')) {
+            register_setting('ai_assistant_settings', File_Abilities::OPTION, [
+                'type' => 'array',
+                'sanitize_callback' => function($value) {
+                    $enabled = isset($_POST['ai_assistant_enabled_tools'])
+                        ? array_map('sanitize_key', (array) wp_unslash($_POST['ai_assistant_enabled_tools']))
+                        : $this->get_effective_enabled_tools(get_option('ai_assistant_enabled_tools', $this->get_default_enabled_tools()));
+                    $tools = [];
+                    foreach ((array) $value as $name) {
+                        $tools = array_merge($tools, File_Abilities::ABILITY_TOOLS[$name] ?? [$name]);
+                    }
+                    return array_values(array_intersect(File_Abilities::all_tools(), $tools, $enabled));
+                },
+                'default' => [],
+            ]);
+        }
 
         register_setting('ai_assistant_settings', Assistant_Themes::OPTION, [
             'type' => 'string',
@@ -1683,7 +1677,7 @@ class Settings {
         }
         $first_group = key($by_group);
         $abilities_available = function_exists('wp_register_ability');
-        $ability_tools = File_Abilities::get_exposed_tools();
+        $ability_tools = class_exists(__NAMESPACE__ . '\\File_Abilities') ? File_Abilities::get_exposed_tools() : [];
         $ability_groups = ['File Reading', 'File Writing'];
         ?>
         <div class="ai-settings-tools">
@@ -2628,11 +2622,8 @@ class Settings {
                 <th scope="row"><label for="ai_assistant_theme"><?php esc_html_e('Assistant Theme', 'ai-assistant'); ?></label></th>
                 <td><?php $this->theme_field_callback(); ?></td>
             </tr>
-            <tr>
-                <th scope="row"><?php esc_html_e('In-page AI Changes', 'ai-assistant'); ?></th>
-                <td><?php $this->in_page_ai_changes_field_callback(); ?></td>
-            </tr>
         </table>
+        <?php do_action('ai_assistant_settings_display_fields'); ?>
         <?php
     }
 
@@ -2651,25 +2642,6 @@ class Settings {
         </label>
         <p class="description">
             <?php esc_html_e('When enabled, logged-in users with access will see the AI Assistant button on the frontend of your site.', 'ai-assistant'); ?>
-        </p>
-        <?php
-    }
-
-    /**
-     * In-page AI Changes display checkbox field.
-     */
-    public function in_page_ai_changes_field_callback() {
-        $show_in_page_ai_changes = get_option(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES, '1');
-        ?>
-        <label>
-            <input type="checkbox"
-                   name="<?php echo esc_attr(Plugin_Checkout_Badge::OPTION_SHOW_IN_PAGE_AI_CHANGES); ?>"
-                   value="1"
-                   <?php checked($show_in_page_ai_changes, '1'); ?>>
-            <?php esc_html_e('Always show in-page AI Changes', 'ai-assistant'); ?>
-        </label>
-        <p class="description">
-            <?php esc_html_e('When enabled, pages rendered by a plugin or theme with tracked AI Changes show the compact version log even when the current version is checked out. Old checked-out versions enable this automatically.', 'ai-assistant'); ?>
         </p>
         <?php
     }
@@ -2715,9 +2687,10 @@ class Settings {
                 $mcp_adapter_link = '<a href="https://github.com/wordpress/mcp-adapter">MCP Adapter</a>';
                 $mcp_connect_link = '<a href="https://github.com/akirk/mcp-connect">MCP Connect</a>';
                 $has_mcp_connect = defined('MCP_OAUTH_VERSION');
-                if (File_Abilities::has_mcp_server() && $has_mcp_connect) {
+                $has_file_abilities = class_exists(__NAMESPACE__ . '\\File_Abilities');
+                if ($has_file_abilities && File_Abilities::has_mcp_server() && $has_mcp_connect) {
                     esc_html_e('Agents connect through the active MCP Adapter plugin; MCP Connect handles their login.', 'ai-assistant');
-                } elseif (File_Abilities::has_mcp_server()) {
+                } elseif ($has_file_abilities && File_Abilities::has_mcp_server()) {
                     printf(
                         /* translators: %s: link to the MCP Connect plugin */
                         esc_html__('Agents connect through the active MCP Adapter plugin. Add %s to let claude.ai, Claude Code and similar clients log in with OAuth instead of an application password.', 'ai-assistant'),
@@ -2733,7 +2706,7 @@ class Settings {
                 }
                 ?>
             </p>
-            <?php if ($group === 'File Writing') : ?>
+            <?php if ($group === 'File Writing' && class_exists(__NAMESPACE__ . '\\File_Access_Health')) : ?>
                 <?php $this->render_health_result((new File_Access_Health())->run_test()); ?>
             <?php endif; ?>
             <?php else : ?>
@@ -3734,6 +3707,12 @@ PROMPT;
         }
 
         $prompt .= $this->get_playground_context_prompt($wp_info['siteUrl']);
+
+        if (!defined('PATCH_ASSISTANT_VERSION')) {
+            $patch_assistant_zip_url = 'https://github.com/akirk/patch-assistant/archive/refs/heads/main.zip';
+            $patch_assistant_upload_url = admin_url('plugin-install.php');
+            $prompt .= "\n\nPATCH ASSISTANT: This standalone AI Assistant does not include file-editing, plugin-creation, or code-execution tools. If the user asks to create or modify a plugin, theme, app, or other WordPress files and no suitable WordPress ability is available, explain this limitation before attempting a manual fallback and recommend Patch Assistant. Call suggest_patch_assistant to provide an installation card. In WordPress Playground, the card offers an in-place blueprint installation action; elsewhere it provides [Download Patch Assistant ZIP]({$patch_assistant_zip_url}) and [Open Plugins > Add New]({$patch_assistant_upload_url}) links. Do not suggest installing Patch Assistant for content or settings changes that the available WordPress tools can perform.\n";
+        }
 
         /**
          * Filter the ability domains injected into the AI system prompt.

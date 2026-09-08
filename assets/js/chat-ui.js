@@ -1853,6 +1853,9 @@
             if (toolName === 'rest_api') {
                 this.renderRestApiResultLinks($card, output);
             }
+            if (toolName === 'suggest_patch_assistant') {
+                this.renderPatchAssistantInstallLinks($card, output);
+            }
 
             var display = this.getToolResultDisplay(toolName, output);
             if (!display || !display.text || !display.text.trim()) return;
@@ -1895,6 +1898,61 @@
                 $links.append($('<a target="_blank" rel="noopener noreferrer">View</a>').attr('href', viewUrl));
             }
             $card.append($links);
+        },
+
+        renderPatchAssistantInstallLinks: function($card, output) {
+            if (!output || typeof output !== 'object') return;
+
+            var links = [
+                { key: 'zipUrl', label: 'Download Patch Assistant ZIP' },
+                { key: 'uploadUrl', label: 'Open Plugins > Add New' },
+            ];
+            var $links = $('<div class="ai-tool-result-links ai-patch-assistant-install-links"></div>');
+            if (output.playground && output.playgroundBlueprintUrl) {
+                $links.append($('<button type="button" class="button ai-patch-assistant-playground-install"></button>')
+                    .attr('data-blueprint-url', output.playgroundBlueprintUrl)
+                    .text('Install Patch Assistant in this Playground'));
+            }
+            links.forEach(function(link) {
+                if (!output[link.key]) return;
+                $links.append($('<a target="_blank" rel="noopener noreferrer"></a>')
+                    .attr('href', output[link.key])
+                    .text(link.label));
+            });
+            if ($links.children().length) {
+                $card.append($links);
+            }
+        },
+
+        requestPatchAssistantPlaygroundInstall: function(blueprintUrl) {
+            if (!blueprintUrl || !window.parent || window.parent === window) return false;
+
+            var target = window.parent;
+            try {
+                while (target.parent !== target) {
+                    void target.document;
+                    target = target.parent;
+                }
+            } catch (e) {}
+
+            try {
+                var targetOrigin = '*';
+                try {
+                    if (target.location && target.location.origin) {
+                        targetOrigin = target.location.origin;
+                    }
+                } catch (e) {}
+
+                target.postMessage({
+                    type: 'relay',
+                    relayType: 'install-blueprint',
+                    blueprintUrl: blueprintUrl,
+                    requestId: 'ai-assistant-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)
+                }, targetOrigin);
+                return true;
+            } catch (e) {
+                return false;
+            }
         },
 
         addToolUseMessage: function(toolName, input, $container, result) {

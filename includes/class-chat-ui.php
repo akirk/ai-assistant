@@ -254,8 +254,9 @@ class Chat_UI {
         $settings = ai_assistant()->settings();
         $current_user = wp_get_current_user();
         $welcome_tip_context = $this->get_welcome_tip_context();
-        $current_ai_changes = $this->get_current_ai_changes_metadata();
-        $system_prompt = $this->add_current_ai_changes_prompt_context(
+        $current_ai_changes = apply_filters('ai_assistant_current_page_context', null);
+        $system_prompt = apply_filters(
+            'ai_assistant_chat_system_prompt',
             $settings->get_system_prompt(),
             $current_ai_changes
         );
@@ -263,12 +264,8 @@ class Chat_UI {
         return [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('ai_assistant_chat'),
-            'fileToolsUrl' => AI_ASSISTANT_PLUGIN_URL . 'file-tools.php',
-            'fileToolsToken' => File_Tool_Auth::create_token(
-                $settings->get_user_permission_level(),
-                $settings->get_user_enabled_tools(),
-                get_current_user_id()
-            ),
+            'fileToolsUrl' => apply_filters('ai_assistant_file_tools_url', ''),
+            'fileToolsToken' => apply_filters('ai_assistant_file_tools_token', ''),
             'toolDefinitions' => $settings->get_client_tool_definitions(),
             'destructiveTools' => $settings->get_destructive_tools(),
             'fileEndpointTools' => $settings->get_file_endpoint_tools(),
@@ -278,7 +275,13 @@ class Chat_UI {
             'readonlyAbilities' => Ability_Annotations::get_readonly_ability_ids(),
             'autoApprovedRestApis' => $settings->get_auto_approved_rest_apis(),
             'settingsUrl' => admin_url('options-general.php?page=ai-assistant-settings'),
-            'aiChangesUrl' => admin_url('tools.php?page=ai-changes'),
+            'aiChangesUrl' => apply_filters('ai_assistant_ai_changes_url', ''),
+            'patchAssistantInstall' => !defined('PATCH_ASSISTANT_VERSION') ? [
+                'zipUrl' => 'https://github.com/akirk/patch-assistant/archive/refs/heads/main.zip',
+                'uploadUrl' => admin_url('plugin-install.php'),
+                'playground' => ai_assistant_is_playground(),
+                'playgroundBlueprintUrl' => 'https://raw.githubusercontent.com/akirk/patch-assistant/refs/heads/main/blueprint-install.json',
+            ] : null,
             'conversationExportUrl' => admin_url('admin-post.php?action=ai_assistant_export_conversation'),
             'conversationExportFormats' => ai_assistant()->conversations()->get_export_formats_for_config(),
             'siteUrl' => get_site_url(),
@@ -448,36 +451,6 @@ class Chat_UI {
                 'close' => __('Close', 'ai-assistant'),
             ],
         ];
-    }
-
-    private function get_current_ai_changes_metadata(): ?array {
-        $assistant = function_exists('ai_assistant') ? ai_assistant() : null;
-        if (!is_object($assistant) || !method_exists($assistant, 'plugin_checkout_badge')) {
-            return null;
-        }
-
-        $badge = $assistant->plugin_checkout_badge();
-        if (!is_object($badge) || !method_exists($badge, 'get_current_ai_changes_metadata')) {
-            return null;
-        }
-
-        $metadata = $badge->get_current_ai_changes_metadata();
-        return is_array($metadata) ? $metadata : null;
-    }
-
-    private function add_current_ai_changes_prompt_context(string $system_prompt, ?array $metadata): string {
-        if (empty($metadata['root']) || empty($metadata['url'])) {
-            return $system_prompt;
-        }
-
-        $root = (string) $metadata['root'];
-        $url = (string) $metadata['url'];
-
-        $prompt = $system_prompt . "\n\nCURRENT PAGE FILE CHANGES:\n"
-            . "- The plugin/theme rendering the current window has tracked AI file changes: {$root}.\n"
-            . "- When it is useful to review those changes, you may call navigate with url \"{$url}\" and link_text \"View changed files\". The link should be offered for this current window.\n";
-
-        return $prompt;
     }
 
     /**

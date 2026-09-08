@@ -317,6 +317,7 @@ if (!function_exists('add_filter')) {
             'ai_assistant_read_only_tool_definitions',
             'ai_assistant_read_only_tool_names',
             'ai_assistant_execute_tool',
+            'ai_assistant_execute_file_tool',
             'ai_assistant_tool_meta',
             'ai_assistant_tool_group_order',
             'ai_assistant_tool_order',
@@ -419,21 +420,10 @@ if (file_exists($vendor_autoload)) {
 require_once $plugin_dir . '/includes/class-tools.php';
 require_once $plugin_dir . '/includes/class-ability-annotations.php';
 require_once $plugin_dir . '/includes/class-skill-registry.php';
-require_once $plugin_dir . '/includes/class-file-tool-auth.php';
-require_once $plugin_dir . '/includes/class-emergency-plugin-guard.php';
-require_once $plugin_dir . '/includes/class-file-tool-executor.php';
-require_once $plugin_dir . '/includes/class-plugin-recovery-admin.php';
 require_once $plugin_dir . '/includes/class-executor.php';
-require_once $plugin_dir . '/dev-tools.php';
 require_once $plugin_dir . '/includes/class-api-handler.php';
-require_once $plugin_dir . '/includes/class-git-tracker.php';
-require_once $plugin_dir . '/includes/class-git-tracker-manager.php';
-require_once $plugin_dir . '/includes/class-plugin-checkout-badge.php';
 require_once $plugin_dir . '/includes/class-admin-colors.php';
 require_once $plugin_dir . '/includes/class-assistant-themes.php';
 require_once $plugin_dir . '/includes/class-conversations.php';
 require_once $plugin_dir . '/includes/class-conversations-app.php';
 require_once $plugin_dir . '/includes/class-settings.php';
-require_once $plugin_dir . '/includes/class-wp-app-abilities.php';
-require_once $plugin_dir . '/includes/class-file-abilities.php';
-require_once $plugin_dir . '/includes/class-file-access-health.php';

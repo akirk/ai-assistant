@@ -549,6 +549,15 @@
                 $(this).closest('.ai-action-preview').toggleClass('expanded');
             });
 
+            $(document).on('click', '.ai-patch-assistant-playground-install', function(e) {
+                e.preventDefault();
+                var $button = $(this);
+                var blueprintUrl = $button.attr('data-blueprint-url');
+                if (self.requestPatchAssistantPlaygroundInstall && self.requestPatchAssistantPlaygroundInstall(blueprintUrl)) {
+                    $button.prop('disabled', true).text('Opening Playground install…');
+                }
+            });
+
             $(document).on('click', '.ai-thinking-toggle', function(e) {
                 e.preventDefault();
                 var $block = $(this).closest('.ai-thinking-block').toggleClass('expanded');

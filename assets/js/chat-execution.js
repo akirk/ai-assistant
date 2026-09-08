@@ -1021,6 +1021,18 @@
                 return this.executePickImage(toolCall);
             }
 
+            if (toolName === 'suggest_patch_assistant') {
+                var runtimeConfig = (typeof aiAssistantConfig !== 'undefined' && aiAssistantConfig) || {};
+                var install = runtimeConfig.patchAssistantInstall || {};
+                return Promise.resolve({
+                    id: toolCall.id,
+                    name: toolName,
+                    input: toolCall.arguments || {},
+                    result: install,
+                    success: true
+                });
+            }
+
             if (toolName === 'delegate' && this.executeDelegate) {
                 return this.executeDelegate(toolCall);
             }
