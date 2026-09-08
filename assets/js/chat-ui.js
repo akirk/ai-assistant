@@ -1906,9 +1906,13 @@
             var links = [
                 { key: 'zipUrl', label: 'Download Patch Assistant ZIP' },
                 { key: 'uploadUrl', label: 'Open Plugins > Add New' },
-                { key: 'playgroundUrl', label: 'Try it in WordPress Playground' }
             ];
             var $links = $('<div class="ai-tool-result-links ai-patch-assistant-install-links"></div>');
+            if (output.playground && output.playgroundBlueprintUrl) {
+                $links.append($('<button type="button" class="button ai-patch-assistant-playground-install"></button>')
+                    .attr('data-blueprint-url', output.playgroundBlueprintUrl)
+                    .text('Install Patch Assistant in this Playground'));
+            }
             links.forEach(function(link) {
                 if (!output[link.key]) return;
                 $links.append($('<a target="_blank" rel="noopener noreferrer"></a>')
@@ -1917,6 +1921,37 @@
             });
             if ($links.children().length) {
                 $card.append($links);
+            }
+        },
+
+        requestPatchAssistantPlaygroundInstall: function(blueprintUrl) {
+            if (!blueprintUrl || !window.parent || window.parent === window) return false;
+
+            var target = window.parent;
+            try {
+                while (target.parent !== target) {
+                    void target.document;
+                    target = target.parent;
+                }
+            } catch (e) {}
+
+            try {
+                var targetOrigin = '*';
+                try {
+                    if (target.location && target.location.origin) {
+                        targetOrigin = target.location.origin;
+                    }
+                } catch (e) {}
+
+                target.postMessage({
+                    type: 'relay',
+                    relayType: 'install-blueprint',
+                    blueprintUrl: blueprintUrl,
+                    requestId: 'ai-assistant-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)
+                }, targetOrigin);
+                return true;
+            } catch (e) {
+                return false;
             }
         },
 

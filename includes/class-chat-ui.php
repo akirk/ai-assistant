@@ -279,7 +279,8 @@ class Chat_UI {
             'patchAssistantInstall' => !defined('PATCH_ASSISTANT_VERSION') ? [
                 'zipUrl' => 'https://github.com/akirk/patch-assistant/archive/refs/heads/main.zip',
                 'uploadUrl' => admin_url('plugin-install.php'),
-                'playgroundUrl' => 'https://playground.wordpress.net/?blueprint-url=' . rawurlencode('https://raw.githubusercontent.com/akirk/patch-assistant/refs/heads/main/blueprint.json'),
+                'playground' => ai_assistant_is_playground(),
+                'playgroundBlueprintUrl' => 'https://raw.githubusercontent.com/akirk/patch-assistant/refs/heads/main/blueprint-install.json',
             ] : null,
             'conversationExportUrl' => admin_url('admin-post.php?action=ai_assistant_export_conversation'),
             'conversationExportFormats' => ai_assistant()->conversations()->get_export_formats_for_config(),
