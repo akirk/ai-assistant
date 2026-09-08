@@ -3697,6 +3697,10 @@ PROMPT;
 
         $prompt .= $this->get_playground_context_prompt($wp_info['siteUrl']);
 
+        if (!defined('PATCH_ASSISTANT_VERSION')) {
+            $prompt .= "\n\nWORDPRESS FILE CHANGES: If the user wants to modify plugin or theme files, explain that this standalone AI Assistant does not include file-editing or code-execution tools. Offer the Patch Assistant companion plugin, available as a ZIP from GitHub: https://github.com/akirk/patch-assistant/archive/refs/heads/main.zip. Tell the user to download the ZIP, install it from Plugins > Add New > Upload Plugin, and activate it. Do not imply that installing it is required for content or settings changes that the available WordPress tools can perform.\n";
+        }
+
         /**
          * Filter the ability domains injected into the AI system prompt.
          *
