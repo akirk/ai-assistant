@@ -134,6 +134,52 @@ function flushPromises() {
     return new Promise(resolve => setTimeout(resolve, 0));
 }
 
+describe('client ability normalization', function() {
+    it('includes input schemas in list and get results', function() {
+        const assistant = loadExecutionMixin();
+        const ability = {
+            name: 'cookbook/save-recipe',
+            label: 'Save Recipe',
+            description: 'Save a recipe',
+            category: 'cookbook',
+            meta: {
+                annotations: {
+                    readonly: false,
+                    destructive: false,
+                    instructions: 'Use when saving recipes.'
+                }
+            },
+            input_schema: {
+                type: 'object',
+                properties: {
+                    title: {
+                        type: 'string',
+                        description: 'Recipe title'
+                    },
+                    tags: {
+                        type: 'array',
+                        items: { type: 'string' }
+                    }
+                },
+                required: ['title']
+            }
+        };
+        const api = {
+            getAbilities() {
+                return [ability];
+            }
+        };
+
+        const list = assistant.getClientAbilityList(api, 'cookbook');
+        const details = assistant.normalizeClientAbilityDetails(ability);
+
+        assert.strictEqual(list.count, 1);
+        assert.strictEqual(list.abilities[0].id, 'cookbook/save-recipe');
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(list.abilities[0].input_schema)), ability.input_schema);
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(details.input_schema)), ability.input_schema);
+    });
+});
+
 describe('configured tool routing', function() {
     it('does not infer destructive tools without localized config', function() {
         const assistant = loadExecutionMixin({}, { useDefaultConfig: false });
