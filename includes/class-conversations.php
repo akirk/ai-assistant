@@ -508,7 +508,23 @@ class Conversations {
 
         $format = $formats[$format_slug];
         $conversation = $this->prepare_conversation_messages_for_export($conversation, $format);
-        $result = call_user_func($format['callback'], $conversation, $format);
+
+        $callback = $format['callback'] ?? null;
+        $method = (is_array($callback) && $callback[0] === $this) ? $callback[1] : null;
+
+        switch ($method) {
+            case 'export_conversation_as_markdown':
+                $result = $this->export_conversation_as_markdown($conversation, $format);
+                break;
+            case 'export_conversation_as_html':
+                $result = $this->export_conversation_as_html($conversation, $format);
+                break;
+            case 'export_conversation_as_json':
+                $result = $this->export_conversation_as_json($conversation, $format);
+                break;
+            default:
+                wp_die(esc_html__('Export format not found.', 'ai-assistant'), '', ['response' => 400]);
+        }
 
         if (is_wp_error($result)) {
             wp_die(esc_html($result->get_error_message()), '', ['response' => 500]);
