@@ -3698,7 +3698,7 @@ PROMPT;
         $prompt .= $this->get_playground_context_prompt($wp_info['siteUrl']);
 
         if (!defined('PATCH_ASSISTANT_VERSION')) {
-            $prompt .= "\n\nWORDPRESS FILE CHANGES: If the user wants to modify plugin or theme files, explain that this standalone AI Assistant does not include file-editing or code-execution tools. Offer the Patch Assistant companion plugin, available as a ZIP from GitHub: https://github.com/akirk/patch-assistant/archive/refs/heads/main.zip. Tell the user to download the ZIP, install it from Plugins > Add New > Upload Plugin, and activate it. Do not imply that installing it is required for content or settings changes that the available WordPress tools can perform.\n";
+            $prompt .= "\n\nPATCH ASSISTANT: This standalone AI Assistant does not include file-editing, plugin-creation, or code-execution tools. If the user asks to create or modify a plugin, theme, app, or other WordPress files and no suitable WordPress ability is available, explain this limitation before attempting a manual fallback and recommend Patch Assistant. Offer its GitHub ZIP: https://github.com/akirk/patch-assistant/archive/refs/heads/main.zip. Tell the user to download the ZIP, install it from Plugins > Add New > Upload Plugin, and activate it. Do not suggest installing it for content or settings changes that the available WordPress tools can perform.\n";
         }
 
         /**
