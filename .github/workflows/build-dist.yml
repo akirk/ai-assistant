@@ -105,6 +105,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "${PLUGIN_FILE}"
           git add blueprint.json
+          git add blueprint-standalone.json
           if [ -f demo.json ]; then
             git add demo.json
           fi
