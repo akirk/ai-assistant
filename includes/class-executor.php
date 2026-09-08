@@ -19,6 +19,17 @@ class Executor {
         $this->tools = $tools;
     }
 
+    /**
+     * Delegate filesystem work to an optional extension.
+     */
+    public function execute_file_tool(string $tool_name, array $arguments, ?int $conversation_id = null): array {
+        $result = apply_filters('ai_assistant_execute_file_tool', null, $tool_name, $arguments, $conversation_id, $this);
+        if ($result === null) {
+            throw new \Exception('Filesystem tools require the Patch Assistant companion plugin.');
+        }
+        return $result;
+    }
+
     public function execute_tool(string $tool_name, array $arguments, string $permission = 'full', ?int $conversation_id = null) {
         $read_only = [
             'db_query', 'get_plugins', 'get_themes', 'environment_info',
@@ -53,6 +64,15 @@ class Executor {
         }
 
         switch ($tool_name) {
+            case 'read_file':
+            case 'find':
+            case 'list_directory':
+            case 'search_files':
+            case 'search_content':
+            case 'write_file':
+            case 'edit_file':
+            case 'delete_file':
+                return $this->execute_file_tool($tool_name, $arguments, $conversation_id);
             case 'db_query':
                 return $this->db_query((string) ($arguments['sql'] ?? ''));
             case 'get_plugins':

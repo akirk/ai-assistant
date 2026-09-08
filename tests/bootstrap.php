@@ -317,6 +317,7 @@ if (!function_exists('add_filter')) {
             'ai_assistant_read_only_tool_definitions',
             'ai_assistant_read_only_tool_names',
             'ai_assistant_execute_tool',
+            'ai_assistant_execute_file_tool',
             'ai_assistant_tool_meta',
             'ai_assistant_tool_group_order',
             'ai_assistant_tool_order',
@@ -411,7 +412,6 @@ if (!class_exists('WP_Error')) {
 
 // Manual class loading (no Composer autoloader)
 $plugin_dir = dirname(__DIR__);
-$patch_plugin_dir = dirname($plugin_dir) . '/patch-assistant';
 $vendor_autoload = $plugin_dir . '/vendor/autoload.php';
 if (file_exists($vendor_autoload)) {
     require_once $vendor_autoload;
@@ -427,21 +427,3 @@ require_once $plugin_dir . '/includes/class-assistant-themes.php';
 require_once $plugin_dir . '/includes/class-conversations.php';
 require_once $plugin_dir . '/includes/class-conversations-app.php';
 require_once $plugin_dir . '/includes/class-settings.php';
-
-// Patch Assistant-only classes are loaded explicitly for the development-tool tests.
-foreach ([
-    '/includes/class-file-tool-auth.php',
-    '/includes/class-emergency-plugin-guard.php',
-    '/includes/class-file-tool-executor.php',
-    '/includes/class-plugin-recovery-admin.php',
-    '/includes/class-git-tracker.php',
-    '/includes/class-git-tracker-manager.php',
-    '/includes/class-plugin-checkout-badge.php',
-    '/includes/class-wp-app-abilities.php',
-    '/includes/class-file-abilities.php',
-    '/includes/class-file-access-health.php',
-    '/includes/class-changes-admin.php',
-] as $rw_file) {
-    require_once $patch_plugin_dir . $rw_file;
-}
-require_once $patch_plugin_dir . '/dev-tools.php';
