@@ -4,31 +4,36 @@ on:
   push:
     branches-ignore:
       - 'dist/**'
-  pull_request:
+  pull_request_target:
     types:
       - opened
       - synchronize
       - reopened
+      - closed
   delete:
 
 permissions:
   contents: read
 
 concurrency:
-  group: build-dist-${{ github.event_name }}-${{ github.ref_name || github.event.ref || github.event.pull_request.head.ref }}
+  group: build-dist-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref_name || github.event.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request_target' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
-      DIST_REF: dist/${{ github.ref_name }}
+      DIST_REF: ${{ github.event_name == 'pull_request_target' && format('dist/pr-{0}', github.event.pull_request.number) || format('dist/{0}', github.ref_name) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -38,7 +43,7 @@ jobs:
 
       - name: Install production dependencies
         if: hashFiles('composer.json') != ''
-        run: composer install --no-dev --optimize-autoloader --no-interaction
+        run: composer install --no-dev --optimize-autoloader --no-interaction --no-scripts --no-plugins
 
       - name: Stamp plugin version with source commit
         run: |
@@ -100,6 +105,8 @@ jobs:
           '
 
       - name: Push to dist branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -113,29 +120,32 @@ jobs:
             git add -f vendor/
           fi
           git diff --cached --quiet || git commit -m "Build: add vendor"
-          git push origin HEAD:refs/heads/${DIST_REF} --force
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/${DIST_REF} --force
 
   update-pr-description:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'pull_request_target' && github.event.action != 'closed'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: write
     steps:
       - name: Checkout PR head
         uses: actions/checkout@v6
         with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
 
       - name: Add Playground link to PR description
         uses: actions/github-script@v9
         env:
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          DIST_REF: dist/pr-${{ github.event.pull_request.number }}
         with:
           script: |
             const fs = require('fs');
             const markerStart = '<!-- playground-link:start -->';
             const markerEnd = '<!-- playground-link:end -->';
-            const distRef = `dist/${process.env.HEAD_REF}`;
+            const distRef = process.env.DIST_REF;
             const playgroundUrl = (file) => `https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/refs/heads/${distRef}/${file}`;
 
             const links = [
@@ -172,7 +182,7 @@ jobs:
             });
 
   delete-dist:
-    if: github.event_name == 'delete' && github.event.ref_type == 'branch' && !startsWith(github.event.ref, 'dist/')
+    if: (github.event_name == 'delete' && github.event.ref_type == 'branch' && !startsWith(github.event.ref, 'dist/')) || (github.event_name == 'pull_request_target' && github.event.action == 'closed')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -182,17 +192,19 @@ jobs:
         uses: actions/github-script@v9
         env:
           BRANCH_NAME: ${{ github.event.ref }}
+          DIST_REF: ${{ github.event_name == 'pull_request_target' && format('pr-{0}', github.event.pull_request.number) || github.event.ref }}
         with:
           script: |
             const markerPattern = /<!-- (?:[a-z0-9-]+-)?playground-link:start -->[\s\S]*?<!-- (?:[a-z0-9-]+-)?playground-link:end -->/;
             const { owner, repo } = context.repo;
             const branchName = process.env.BRANCH_NAME;
+            const distRef = process.env.DIST_REF;
 
             try {
               await github.rest.git.deleteRef({
                 owner,
                 repo,
-                ref: `heads/dist/${branchName}`,
+                ref: `heads/dist/${distRef}`,
               });
             } catch (error) {
               if (error.status !== 404 && error.status !== 422) {
@@ -200,14 +212,15 @@ jobs:
               }
             }
 
-            const head = `${owner}:${process.env.BRANCH_NAME}`;
-            const pulls = await github.paginate(github.rest.pulls.list, {
-              owner,
-              repo,
-              state: 'all',
-              head,
-              per_page: 100,
-            });
+            const pulls = context.payload.pull_request
+              ? [context.payload.pull_request]
+              : await github.paginate(github.rest.pulls.list, {
+                  owner,
+                  repo,
+                  state: 'all',
+                  head: `${owner}:${branchName}`,
+                  per_page: 100,
+                });
 
             for (const pull of pulls) {
               const currentBody = pull.body || '';
