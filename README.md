@@ -105,7 +105,7 @@ Enable Auto-approve to skip confirmation dialogs for tool execution. It starts e
 
 Use the export button in a conversation to download the current chat. Built-in formats are Markdown, HTML, and JSON, all registered through the same export filter API that other plugins use. The export dropdown also includes an "Include tool calls" checkbox for generating a fuller technical transcript.
 
-Other plugins can add formats with `ai_assistant_conversation_export_formats`. This supports binary formats such as EPUB because the callback runs server-side and controls the MIME type, extension, filename, and content.
+Other plugins can add formats with `ai_assistant_conversation_export_formats` and generate content with `ai_assistant_conversation_export_{$format}`. This supports binary formats such as EPUB because the export filter runs server-side and controls the MIME type, extension, filename, and content.
 
 ```php
 add_filter('ai_assistant_conversation_export_formats', function($formats) {
@@ -114,13 +114,14 @@ add_filter('ai_assistant_conversation_export_formats', function($formats) {
         'description' => __('E-reader friendly conversation export.', 'my-plugin'),
         'extension' => 'epub',
         'mime' => 'application/epub+zip',
-        'callback' => 'my_plugin_export_ai_conversation_epub',
     ];
 
     return $formats;
 });
 
-function my_plugin_export_ai_conversation_epub(array $conversation, array $format) {
+add_filter('ai_assistant_conversation_export_epub', 'my_plugin_export_ai_conversation_epub', 10, 3);
+
+function my_plugin_export_ai_conversation_epub($result, array $conversation, array $format) {
     return [
         'filename' => sanitize_file_name($conversation['title']) . '.epub',
         'mime' => 'application/epub+zip',

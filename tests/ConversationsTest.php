@@ -10,6 +10,10 @@ class ConversationsTest extends TestCase {
 
     protected function setUp(): void {
         $GLOBALS['wp_test_filters']['ai_assistant_conversation_export_formats'] = [];
+        $GLOBALS['wp_test_filters']['ai_assistant_conversation_export_markdown'] = [];
+        $GLOBALS['wp_test_filters']['ai_assistant_conversation_export_html'] = [];
+        $GLOBALS['wp_test_filters']['ai_assistant_conversation_export_json'] = [];
+        $GLOBALS['wp_test_filters']['ai_assistant_conversation_export_epub'] = [];
         $GLOBALS['wp_test_filters']['ai_assistant_conversation_export_shrink_tool_calls'] = [];
         $this->conversations = new Conversations();
     }
@@ -28,32 +32,31 @@ class ConversationsTest extends TestCase {
         }
     }
 
-    public function test_custom_export_format_uses_registered_callback(): void {
+    public function test_custom_export_format_uses_registered_export_filter(): void {
         add_filter('ai_assistant_conversation_export_formats', function($formats) {
             $formats['epub'] = [
                 'label' => 'EPUB',
                 'description' => 'E-reader friendly conversation export.',
                 'extension' => 'epub',
                 'mime' => 'application/epub+zip',
-                'callback' => [self::class, 'exportSampleEpub'],
             ];
 
             return $formats;
         });
+        add_filter('ai_assistant_conversation_export_epub', [self::class, 'exportSampleEpub'], 10, 3);
 
         $conversation = $this->sampleConversation();
         $formats = $this->conversations->get_export_formats($conversation);
 
-        $method = new \ReflectionMethod($this->conversations, 'get_registered_export_callback');
+        $method = new \ReflectionMethod($this->conversations, 'export_conversation_with_registered_format');
         $method->setAccessible(true);
-        $callback = $method->invoke($this->conversations, 'epub', $formats);
+        $result = $method->invoke($this->conversations, 'epub', $conversation, $formats['epub']);
 
-        $this->assertSame([self::class, 'exportSampleEpub'], $callback);
         $this->assertSame([
             'filename' => 'conversation.epub',
             'mime' => 'application/epub+zip',
             'content' => 'EPUB: Test Conversation',
-        ], $callback($conversation, $formats['epub']));
+        ], $result);
     }
 
     public function test_markdown_export_includes_metadata_summary_and_messages(): void {
@@ -271,7 +274,7 @@ class ConversationsTest extends TestCase {
         ];
     }
 
-    public static function exportSampleEpub(array $conversation, array $format): array {
+    public static function exportSampleEpub($result, array $conversation, array $format): array {
         return [
             'filename' => 'conversation.' . $format['extension'],
             'mime' => $format['mime'],
