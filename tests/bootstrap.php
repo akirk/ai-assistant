@@ -326,7 +326,7 @@ if (!function_exists('add_filter')) {
             'ai_assistant_file_endpoint_tools',
             'ai_assistant_system_prompt',
         ];
-        if (!in_array($tag, $supported, true)) {
+        if (!in_array($tag, $supported, true) && strpos($tag, 'ai_assistant_conversation_export_') !== 0) {
             return true;
         }
         $GLOBALS['wp_test_filters'][$tag][$priority][] = [
