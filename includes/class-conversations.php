@@ -508,23 +508,12 @@ class Conversations {
 
         $format = $formats[$format_slug];
         $conversation = $this->prepare_conversation_messages_for_export($conversation, $format);
-
-        $callback = $format['callback'] ?? null;
-        $method = (is_array($callback) && $callback[0] === $this) ? $callback[1] : null;
-
-        switch ($method) {
-            case 'export_conversation_as_markdown':
-                $result = $this->export_conversation_as_markdown($conversation, $format);
-                break;
-            case 'export_conversation_as_html':
-                $result = $this->export_conversation_as_html($conversation, $format);
-                break;
-            case 'export_conversation_as_json':
-                $result = $this->export_conversation_as_json($conversation, $format);
-                break;
-            default:
-                wp_die(esc_html__('Export format not found.', 'ai-assistant'), '', ['response' => 400]);
+        $callback = $this->get_registered_export_callback($format_slug, $formats);
+        if (!$callback) {
+            wp_die(esc_html__('Export format not found.', 'ai-assistant'), '', ['response' => 400]);
         }
+
+        $result = $callback($conversation, $format);
 
         if (is_wp_error($result)) {
             wp_die(esc_html($result->get_error_message()), '', ['response' => 500]);
@@ -544,6 +533,16 @@ class Conversations {
         }
 
         $this->send_export_download($content, $filename, $mime);
+    }
+
+    private function get_registered_export_callback($format_slug, array $formats) {
+        $format_slug = sanitize_key($format_slug);
+
+        if ($format_slug === '' || empty($formats[$format_slug]['callback']) || !is_callable($formats[$format_slug]['callback'])) {
+            return null;
+        }
+
+        return $formats[$format_slug]['callback'];
     }
 
     public function export_conversation_as_json(array $conversation, array $format) {

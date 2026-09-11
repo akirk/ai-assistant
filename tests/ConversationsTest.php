@@ -28,6 +28,34 @@ class ConversationsTest extends TestCase {
         }
     }
 
+    public function test_custom_export_format_uses_registered_callback(): void {
+        add_filter('ai_assistant_conversation_export_formats', function($formats) {
+            $formats['epub'] = [
+                'label' => 'EPUB',
+                'description' => 'E-reader friendly conversation export.',
+                'extension' => 'epub',
+                'mime' => 'application/epub+zip',
+                'callback' => [self::class, 'exportSampleEpub'],
+            ];
+
+            return $formats;
+        });
+
+        $conversation = $this->sampleConversation();
+        $formats = $this->conversations->get_export_formats($conversation);
+
+        $method = new \ReflectionMethod($this->conversations, 'get_registered_export_callback');
+        $method->setAccessible(true);
+        $callback = $method->invoke($this->conversations, 'epub', $formats);
+
+        $this->assertSame([self::class, 'exportSampleEpub'], $callback);
+        $this->assertSame([
+            'filename' => 'conversation.epub',
+            'mime' => 'application/epub+zip',
+            'content' => 'EPUB: Test Conversation',
+        ], $callback($conversation, $formats['epub']));
+    }
+
     public function test_markdown_export_includes_metadata_summary_and_messages(): void {
         $conversation = $this->sampleConversation();
         $conversation['include_tool_calls'] = true;
@@ -240,6 +268,14 @@ class ConversationsTest extends TestCase {
             'modified' => '2026-05-13 10:05:00',
             'author_id' => 1,
             'author_display_name' => 'Ada Lovelace',
+        ];
+    }
+
+    public static function exportSampleEpub(array $conversation, array $format): array {
+        return [
+            'filename' => 'conversation.' . $format['extension'],
+            'mime' => $format['mime'],
+            'content' => 'EPUB: ' . $conversation['title'],
         ];
     }
 }
