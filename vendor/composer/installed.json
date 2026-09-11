@@ -1,0 +1,103 @@
+{
+    "packages": [
+        {
+            "name": "akirk/create-wp-app",
+            "version": "v1.7.0",
+            "version_normalized": "1.7.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/akirk/create-wp-app.git",
+                "reference": "29abf5829f1b720cee172b5b238a080f3920ca3c"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/akirk/create-wp-app/zipball/29abf5829f1b720cee172b5b238a080f3920ca3c",
+                "reference": "29abf5829f1b720cee172b5b238a080f3920ca3c",
+                "shasum": ""
+            },
+            "require": {
+                "akirk/wp-app": "^1.9",
+                "php": ">=7.4"
+            },
+            "time": "2026-09-11T11:14:37+00:00",
+            "type": "wordpress-plugin",
+            "installation-source": "dist",
+            "autoload": {
+                "psr-4": {
+                    "{{namespace}}\\": "src/",
+                    "Akirk\\CreateWpApp\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Scaffold a WordPress plugin powered by WpApp",
+            "support": {
+                "issues": "https://github.com/akirk/create-wp-app/issues",
+                "source": "https://github.com/akirk/create-wp-app/tree/v1.7.0"
+            },
+            "install-path": "../akirk/create-wp-app"
+        },
+        {
+            "name": "akirk/wp-app",
+            "version": "v1.9.0",
+            "version_normalized": "1.9.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/akirk/wp-app.git",
+                "reference": "811535d62bedd9e91d4bfbd74abba82ea12d2041"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/akirk/wp-app/zipball/811535d62bedd9e91d4bfbd74abba82ea12d2041",
+                "reference": "811535d62bedd9e91d4bfbd74abba82ea12d2041",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=7.4"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^9.0",
+                "squizlabs/php_codesniffer": "^3.7",
+                "wp-coding-standards/wpcs": "^3.0"
+            },
+            "time": "2026-09-11T10:40:04+00:00",
+            "type": "library",
+            "installation-source": "dist",
+            "autoload": {
+                "files": [
+                    "src/class-openstation.php",
+                    "src/class-registry.php",
+                    "src/class-settings.php",
+                    "src/class-pwa.php",
+                    "src/class-router.php",
+                    "src/class-masterbar.php",
+                    "src/class-wpapp.php",
+                    "src/class-client-encrypted-fields.php",
+                    "src/BaseStorage.php",
+                    "src/abstract-baseapp.php",
+                    "src/functions.php",
+                    "src/rest/class-access.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "Alex Kirk"
+                }
+            ],
+            "description": "A framework to build frontend apps on WordPress with routing, admin bar integration, and theme isolation",
+            "support": {
+                "issues": "https://github.com/akirk/wp-app/issues",
+                "source": "https://github.com/akirk/wp-app/tree/v1.9.0"
+            },
+            "install-path": "../akirk/wp-app"
+        }
+    ],
+    "dev": false,
+    "dev-package-names": []
+}
