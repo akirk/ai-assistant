@@ -2051,6 +2051,7 @@
                     : self.escapeHtml(decodedHref).replace(/"/g, '&quot;').replace(/'/g, '&#039;');
                 return '<a href="' + escapedHref + '">' + label + '</a>';
             });
+            content = this.linkifyPlainUrls(content);
 
             // Block markdown.
             content = content.replace(/^### (.+)$/gm, '<h4>$1</h4>');
@@ -2063,6 +2064,31 @@
             });
 
             return content;
+        },
+
+        linkifyPlainUrls: function(content) {
+            var protectedDepth = 0;
+
+            // Only link text, never existing links, code, or HTML attributes.
+            return content.split(/(<[^>]+>)/g).map(function(part) {
+                if (part.charAt(0) === '<') {
+                    if (/^<(a|code)\b/i.test(part)) protectedDepth++;
+                    if (/^<\/(a|code)>/i.test(part)) protectedDepth--;
+                    return part;
+                }
+                if (protectedDepth) return part;
+
+                return part.replace(/\bhttps?:\/\/(?:(?!&(?:quot|lt|gt|#039);)[^\s<>"'])+/gi, function(url) {
+                    var suffix = '';
+                    while (/[.,!?;:]$/.test(url) ||
+                        (/\)$/.test(url) && (url.match(/\)/g) || []).length > (url.match(/\(/g) || []).length) ||
+                        (/\]$/.test(url) && (url.match(/\]/g) || []).length > (url.match(/\[/g) || []).length)) {
+                        suffix = url.slice(-1) + suffix;
+                        url = url.slice(0, -1);
+                    }
+                    return '<a href="' + url + '">' + url + '</a>' + suffix;
+                });
+            }).join('');
         },
 
         decodeHtmlEntities: function(value) {
