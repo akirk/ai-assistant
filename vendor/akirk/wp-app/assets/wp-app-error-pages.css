@@ -1,0 +1,119 @@
+.wp-app-error {
+	max-width: 600px;
+	margin: 100px auto;
+	padding: 40px;
+	background: var(--wp-app-color-surface);
+	border: 1px solid var(--wp-app-color-border);
+	border-radius: 10px;
+	box-shadow: 0 2px 10px var(--wp-app-color-border);
+	text-align: center;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.wp-app-error__code {
+	margin-bottom: 20px;
+	color: var(--wp-app-color-error);
+	font-size: 72px;
+	font-weight: bold;
+}
+
+.wp-app-error__title {
+	margin-bottom: 20px;
+	color: var(--wp-app-color-text);
+	font-size: 32px;
+}
+
+.wp-app-error__message {
+	margin-bottom: 30px;
+	color: var(--wp-app-color-muted);
+	font-size: 18px;
+	line-height: 1.6;
+}
+
+.wp-app-error__details {
+	margin-bottom: 30px;
+	padding: 10px;
+	background: var(--wp-app-color-surface-alt);
+	border-radius: 5px;
+	color: var(--wp-app-color-text);
+	font-family: monospace;
+	word-break: break-all;
+}
+
+.wp-app-error__details + .wp-app-error__details {
+	margin-top: 10px;
+}
+
+.wp-app-error__details--debug {
+	margin-top: 20px;
+	padding: 15px;
+	text-align: left;
+	font-size: 12px;
+}
+
+.wp-app-error__details--debug h3 {
+	margin-top: 0;
+}
+
+.wp-app-error__details--route {
+	text-align: left;
+	font-size: 14px;
+}
+
+.wp-app-error__actions {
+	display: flex;
+	gap: 15px;
+	justify-content: center;
+	flex-wrap: wrap;
+}
+
+.wp-app-error__button {
+	display: inline-block;
+	padding: 12px 24px;
+	border-radius: 5px;
+	text-decoration: none;
+	font-weight: 500;
+	transition: background-color 0.3s ease;
+}
+
+body.wp-app-body .wp-app-error__button--primary {
+	background: var(--wp-app-color-primary);
+	color: var(--wp-app-color-on-primary);
+}
+
+body.wp-app-body .wp-app-error__button--primary:hover,
+body.wp-app-body .wp-app-error__button--primary:focus {
+	background: var(--wp-app-color-primary-hover);
+	color: var(--wp-app-color-on-primary);
+}
+
+body.wp-app-body .wp-app-error__button--secondary {
+	background: var(--wp-app-color-secondary);
+	color: var(--wp-app-color-secondary-text);
+}
+
+body.wp-app-body .wp-app-error__button--secondary:hover,
+body.wp-app-body .wp-app-error__button--secondary:focus {
+	background: var(--wp-app-color-secondary-hover);
+	color: var(--wp-app-color-secondary-text);
+}
+
+@media (max-width: 600px) {
+	.wp-app-error {
+		margin: 50px 20px;
+		padding: 30px 20px;
+	}
+
+	.wp-app-error__code {
+		font-size: 48px;
+	}
+
+	.wp-app-error__title {
+		font-size: 24px;
+	}
+
+	.wp-app-error__actions {
+		flex-direction: column;
+		align-items: center;
+	}
+}

@@ -1,0 +1,217 @@
+name: Add Playground links
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  delete:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: playground-links-${{ github.event_name }}-${{ github.ref_name || github.event.ref || github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+jobs:
+  update-pr-description:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Add Playground links to PR description
+        uses: actions/github-script@v9
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        with:
+          script: |
+            const markerStart = '<!-- playground-link:start -->';
+            const markerEnd = '<!-- playground-link:end -->';
+            const markerPattern = /<!-- (?:[a-z0-9-]+-)?playground-link:start -->[\s\S]*?<!-- (?:[a-z0-9-]+-)?playground-link:end -->/;
+            const { owner, repo } = context.repo;
+            const pull_number = context.issue.number;
+            const headRef = process.env.HEAD_REF;
+            const currentBody = context.payload.pull_request.body || '';
+
+            // wp-app is a library, not a plugin, so a Playground link has to
+            // install apps that bundle it. Each app ships its own copy under
+            // vendor/akirk/wp-app, which is then written over with this branch.
+            const apps = {
+              cookbook: { url: 'https://github.com/akirk/cookbook', ref: 'dist/main', file: 'cookbook.php' },
+              traveler: { url: 'https://github.com/akirk/traveler', ref: 'dist/main', file: 'traveler.php' },
+            };
+            const branch = { resource: 'git:directory', url: `https://github.com/${ owner }/${ repo }`, ref: headRef, refType: 'branch', path: 'src' };
+
+            // The launchers apps announce themselves to. My Apps is installed
+            // from git like the apps; OpenStation ships a release zip.
+            const launchers = {
+              'my-apps': {
+                install: {
+                  step: 'installPlugin',
+                  pluginData: { resource: 'git:directory', url: 'https://github.com/akirk/my-apps', ref: 'main', refType: 'branch' },
+                  options: { activate: false, targetFolderName: 'my-apps' },
+                },
+                activate: 'my-apps/my-apps.php',
+              },
+              openstation: {
+                install: {
+                  step: 'installPlugin',
+                  pluginData: { resource: 'url', url: 'https://github.com/WordPress/openstation/releases/latest/download/openstation.zip' },
+                  options: { activate: true },
+                },
+              },
+            };
+
+            const install = ( name ) => ( {
+              step: 'installPlugin',
+              pluginData: { resource: 'git:directory', url: apps[ name ].url, ref: apps[ name ].ref, refType: 'branch' },
+              options: { activate: false, targetFolderName: name },
+            } );
+
+            // writeFiles writes into a directory that already exists, which
+            // installPlugin refuses to do. It writes over the files it brings
+            // rather than emptying the directory first, so a file deleted on the
+            // branch stays behind, inert unless something still requires it.
+            const vendorBranch = ( name ) => ( {
+              step: 'writeFiles',
+              writeToPath: `/wordpress/wp-content/plugins/${ name }/vendor/akirk/wp-app/src`,
+              filesTree: branch,
+            } );
+
+            const blueprint = ( scenario ) => {
+              const steps = [];
+
+              for ( const name of scenario.names ) {
+                steps.push( install( name ) );
+                steps.push( vendorBranch( name ) );
+              }
+
+              for ( const key of scenario.launchers || [] ) {
+                steps.push( launchers[ key ].install );
+              }
+
+              // Activate only once the apps are running this branch's code, so
+              // that activation hooks see it too.
+              for ( const name of scenario.names ) {
+                steps.push( { step: 'activatePlugin', pluginPath: `${ name }/${ apps[ name ].file }` } );
+              }
+
+              for ( const key of scenario.launchers || [] ) {
+                if ( launchers[ key ].activate ) {
+                  steps.push( { step: 'activatePlugin', pluginPath: launchers[ key ].activate } );
+                }
+              }
+
+              return {
+                $schema: 'https://playground.wordpress.net/blueprint-schema.json',
+                landingPage: scenario.landingPage,
+                login: true,
+                steps,
+              };
+            };
+
+            const scenarios = [
+              {
+                label: 'One app',
+                names: [ 'cookbook' ],
+                landingPage: '/cookbook/',
+                note: 'A lone app links straight from the admin bar.',
+              },
+              {
+                label: 'Two apps',
+                names: [ 'cookbook', 'traveler' ],
+                landingPage: '/wp-admin/',
+                note: 'Inactive apps collapse into the Apps overflow menu.',
+              },
+              {
+                label: 'Two apps and My Apps',
+                names: [ 'cookbook', 'traveler' ],
+                launchers: [ 'my-apps' ],
+                landingPage: '/my-apps/',
+                note: 'The My Apps launcher, which the apps announce themselves to.',
+              },
+              {
+                label: 'Two apps and OpenStation',
+                names: [ 'cookbook', 'traveler' ],
+                launchers: [ 'openstation' ],
+                landingPage: '/wp-admin/index.php?desktop_mode_portal=1',
+                note: 'The OpenStation portal, which the apps register an icon with.',
+              },
+            ];
+
+            const rows = scenarios.map( ( scenario ) => {
+              const url = `https://playground.wordpress.net/#${ encodeURIComponent( JSON.stringify( blueprint( scenario ) ) ) }`;
+              const plugins = scenario.names.concat( scenario.launchers || [] ).join( ', ' );
+              return `| [${ scenario.label }](${ url }) | ${ plugins } | ${ scenario.note } |`;
+            } );
+
+            const playgroundSection = [
+              markerStart,
+              '## Test this PR in WordPress Playground',
+              '',
+              'Each link boots WordPress with apps whose vendored copy of wp-app is replaced by this branch.',
+              '',
+              '| Scenario | Plugins | What it shows |',
+              '| --- | --- | --- |',
+              ...rows,
+              markerEnd,
+            ].join('\n');
+
+            const body = markerPattern.test(currentBody)
+              ? currentBody.replace(markerPattern, playgroundSection)
+              : [currentBody.trimEnd(), playgroundSection].filter(Boolean).join('\n\n');
+
+            if (body !== currentBody) {
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number,
+                body,
+              });
+            }
+
+  remove-stale-pr-links:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Remove stale PR links
+        uses: actions/github-script@v9
+        env:
+          BRANCH_NAME: ${{ github.event.ref }}
+        with:
+          script: |
+            const markerPattern = /<!-- (?:[a-z0-9-]+-)?playground-link:start -->[\s\S]*?<!-- (?:[a-z0-9-]+-)?playground-link:end -->/;
+            const { owner, repo } = context.repo;
+            const head = `${owner}:${process.env.BRANCH_NAME}`;
+            const pulls = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: 'all',
+              head,
+              per_page: 100,
+            });
+
+            for (const pull of pulls) {
+              const currentBody = pull.body || '';
+              if (!markerPattern.test(currentBody)) {
+                continue;
+              }
+
+              const body = currentBody
+                .replace(markerPattern, '')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number: pull.number,
+                body,
+              });
+            }
