@@ -654,6 +654,16 @@
         },
 
         fetchLLMProvider: function(provider, endpoint, headers, payload, signal) {
+            // GPT-6 Sol/Luna default to reasoning, which Chat Completions cannot
+            // combine with function tools. Apply this before either transport.
+            if (provider === 'openai' && payload &&
+                /^gpt-6-(sol|luna)(?:-\d{4}-\d{2}-\d{2})?$/.test(payload.model || '') &&
+                Array.isArray(payload.tools) && payload.tools.some(function(tool) {
+                    return tool.type === 'function';
+                })) {
+                payload = $.extend({}, payload, { reasoning_effort: 'none' });
+            }
+
             if (this.shouldProxyProvider(provider)) {
                 var separator = aiAssistantConfig.ajaxUrl.indexOf('?') === -1 ? '?' : '&';
                 var proxyUrl = aiAssistantConfig.ajaxUrl +

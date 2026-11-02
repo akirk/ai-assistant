@@ -729,6 +729,29 @@
                     return self.executeServerToolAjax(toolCall);
                 }
 
+                if (fallbackToServer && self.getNormalizedAbilityAction(toolName, args) === 'list') {
+                    // The client registry omits PHP abilities that are not exposed
+                    // through REST. Include both registries during discovery.
+                    return self.executeServerToolAjax(toolCall).then(function(response) {
+                        if (!response.success || !response.result || !Array.isArray(response.result.abilities)) {
+                            return response;
+                        }
+                        var abilities = response.result.abilities.slice();
+                        var ids = new Set(abilities.map(function(ability) { return ability.id; }));
+                        self.getClientAbilityList(api, args.category || '').abilities.forEach(function(ability) {
+                            if (!ids.has(ability.id)) {
+                                abilities.push(ability);
+                                ids.add(ability.id);
+                            }
+                        });
+                        return self.createClientAbilityToolResult(toolCall, {
+                            abilities: abilities,
+                            count: abilities.length,
+                            filter: args.category || null
+                        });
+                    });
+                }
+
                 return self.executeClientAbilityTool(toolCall, api).catch(function(error) {
                     if (fallbackToServer && error && error.aiAssistantFallbackToServer) {
                         // WP 6.9 COMPAT: Ability exists only in PHP/non-REST registry.

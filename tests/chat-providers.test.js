@@ -576,6 +576,55 @@ describe('provider proxy requests', function() {
     });
 });
 
+describe('OpenAI function tool reasoning compatibility', function() {
+    for (const proxy of [false, true]) {
+        for (const model of ['gpt-6-sol', 'gpt-6-sol-2026-10-01', 'gpt-6-luna']) {
+            it(`disables reasoning for ${model} tools through ${proxy ? 'proxy' : 'direct'} transport`, async function() {
+                let sent;
+                const assistant = loadProvidersMixin({
+                    aiAssistantConfig: { ajaxUrl: '/wp-admin/admin-ajax.php', nonce: 'test' },
+                    fetch(url, options) {
+                        sent = JSON.parse(proxy ? options.body.get('body') : options.body);
+                        return Promise.resolve({ ok: true });
+                    }
+                });
+                assistant.shouldProxyProvider = () => proxy;
+                const payload = {
+                    model,
+                    reasoning_effort: 'medium',
+                    tools: [{ type: 'function', function: { name: 'test_tool' } }],
+                    messages: [{ role: 'user', content: 'hello' }]
+                };
+                await assistant.fetchLLMProvider('openai', '/v1/chat/completions', {}, payload);
+                assert.equal(sent.reasoning_effort, 'none');
+                assert.deepEqual(sent.tools, payload.tools);
+                assert.deepEqual(sent.messages, payload.messages);
+                assert.equal(payload.reasoning_effort, 'medium');
+            });
+        }
+    }
+
+    it('preserves defaults for other models, providers, and requests without function tools', async function() {
+        const assistant = loadProvidersMixin({
+            fetch(url, options) {
+                const sent = JSON.parse(options.body);
+                assert.equal(sent.reasoning_effort, undefined);
+                return Promise.resolve({ ok: true });
+            }
+        });
+        assistant.shouldProxyProvider = () => false;
+        for (const [provider, model, tools] of [
+            ['openai', 'gpt-4o', [{ type: 'function' }]],
+            ['openai', 'gpt-6-sol', []],
+            ['openai', 'gpt-6-sol', undefined],
+            ['openai', 'gpt-6-sol', [{ type: 'custom' }]],
+            ['local', 'gpt-6-sol', [{ type: 'function' }]]
+        ]) {
+            await assistant.fetchLLMProvider(provider, '/v1/chat/completions', {}, { model, tools });
+        }
+    });
+});
+
 describe('provider request message sanitization', function() {
     function readFileResult(content, offset) {
         return JSON.stringify({
