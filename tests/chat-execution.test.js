@@ -180,6 +180,52 @@ describe('client ability normalization', function() {
     });
 });
 
+describe('ability discovery across registries', function() {
+    for (const name of ['ability', 'list_abilities']) {
+        it(`includes PHP-only abilities for ${name}`, async function() {
+            const assistant = loadExecutionMixin();
+            assistant.getClientAbilitiesApi = async () => ({
+                getAbilities: () => [
+                    { name: 'travel-app/client-only', category: 'travel-app' },
+                    { name: 'travel-app/shared', category: 'travel-app' }
+                ]
+            });
+            assistant.executeServerToolAjax = async () => ({
+                success: true,
+                result: { abilities: [
+                    { id: 'travel-app/list-trips', category: 'travel-app' },
+                    { id: 'travel-app/shared', category: 'travel-app' }
+                ] }
+            });
+            const response = await assistant.executeAbilityTool({
+                id: 'list', name, arguments: { action: 'list', category: 'travel-app' }
+            });
+            assert.equal(response.success, true);
+            assert.equal(response.result.count, 3);
+            assert.equal(response.result.filter, 'travel-app');
+            assert.deepEqual(Array.from(response.result.abilities, a => a.id), [
+                'travel-app/list-trips', 'travel-app/shared', 'travel-app/client-only'
+            ]);
+        });
+    }
+
+    it('honors disabled server fallback', async function() {
+        const assistant = loadExecutionMixin({ clientAbilities: { fallbackToServer: false } });
+        assistant.getClientAbilitiesApi = async () => ({ getAbilities: () => [] });
+        assistant.executeServerToolAjax = () => { throw new Error('Unexpected server request'); };
+        const response = await assistant.executeAbilityTool({ name: 'ability', arguments: { action: 'list' } });
+        assert.equal(response.result.count, 0);
+    });
+
+    it('preserves server permission failures', async function() {
+        const assistant = loadExecutionMixin();
+        assistant.getClientAbilitiesApi = async () => ({ getAbilities: () => [] });
+        const failure = { success: false, result: { error: 'Tool is not enabled' } };
+        assistant.executeServerToolAjax = async () => failure;
+        assert.equal(await assistant.executeAbilityTool({ name: 'ability', arguments: { action: 'list' } }), failure);
+    });
+});
+
 describe('configured tool routing', function() {
     it('does not infer destructive tools without localized config', function() {
         const assistant = loadExecutionMixin({}, { useDefaultConfig: false });
