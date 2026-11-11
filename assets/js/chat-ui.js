@@ -2400,7 +2400,7 @@
                     ? (aiAssistantProviders.connectorsUrl || aiAssistantConfig.settingsUrl)
                     : aiAssistantConfig.settingsUrl;
                 var setupLabel = hasConnectors ? 'Connectors' : 'Settings';
-                var message = 'Welcome! Connect an AI provider in [' + setupLabel + '](' + setupUrl + ') to start chatting. Use an API key ([your subscription may include API credits](#ai-provider-setup-help)) or a [local AI](#ai-local-setup-help).';
+                var message = 'Welcome! Connect an AI provider in [' + setupLabel + '](' + setupUrl + ') to start chatting. Use an API key ([your AI subscription may include API credits](#ai-provider-setup-help)) or a [local AI](#ai-local-setup-help).';
                 if (hasConnectors && aiAssistantProviders.hasLocal) {
                     message += ' Start your local server and load a model to connect from this browser.';
                 }
