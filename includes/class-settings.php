@@ -1635,7 +1635,7 @@ class Settings {
                                     var id = normalizeModelId(model.id);
                                     $('<option>')
                                         .val(id)
-                                        .text(model.name || id)
+                                        .text((model.name || id) + ((p.loadedModelIds || []).indexOf(id) !== -1 ? ' (<?php echo esc_js(__('loaded', 'ai-assistant')); ?>)' : ''))
                                         .prop('selected', id === selectedModel)
                                         .appendTo($modelSelect);
                                 });
