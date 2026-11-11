@@ -1296,7 +1296,6 @@ class Settings {
         }
         ?>
         <div class="ai-connectors-notice">
-            <?php $this->render_provider_setup_help(); ?>
             <p>
                 <?php
                 printf(
@@ -1307,7 +1306,7 @@ class Settings {
                 ?>
             </p>
             <?php if ($config['hasLocal'] ?? false) : ?>
-                <p class="description"><?php esc_html_e('Local providers connect directly to localhost on your device using JavaScript in your browser.', 'ai-assistant'); ?></p>
+                <p><?php esc_html_e('Local providers connect directly to localhost on your device using JavaScript in your browser.', 'ai-assistant'); ?></p>
             <?php endif; ?>
             <?php if ($configured_count > 0) : ?>
                 <ul id="ai-provider-priority" class="ai-provider-priority">
@@ -1788,6 +1787,7 @@ class Settings {
                 <?php endif; ?>
             <?php endif; ?>
 
+            <?php $this->render_provider_setup_help(); ?>
         </div>
         <?php
     }
