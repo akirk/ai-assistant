@@ -1301,7 +1301,7 @@ class Settings {
                 <?php
                 printf(
                     /* translators: %s: link to Connectors settings page */
-                    esc_html__('LLM providers are managed through %s. Drag to reorder, then choose the model to use for each provider.', 'ai-assistant'),
+                    esc_html__('Cloud providers are managed through %s. Drag to reorder, then choose the model to use for each provider.', 'ai-assistant'),
                     '<a href="' . esc_url($connectors_url) . '">' . esc_html__('WordPress Connectors', 'ai-assistant') . '</a>'
                 );
                 ?>
