@@ -1232,37 +1232,46 @@ class Settings {
     private function render_provider_setup_help() {
         ?>
         <details class="ai-provider-setup-help">
-            <summary><?php esc_html_e('Setup help: API keys, subscription credits, and local AI', 'ai-assistant'); ?></summary>
-            <p><strong><?php esc_html_e('Your subscription may already include API credits.', 'ai-assistant'); ?></strong>
-                <?php esc_html_e('Eligible ChatGPT Pro/Business and Claude Max/Ultra/Team plans include credits you can claim for use in AI Assistant.', 'ai-assistant'); ?>
-                <a href="https://developers.openai.com/api/docs/guides/chatgpt-api-credits"><?php esc_html_e('OpenAI eligibility and activation', 'ai-assistant'); ?></a> &middot;
-                <a href="https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers"><?php esc_html_e('Claude eligibility and activation', 'ai-assistant'); ?></a>
-            </p>
+            <summary><?php esc_html_e('Setup help: local AI and cloud providers', 'ai-assistant'); ?></summary>
+            <p><strong><?php esc_html_e('Use AI on your own device', 'ai-assistant'); ?></strong></p>
+            <p><?php esc_html_e('LM Studio and Ollama run models on the device where you use this browser. Your prompts go directly to that local server.', 'ai-assistant'); ?></p>
             <ol>
-                <li><?php esc_html_e('Claim your subscription credits by linking an API organization, or add paid API credit with your provider.', 'ai-assistant'); ?></li>
-                <li><?php esc_html_e('Create an API key in that organization:', 'ai-assistant'); ?>
+                <li><?php esc_html_e('Install a local AI application and download a model:', 'ai-assistant'); ?>
+                    <a href="https://lmstudio.ai/">LM Studio</a> &middot; <a href="https://ollama.com/">Ollama</a>
+                </li>
+                <li><?php esc_html_e('Start its server and enable browser access from this website in its CORS settings. If your browser asks to connect to services on your device, allow access.', 'ai-assistant'); ?></li>
+                <?php if (Connectors_Bridge::is_available()) : ?>
+                    <li><?php esc_html_e('Click Scan again next to Save Changes. AI Assistant checks localhost:1234 for LM Studio and localhost:11434 for Ollama.', 'ai-assistant'); ?></li>
+                    <li><?php esc_html_e('Choose a model in the provider’s card. LM Studio groups models under Loaded and Unloaded. Select an unloaded model and click Load model to load it; other LLMs on that server are unloaded first.', 'ai-assistant'); ?></li>
+                <?php else : ?>
+                    <li><?php esc_html_e('Choose Local in the provider settings, enter the local server endpoint, and choose a model.', 'ai-assistant'); ?></li>
+                <?php endif; ?>
+            </ol>
+            <?php if (Connectors_Bridge::is_available()) : ?>
+                <p class="description"><?php esc_html_e('No WordPress provider plugin is needed for local AI. If one is installed, its configured endpoint is reused and matching connections appear as one card.', 'ai-assistant'); ?></p>
+            <?php endif; ?>
+            <p><strong><?php esc_html_e('Connect a cloud provider', 'ai-assistant'); ?></strong></p>
+            <ol>
+                <li><?php esc_html_e('Create an API key and add API credit with your provider:', 'ai-assistant'); ?>
                     <a href="https://platform.openai.com/api-keys">OpenAI API platform</a> &middot;
                     <a href="https://platform.claude.com/settings/keys">Claude Console</a>
                 </li>
-                <li><?php esc_html_e('Add the key for the matching provider in the provider settings, then choose a model in AI Assistant.', 'ai-assistant'); ?></li>
-            </ol>
-            <p class="description"><?php esc_html_e('AI Assistant uses your provider’s API balance. A subscription alone does not connect it automatically. Alternatively, connect to Ollama or LM Studio running on this device.', 'ai-assistant'); ?></p>
-            <p><strong><?php esc_html_e('Local AI: a privacy-friendly, free alternative.', 'ai-assistant'); ?></strong>
-                <?php esc_html_e('Run AI on your own device without sending your prompts to a cloud AI provider.', 'ai-assistant'); ?>
-            </p>
-            <ol>
-                <li><?php esc_html_e('Install Ollama or LM Studio on the device running this browser and download a model.', 'ai-assistant'); ?>
-                    <a href="https://ollama.com/">Ollama</a> &middot; <a href="https://lmstudio.ai/">LM Studio</a>
+                <li>
+                    <?php if (Connectors_Bridge::is_available()) : ?>
+                        <?php esc_html_e('Add the key for the matching provider in', 'ai-assistant'); ?>
+                        <a href="<?php echo esc_url(admin_url('options-connectors.php')); ?>"><?php esc_html_e('WordPress Connectors', 'ai-assistant'); ?></a>.
+                    <?php else : ?>
+                        <?php esc_html_e('Add the key for the matching provider in the provider settings.', 'ai-assistant'); ?>
+                    <?php endif; ?>
                 </li>
-                <li><?php esc_html_e('Start its local server and allow requests from this website in the server’s browser access / CORS settings.', 'ai-assistant'); ?></li>
+                <li><?php esc_html_e('Choose the model to use in AI Assistant.', 'ai-assistant'); ?></li>
             </ol>
+            <p><?php esc_html_e('AI Assistant uses your provider’s API balance. Your subscription may include API credits; check eligibility and activation with your provider:', 'ai-assistant'); ?>
+                <a href="https://developers.openai.com/api/docs/guides/chatgpt-api-credits">OpenAI</a> &middot;
+                <a href="https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers">Claude</a>
+            </p>
             <?php if (Connectors_Bridge::is_available()) : ?>
-                <p><?php esc_html_e('AI Assistant checks localhost:1234 for LM Studio and localhost:11434 for Ollama. Click Scan again next to Save Changes after starting your server.', 'ai-assistant'); ?></p>
-                <p><?php esc_html_e('Choose a model in the detected provider’s card. In LM Studio, models are grouped under Loaded and Unloaded; select an unloaded model and click Load model to switch to it. This unloads other LLMs on that server.', 'ai-assistant'); ?></p>
-                <p><?php esc_html_e('Drag the cards to set your preferred provider order alongside any configured cloud connections. Your priority and model choices are saved in this browser.', 'ai-assistant'); ?></p>
-                <p class="description"><?php esc_html_e('No local provider plugin is required. If one is already installed, AI Assistant reuses its configured endpoint and combines matching connections into one card.', 'ai-assistant'); ?></p>
-            <?php else : ?>
-                <p><?php esc_html_e('Choose Local in the provider settings, enter the local server endpoint, and choose a model.', 'ai-assistant'); ?></p>
+                <p><?php esc_html_e('Once connected, drag the provider cards to set your preferred order. AI Assistant uses the first available provider.', 'ai-assistant'); ?></p>
             <?php endif; ?>
         </details>
         <?php
@@ -1302,7 +1311,7 @@ class Settings {
                 <ul id="ai-provider-priority" class="ai-provider-priority">
                 </ul>
                 <?php if ($config['hasLocal'] ?? false) : ?>
-                    <p class="description"><?php esc_html_e('Local providers connect directly to localhost on your device using JavaScript in your browser. Requests do not pass through the WordPress server.', 'ai-assistant'); ?></p>
+                    <p class="description"><?php esc_html_e('Local providers connect directly to localhost on your device using JavaScript in your browser.', 'ai-assistant'); ?></p>
                 <?php endif; ?>
                 <?php if (isset($config['available']['anthropic'])) : ?>
                     <div class="ai-anthropic-prompt-cache-option">
