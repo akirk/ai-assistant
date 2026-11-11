@@ -1230,7 +1230,6 @@ class Settings {
      * Explain provider setup and subscription API credit benefits.
      */
     private function render_provider_setup_help() {
-        $local_provider_actions = $this->get_local_provider_actions();
         ?>
         <details class="ai-provider-setup-help">
             <summary><?php esc_html_e('Setup help: API keys, subscription credits, and local AI', 'ai-assistant'); ?></summary>
@@ -1247,22 +1246,21 @@ class Settings {
                 </li>
                 <li><?php esc_html_e('Add the key for the matching provider in the provider settings, then choose a model in AI Assistant.', 'ai-assistant'); ?></li>
             </ol>
-            <p class="description"><?php esc_html_e('AI Assistant uses your provider’s API balance. A subscription alone does not connect it automatically. Alternatively, use Ollama or LM Studio without an API key: start the local server and load a model on this device.', 'ai-assistant'); ?></p>
+            <p class="description"><?php esc_html_e('AI Assistant uses your provider’s API balance. A subscription alone does not connect it automatically. Alternatively, connect to Ollama or LM Studio running on this device.', 'ai-assistant'); ?></p>
             <p><strong><?php esc_html_e('Local AI: a privacy-friendly, free alternative.', 'ai-assistant'); ?></strong>
                 <?php esc_html_e('Run AI on your own device without sending your prompts to a cloud AI provider.', 'ai-assistant'); ?>
             </p>
-            <p><?php esc_html_e('For local AI, install Ollama or LM Studio on this device, download a model, and start the local server with the model loaded.', 'ai-assistant'); ?>
-                <a href="https://ollama.com/">Ollama</a> &middot; <a href="https://lmstudio.ai/">LM Studio</a>
-            </p>
+            <ol>
+                <li><?php esc_html_e('Install Ollama or LM Studio on the device running this browser and download a model.', 'ai-assistant'); ?>
+                    <a href="https://ollama.com/">Ollama</a> &middot; <a href="https://lmstudio.ai/">LM Studio</a>
+                </li>
+                <li><?php esc_html_e('Start its local server and allow requests from this website in the server’s browser access / CORS settings.', 'ai-assistant'); ?></li>
+            </ol>
             <?php if (Connectors_Bridge::is_available()) : ?>
-                <p><?php esc_html_e('Local servers are detected directly by your browser; no provider plugin is required. Optional provider plugins for other WordPress features:', 'ai-assistant'); ?>
-                    <?php foreach ($local_provider_actions as $action) : ?>
-                        <a class="button" href="<?php echo esc_url($action['url']); ?>"><?php echo esc_html($action['label']); ?></a>
-                    <?php endforeach; ?>
-                    <?php if (empty($local_provider_actions)) : ?>
-                        <?php esc_html_e('Ask a site administrator to install and activate the provider plugin.', 'ai-assistant'); ?>
-                    <?php endif; ?>
-                </p>
+                <p><?php esc_html_e('AI Assistant checks localhost:1234 for LM Studio and localhost:11434 for Ollama. Click Scan again next to Save Changes after starting your server.', 'ai-assistant'); ?></p>
+                <p><?php esc_html_e('Choose a model in the detected provider’s card. In LM Studio, models are grouped under Loaded and Unloaded; select an unloaded model and click Load model to switch to it. This unloads other LLMs on that server.', 'ai-assistant'); ?></p>
+                <p><?php esc_html_e('Drag the cards to set your preferred provider order alongside any configured cloud connections. Your priority and model choices are saved in this browser.', 'ai-assistant'); ?></p>
+                <p class="description"><?php esc_html_e('No local provider plugin is required. If one is already installed, AI Assistant reuses its configured endpoint and combines matching connections into one card.', 'ai-assistant'); ?></p>
             <?php else : ?>
                 <p><?php esc_html_e('Choose Local in the provider settings, enter the local server endpoint, and choose a model.', 'ai-assistant'); ?></p>
             <?php endif; ?>
