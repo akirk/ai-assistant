@@ -1239,7 +1239,9 @@ class Settings {
                 <li><?php esc_html_e('Install a local AI application and download a model:', 'ai-assistant'); ?>
                     <a href="https://lmstudio.ai/">LM Studio</a> &middot; <a href="https://ollama.com/">Ollama</a>
                 </li>
-                <li><?php esc_html_e('Start its server and enable browser access from this website in its CORS settings. If your browser asks to connect to services on your device, allow access.', 'ai-assistant'); ?></li>
+                <li><?php esc_html_e('Start its server and enable browser access from this website in its CORS settings. If your browser asks to connect to services on your device, allow access.', 'ai-assistant'); ?>
+                    <a href="https://github.com/ollama/ollama/blob/main/docs/faq.mdx?utm_source=chatgpt.com#how-can-i-allow-additional-web-origins-to-access-ollama"><?php esc_html_e('Allow browser access to Ollama', 'ai-assistant'); ?></a>
+                </li>
                 <?php if (Connectors_Bridge::is_available()) : ?>
                     <li><?php esc_html_e('Click Scan again next to Save Changes. AI Assistant checks localhost:1234 for LM Studio and localhost:11434 for Ollama.', 'ai-assistant'); ?></li>
                     <li><?php esc_html_e('Choose a model in the provider’s card. LM Studio groups models under Loaded and Unloaded. Select an unloaded model and click Load model to load it; other LLMs on that server are unloaded first.', 'ai-assistant'); ?></li>
