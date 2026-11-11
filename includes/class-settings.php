@@ -610,6 +610,7 @@ class Settings {
             return;
         }
         ?>
+        <?php $this->render_provider_setup_help(); ?>
         <p><?php esc_html_e('These settings are stored in your browser and not on the server. API keys never leave your device.', 'ai-assistant'); ?></p>
 
         <table class="form-table" role="presentation">
@@ -1178,6 +1179,91 @@ class Settings {
     }
 
     /**
+     * Native WordPress install, activate, or configure actions for local providers.
+     */
+    public function get_local_provider_actions() {
+        if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        $installed = get_plugins();
+        $actions = [];
+        foreach (['ai-provider-for-ollama' => 'Ollama', 'ai-provider-for-lm-studio' => 'LM Studio'] as $slug => $name) {
+            $plugin_file = '';
+            foreach ($installed as $file => $plugin) {
+                if (strpos($file, $slug . '/') === 0) {
+                    $plugin_file = $file;
+                    break;
+                }
+            }
+            if ($plugin_file && is_plugin_active($plugin_file)) {
+                $actions[$slug] = [
+                    'label' => sprintf(__('Configure %s', 'ai-assistant'), $name),
+                    'url' => admin_url('options-connectors.php'),
+                ];
+            } elseif ($plugin_file && current_user_can('activate_plugin', $plugin_file)) {
+                $actions[$slug] = [
+                    'label' => sprintf(__('Activate %s provider', 'ai-assistant'), $name),
+                    'url' => wp_nonce_url(add_query_arg([
+                        'action' => 'activate', 'plugin' => $plugin_file,
+                    ], admin_url('plugins.php')), 'activate-plugin_' . $plugin_file),
+                ];
+            } elseif (!$plugin_file && current_user_can('install_plugins')) {
+                $actions[$slug] = [
+                    'label' => sprintf(__('Install %s provider', 'ai-assistant'), $name),
+                    'url' => wp_nonce_url(add_query_arg([
+                        'action' => 'install-plugin', 'plugin' => $slug,
+                    ], self_admin_url('update.php')), 'install-plugin_' . $slug),
+                ];
+            }
+        }
+        return $actions;
+    }
+
+    /**
+     * Explain provider setup and subscription API credit benefits.
+     */
+    private function render_provider_setup_help() {
+        $local_provider_actions = $this->get_local_provider_actions();
+        ?>
+        <details class="ai-provider-setup-help">
+            <summary><?php esc_html_e('Setup help: API keys, subscription credits, and local AI', 'ai-assistant'); ?></summary>
+            <p><strong><?php esc_html_e('Your subscription may already include API credits.', 'ai-assistant'); ?></strong>
+                <?php esc_html_e('Eligible ChatGPT Pro/Business and Claude Max/Ultra/Team plans include credits you can claim for use in AI Assistant.', 'ai-assistant'); ?>
+                <a href="https://developers.openai.com/api/docs/guides/chatgpt-api-credits"><?php esc_html_e('OpenAI eligibility and activation', 'ai-assistant'); ?></a> &middot;
+                <a href="https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers"><?php esc_html_e('Claude eligibility and activation', 'ai-assistant'); ?></a>
+            </p>
+            <ol>
+                <li><?php esc_html_e('Claim your subscription credits by linking an API organization, or add paid API credit with your provider.', 'ai-assistant'); ?></li>
+                <li><?php esc_html_e('Create an API key in that organization:', 'ai-assistant'); ?>
+                    <a href="https://platform.openai.com/api-keys">OpenAI API platform</a> &middot;
+                    <a href="https://platform.claude.com/settings/keys">Claude Console</a>
+                </li>
+                <li><?php esc_html_e('Add the key for the matching provider in the provider settings, then choose a model in AI Assistant.', 'ai-assistant'); ?></li>
+            </ol>
+            <p class="description"><?php esc_html_e('AI Assistant uses your provider’s API balance. A subscription alone does not connect it automatically. Alternatively, use Ollama or LM Studio without an API key: start the local server and load a model on this device.', 'ai-assistant'); ?></p>
+            <p><strong><?php esc_html_e('Local AI: a privacy-friendly, free alternative.', 'ai-assistant'); ?></strong>
+                <?php esc_html_e('Run AI on your own device without sending your prompts to a cloud AI provider.', 'ai-assistant'); ?>
+            </p>
+            <p><?php esc_html_e('For local AI, install Ollama or LM Studio on this device, download a model, and start the local server with the model loaded.', 'ai-assistant'); ?>
+                <a href="https://ollama.com/">Ollama</a> &middot; <a href="https://lmstudio.ai/">LM Studio</a>
+            </p>
+            <?php if (Connectors_Bridge::is_available()) : ?>
+                <p><?php esc_html_e('Also install and activate the matching WordPress provider plugin, configure it in Connectors, and choose a model in AI Assistant:', 'ai-assistant'); ?>
+                    <?php foreach ($local_provider_actions as $action) : ?>
+                        <a class="button" href="<?php echo esc_url($action['url']); ?>"><?php echo esc_html($action['label']); ?></a>
+                    <?php endforeach; ?>
+                    <?php if (empty($local_provider_actions)) : ?>
+                        <?php esc_html_e('Ask a site administrator to install and activate the provider plugin.', 'ai-assistant'); ?>
+                    <?php endif; ?>
+                </p>
+            <?php else : ?>
+                <p><?php esc_html_e('Choose Local in the provider settings, enter the local server endpoint, and choose a model.', 'ai-assistant'); ?></p>
+            <?php endif; ?>
+        </details>
+        <?php
+    }
+
+    /**
      * Render notice when WordPress 7.0 Connectors API is available.
      */
     private function render_connectors_notice() {
@@ -1197,6 +1283,7 @@ class Settings {
         }
         ?>
         <div class="ai-connectors-notice">
+            <?php $this->render_provider_setup_help(); ?>
             <p>
                 <?php
                 printf(

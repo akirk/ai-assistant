@@ -4649,6 +4649,10 @@ body.ai-assistant-app-body {
     text-align: center;
 }
 
+.ai-message-system.ai-welcome-message {
+    text-align: left;
+}
+
 .ai-chat-main .ai-message-error {
     background: transparent;
     color: inherit;
