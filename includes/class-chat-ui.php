@@ -55,6 +55,13 @@ class Chat_UI {
         wp_enqueue_script('wp-codemirror');
 
         do_action('wp_ai_provider_browser_status_scripts');
+        wp_enqueue_script(
+            'ai-assistant-browser-status',
+            AI_ASSISTANT_PLUGIN_URL . 'assets/js/browser-status.js',
+            [],
+            filemtime(AI_ASSISTANT_PLUGIN_DIR . 'assets/js/browser-status.js'),
+            false
+        );
         $this->enqueue_client_abilities_assets();
 
         wp_enqueue_script(

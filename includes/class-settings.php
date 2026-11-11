@@ -38,6 +38,13 @@ class Settings {
         wp_enqueue_script('wp-codemirror');
 
         do_action('wp_ai_provider_browser_status_scripts');
+        wp_enqueue_script(
+            'ai-assistant-browser-status',
+            AI_ASSISTANT_PLUGIN_URL . 'assets/js/browser-status.js',
+            [],
+            filemtime(AI_ASSISTANT_PLUGIN_DIR . 'assets/js/browser-status.js'),
+            false
+        );
     }
 
     public function ajax_get_skill() {
@@ -1248,7 +1255,7 @@ class Settings {
                 <a href="https://ollama.com/">Ollama</a> &middot; <a href="https://lmstudio.ai/">LM Studio</a>
             </p>
             <?php if (Connectors_Bridge::is_available()) : ?>
-                <p><?php esc_html_e('Also install and activate the matching WordPress provider plugin, configure it in Connectors, and choose a model in AI Assistant:', 'ai-assistant'); ?>
+                <p><?php esc_html_e('Local servers are detected directly by your browser; no provider plugin is required. Optional provider plugins for other WordPress features:', 'ai-assistant'); ?>
                     <?php foreach ($local_provider_actions as $action) : ?>
                         <a class="button" href="<?php echo esc_url($action['url']); ?>"><?php echo esc_html($action['label']); ?></a>
                     <?php endforeach; ?>
@@ -1371,6 +1378,7 @@ class Settings {
                             'name' => $p['name'],
                             'type' => $p['type'],
                             'endpoint' => $p['endpoint'] ?? '',
+                            'localKind' => $p['localKind'] ?? '',
                             'browserSupported' => !empty($p['browserSupported']),
                             'serverSideAuth' => !empty($p['serverSideAuth']),
                             'models' => array_values((array) ($p['models'] ?? [])),
@@ -1498,6 +1506,9 @@ class Settings {
                             return;
                         }
 
+                        provider.loadSupported = !!status.loadSupported;
+                        provider.loadedModels = status.loadedModels || [];
+                        provider.loadedModelIds = status.loadedModelIds || [];
                         provider.browserStatus = status.status || (status.reachable ? 'ready' : 'unreachable');
 
                         if (status.reachable) {
@@ -1633,6 +1644,28 @@ class Settings {
 
                             $modelControl.append($modelSelect);
                             $li.append($main).append($modelControl);
+                            if (p.localKind === 'lmstudio') {
+                                var $feedback = $('<span>').attr('role', 'status').text(p.loadMessage || (p.loadedModels || []).join(', '));
+                                var needsLoad = p.loadSupported && selectedModel && (p.loadedModelIds || []).indexOf(selectedModel) === -1;
+                                if (needsLoad || p.loading) $('<button type="button" class="button">').text(p.loading ? 'Loading model…' : 'Load model')
+                                    .prop('disabled', p.loading || !p.loadSupported || !selectedModel)
+                                    .on('click', function() {
+                                        var model = $modelSelect.val();
+                                        persistModelSelection(p.id, model);
+                                        p.loading = true;
+                                        p.loadMessage = 'Loading model…';
+                                        render();
+                                        window.wpAiProviderBrowserStatus.loadModel(p, model).then(function() {
+                                            p.loadMessage = 'Model loaded: ' + model;
+                                            p.loadedModels = [model];
+                                            p.loadedModelIds = [model];
+                                        }).catch(function(error) {
+                                            p.loadMessage = 'Could not load model: ' + error.message;
+                                        }).finally(function() { p.loading = false; render(); });
+                                    }).appendTo($li);
+                                $li.append($feedback);
+                            }
+
                             $list.append($li);
                         });
                     }
@@ -1647,6 +1680,7 @@ class Settings {
                         localStorage.removeItem(STORAGE_PREFIX + 'provider');
                     }
 
+                    $('<button type="button" class="button">').text('Scan again').insertBefore($list).on('click', checkBrowserProviders);
                     render();
                     checkBrowserProviders();
 
@@ -1658,6 +1692,7 @@ class Settings {
 
                     $list.on('change', '.ai-priority-model-select', function() {
                         persistModelSelection($(this).data('provider'), $(this).val());
+                        render();
                     });
 
                     // Drag-and-drop reordering

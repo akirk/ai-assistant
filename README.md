@@ -52,7 +52,7 @@ AI Assistant needs an AI provider: either a cloud API key with available API cre
 
 A subscription alone does not connect AI Assistant automatically; requests use the API balance of the organization associated with your key.
 
-**Local AI is a privacy-friendly, free alternative:** run models on your own device without sending your prompts to a cloud AI provider. Install [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/), start its server, and load a model on the device where you use your browser; no API key is needed. With WordPress Connectors, also install and activate [AI Provider for Ollama](https://wordpress.org/plugins/ai-provider-for-ollama/) or [AI Provider for LM Studio](https://wordpress.org/plugins/ai-provider-for-lm-studio/), then configure the provider and choose a model in AI Assistant.
+**Local AI is a privacy-friendly, free alternative:** run models on your own device without sending your prompts to a cloud AI provider. Install [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/), start its server, and load a model on the device where you use your browser; no API key is needed. With WordPress Connectors, AI Assistant checks LM Studio (localhost:1234) and Ollama (localhost:11434) directly from your browser; no local provider plugin is required. Reorder their cards alongside cloud connections and choose a model. The LM Studio card shows **Load model** when the selection is not loaded; loading it unloads other LLMs first. Existing local provider plugins supply their configured endpoints and are merged with matching detected connections. Enable browser access/CORS in your local server.
 
 Go to **Settings > AI Assistant** to configure:
 
