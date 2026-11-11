@@ -1301,11 +1301,9 @@ class Settings {
             <?php if ($configured_count > 0) : ?>
                 <ul id="ai-provider-priority" class="ai-provider-priority">
                 </ul>
-                <p class="description"><?php esc_html_e('Priority order and model choices are stored per-browser.', 'ai-assistant'); ?>
                 <?php if ($config['hasLocal'] ?? false) : ?>
-                    <?php esc_html_e('Local providers connect directly from your browser.', 'ai-assistant'); ?>
+                    <p class="description"><?php esc_html_e('Local providers connect directly to localhost on your device using JavaScript in your browser. Requests do not pass through the WordPress server.', 'ai-assistant'); ?></p>
                 <?php endif; ?>
-                </p>
                 <?php if (isset($config['available']['anthropic'])) : ?>
                     <div class="ai-anthropic-prompt-cache-option">
                         <label for="ai_anthropic_prompt_cache">
