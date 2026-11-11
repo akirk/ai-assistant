@@ -154,6 +154,14 @@
         bindEvents: function() {
             var self = this;
 
+            $(document).on('click', '.ai-welcome-message a[href="#ai-provider-setup-help"]', function(e) {
+                e.preventDefault();
+                var $help = $('#ai-provider-setup-help');
+                var expanded = $(this).attr('aria-expanded') !== 'true';
+                $help.prop('hidden', !expanded);
+                $(this).attr('aria-expanded', String(expanded));
+            });
+
             $(document).on('click', '.ai-assistant-toggle', function(e) {
                 e.preventDefault();
                 self.toggle();

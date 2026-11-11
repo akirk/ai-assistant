@@ -1183,7 +1183,8 @@ class Settings {
      */
     private function render_provider_setup_help() {
         ?>
-        <div class="ai-provider-setup-help">
+        <details class="ai-provider-setup-help">
+            <summary><?php esc_html_e('Setup help: API keys and subscription credits', 'ai-assistant'); ?></summary>
             <p><strong><?php esc_html_e('Your subscription may already include API credits.', 'ai-assistant'); ?></strong>
                 <?php esc_html_e('Eligible ChatGPT Pro/Business and Claude Max/Ultra/Team plans include credits you can claim for use in AI Assistant.', 'ai-assistant'); ?>
                 <a href="https://developers.openai.com/api/docs/guides/chatgpt-api-credits"><?php esc_html_e('OpenAI eligibility and activation', 'ai-assistant'); ?></a> &middot;
@@ -1198,7 +1199,7 @@ class Settings {
                 <li><?php esc_html_e('Add the key for the matching provider in the provider settings, then choose a model in AI Assistant.', 'ai-assistant'); ?></li>
             </ol>
             <p class="description"><?php esc_html_e('AI Assistant uses your provider’s API balance. A subscription alone does not connect it automatically. Alternatively, use Ollama or LM Studio without an API key: start the local server and load a model on this device.', 'ai-assistant'); ?></p>
-        </div>
+        </details>
         <?php
     }
 

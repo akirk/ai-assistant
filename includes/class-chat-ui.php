@@ -274,6 +274,7 @@ class Chat_UI {
             'autoApprovedAbilities' => ai_assistant_is_playground() ? '*' : $settings->get_auto_approved_abilities(),
             'readonlyAbilities' => Ability_Annotations::get_readonly_ability_ids(),
             'autoApprovedRestApis' => $settings->get_auto_approved_rest_apis(),
+            'isPlayground' => ai_assistant_is_playground(),
             'settingsUrl' => admin_url('options-general.php?page=ai-assistant-settings'),
             'aiChangesUrl' => apply_filters('ai_assistant_ai_changes_url', ''),
             'patchAssistantInstall' => !defined('PATCH_ASSISTANT_VERSION') ? [
