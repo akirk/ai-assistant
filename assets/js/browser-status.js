@@ -26,7 +26,7 @@
                 var result = await previous.check(provider);
                 if (result && result.status !== 'unsupported') return result;
             }
-            var status = { providerId: provider.id, reachable: false, status: 'unsupported', models: [], loadedModels: [], loadedModelIds: [] };
+            var status = { providerId: provider.id, reachable: false, status: 'unsupported', models: [], loadedModelIds: [] };
             if (provider.type !== 'server' || !provider.endpoint) return status;
             try {
                 var data;
@@ -37,7 +37,6 @@
                         status.models = data.models.filter(function(model) { return model.type === 'llm'; }).map(function(model) {
                             var instances = model.loaded_instances || [];
                             if (instances.length) {
-                                status.loadedModels.push(model.display_name || model.key);
                                 status.loadedModelIds.push(model.key);
                             }
                             return { id: model.key, name: model.display_name || model.key, capabilities: ['text_generation'] };

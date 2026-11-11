@@ -1507,7 +1507,6 @@ class Settings {
                         }
 
                         provider.loadSupported = !!status.loadSupported;
-                        provider.loadedModels = status.loadedModels || [];
                         provider.loadedModelIds = status.loadedModelIds || [];
                         provider.browserStatus = status.status || (status.reachable ? 'ready' : 'unreachable');
 
@@ -1645,7 +1644,7 @@ class Settings {
                             $modelControl.append($modelSelect);
                             $li.append($main).append($modelControl);
                             if (p.localKind === 'lmstudio') {
-                                var $feedback = $('<span>').attr('role', 'status').text(p.loadMessage || (p.loadedModels || []).join(', '));
+                                var $feedback = $('<span>').attr('role', 'status').text(p.loadMessage || '');
                                 var needsLoad = p.loadSupported && selectedModel && (p.loadedModelIds || []).indexOf(selectedModel) === -1;
                                 if (needsLoad || p.loading) $('<button type="button" class="button">').text(p.loading ? 'Loading model…' : 'Load model')
                                     .prop('disabled', p.loading || !p.loadSupported || !selectedModel)
@@ -1656,14 +1655,13 @@ class Settings {
                                         p.loadMessage = 'Loading model…';
                                         render();
                                         window.wpAiProviderBrowserStatus.loadModel(p, model).then(function() {
-                                            p.loadMessage = 'Model loaded: ' + model;
-                                            p.loadedModels = [model];
+                                            p.loadMessage = '';
                                             p.loadedModelIds = [model];
                                         }).catch(function(error) {
                                             p.loadMessage = 'Could not load model: ' + error.message;
                                         }).finally(function() { p.loading = false; render(); });
                                     }).appendTo($li);
-                                $li.append($feedback);
+                                if (p.loadMessage) $li.append($feedback);
                             }
 
                             $list.append($li);
