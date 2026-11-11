@@ -2409,7 +2409,7 @@
                 }
                 this.addMessage('system', message, 'ai-welcome-message');
                 var help = '1. Claim API credits from an eligible subscription by linking an API organization, or add paid API credit. See [OpenAI eligibility and activation](https://developers.openai.com/api/docs/guides/chatgpt-api-credits) or [Claude eligibility and activation](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers).\n2. Create an API key in that organization on the [OpenAI API platform](https://platform.openai.com/api-keys) or [Claude Console](https://platform.claude.com/settings/keys).\n3. Add the key for the matching provider in [' + setupLabel + '](' + setupUrl + '), then choose a model in AI Assistant.\n\nRequests use your provider’s API balance.';
-                var localHelp = '1. Install [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/) on this device, download a model, and start the local server with a model loaded.';
+                var localHelp = '**A privacy-friendly, free alternative.** Run AI on your own device without sending your prompts to a cloud AI provider.\n\n1. Install [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/) on this device, download a model, and start the local server with a model loaded.';
                 if (hasConnectors) {
                     localHelp += '\n2. Install and activate the matching WordPress plugin: [AI Provider for Ollama](https://wordpress.org/plugins/ai-provider-for-ollama/) or [AI Provider for LM Studio](https://wordpress.org/plugins/ai-provider-for-lm-studio/).\n3. Configure the provider in [' + setupLabel + '](' + setupUrl + '), then choose a model in AI Assistant.';
                 } else {

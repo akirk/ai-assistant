@@ -50,7 +50,9 @@ AI Assistant needs an AI provider: either a cloud API key with available API cre
 2. Create an API key in that organization on the [OpenAI API platform](https://platform.openai.com/api-keys) or [Claude Console](https://platform.claude.com/settings/keys).
 3. Add the key for the matching provider in **Settings > Connectors** when available, or **Settings > AI Assistant**, then choose a model in AI Assistant.
 
-A subscription alone does not connect AI Assistant automatically; requests use the API balance of the organization associated with your key. For local AI, install [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/), start its server, and load a model on the device where you use your browser; no API key is needed. With WordPress Connectors, also install and activate [AI Provider for Ollama](https://wordpress.org/plugins/ai-provider-for-ollama/) or [AI Provider for LM Studio](https://wordpress.org/plugins/ai-provider-for-lm-studio/), then configure the provider and choose a model in AI Assistant.
+A subscription alone does not connect AI Assistant automatically; requests use the API balance of the organization associated with your key.
+
+**Local AI is a privacy-friendly, free alternative:** run models on your own device without sending your prompts to a cloud AI provider. Install [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/), start its server, and load a model on the device where you use your browser; no API key is needed. With WordPress Connectors, also install and activate [AI Provider for Ollama](https://wordpress.org/plugins/ai-provider-for-ollama/) or [AI Provider for LM Studio](https://wordpress.org/plugins/ai-provider-for-lm-studio/), then configure the provider and choose a model in AI Assistant.
 
 Go to **Settings > AI Assistant** to configure:
 

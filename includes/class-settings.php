@@ -1199,6 +1199,9 @@ class Settings {
                 <li><?php esc_html_e('Add the key for the matching provider in the provider settings, then choose a model in AI Assistant.', 'ai-assistant'); ?></li>
             </ol>
             <p class="description"><?php esc_html_e('AI Assistant uses your provider’s API balance. A subscription alone does not connect it automatically. Alternatively, use Ollama or LM Studio without an API key: start the local server and load a model on this device.', 'ai-assistant'); ?></p>
+            <p><strong><?php esc_html_e('Local AI: a privacy-friendly, free alternative.', 'ai-assistant'); ?></strong>
+                <?php esc_html_e('Run AI on your own device without sending your prompts to a cloud AI provider.', 'ai-assistant'); ?>
+            </p>
             <p><?php esc_html_e('For local AI, install Ollama or LM Studio on this device, download a model, and start the local server with the model loaded.', 'ai-assistant'); ?>
                 <a href="https://ollama.com/">Ollama</a> &middot; <a href="https://lmstudio.ai/">LM Studio</a>
             </p>
