@@ -1184,7 +1184,7 @@ class Settings {
     private function render_provider_setup_help() {
         ?>
         <details class="ai-provider-setup-help">
-            <summary><?php esc_html_e('Setup help: API keys and subscription credits', 'ai-assistant'); ?></summary>
+            <summary><?php esc_html_e('Setup help: API keys, subscription credits, and local AI', 'ai-assistant'); ?></summary>
             <p><strong><?php esc_html_e('Your subscription may already include API credits.', 'ai-assistant'); ?></strong>
                 <?php esc_html_e('Eligible ChatGPT Pro/Business and Claude Max/Ultra/Team plans include credits you can claim for use in AI Assistant.', 'ai-assistant'); ?>
                 <a href="https://developers.openai.com/api/docs/guides/chatgpt-api-credits"><?php esc_html_e('OpenAI eligibility and activation', 'ai-assistant'); ?></a> &middot;
@@ -1199,6 +1199,17 @@ class Settings {
                 <li><?php esc_html_e('Add the key for the matching provider in the provider settings, then choose a model in AI Assistant.', 'ai-assistant'); ?></li>
             </ol>
             <p class="description"><?php esc_html_e('AI Assistant uses your provider’s API balance. A subscription alone does not connect it automatically. Alternatively, use Ollama or LM Studio without an API key: start the local server and load a model on this device.', 'ai-assistant'); ?></p>
+            <p><?php esc_html_e('For local AI, install Ollama or LM Studio on this device, download a model, and start the local server with the model loaded.', 'ai-assistant'); ?>
+                <a href="https://ollama.com/">Ollama</a> &middot; <a href="https://lmstudio.ai/">LM Studio</a>
+            </p>
+            <?php if (Connectors_Bridge::is_available()) : ?>
+                <p><?php esc_html_e('Also install and activate the matching WordPress provider plugin, configure it in Connectors, and choose a model in AI Assistant:', 'ai-assistant'); ?>
+                    <a href="https://wordpress.org/plugins/ai-provider-for-ollama/">AI Provider for Ollama</a> &middot;
+                    <a href="https://wordpress.org/plugins/ai-provider-for-lm-studio/">AI Provider for LM Studio</a>
+                </p>
+            <?php else : ?>
+                <p><?php esc_html_e('Choose Local in the provider settings, enter the local server endpoint, and choose a model.', 'ai-assistant'); ?></p>
+            <?php endif; ?>
         </details>
         <?php
     }

@@ -2400,7 +2400,7 @@
                     ? (aiAssistantProviders.connectorsUrl || aiAssistantConfig.settingsUrl)
                     : aiAssistantConfig.settingsUrl;
                 var setupLabel = hasConnectors ? 'Connectors' : 'Settings';
-                var message = 'Welcome! Connect an AI provider in [' + setupLabel + '](' + setupUrl + ') to start chatting. Use an API key ([your subscription may include API credits](#ai-provider-setup-help)) or a local AI.';
+                var message = 'Welcome! Connect an AI provider in [' + setupLabel + '](' + setupUrl + ') to start chatting. Use an API key ([your subscription may include API credits](#ai-provider-setup-help)) or a [local AI](#ai-local-setup-help).';
                 if (hasConnectors && aiAssistantProviders.hasLocal) {
                     message += ' Start your local server and load a model to connect from this browser.';
                 }
@@ -2408,11 +2408,22 @@
                     message += '\n\nOr use [MCP Connect](https://github.com/akirk/mcp-connect) to work with your site from an external AI client.';
                 }
                 this.addMessage('system', message, 'ai-welcome-message');
-                var help = '1. Claim API credits from an eligible subscription by linking an API organization, or add paid API credit. See [OpenAI eligibility and activation](https://developers.openai.com/api/docs/guides/chatgpt-api-credits) or [Claude eligibility and activation](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers).\n2. Create an API key in that organization on the [OpenAI API platform](https://platform.openai.com/api-keys) or [Claude Console](https://platform.claude.com/settings/keys).\n3. Add the key for the matching provider in [' + setupLabel + '](' + setupUrl + '), then choose a model in AI Assistant.\n\nRequests use your provider’s API balance. For local AI, start Ollama or LM Studio and load a model on this device; no API key is needed.';
+                var help = '1. Claim API credits from an eligible subscription by linking an API organization, or add paid API credit. See [OpenAI eligibility and activation](https://developers.openai.com/api/docs/guides/chatgpt-api-credits) or [Claude eligibility and activation](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers).\n2. Create an API key in that organization on the [OpenAI API platform](https://platform.openai.com/api-keys) or [Claude Console](https://platform.claude.com/settings/keys).\n3. Add the key for the matching provider in [' + setupLabel + '](' + setupUrl + '), then choose a model in AI Assistant.\n\nRequests use your provider’s API balance.';
+                var localHelp = '1. Install [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/) on this device, download a model, and start the local server with a model loaded.';
+                if (hasConnectors) {
+                    localHelp += '\n2. Install and activate the matching WordPress plugin: [AI Provider for Ollama](https://wordpress.org/plugins/ai-provider-for-ollama/) or [AI Provider for LM Studio](https://wordpress.org/plugins/ai-provider-for-lm-studio/).\n3. Configure the provider in [' + setupLabel + '](' + setupUrl + '), then choose a model in AI Assistant.';
+                } else {
+                    localHelp += '\n2. Choose Local in [Settings](' + setupUrl + '), enter the local server endpoint, and choose a model.';
+                }
+                localHelp += '\n\nNo API key is needed for local AI. The server must be reachable from this browser.';
                 var $welcome = $('#ai-assistant-messages .ai-welcome-message').last();
                 $welcome.find('a[href="#ai-provider-setup-help"]').attr('aria-expanded', 'false').attr('aria-controls', 'ai-provider-setup-help');
                 $welcome.find('.ai-message-content').append(
                     $('<div id="ai-provider-setup-help" hidden></div>').html(this.formatContent(help))
+                );
+                $welcome.find('a[href="#ai-local-setup-help"]').attr('aria-expanded', 'false').attr('aria-controls', 'ai-local-setup-help');
+                $welcome.find('.ai-message-content').append(
+                    $('<div id="ai-local-setup-help" hidden></div>').html(this.formatContent(localHelp))
                 );
             } else {
                 var provider = this.pendingNewChat
