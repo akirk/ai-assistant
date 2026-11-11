@@ -1631,13 +1631,24 @@ class Settings {
                                     .text('<?php echo esc_js(__('No models available', 'ai-assistant')); ?>')
                                     .appendTo($modelSelect);
                             } else {
-                                p.models.forEach(function(model) {
-                                    var id = normalizeModelId(model.id);
-                                    $('<option>')
-                                        .val(id)
-                                        .text((model.name || id) + (p.loadSupported && (p.loadedModelIds || []).indexOf(id) === -1 ? ' (<?php echo esc_js(__('unloaded', 'ai-assistant')); ?>)' : ''))
-                                        .prop('selected', id === selectedModel)
-                                        .appendTo($modelSelect);
+                                var groups = p.loadSupported ? [
+                                    { label: '<?php echo esc_js(__('Loaded', 'ai-assistant')); ?>', loaded: true },
+                                    { label: '<?php echo esc_js(__('Unloaded', 'ai-assistant')); ?>', loaded: false }
+                                ] : [{ label: '' }];
+                                groups.forEach(function(group) {
+                                    var models = p.models.filter(function(model) {
+                                        return !p.loadSupported || ((p.loadedModelIds || []).indexOf(normalizeModelId(model.id)) !== -1) === group.loaded;
+                                    });
+                                    if (!models.length) return;
+                                    var $target = group.label ? $('<optgroup>').attr('label', group.label).appendTo($modelSelect) : $modelSelect;
+                                    models.forEach(function(model) {
+                                        var id = normalizeModelId(model.id);
+                                        $('<option>')
+                                            .val(id)
+                                            .text(model.name || id)
+                                            .prop('selected', id === selectedModel)
+                                            .appendTo($target);
+                                    });
                                 });
                             }
 
