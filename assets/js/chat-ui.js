@@ -2402,11 +2402,14 @@
                     if (aiAssistantProviders.hasLocal) {
                         message = 'Welcome! No AI provider is reachable from this browser. Start and load a local model on this device, or configure a cloud provider in [Connectors](' + connectorsUrl + ') to start chatting.';
                     } else {
-                        message = 'Welcome! No AI providers with API keys found. Please configure a provider in [Connectors](' + connectorsUrl + ') to start chatting.';
+                        message = 'Welcome! Connect an AI provider in [Connectors](' + connectorsUrl + ') to start chatting.';
                     }
                 } else {
-                    message = 'Welcome! Please configure your API key in [Settings](' + aiAssistantConfig.settingsUrl + ') to start chatting.';
+                    message = 'Welcome! Connect an AI provider in [Settings](' + aiAssistantConfig.settingsUrl + ') to start chatting.';
                 }
+                message += '\n\n**Your subscription may already include API credits.** Eligible ChatGPT Pro/Business and Claude Max/Ultra/Team plans include credits you can claim for use here. See [OpenAI credit eligibility and activation](https://developers.openai.com/api/docs/guides/chatgpt-api-credits) or [Claude credit eligibility and activation](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers).';
+                message += '\n\n1. Claim your subscription credits by linking an API organization, or add paid API credit with your provider.\n2. Create an API key in that organization on the [OpenAI API platform](https://platform.openai.com/api-keys) or [Claude Console](https://platform.claude.com/settings/keys).\n3. Add the key for the matching provider in ' + (hasConnectors ? '[Connectors](' + connectorsUrl + ')' : '[Settings](' + aiAssistantConfig.settingsUrl + ')') + ', then choose a model.';
+                message += '\n\nAI Assistant uses your provider’s API balance. A subscription alone does not connect it automatically. You can also use a local model with Ollama or LM Studio without an API key; start the server and load a model on this device.';
                 this.addMessage('system', message, 'ai-welcome-message');
             } else {
                 var provider = this.pendingNewChat

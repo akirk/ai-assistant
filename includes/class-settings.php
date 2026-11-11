@@ -610,6 +610,7 @@ class Settings {
             return;
         }
         ?>
+        <?php $this->render_provider_setup_help(); ?>
         <p><?php esc_html_e('These settings are stored in your browser and not on the server. API keys never leave your device.', 'ai-assistant'); ?></p>
 
         <table class="form-table" role="presentation">
@@ -1178,6 +1179,30 @@ class Settings {
     }
 
     /**
+     * Explain provider setup and subscription API credit benefits.
+     */
+    private function render_provider_setup_help() {
+        ?>
+        <div class="ai-provider-setup-help">
+            <p><strong><?php esc_html_e('Your subscription may already include API credits.', 'ai-assistant'); ?></strong>
+                <?php esc_html_e('Eligible ChatGPT Pro/Business and Claude Max/Ultra/Team plans include credits you can claim for use in AI Assistant.', 'ai-assistant'); ?>
+                <a href="https://developers.openai.com/api/docs/guides/chatgpt-api-credits"><?php esc_html_e('OpenAI eligibility and activation', 'ai-assistant'); ?></a> &middot;
+                <a href="https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers"><?php esc_html_e('Claude eligibility and activation', 'ai-assistant'); ?></a>
+            </p>
+            <ol>
+                <li><?php esc_html_e('Claim your subscription credits by linking an API organization, or add paid API credit with your provider.', 'ai-assistant'); ?></li>
+                <li><?php esc_html_e('Create an API key in that organization:', 'ai-assistant'); ?>
+                    <a href="https://platform.openai.com/api-keys">OpenAI API platform</a> &middot;
+                    <a href="https://platform.claude.com/settings/keys">Claude Console</a>
+                </li>
+                <li><?php esc_html_e('Add the key for the matching provider in the provider settings, then choose a model in AI Assistant.', 'ai-assistant'); ?></li>
+            </ol>
+            <p class="description"><?php esc_html_e('AI Assistant uses your provider’s API balance. A subscription alone does not connect it automatically. Alternatively, use Ollama or LM Studio without an API key: start the local server and load a model on this device.', 'ai-assistant'); ?></p>
+        </div>
+        <?php
+    }
+
+    /**
      * Render notice when WordPress 7.0 Connectors API is available.
      */
     private function render_connectors_notice() {
@@ -1197,6 +1222,7 @@ class Settings {
         }
         ?>
         <div class="ai-connectors-notice">
+            <?php $this->render_provider_setup_help(); ?>
             <p>
                 <?php
                 printf(

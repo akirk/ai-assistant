@@ -38,9 +38,19 @@ An AI-powered chat interface for WordPress. Bring your own API key or connect to
 
 1. Upload the plugin to `/wp-content/plugins/ai-assistant`
 2. Activate through the Plugins menu
-3. Configure your API keys in Settings > AI Assistant
+3. Connect a provider in Settings > Connectors when available, or enter your API key in Settings > AI Assistant. Choose a model in AI Assistant.
 
 ## Configuration
+
+AI Assistant needs an AI provider: either a cloud API key with available API credit, or a local model running in Ollama/LM Studio.
+
+**Your subscription may already include API credits.** Eligible ChatGPT Pro/Business and Claude Max/Ultra/Team subscriptions include API credits. Check [OpenAI eligibility and activation](https://developers.openai.com/api/docs/guides/chatgpt-api-credits) or [Claude eligibility and activation](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers) for current allowances and terms.
+
+1. Claim the credits by linking your subscription to an API organization, or add paid API credit with your provider.
+2. Create an API key in that organization on the [OpenAI API platform](https://platform.openai.com/api-keys) or [Claude Console](https://platform.claude.com/settings/keys).
+3. Add the key for the matching provider in **Settings > Connectors** when available, or **Settings > AI Assistant**, then choose a model in AI Assistant.
+
+A subscription alone does not connect AI Assistant automatically; requests use the API balance of the organization associated with your key. For a local provider, start its server and load a model on the device where you use your browser; no API key is needed.
 
 Go to **Settings > AI Assistant** to configure:
 
