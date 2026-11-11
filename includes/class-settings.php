@@ -1247,9 +1247,6 @@ class Settings {
                     <li><?php esc_html_e('Choose Local in the provider settings, enter the local server endpoint, and choose a model.', 'ai-assistant'); ?></li>
                 <?php endif; ?>
             </ol>
-            <?php if (Connectors_Bridge::is_available()) : ?>
-                <p class="description"><?php esc_html_e('No WordPress provider plugin is needed for local AI. If one is installed, its configured endpoint is reused and matching connections appear as one card.', 'ai-assistant'); ?></p>
-            <?php endif; ?>
             <p><strong><?php esc_html_e('Connect a cloud provider', 'ai-assistant'); ?></strong></p>
             <ol>
                 <li><?php esc_html_e('Create an API key and add API credit with your provider:', 'ai-assistant'); ?>
