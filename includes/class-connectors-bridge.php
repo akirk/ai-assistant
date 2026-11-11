@@ -223,6 +223,36 @@ class Connectors_Bridge {
             ];
         }
 
+        // Local connections work without a provider plugin. Keep Connector IDs and
+        // configured endpoints when present so existing browser preferences survive.
+        $normalize_local_endpoint = static function ($endpoint) {
+            return str_replace('://127.0.0.1:', '://localhost:', rtrim($endpoint, '/'));
+        };
+        foreach ([ 'lmstudio' => ['LM Studio', 'http://localhost:1234'], 'ollama' => ['Ollama', 'http://localhost:11434'] ] as $local_id => $local) {
+            $found = false;
+            foreach ($available as &$provider) {
+                if (stripos($provider['name'], $local[0]) !== false || $normalize_local_endpoint($provider['endpoint']) === $local[1]) {
+                    $provider['localKind'] = $local_id;
+                    $provider['type'] = 'server';
+                    $provider['browserSupported'] = true;
+                    if ($normalize_local_endpoint($provider['endpoint']) === $local[1]) {
+                        $found = true;
+                    }
+                }
+            }
+            unset($provider);
+            if (!$found) {
+                $connection_id = isset($available[$local_id]) ? $local_id . '-local' : $local_id;
+                $available[$connection_id] = [
+                    'name' => $local[0], 'type' => 'server', 'endpoint' => $local[1],
+                    'apiKey' => '', 'serverSideAuth' => false, 'proxySupported' => false,
+                    'models' => [], 'browserSupported' => true, 'modelsDeferred' => true,
+                    'localKind' => $local_id,
+                ];
+            }
+        }
+        $has_local = true;
+
         return [
             'source'    => 'connectors',
             'available' => $available,

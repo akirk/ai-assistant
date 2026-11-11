@@ -2402,24 +2402,17 @@
                 var setupLabel = hasConnectors ? 'Connectors' : 'Settings';
                 var message = 'Welcome! Connect an AI provider in [' + setupLabel + '](' + setupUrl + ') to start chatting. Use an API key ([your AI subscription may include API credits](#ai-provider-setup-help)) or a [local AI](#ai-local-setup-help).';
                 if (hasConnectors && aiAssistantProviders.hasLocal) {
-                    message += ' Start your local server and load a model to connect from this browser.';
+                    message += ' Start your local server, then choose a model in AI Assistant settings.';
                 }
                 if (!aiAssistantConfig.isPlayground) {
                     message += '\n\nOr use [MCP Connect](https://github.com/akirk/mcp-connect) to work with your site from an external AI client.';
                 }
                 this.addMessage('system', message, 'ai-welcome-message');
                 var help = '1. Claim API credits from an eligible subscription by linking an API organization, or add paid API credit. See [OpenAI eligibility and activation](https://developers.openai.com/api/docs/guides/chatgpt-api-credits) or [Claude eligibility and activation](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers).\n2. Create an API key in that organization on the [OpenAI API platform](https://platform.openai.com/api-keys) or [Claude Console](https://platform.claude.com/settings/keys).\n3. Add the key for the matching provider in [' + setupLabel + '](' + setupUrl + '), then choose a model in AI Assistant.\n\nRequests use your provider’s API balance.';
-                var localHelp = '**A privacy-friendly, free alternative.** Run AI on your own device without sending your prompts to a cloud AI provider.\n\n1. Install [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/) on this device, download a model, and start the local server with a model loaded.';
+                var localHelp = '**A privacy-friendly, free alternative.** Run AI on your own device without sending your prompts to a cloud AI provider.\n\n1. Install [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/) on this device, download a model, and start the local server. Allow requests from this website in the server’s browser access / CORS settings.';
                 if (hasConnectors) {
-                    var providerActions = aiAssistantConfig.localProviderActions || {};
-                    var providerLinks = Object.keys(providerActions).map(function(slug) {
-                        var action = providerActions[slug];
-                        return '[' + action.label + '](' + action.url + ')';
-                    });
-                    localHelp += '\n2. ' + (providerLinks.length
-                        ? 'Install and activate the matching WordPress provider plugin: ' + providerLinks.join(' or ') + '.'
-                        : 'Ask a site administrator to install and activate the Ollama or LM Studio provider plugin.');
-                    localHelp += '\n3. Configure the provider in [' + setupLabel + '](' + setupUrl + '), then choose a model in AI Assistant.';
+                    localHelp += '\n2. Open [AI Assistant settings](' + aiAssistantConfig.settingsUrl + ') and click **Scan again** next to **Save Changes**. LM Studio (localhost:1234) and Ollama (localhost:11434) are detected directly from this browser; no WordPress provider plugin is required.';
+                    localHelp += '\n3. Choose a model in its provider card. For an unloaded LM Studio model, click **Load model**; this unloads other LLMs on that server. Drag the cards to set your preferred provider order.';
                 } else {
                     localHelp += '\n2. Choose Local in [Settings](' + setupUrl + '), enter the local server endpoint, and choose a model.';
                 }

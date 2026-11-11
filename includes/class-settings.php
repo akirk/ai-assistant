@@ -38,6 +38,13 @@ class Settings {
         wp_enqueue_script('wp-codemirror');
 
         do_action('wp_ai_provider_browser_status_scripts');
+        wp_enqueue_script(
+            'ai-assistant-browser-status',
+            AI_ASSISTANT_PLUGIN_URL . 'assets/js/browser-status.js',
+            [],
+            filemtime(AI_ASSISTANT_PLUGIN_DIR . 'assets/js/browser-status.js'),
+            false
+        );
     }
 
     public function ajax_get_skill() {
@@ -1223,41 +1230,47 @@ class Settings {
      * Explain provider setup and subscription API credit benefits.
      */
     private function render_provider_setup_help() {
-        $local_provider_actions = $this->get_local_provider_actions();
         ?>
         <details class="ai-provider-setup-help">
-            <summary><?php esc_html_e('Setup help: API keys, subscription credits, and local AI', 'ai-assistant'); ?></summary>
-            <p><strong><?php esc_html_e('Your subscription may already include API credits.', 'ai-assistant'); ?></strong>
-                <?php esc_html_e('Eligible ChatGPT Pro/Business and Claude Max/Ultra/Team plans include credits you can claim for use in AI Assistant.', 'ai-assistant'); ?>
-                <a href="https://developers.openai.com/api/docs/guides/chatgpt-api-credits"><?php esc_html_e('OpenAI eligibility and activation', 'ai-assistant'); ?></a> &middot;
-                <a href="https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers"><?php esc_html_e('Claude eligibility and activation', 'ai-assistant'); ?></a>
-            </p>
+            <summary><?php esc_html_e('Setup help: local AI and cloud providers', 'ai-assistant'); ?></summary>
+            <p><strong><?php esc_html_e('Use AI on your own device', 'ai-assistant'); ?></strong></p>
+            <p><?php esc_html_e('LM Studio and Ollama run models on the device where you use this browser. Your prompts go directly to that local server.', 'ai-assistant'); ?></p>
             <ol>
-                <li><?php esc_html_e('Claim your subscription credits by linking an API organization, or add paid API credit with your provider.', 'ai-assistant'); ?></li>
-                <li><?php esc_html_e('Create an API key in that organization:', 'ai-assistant'); ?>
+                <li><?php esc_html_e('Install a local AI application and download a model:', 'ai-assistant'); ?>
+                    <a href="https://lmstudio.ai/">LM Studio</a> &middot; <a href="https://ollama.com/">Ollama</a>
+                </li>
+                <li><?php esc_html_e('Start its server and enable browser access from this website in its CORS settings. If your browser asks to connect to services on your device, allow access.', 'ai-assistant'); ?>
+                    <a href="https://github.com/ollama/ollama/blob/main/docs/faq.mdx?utm_source=chatgpt.com#how-can-i-allow-additional-web-origins-to-access-ollama"><?php esc_html_e('Allow browser access to Ollama', 'ai-assistant'); ?></a>
+                </li>
+                <?php if (Connectors_Bridge::is_available()) : ?>
+                    <li><?php esc_html_e('Click Scan again next to Save Changes. AI Assistant checks localhost:1234 for LM Studio and localhost:11434 for Ollama.', 'ai-assistant'); ?></li>
+                    <li><?php esc_html_e('Choose a model in the provider’s card. LM Studio groups models under Loaded and Unloaded. Select an unloaded model and click Load model to load it; other LLMs on that server are unloaded first.', 'ai-assistant'); ?></li>
+                <?php else : ?>
+                    <li><?php esc_html_e('Choose Local in the provider settings, enter the local server endpoint, and choose a model.', 'ai-assistant'); ?></li>
+                <?php endif; ?>
+            </ol>
+            <p><strong><?php esc_html_e('Connect a cloud provider', 'ai-assistant'); ?></strong></p>
+            <ol>
+                <li><?php esc_html_e('Create an API key and add API credit with your provider:', 'ai-assistant'); ?>
                     <a href="https://platform.openai.com/api-keys">OpenAI API platform</a> &middot;
                     <a href="https://platform.claude.com/settings/keys">Claude Console</a>
                 </li>
-                <li><?php esc_html_e('Add the key for the matching provider in the provider settings, then choose a model in AI Assistant.', 'ai-assistant'); ?></li>
+                <li>
+                    <?php if (Connectors_Bridge::is_available()) : ?>
+                        <?php esc_html_e('Add the key for the matching provider in', 'ai-assistant'); ?>
+                        <a href="<?php echo esc_url(admin_url('options-connectors.php')); ?>"><?php esc_html_e('WordPress Connectors', 'ai-assistant'); ?></a>.
+                    <?php else : ?>
+                        <?php esc_html_e('Add the key for the matching provider in the provider settings.', 'ai-assistant'); ?>
+                    <?php endif; ?>
+                </li>
+                <li><?php esc_html_e('Choose the model to use in AI Assistant.', 'ai-assistant'); ?></li>
             </ol>
-            <p class="description"><?php esc_html_e('AI Assistant uses your provider’s API balance. A subscription alone does not connect it automatically. Alternatively, use Ollama or LM Studio without an API key: start the local server and load a model on this device.', 'ai-assistant'); ?></p>
-            <p><strong><?php esc_html_e('Local AI: a privacy-friendly, free alternative.', 'ai-assistant'); ?></strong>
-                <?php esc_html_e('Run AI on your own device without sending your prompts to a cloud AI provider.', 'ai-assistant'); ?>
-            </p>
-            <p><?php esc_html_e('For local AI, install Ollama or LM Studio on this device, download a model, and start the local server with the model loaded.', 'ai-assistant'); ?>
-                <a href="https://ollama.com/">Ollama</a> &middot; <a href="https://lmstudio.ai/">LM Studio</a>
+            <p><?php esc_html_e('AI Assistant uses your provider’s API balance. Your subscription may include API credits; check eligibility and activation with your provider:', 'ai-assistant'); ?>
+                <a href="https://developers.openai.com/api/docs/guides/chatgpt-api-credits">OpenAI</a> &middot;
+                <a href="https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers">Claude</a>
             </p>
             <?php if (Connectors_Bridge::is_available()) : ?>
-                <p><?php esc_html_e('Also install and activate the matching WordPress provider plugin, configure it in Connectors, and choose a model in AI Assistant:', 'ai-assistant'); ?>
-                    <?php foreach ($local_provider_actions as $action) : ?>
-                        <a class="button" href="<?php echo esc_url($action['url']); ?>"><?php echo esc_html($action['label']); ?></a>
-                    <?php endforeach; ?>
-                    <?php if (empty($local_provider_actions)) : ?>
-                        <?php esc_html_e('Ask a site administrator to install and activate the provider plugin.', 'ai-assistant'); ?>
-                    <?php endif; ?>
-                </p>
-            <?php else : ?>
-                <p><?php esc_html_e('Choose Local in the provider settings, enter the local server endpoint, and choose a model.', 'ai-assistant'); ?></p>
+                <p><?php esc_html_e('Once connected, drag the provider cards to set your preferred order. AI Assistant uses the first available provider.', 'ai-assistant'); ?></p>
             <?php endif; ?>
         </details>
         <?php
@@ -1283,24 +1296,21 @@ class Settings {
         }
         ?>
         <div class="ai-connectors-notice">
-            <?php $this->render_provider_setup_help(); ?>
             <p>
                 <?php
                 printf(
                     /* translators: %s: link to Connectors settings page */
-                    esc_html__('LLM providers are managed through %s. Drag to reorder, then choose the model to use for each provider.', 'ai-assistant'),
+                    esc_html__('Cloud providers are managed through %s. Drag to reorder, then choose the model to use for each provider.', 'ai-assistant'),
                     '<a href="' . esc_url($connectors_url) . '">' . esc_html__('WordPress Connectors', 'ai-assistant') . '</a>'
                 );
                 ?>
             </p>
+            <?php if ($config['hasLocal'] ?? false) : ?>
+                <p><?php esc_html_e('Local providers connect directly to localhost on your device using JavaScript in your browser.', 'ai-assistant'); ?></p>
+            <?php endif; ?>
             <?php if ($configured_count > 0) : ?>
                 <ul id="ai-provider-priority" class="ai-provider-priority">
                 </ul>
-                <p class="description"><?php esc_html_e('Priority order and model choices are stored per-browser.', 'ai-assistant'); ?>
-                <?php if ($config['hasLocal'] ?? false) : ?>
-                    <?php esc_html_e('Local providers connect directly from your browser.', 'ai-assistant'); ?>
-                <?php endif; ?>
-                </p>
                 <?php if (isset($config['available']['anthropic'])) : ?>
                     <div class="ai-anthropic-prompt-cache-option">
                         <label for="ai_anthropic_prompt_cache">
@@ -1371,6 +1381,7 @@ class Settings {
                             'name' => $p['name'],
                             'type' => $p['type'],
                             'endpoint' => $p['endpoint'] ?? '',
+                            'localKind' => $p['localKind'] ?? '',
                             'browserSupported' => !empty($p['browserSupported']),
                             'serverSideAuth' => !empty($p['serverSideAuth']),
                             'models' => array_values((array) ($p['models'] ?? [])),
@@ -1498,6 +1509,8 @@ class Settings {
                             return;
                         }
 
+                        provider.loadSupported = !!status.loadSupported;
+                        provider.loadedModelIds = status.loadedModelIds || [];
                         provider.browserStatus = status.status || (status.reachable ? 'ready' : 'unreachable');
 
                         if (status.reachable) {
@@ -1621,18 +1634,57 @@ class Settings {
                                     .text('<?php echo esc_js(__('No models available', 'ai-assistant')); ?>')
                                     .appendTo($modelSelect);
                             } else {
-                                p.models.forEach(function(model) {
-                                    var id = normalizeModelId(model.id);
-                                    $('<option>')
-                                        .val(id)
-                                        .text(model.name || id)
-                                        .prop('selected', id === selectedModel)
-                                        .appendTo($modelSelect);
+                                var groups = p.loadSupported ? [
+                                    { label: '<?php echo esc_js(__('Loaded', 'ai-assistant')); ?>', loaded: true },
+                                    { label: '<?php echo esc_js(__('Unloaded', 'ai-assistant')); ?>', loaded: false }
+                                ] : [{ label: '' }];
+                                groups.forEach(function(group) {
+                                    var models = p.models.filter(function(model) {
+                                        return !p.loadSupported || ((p.loadedModelIds || []).indexOf(normalizeModelId(model.id)) !== -1) === group.loaded;
+                                    });
+                                    if (!models.length) return;
+                                    var $target = group.label ? $('<optgroup>').attr('label', group.label).appendTo($modelSelect) : $modelSelect;
+                                    models.forEach(function(model) {
+                                        var id = normalizeModelId(model.id);
+                                        $('<option>')
+                                            .val(id)
+                                            .text(model.name || id)
+                                            .prop('selected', id === selectedModel)
+                                            .appendTo($target);
+                                    });
                                 });
                             }
 
-                            $modelControl.append($modelSelect);
+                            if (p.loading) {
+                                var loadingModel = p.models.find(function(model) { return normalizeModelId(model.id) === selectedModel; });
+                                $modelControl.append($('<span>').attr('role', 'status').text(
+                                    '<?php echo esc_js(__('Loading “%s”…', 'ai-assistant')); ?>'.replace('%s', loadingModel ? (loadingModel.name || loadingModel.id) : selectedModel)
+                                ));
+                            } else {
+                                $modelControl.append($modelSelect);
+                            }
                             $li.append($main).append($modelControl);
+                            if (p.localKind === 'lmstudio') {
+                                var $feedback = $('<span>').attr('role', 'status').text(p.loadMessage || '');
+                                var needsLoad = p.loadSupported && selectedModel && (p.loadedModelIds || []).indexOf(selectedModel) === -1;
+                                if (needsLoad && !p.loading) $('<button type="button" class="button">').text('Load model')
+                                    .prop('disabled', p.loading || !p.loadSupported || !selectedModel)
+                                    .on('click', function() {
+                                        var model = $modelSelect.val();
+                                        persistModelSelection(p.id, model);
+                                        p.loading = true;
+                                        p.loadMessage = '';
+                                        render();
+                                        window.wpAiProviderBrowserStatus.loadModel(p, model).then(function() {
+                                            p.loadMessage = '';
+                                            p.loadedModelIds = [model];
+                                        }).catch(function(error) {
+                                            p.loadMessage = 'Could not load model: ' + error.message;
+                                        }).finally(function() { p.loading = false; render(); });
+                                    }).appendTo($li);
+                                if (p.loadMessage) $li.append($feedback);
+                            }
+
                             $list.append($li);
                         });
                     }
@@ -1647,6 +1699,7 @@ class Settings {
                         localStorage.removeItem(STORAGE_PREFIX + 'provider');
                     }
 
+                    $('<button type="button" class="button">').text('<?php echo esc_js(__('Scan again', 'ai-assistant')); ?>').css('margin-left', '8px').insertAfter($('#submit')).on('click', checkBrowserProviders);
                     render();
                     checkBrowserProviders();
 
@@ -1658,6 +1711,7 @@ class Settings {
 
                     $list.on('change', '.ai-priority-model-select', function() {
                         persistModelSelection($(this).data('provider'), $(this).val());
+                        render();
                     });
 
                     // Drag-and-drop reordering
@@ -1733,12 +1787,7 @@ class Settings {
                 <?php endif; ?>
             <?php endif; ?>
 
-            <?php if (current_user_can('manage_options') && !empty($config['debug'])) : ?>
-                <details style="margin-top: 1em;">
-                    <summary style="cursor: pointer; color: #646970;"><?php esc_html_e('Debug: Connectors Bridge', 'ai-assistant'); ?></summary>
-                    <pre style="background: #f0f0f1; padding: 10px; margin-top: 5px; font-size: 12px; overflow: auto; max-height: 400px;"><?php echo esc_html(wp_json_encode($config['debug'], JSON_PRETTY_PRINT)); ?></pre>
-                </details>
-            <?php endif; ?>
+            <?php $this->render_provider_setup_help(); ?>
         </div>
         <?php
     }
