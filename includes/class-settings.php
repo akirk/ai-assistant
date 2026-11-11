@@ -1678,7 +1678,8 @@ class Settings {
                         localStorage.removeItem(STORAGE_PREFIX + 'provider');
                     }
 
-                    $('<button type="button" class="button">').text('Scan again').insertBefore($list).on('click', checkBrowserProviders);
+                    var $scanActions = $('<div>').css({ 'max-width': '760px', 'text-align': 'right' }).insertAfter($list);
+                    $('<button type="button" class="button">').text('<?php echo esc_js(__('Scan again', 'ai-assistant')); ?>').appendTo($scanActions).on('click', checkBrowserProviders);
                     render();
                     checkBrowserProviders();
 
