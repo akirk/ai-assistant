@@ -1641,18 +1641,22 @@ class Settings {
                                 });
                             }
 
-                            $modelControl.append($modelSelect);
+                            if (p.loading) {
+                                $modelControl.append($('<span>').attr('role', 'status').text('<?php echo esc_js(__('Loading model…', 'ai-assistant')); ?>'));
+                            } else {
+                                $modelControl.append($modelSelect);
+                            }
                             $li.append($main).append($modelControl);
                             if (p.localKind === 'lmstudio') {
                                 var $feedback = $('<span>').attr('role', 'status').text(p.loadMessage || '');
                                 var needsLoad = p.loadSupported && selectedModel && (p.loadedModelIds || []).indexOf(selectedModel) === -1;
-                                if (needsLoad || p.loading) $('<button type="button" class="button">').text(p.loading ? 'Loading model…' : 'Load model')
+                                if (needsLoad && !p.loading) $('<button type="button" class="button">').text('Load model')
                                     .prop('disabled', p.loading || !p.loadSupported || !selectedModel)
                                     .on('click', function() {
                                         var model = $modelSelect.val();
                                         persistModelSelection(p.id, model);
                                         p.loading = true;
-                                        p.loadMessage = 'Loading model…';
+                                        p.loadMessage = '';
                                         render();
                                         window.wpAiProviderBrowserStatus.loadModel(p, model).then(function() {
                                             p.loadMessage = '';
