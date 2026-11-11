@@ -1306,12 +1306,12 @@ class Settings {
                 );
                 ?>
             </p>
+            <?php if ($config['hasLocal'] ?? false) : ?>
+                <p class="description"><?php esc_html_e('Local providers connect directly to localhost on your device using JavaScript in your browser.', 'ai-assistant'); ?></p>
+            <?php endif; ?>
             <?php if ($configured_count > 0) : ?>
                 <ul id="ai-provider-priority" class="ai-provider-priority">
                 </ul>
-                <?php if ($config['hasLocal'] ?? false) : ?>
-                    <p class="description"><?php esc_html_e('Local providers connect directly to localhost on your device using JavaScript in your browser.', 'ai-assistant'); ?></p>
-                <?php endif; ?>
                 <?php if (isset($config['available']['anthropic'])) : ?>
                     <div class="ai-anthropic-prompt-cache-option">
                         <label for="ai_anthropic_prompt_cache">
