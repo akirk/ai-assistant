@@ -1653,7 +1653,10 @@ class Settings {
                             }
 
                             if (p.loading) {
-                                $modelControl.append($('<span>').attr('role', 'status').text('<?php echo esc_js(__('Loading model…', 'ai-assistant')); ?>'));
+                                var loadingModel = p.models.find(function(model) { return normalizeModelId(model.id) === selectedModel; });
+                                $modelControl.append($('<span>').attr('role', 'status').text(
+                                    '<?php echo esc_js(__('Loading “%s”…', 'ai-assistant')); ?>'.replace('%s', loadingModel ? (loadingModel.name || loadingModel.id) : selectedModel)
+                                ));
                             } else {
                                 $modelControl.append($modelSelect);
                             }
