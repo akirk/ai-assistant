@@ -9,6 +9,7 @@
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: ai-assistant
+ * Domain Path: /languages
  * Requires at least: 6.0
  * Tested up to: 7.1
  * Requires PHP: 7.4
@@ -90,6 +91,9 @@ final class AI_Assistant {
 
     private function init_hooks() {
         add_action('plugins_loaded', [$this, 'init']);
+        add_action('init', function() {
+            load_plugin_textdomain('ai-assistant', false, dirname(AI_ASSISTANT_PLUGIN_BASENAME) . '/languages');
+        });
         add_action('init', [$this, 'register_my_apps_integration'], 0);
         register_activation_hook(__FILE__, [$this, 'activate']);
         register_deactivation_hook(__FILE__, [$this, 'deactivate']);

@@ -28,6 +28,7 @@ function loadCore(options) {
         console
     };
 
+    require('./wp-i18n')(context);
     vm.createContext(context);
     const source = fs.readFileSync(
         path.join(__dirname, '../assets/js/chat-core.js'),

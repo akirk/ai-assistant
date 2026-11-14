@@ -67,7 +67,7 @@ class Chat_UI {
         wp_enqueue_script(
             'ai-assistant-chat-core',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-core.js',
-            ['jquery'],
+            ['jquery', 'wp-i18n'],
             $this->get_plugin_asset_version('assets/js/chat-core.js'),
             true
         );
@@ -91,7 +91,7 @@ class Chat_UI {
         wp_enqueue_script(
             'ai-assistant-chat-files',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-files.js',
-            ['ai-assistant-chat-core'],
+            ['ai-assistant-chat-core', 'wp-i18n'],
             $this->get_plugin_asset_version('assets/js/chat-files.js'),
             true
         );
@@ -115,7 +115,7 @@ class Chat_UI {
         wp_enqueue_script(
             'ai-assistant-chat-execution',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-execution.js',
-            ['ai-assistant-chat-core'],
+            ['ai-assistant-chat-core', 'wp-i18n'],
             $this->get_plugin_asset_version('assets/js/chat-execution.js'),
             true
         );
@@ -131,7 +131,7 @@ class Chat_UI {
         wp_enqueue_script(
             'ai-assistant-chat-ui',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-ui.js',
-            ['ai-assistant-chat-core', 'ai-assistant-chat-settings', 'ai-assistant-chat-files', 'wp-date'],
+            ['ai-assistant-chat-core', 'ai-assistant-chat-settings', 'ai-assistant-chat-files', 'wp-date', 'wp-i18n'],
             $this->get_plugin_asset_version('assets/js/chat-ui.js'),
             true
         );
@@ -139,7 +139,7 @@ class Chat_UI {
         wp_enqueue_script(
             'ai-assistant-chat-conversations',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-conversations.js',
-            ['ai-assistant-chat-core', 'ai-assistant-chat-ui', 'ai-assistant-chat-providers'],
+            ['ai-assistant-chat-core', 'ai-assistant-chat-ui', 'ai-assistant-chat-providers', 'wp-i18n'],
             $this->get_plugin_asset_version('assets/js/chat-conversations.js'),
             true
         );
@@ -162,6 +162,18 @@ class Chat_UI {
         wp_localize_script('ai-assistant-chat-core', 'aiAssistantConfig', $this->get_chat_config());
         wp_localize_script('ai-assistant-chat-core', 'aiAssistantProviders', $this->get_providers_config());
         wp_localize_script('ai-assistant-chat-core', 'aiAssistantBootstrap', $this->get_bootstrap_config());
+
+        $translation_handles = [
+            'ai-assistant-chat-core',
+            'ai-assistant-chat-files',
+            'ai-assistant-chat-execution',
+            'ai-assistant-chat-ui',
+            'ai-assistant-chat-conversations',
+        ];
+
+        foreach ($translation_handles as $handle) {
+            wp_set_script_translations($handle, 'ai-assistant', AI_ASSISTANT_PLUGIN_DIR . 'languages');
+        }
     }
 
     /**

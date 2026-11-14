@@ -1,6 +1,10 @@
 (function($) {
     'use strict';
 
+    var __ = window.wp.i18n.__;
+    var _n = window.wp.i18n._n;
+    var sprintf = window.wp.i18n.sprintf;
+
     $.extend(window.aiAssistant, {
         // Draft management
         saveDraft: function() {
@@ -1275,11 +1279,11 @@
                     if (response.success && response.data.conversations) {
                         self.renderSidebarConversations(response.data.conversations);
                     } else {
-                        $container.html('<div class="ai-sidebar-empty">No conversations yet</div>');
+                        $container.html('<div class="ai-sidebar-empty">' + self.escapeHtml(__('No conversations yet', 'ai-assistant')) + '</div>');
                     }
                 },
                 error: function() {
-                    $container.html('<div class="ai-sidebar-empty">Failed to load</div>');
+                    $container.html('<div class="ai-sidebar-empty">' + self.escapeHtml(__('Failed to load', 'ai-assistant')) + '</div>');
                 }
             });
         },
@@ -1289,7 +1293,7 @@
             var $container = $('#ai-sidebar-conversations');
 
             if (conversations.length === 0) {
-                $container.html('<div class="ai-sidebar-empty">No conversations yet</div>');
+                $container.html('<div class="ai-sidebar-empty">' + self.escapeHtml(__('No conversations yet', 'ai-assistant')) + '</div>');
                 return;
             }
 
@@ -1311,15 +1315,15 @@
             var html = '';
 
             if (groups.today.length > 0) {
-                html += '<div class="ai-conv-date-group">Today</div>';
+                html += '<div class="ai-conv-date-group">' + self.escapeHtml(__('Today', 'ai-assistant')) + '</div>';
                 html += self.renderConversationGroup(groups.today);
             }
             if (groups.yesterday.length > 0) {
-                html += '<div class="ai-conv-date-group">Yesterday</div>';
+                html += '<div class="ai-conv-date-group">' + self.escapeHtml(__('Yesterday', 'ai-assistant')) + '</div>';
                 html += self.renderConversationGroup(groups.yesterday);
             }
             if (groups.older.length > 0) {
-                html += '<div class="ai-conv-date-group">Previous</div>';
+                html += '<div class="ai-conv-date-group">' + self.escapeHtml(__('Previous', 'ai-assistant')) + '</div>';
                 html += self.renderConversationGroup(groups.older);
             }
 
@@ -1335,7 +1339,7 @@
                 var title = conv.title || '';
                 html += '<div class="ai-conv-item' + activeClass + '" data-id="' + conv.id + '">';
                 html += '<div class="ai-conv-item-title" title="' + self.escapeAttribute(title) + '">' + self.escapeHtml(title) + '</div>';
-                html += '<button type="button" class="ai-conv-item-delete" data-id="' + conv.id + '" title="Delete">&times;</button>';
+                html += '<button type="button" class="ai-conv-item-delete" data-id="' + conv.id + '" title="' + self.escapeAttribute(__('Delete', 'ai-assistant')) + '">&times;</button>';
                 html += '</div>';
             });
             return html;
@@ -1353,7 +1357,7 @@
             var $modal = $('#ai-conversation-modal');
             var $list = $('#ai-conversation-list');
 
-            $list.html('<p>Loading...</p>');
+            $list.html('<p>' + this.escapeHtml(__('Loading...', 'ai-assistant')) + '</p>');
             $modal.show();
 
             $.ajax({
@@ -1367,7 +1371,7 @@
                     if (response.success && response.data.conversations) {
                         var conversations = response.data.conversations;
                         if (conversations.length === 0) {
-                            $list.html('<p>No saved conversations.</p>');
+                            $list.html('<p>' + self.escapeHtml(__('No saved conversations.', 'ai-assistant')) + '</p>');
                             return;
                         }
 
@@ -1375,20 +1379,21 @@
                         conversations.forEach(function(conv) {
                             html += '<div class="ai-conversation-item">';
                             html += '<div class="ai-conversation-item-title">' + self.escapeHtml(conv.title) + '</div>';
-                            html += '<div class="ai-conversation-item-meta">' + conv.message_count + ' messages &bull; ' + conv.date + '</div>';
+                            /* translators: %d: Number of messages in the conversation. */
+                            html += '<div class="ai-conversation-item-meta">' + self.escapeHtml(sprintf(_n('%d message', '%d messages', conv.message_count, 'ai-assistant'), conv.message_count)) + ' &bull; ' + self.escapeHtml(conv.date) + '</div>';
                             html += '<div class="ai-conversation-item-actions">';
-                            html += '<button class="button button-primary button-small ai-conversation-load" data-id="' + conv.id + '">Load</button>';
-                            html += '<button class="button button-small ai-conversation-delete" data-id="' + conv.id + '">Delete</button>';
+                            html += '<button class="button button-primary button-small ai-conversation-load" data-id="' + conv.id + '">' + self.escapeHtml(__('Load', 'ai-assistant')) + '</button>';
+                            html += '<button class="button button-small ai-conversation-delete" data-id="' + conv.id + '">' + self.escapeHtml(__('Delete', 'ai-assistant')) + '</button>';
                             html += '</div>';
                             html += '</div>';
                         });
                         $list.html(html);
                     } else {
-                        $list.html('<p>Failed to load conversations.</p>');
+                        $list.html('<p>' + self.escapeHtml(__('Failed to load conversations.', 'ai-assistant')) + '</p>');
                     }
                 },
                 error: function() {
-                    $list.html('<p>Error loading conversations.</p>');
+                    $list.html('<p>' + self.escapeHtml(__('Error loading conversations.', 'ai-assistant')) + '</p>');
                 }
             });
         },

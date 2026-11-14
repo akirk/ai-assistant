@@ -1,6 +1,8 @@
 (function($) {
     'use strict';
 
+    var __ = window.wp.i18n.__;
+
     var existingAiAssistant = window.aiAssistant || {};
     var queuedToolCallbacks = Array.isArray(window.aiAssistantToolCallbacks)
         ? window.aiAssistantToolCallbacks.slice()
@@ -488,7 +490,7 @@
                 e.stopPropagation();
                 self.hideConversationItemMenu();
                 var id = $(this).data('id');
-                if (confirm('Delete this conversation?')) {
+                if (confirm(__('Delete this conversation?', 'ai-assistant'))) {
                     self.deleteConversation(id);
                 }
             });

@@ -184,6 +184,7 @@ function loadConversationMixin(initialStorage, config, options) {
         console
     };
 
+    require('./wp-i18n')(context);
     vm.createContext(context);
     const source = fs.readFileSync(
         path.join(__dirname, '../assets/js/chat-conversations.js'),
@@ -1026,5 +1027,24 @@ describe('provider request persistence', function() {
         assert.deepEqual(JSON.parse(data.last_provider_request), assistant.lastProviderRequest);
         assistant.lastProviderRequest = null;
         assert.equal(assistant.getConversationSaveData().last_provider_request, 'null');
+    });
+});
+
+describe('translated conversation controls', function() {
+    it('uses the plugin domain and escapes translated attribute text', function() {
+        const calls = [];
+        const { assistant } = loadConversationMixin({}, {}, {
+            window: { wp: { i18n: {
+                __(text, domain) {
+                    calls.push([text, domain]);
+                    return text === 'Delete' ? 'Löschen "jetzt"' : text;
+                }
+            } } }
+        });
+        assistant.escapeHtml = text => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        assistant.escapeAttribute = text => assistant.escapeHtml(text).replace(/"/g, '&quot;');
+        const html = assistant.renderConversationGroup([{ id: 1, title: 'Example' }]);
+        assert.match(html, /title="Löschen &quot;jetzt&quot;"/);
+        assert.deepEqual(calls, [['Delete', 'ai-assistant']]);
     });
 });
