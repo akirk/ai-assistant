@@ -228,7 +228,7 @@ Skills are markdown files in `/skills/` loaded into the system prompt on demand 
 
 ## Debugging Saved AI Conversations
 
-Start with saved conversation data when investigating an assistant answer or tool loop. On multisite, select the user's site explicitly; the current directory can point to the network's main site. For example:
+Start with saved conversation data when investigating an assistant answer or tool loop. When using WP-CLI on multisite, select the user's site explicitly with `--url`; the current directory can point to the network's main site. For example:
 
 ```bash
 wp post list --url=https://example.test --post_type=ai_conversation --posts_per_page=5 --orderby=modified --order=DESC --fields=ID,post_title,post_modified --format=json
