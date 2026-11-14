@@ -244,7 +244,11 @@
         },
 
         prepareProviderRequestMessages: async function(provider, messages) {
-            return this.maybeCompactProviderMessages(provider, messages || this.messages || []);
+            messages = messages || this.messages || [];
+            if (this.collapseRepeatedToolRequests) {
+                messages = this.collapseRepeatedToolRequests(messages, provider);
+            }
+            return this.maybeCompactProviderMessages(provider, messages);
         }
     });
 })(jQuery);

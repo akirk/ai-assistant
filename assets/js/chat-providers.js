@@ -1364,11 +1364,182 @@
             });
         },
 
-        compactRepeatedToolResult: function(result, provider) {
+        isReusableReadonlyTool: function(call) {
+            var input = call.arguments || {};
+            if (call.name === 'ability') {
+                if (!input.action || input.action === 'list' || input.action === 'get') return true;
+                var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+                return input.action === 'execute' && (config.readonlyAbilities || []).indexOf(input.ability) >= 0;
+            }
+            if (call.name === 'execute_ability') {
+                var runtimeConfig = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+                return (runtimeConfig.readonlyAbilities || []).indexOf(input.ability) >= 0;
+            }
+            if (call.name === 'skill') return input.action === 'list' || input.action === 'get';
+            if (['list_abilities', 'get_ability', 'read_file', 'find', 'list_directory',
+                'search_files', 'search_content', 'get_page_html', 'inspect_tool_result',
+                'recall_conversations', 'list_skills', 'get_skill'].indexOf(call.name) >= 0) return true;
+            var definitions = this.getAllToolDefinitions ? this.getAllToolDefinitions() : [];
+            return definitions.some(function(definition) {
+                var annotations = definition.annotations || {};
+                return definition.name === call.name &&
+                    (annotations.readonly === true || annotations.readOnlyHint === true) &&
+                    annotations.destructive !== true && annotations.destructiveHint !== true;
+            });
+        },
+
+        getReusableToolRequestSignature: function(call) {
+            if (!call) return null;
+            var input = call.input || call.arguments || {};
+            var normalized = { name: call.name, arguments: input };
+            if (!this.isReusableReadonlyTool(normalized)) return null;
+            function canonical(value) {
+                if (Array.isArray(value)) return value.map(canonical);
+                if (!value || typeof value !== 'object') return value;
+                var sorted = {};
+                Object.keys(value).sort().forEach(function(key) { sorted[key] = canonical(value[key]); });
+                return sorted;
+            }
+            return call.name + ':' + JSON.stringify(canonical(input));
+        },
+
+        getReusableToolResults: function(messages, provider) {
+            var calls = this.collectToolCallsById(messages, provider);
+            var records = [];
+            var turn = null;
+            var epoch = 0;
+            var mixedWriteIds = {};
+            (messages || []).forEach(function(message) {
+                if (message.role === 'user' && !this.isPureAnthropicToolResultMessage(message)) {
+                    turn = message;
+                }
+                if (message.role === 'assistant') {
+                    var ids = provider === 'anthropic' && Array.isArray(message.content)
+                        ? message.content.filter(function(block) { return block.type === 'tool_use'; }).map(function(block) { return block.id; })
+                        : (message.tool_calls || []).map(function(call) { return call.id; });
+                    // A write or unknown tool may have changed what a later read returns.
+                    if (ids.some(function(id) { return !this.getReusableToolRequestSignature(calls[id]); }, this)) {
+                        epoch++;
+                        ids.forEach(function(id) { mixedWriteIds[id] = true; });
+                    }
+                }
+                var results = provider === 'anthropic' && Array.isArray(message.content)
+                    ? message.content.filter(function(block) { return block.type === 'tool_result'; })
+                    : (message.role === 'tool' ? [{ tool_use_id: message.tool_call_id, content: message.content }] : []);
+                results.forEach(function(block) {
+                    var call = calls[block.tool_use_id];
+                    var signature = this.getReusableToolRequestSignature(call);
+                    if (!signature || block.is_error || mixedWriteIds[block.tool_use_id]) return;
+                    try {
+                        var value = JSON.parse(block.content);
+                        if (!value || value.error || value.success === false) return;
+                        records.push({ id: block.tool_use_id, call: call, signature: signature, value: value, turn: turn, epoch: epoch });
+                    } catch (e) { /* Malformed results must be fetched again. */ }
+                }, this);
+            }, this);
+            records.epoch = epoch;
+            return records;
+        },
+
+        getReusableToolResult: function(toolCall, provider) {
+            var signature = this.getReusableToolRequestSignature(toolCall);
+            if (!signature) return null;
+            var messages = this.messages || [];
+            var turn = null;
+            messages.forEach(function(message) {
+                if (message.role === 'user' && !this.isPureAnthropicToolResultMessage(message)) turn = message;
+            }, this);
+            var records = this.getReusableToolResults(messages, provider);
+            var matches = records.filter(function(record) {
+                return record.id !== toolCall.id && record.turn === turn && record.signature === signature && record.epoch === records.epoch;
+            });
+            if (!matches.length) return null;
+            // If a previous refresh returned new data, use the most recent value.
+            var latest = this.safeJsonStringify(matches[matches.length - 1].value);
+            var firstMatch = matches.length - 1;
+            while (firstMatch > 0 && this.safeJsonStringify(matches[firstMatch - 1].value) === latest) firstMatch--;
+            matches = matches.slice(firstMatch);
+            var first = matches[0];
+            var cached = this.toolResultCache && this.toolResultCache[first.id];
+            return {
+                id: toolCall.id,
+                name: toolCall.name,
+                input: toolCall.arguments || {},
+                success: true,
+                result: cached && cached.success ? cached.result : first.value,
+                _reusedToolResult: true,
+                _previousRequestCount: matches.length,
+                _requestTurn: turn
+            };
+        },
+
+        collapseRepeatedToolRequests: function(messages, provider) {
+            var records = this.getReusableToolResults(messages, provider);
+            var firstBySignature = {};
+            var duplicates = {};
+            var replacements = {};
+            var turn;
+            var epoch;
+            records.forEach(function(record) {
+                if (record.turn !== turn || record.epoch !== epoch) {
+                    firstBySignature = {};
+                    turn = record.turn;
+                    epoch = record.epoch;
+                }
+                var first = firstBySignature[record.signature];
+                if (!first) {
+                    firstBySignature[record.signature] = record;
+                    return;
+                }
+                // A read may have been refreshed after an external change.
+                // Never replace a different result with the older value.
+                if (this.safeJsonStringify(first.value) !== this.safeJsonStringify(record.value)) {
+                    firstBySignature[record.signature] = record;
+                    return;
+                }
+                duplicates[record.id] = true;
+                if (!replacements[first.id]) {
+                    var compacted = this.compactRepeatedToolResult({
+                        id: first.id, result: first.value
+                    }, provider, first.call);
+                    var hint = Array.isArray(compacted) ? compacted[compacted.length - 1] : compacted;
+                    if (hint && hint._ai_assistant_compacted) hint._ai_assistant_compacted.repeated_request = true;
+                    replacements[first.id] = this.safeJsonStringify(compacted);
+                }
+            }, this);
+            return (messages || []).map(function(message) {
+                if (provider === 'anthropic' && Array.isArray(message.content)) {
+                    var blocks = message.content.filter(function(block) {
+                        return !duplicates[block.id || block.tool_use_id];
+                    }).map(function(block) {
+                        return replacements[block.tool_use_id]
+                            ? $.extend({}, block, { content: replacements[block.tool_use_id] }) : block;
+                    });
+                    if (!blocks.length) return null;
+                    return $.extend({}, message, { content: blocks });
+                }
+                if (message.role === 'tool') {
+                    if (duplicates[message.tool_call_id]) return null;
+                    return replacements[message.tool_call_id]
+                        ? $.extend({}, message, { content: replacements[message.tool_call_id] }) : message;
+                }
+                if (message.role === 'assistant' && Array.isArray(message.tool_calls)) {
+                    var calls = message.tool_calls.filter(function(call) { return !duplicates[call.id]; });
+                    if (!calls.length && !message.content) return null;
+                    var copy = $.extend({}, message);
+                    if (calls.length) copy.tool_calls = calls;
+                    else delete copy.tool_calls;
+                    return copy;
+                }
+                return message;
+            }).filter(Boolean);
+        },
+
+        compactRepeatedToolResult: function(result, provider, repeatedCall) {
             var value = result ? result.result : null;
-            if (!this.isRepeatedToolRequest(result, provider)) return value;
+            if (!repeatedCall && !this.isRepeatedToolRequest(result, provider)) return value;
             var calls = this.collectToolCallsById(this.messages, provider);
-            var call = calls[result.id];
+            var call = repeatedCall || calls[result.id];
             var isAbilityList = call.name === 'list_abilities' ||
                 (call.name === 'ability' && (call.input.action || 'list') === 'list');
             var compacted;
@@ -1993,7 +2164,11 @@
             }
 
             try {
-                return this.isCompactedToolResultValue(JSON.parse(content), 0);
+                var parsed = JSON.parse(content);
+                var hint = Array.isArray(parsed) ? parsed[parsed.length - 1] : parsed;
+                // This compact result replaces all duplicate exchanges in the request.
+                if (hint && hint._ai_assistant_compacted && hint._ai_assistant_compacted.repeated_request) return false;
+                return this.isCompactedToolResultValue(parsed, 0);
             } catch (e) {
                 return content.indexOf('[... truncated ') !== -1;
             }
@@ -2261,7 +2436,7 @@
         },
 
         compactProviderMessagesForRequest: function(messages, provider, mode) {
-            var compacted = (messages || []).map(function(message) {
+            var compacted = this.collapseRepeatedToolRequests(messages || [], provider).map(function(message) {
                 return this.compactProviderMessageForRequest(message, provider, mode);
             }, this);
             compacted = this.pruneStaleToolCallsForRequest(compacted, provider);

@@ -31,6 +31,9 @@ function loadProvidersMixin(extraContext) {
         'utf8'
     );
     vm.runInContext(source, context);
+    if (extraContext && extraContext.includeExecution) {
+        vm.runInContext(fs.readFileSync(path.join(__dirname, '../assets/js/chat-execution.js'), 'utf8'), context);
+    }
     return aiAssistant;
 }
 
@@ -137,6 +140,105 @@ describe('repeated tool result compaction', function() {
         const compacted = assistant.compactRepeatedToolResult(result, 'local');
         assert.ok(JSON.stringify(compacted).length < JSON.stringify(result.result).length);
         assert.equal(compacted._ai_assistant_compacted.inspect_tool_result.tool_use_id, 'repeat');
+    });
+});
+
+describe('collapsing repeated read-only requests', function() {
+    function fixture(provider, completed = 2, name = 'find') {
+        const assistant = loadProvidersMixin({ includeExecution: true });
+        const value = { files: [{ path: 'example.txt', content: 'x'.repeat(20000) }] };
+        const messages = [{ role: 'user', content: 'Find the example.' }];
+        function call(id) {
+            return provider === 'anthropic'
+                ? { role: 'assistant', content: [{ type: 'tool_use', id, name, input: { path: 'plugins', text: 'example' } }] }
+                : { role: 'assistant', content: null, tool_calls: [{ id, function: { name, arguments: '{"text":"example","path":"plugins"}' } }] };
+        }
+        function result(id, output = value) {
+            return provider === 'anthropic'
+                ? { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: JSON.stringify(output) }] }
+                : { role: 'tool', tool_call_id: id, content: JSON.stringify(output) };
+        }
+        for (let i = 0; i < completed; i++) messages.push(call('call-' + i), result('call-' + i));
+        assistant.messages = messages;
+        return { assistant, messages, value, call, result };
+    }
+
+    for (const provider of ['openai', 'local', 'anthropic']) {
+        it('replaces the first result and removes duplicate pairs without changing saved history for ' + provider, function() {
+            const { assistant, messages } = fixture(provider);
+            const original = JSON.stringify(messages);
+            const output = assistant.compactProviderMessagesForRequest(messages, provider);
+            const calls = assistant.collectToolCallsById(output, provider);
+            assert.deepEqual(Object.keys(calls), ['call-0']);
+            assert.equal(output[0].content, 'Find the example.');
+            const content = provider === 'anthropic' ? output[2].content[0].content : output[2].content;
+            assert.ok(content.length < 5000);
+            assert.equal(JSON.parse(content)._ai_assistant_compacted.inspect_tool_result.tool_use_id, 'call-0');
+            assert.equal(JSON.stringify(messages), original);
+        });
+
+        it('keeps unrelated calls and assistant text in mixed messages for ' + provider, function() {
+            const { assistant, messages } = fixture(provider);
+            if (provider === 'anthropic') {
+                messages[3].content.unshift({ type: 'text', text: 'Checking another file.' });
+                messages[3].content.push({ type: 'tool_use', id: 'other', name: 'read_file', input: { path: 'other.txt' } });
+                messages[4].content.push({ type: 'tool_result', tool_use_id: 'other', content: '{"content":"other"}' });
+            } else {
+                messages[3].content = 'Checking another file.';
+                messages[3].tool_calls.push({ id: 'other', function: { name: 'read_file', arguments: '{"path":"other.txt"}' } });
+                messages.push({ role: 'tool', tool_call_id: 'other', content: '{"content":"other"}' });
+            }
+            const output = assistant.collapseRepeatedToolRequests(messages, provider);
+            assert.deepEqual(Object.keys(assistant.collectToolCallsById(output, provider)), ['call-0', 'other']);
+            assert.ok(JSON.stringify(output).includes('Checking another file.'));
+        });
+
+        it('reuses results without executing again and warns on the third request for ' + provider, async function() {
+            const { assistant, messages, call, result, value } = fixture(provider, 1);
+            const warnings = [];
+            assistant.addMessage = (...args) => warnings.push(args);
+            messages.push(call('call-1'));
+            const reused = await assistant.executeSingleTool({ id: 'call-1', name: 'find', arguments: { path: 'plugins', text: 'example' } }, provider);
+            assert.equal(reused._reusedToolResult, true);
+            assert.deepEqual(JSON.parse(assistant.stringifyResolvedToolResultForProvider(reused, provider)), value);
+            assert.equal(warnings.length, 0);
+            messages.push(result('call-1'), call('call-2'));
+            await assistant.executeSingleTool({ id: 'call-2', name: 'find', arguments: { path: 'plugins', text: 'example' } }, provider);
+            await assistant.executeSingleTool({ id: 'call-2', name: 'find', arguments: { path: 'plugins', text: 'example' } }, provider);
+            assert.equal(warnings.length, 1);
+            assert.match(warnings[0][1], /context window may be too small/);
+            messages.splice(messages.length - 1, 0, { role: 'user', content: 'Try again.' });
+            assert.equal(assistant.getReusableToolResult({ id: 'call-2', name: 'find', arguments: { path: 'plugins', text: 'example' } }, provider), null);
+        });
+
+        it('preserves repeats after a write or changed read result for ' + provider, function() {
+            const { assistant, messages, result } = fixture(provider);
+            messages[4] = result('call-1', { files: ['changed.txt'] });
+            assert.equal(Object.keys(assistant.collectToolCallsById(assistant.collapseRepeatedToolRequests(messages, provider), provider)).length, 2);
+            const write = provider === 'anthropic'
+                ? { role: 'assistant', content: [{ type: 'tool_use', id: 'write', name: 'write_file', input: { path: 'example.txt', content: 'new' } }] }
+                : { role: 'assistant', tool_calls: [{ id: 'write', function: { name: 'write_file', arguments: '{"path":"example.txt","content":"new"}' } }] };
+            messages.splice(3, 0, write);
+            assert.equal(Object.keys(assistant.collectToolCallsById(assistant.collapseRepeatedToolRequests(messages, provider), provider)).length, 3);
+            assert.equal(assistant.getReusableToolResult({ id: 'next', name: 'find', arguments: { path: 'plugins', text: 'example' } }, provider)._previousRequestCount, 1);
+        });
+    }
+
+    it('never reuses unknown or write-capable tools, and supports read-only extension annotations', function() {
+        const assistant = loadProvidersMixin();
+        for (const name of ['write_file', 'run_php', 'db_query', 'unknown']) {
+            assert.equal(assistant.getReusableToolRequestSignature({ name, arguments: {} }), null);
+        }
+        assistant.getAllToolDefinitions = () => [{ name: 'custom_search', annotations: { readOnlyHint: true } }];
+        assert.ok(assistant.getReusableToolRequestSignature({ name: 'custom_search', arguments: { query: 'example' } }));
+    });
+
+    it('retries failed results and does not collapse requests across user turns', function() {
+        const { assistant, messages, result } = fixture('local');
+        messages[2] = result('call-0', { success: false, error: 'Unavailable' });
+        assert.equal(assistant.collapseRepeatedToolRequests(messages, 'local').length, messages.length);
+        messages.splice(3, 0, { role: 'user', content: 'Search again.' });
+        assert.equal(assistant.collapseRepeatedToolRequests(messages, 'local').length, messages.length);
     });
 });
 
