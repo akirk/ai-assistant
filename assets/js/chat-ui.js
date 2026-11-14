@@ -2,6 +2,7 @@
     'use strict';
 
     var __ = window.wp.i18n.__;
+    var _n = window.wp.i18n._n;
     var sprintf = window.wp.i18n.sprintf;
 
     $.extend(window.aiAssistant, {
@@ -2014,7 +2015,7 @@
             var self = this;
             var $messages = $('#ai-assistant-messages');
             var groupId = 'tool-history-' + (++this.toolCardsGroupCounter);
-            var label = this.toolGroupLabel(toolUses || []) + ' - complete';
+            var label = sprintf(__('%s - complete', 'ai-assistant'), this.toolGroupLabel(toolUses || []));
             var $group = $('<details class="ai-tool-cards-group ai-tool-cards-complete" data-tool-group-id="' + this.escapeAttribute(groupId) + '">' +
                 '<summary class="ai-tool-cards-summary">' + this.escapeHtml(label) + '</summary>' +
                 '</details>');
@@ -2220,10 +2221,10 @@
 
         getWelcomeIntro: function() {
             if (this.isMyWordPressSite()) {
-                return 'Hello! I\'m your AI Assistant. I can help you shape My WordPress into your personal software home: create private apps, organize data and memories, manage plugins, and adapt workflows. What would you like to do?';
+                return __('Hello! I\'m your AI Assistant. I can help you shape My WordPress into your personal software home: create private apps, organize data and memories, manage plugins, and adapt workflows. What would you like to do?', 'ai-assistant');
             }
 
-            return 'Hello! I\'m your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?';
+            return __('Hello! I\'m your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?', 'ai-assistant');
         },
 
         buildWelcomeMessage: function() {
@@ -2240,7 +2241,7 @@
                 return message;
             }
 
-            return message + '\n\nA few tips for this area of your WordPress:\n- ' + tips.join('\n- ');
+            return message + '\n\n' + __('A few tips for this area of your WordPress:', 'ai-assistant') + '\n- ' + tips.join('\n- ');
         },
 
         getModelInfoOptions: function(provider, model) {
@@ -2277,7 +2278,7 @@
                 var $select = $('<select class="ai-model-select" aria-label="Model"></select>')
                     .attr('data-provider', provider)
                     .attr('data-current-model', model)
-                    .attr('title', 'Change model')
+                    .attr('title', __('Change model', 'ai-assistant'))
                     .prop('disabled', !!this.isLoading);
 
                 options.forEach(function(option) {
@@ -2330,7 +2331,7 @@
 
         addModelInfoMessage: function(provider, model) {
             var providerName = this.getProviderName(provider);
-            this.addMessage('system', 'You\'re chatting with **' + providerName + '**', 'ai-model-info');
+            this.addMessage('system', sprintf(__('You\'re chatting with **%s**', 'ai-assistant'), providerName), 'ai-model-info');
 
             var $message = $('#ai-assistant-messages .ai-model-info').last();
             var $line = $message.find('.ai-message-content p').first();
@@ -2339,9 +2340,8 @@
             }
 
             $line.addClass('ai-model-info-line');
-            $line.empty()
-                .append('You\'re chatting with ')
-                .append($('<strong></strong>').text(providerName));
+            // translators: %s: AI provider name.
+            $line.html(sprintf(__('You\'re chatting with <strong>%s</strong>', 'ai-assistant'), this.escapeHtml(providerName)));
             this.renderModelInfoControl($line, provider, model);
         },
 
@@ -2381,7 +2381,7 @@
             if (this.hasUncheckedBrowserProviderStatuses && this.hasUncheckedBrowserProviderStatuses()) {
                 var self = this;
                 var wasPendingNewChat = this.pendingNewChat;
-                this.addMessage('system', 'Checking local AI providers from this browser...', 'ai-welcome-message');
+                this.addMessage('system', __('Checking local AI providers from this browser...', 'ai-assistant'), 'ai-welcome-message');
                 this.ensureBrowserProviderStatuses().then(function() {
                     if (wasPendingNewChat && !self.pendingNewChat) {
                         return;
@@ -2405,24 +2405,24 @@
                 var setupUrl = hasConnectors
                     ? (aiAssistantProviders.connectorsUrl || aiAssistantConfig.settingsUrl)
                     : aiAssistantConfig.settingsUrl;
-                var setupLabel = hasConnectors ? 'Connectors' : 'Settings';
-                var message = 'Welcome! Connect an AI provider in [' + setupLabel + '](' + setupUrl + ') to start chatting. Use an API key ([your AI subscription may include API credits](#ai-provider-setup-help)) or a [local AI](#ai-local-setup-help).';
+                var setupLabel = hasConnectors ? __('Connectors', 'ai-assistant') : __('Settings', 'ai-assistant');
+                var message = sprintf(__('Welcome! Connect an AI provider in [%1$s](%2$s) to start chatting. Use an API key ([your AI subscription may include API credits](#ai-provider-setup-help)) or a [local AI](#ai-local-setup-help).', 'ai-assistant'), setupLabel, setupUrl);
                 if (hasConnectors && aiAssistantProviders.hasLocal) {
-                    message += ' Start your local server, then choose a model in AI Assistant settings.';
+                    message += __(' Start your local server, then choose a model in AI Assistant settings.', 'ai-assistant');
                 }
                 if (!aiAssistantConfig.isPlayground) {
-                    message += '\n\nOr use [MCP Connect](https://github.com/akirk/mcp-connect) to work with your site from an external AI client.';
+                    message += __('\n\nOr use [MCP Connect](https://github.com/akirk/mcp-connect) to work with your site from an external AI client.', 'ai-assistant');
                 }
                 this.addMessage('system', message, 'ai-welcome-message');
-                var help = '1. Claim API credits from an eligible subscription by linking an API organization, or add paid API credit. See [OpenAI eligibility and activation](https://developers.openai.com/api/docs/guides/chatgpt-api-credits) or [Claude eligibility and activation](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers).\n2. Create an API key in that organization on the [OpenAI API platform](https://platform.openai.com/api-keys) or [Claude Console](https://platform.claude.com/settings/keys).\n3. Add the key for the matching provider in [' + setupLabel + '](' + setupUrl + '), then choose a model in AI Assistant.\n\nRequests use your provider’s API balance.';
-                var localHelp = '**A privacy-friendly, free alternative.** Run AI on your own device without sending your prompts to a cloud AI provider.\n\n1. Install [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/) on this device, download a model, and start the local server. Allow requests from this website in the server’s browser access / CORS settings.';
+                var help = sprintf(__('1. Claim API credits from an eligible subscription by linking an API organization, or add paid API credit. See [OpenAI eligibility and activation](https://developers.openai.com/api/docs/guides/chatgpt-api-credits) or [Claude eligibility and activation](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers).\n2. Create an API key in that organization on the [OpenAI API platform](https://platform.openai.com/api-keys) or [Claude Console](https://platform.claude.com/settings/keys).\n3. Add the key for the matching provider in [%1$s](%2$s), then choose a model in AI Assistant.\n\nRequests use your provider’s API balance.', 'ai-assistant'), setupLabel, setupUrl);
+                var localHelp = __('**A privacy-friendly, free alternative.** Run AI on your own device without sending your prompts to a cloud AI provider.\n\n1. Install [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/) on this device, download a model, and start the local server. Allow requests from this website in the server’s browser access / CORS settings.', 'ai-assistant');
                 if (hasConnectors) {
-                    localHelp += '\n2. Open [AI Assistant settings](' + aiAssistantConfig.settingsUrl + ') and click **Scan again** next to **Save Changes**. LM Studio (localhost:1234) and Ollama (localhost:11434) are detected directly from this browser; no WordPress provider plugin is required.';
-                    localHelp += '\n3. Choose a model in its provider card. For an unloaded LM Studio model, click **Load model**; this unloads other LLMs on that server. Drag the cards to set your preferred provider order.';
+                    localHelp += sprintf(__('\n2. Open [AI Assistant settings](%s) and click **Scan again** next to **Save Changes**. LM Studio (localhost:1234) and Ollama (localhost:11434) are detected directly from this browser; no WordPress provider plugin is required.', 'ai-assistant'), aiAssistantConfig.settingsUrl);
+                    localHelp += __('\n3. Choose a model in its provider card. For an unloaded LM Studio model, click **Load model**; this unloads other LLMs on that server. Drag the cards to set your preferred provider order.', 'ai-assistant');
                 } else {
-                    localHelp += '\n2. Choose Local in [Settings](' + setupUrl + '), enter the local server endpoint, and choose a model.';
+                    localHelp += sprintf(__('\n2. Choose Local in [Settings](%s), enter the local server endpoint, and choose a model.', 'ai-assistant'), setupUrl);
                 }
-                localHelp += '\n\nNo API key is needed for local AI. The server must be reachable from this browser.';
+                localHelp += __('\n\nNo API key is needed for local AI. The server must be reachable from this browser.', 'ai-assistant');
                 var $welcome = $('#ai-assistant-messages .ai-welcome-message').last();
                 $welcome.find('a[href="#ai-provider-setup-help"]').attr('aria-expanded', 'false').attr('aria-controls', 'ai-provider-setup-help');
                 $welcome.find('.ai-message-content').append(
@@ -2543,7 +2543,7 @@
 
             return provider === 'anthropic' ? 'Anthropic' :
                    provider === 'openai' ? 'OpenAI' :
-                   provider === 'local' ? 'Local LLM' : provider;
+                   provider === 'local' ? __('Local LLM', 'ai-assistant') : provider;
         },
 
         rebuildMessagesUI: function() {
@@ -3372,7 +3372,8 @@
                 counts[name]++;
             }, this);
 
-            var label = count === 1 ? '1 tool' : count + ' tools';
+            // translators: %d: Number of tools in the group.
+            var label = sprintf(_n('%d tool', '%d tools', count, 'ai-assistant'), count);
             if (!order.length) {
                 return label;
             }
@@ -3474,13 +3475,13 @@
             $container.toggleClass('ai-tool-cards-complete', done === total && total > 0);
             var $summary = $container.find('> .ai-tool-cards-summary');
             if (!$summary.length) {
-                $container.attr('aria-label', done === total && total > 0 ? base + ' - complete' : base + ' - ' + done + '/' + total + ' done');
+                $container.attr('aria-label', done === total && total > 0 ? sprintf(__('%s - complete', 'ai-assistant'), base) : sprintf(__('%1$s - %2$d/%3$d done', 'ai-assistant'), base, done, total));
                 return;
             }
             if (done === total && total > 0) {
-                $summary.text(base + ' - complete');
+                $summary.text(sprintf(__('%s - complete', 'ai-assistant'), base));
             } else {
-                $summary.text(base + ' - ' + done + '/' + total + ' done');
+                $summary.text(sprintf(__('%1$s - %2$d/%3$d done', 'ai-assistant'), base, done, total));
             }
 
             if (options.autoCollapse && done === total && total > 0) {

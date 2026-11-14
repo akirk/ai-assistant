@@ -577,26 +577,18 @@ class Chat_UI {
         if ($current_theme === Assistant_Themes::DEFAULT_THEME && $themes->theme_exists('floating-button')) {
             $tips[] = [
                 'message' => sprintf(
-                    /* translators: %s: Markdown link to switch the AI Assistant presentation theme. */
-                    __('AI Assistant is using the Admin Classic theme. %s.', 'ai-assistant'),
-                    sprintf(
-                        '[%s](%s)',
-                        __('Switch to Floating Button', 'ai-assistant'),
-                        $this->get_assistant_theme_switch_url('floating-button')
-                    )
+                    /* translators: %s: URL to switch the AI Assistant presentation theme. */
+                    __('AI Assistant is using the Admin Classic theme. [Switch to Floating Button](%s).', 'ai-assistant'),
+                    $this->get_assistant_theme_switch_url('floating-button')
                 ),
                 'skip_length_limit' => true,
             ];
         } elseif ($current_theme === 'floating-button' && $themes->theme_exists(Assistant_Themes::DEFAULT_THEME)) {
             $tips[] = [
                 'message' => sprintf(
-                    /* translators: %s: Markdown link to switch the AI Assistant presentation theme. */
-                    __('AI Assistant is using the Floating Button theme. %s.', 'ai-assistant'),
-                    sprintf(
-                        '[%s](%s)',
-                        __('Switch to Admin Classic', 'ai-assistant'),
-                        $this->get_assistant_theme_switch_url(Assistant_Themes::DEFAULT_THEME)
-                    )
+                    /* translators: %s: URL to switch the AI Assistant presentation theme. */
+                    __('AI Assistant is using the Floating Button theme. [Switch to Admin Classic](%s).', 'ai-assistant'),
+                    $this->get_assistant_theme_switch_url(Assistant_Themes::DEFAULT_THEME)
                 ),
                 'skip_length_limit' => true,
             ];

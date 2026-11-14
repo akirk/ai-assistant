@@ -679,6 +679,83 @@ describe('partial tool descriptions', function() {
 });
 
 describe('welcome message', function() {
+    it('uses the German catalog for welcome text, tips and tool counts', function() {
+        const catalogFile = fs.readdirSync(path.join(__dirname, '../languages')).find(name => {
+            if (!name.endsWith('.json')) return false;
+            const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, '../languages', name), 'utf8'));
+            return catalog.source === 'assets/js/chat-ui.js';
+        });
+        const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, '../languages', catalogFile), 'utf8'));
+        const translations = catalog.locale_data.messages;
+        const context = { window: {} };
+        require('./wp-i18n')(context);
+        context.wp.i18n.__ = text => translations[text] ? translations[text][0] : text;
+        context.wp.i18n._n = (single, plural, count) => translations[single][count === 1 ? 0 : 1];
+        const assistant = loadUiMixin({
+            homeUrl: 'https://example.test',
+            welcomeTips: ['Ein Tipp.']
+        }, { wp: context.wp });
+
+        assert.match(assistant.buildWelcomeMessage(), /^Hallo! Ich bin dein KI-Assistent\./);
+        assert.match(assistant.buildWelcomeMessage(), /Ein paar Tipps für diesen Bereich/);
+        assert.strictEqual(context.wp.i18n.__("You're chatting with <strong>%s</strong>"), 'Du chattest mit <strong>%s</strong>');
+        assert.strictEqual(assistant.toolGroupLabelFromEntries([]), '0 Werkzeuge');
+
+        let lineHtml = '';
+        let renderedModel = null;
+        const line = {
+            length: 1,
+            last() { return this; },
+            find() { return this; },
+            first() { return this; },
+            addClass() { return this; },
+            html(value) { lineHtml = value; return this; }
+        };
+        const modelAssistant = loadUiMixin({}, {
+            wp: context.wp,
+            jQuery: () => line
+        });
+        modelAssistant.escapeHtml = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        modelAssistant.addMessage = () => {};
+        modelAssistant.getProviderName = () => 'LM Studio';
+        modelAssistant.renderModelInfoControl = ($line, provider, model) => {
+            assert.strictEqual($line, line);
+            renderedModel = { provider, model };
+        };
+        modelAssistant.addModelInfoMessage('lmstudio', 'qwen/model');
+        assert.strictEqual(lineHtml, 'Du chattest mit <strong>LM Studio</strong>');
+        assert.deepStrictEqual(renderedModel, { provider: 'lmstudio', model: 'qwen/model' });
+
+        for (const hasConnectors of [false, true]) {
+            const messages = [];
+            const helpHtml = [];
+            const element = {
+                last() { return this; },
+                find() { return this; },
+                attr() { return this; },
+                append() { return this; },
+                html(value) { helpHtml.push(value); return this; }
+            };
+            const setupAssistant = loadUiMixin({ settingsUrl: '/settings' }, {
+                wp: context.wp,
+                aiAssistantProviders: hasConnectors
+                    ? { source: 'connectors', hasLocal: true, connectorsUrl: '/connectors' }
+                    : { source: 'legacy' },
+                jQuery: () => element
+            });
+            setupAssistant.isProviderConfigured = () => false;
+            setupAssistant.addMessage = (role, content) => messages.push(content);
+            setupAssistant.formatContent = content => content;
+            setupAssistant.loadWelcomeMessage();
+            assert.match(messages[0], /^Willkommen! Verbinde einen KI-Anbieter/);
+            assert.ok(messages[0].includes(hasConnectors ? '[Konnektoren](/connectors)' : '[Einstellungen](/settings)'));
+            assert.match(helpHtml[0], /API-Guthaben deines Anbieters/);
+            assert.match(helpHtml[1], /Eine datenschutzfreundliche, kostenlose Alternative/);
+            assert.match(helpHtml[1], /\[.*\]\(\/settings\)/);
+            assert.doesNotMatch(messages[0] + helpHtml.join(''), /%[12]?\$?s/);
+        }
+    });
+
     it('blends configured tips into the assistant welcome message', function() {
         const assistant = loadUiMixin({
             homeUrl: 'http://example.test',
