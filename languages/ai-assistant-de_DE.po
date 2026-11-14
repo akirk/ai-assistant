@@ -8,7 +8,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "POT-Creation-Date: 2026-11-14T12:03:02+00:00\n"
-"PO-Revision-Date: 2026-11-14T12:07:38+00:00\n"
+"PO-Revision-Date: 2026-11-14T12:11:28+00:00\n"
 "Language: de_DE\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Generator: WP-CLI 2.13.0-alpha\n"
@@ -218,7 +218,7 @@ msgstr "Destruktive Aktionen automatisch ohne Bestätigung genehmigen"
 #: includes/class-conversations-app.php:87
 #: includes/class-settings.php:898
 #: includes/class-settings.php:2097
-#: assets/js/chat-conversations.js:1356
+#: assets/js/chat-conversations.js:1358
 msgid "Loading..."
 msgstr "Wird geladen..."
 
@@ -1102,67 +1102,62 @@ msgstr "Schwebender Button"
 msgid "A floating launcher and detached assistant panel."
 msgstr "Ein schwebender Startbutton mit separatem Assistentenfenster."
 
-#: assets/js/chat-conversations.js:333
-msgid "Start a new chat"
-msgstr "Neuen Chat starten"
-
-#. translators: %s: Link to start a new chat.
-#: assets/js/chat-conversations.js:335
+#: assets/js/chat-conversations.js:334
 #, js-format
-msgid "%s, or continue here."
-msgstr "%s oder hier fortfahren."
+msgid "%1$sStart a new chat%2$s, or continue here."
+msgstr "%1$sNeuen Chat starten%2$s oder hier fortfahren."
 
-#: assets/js/chat-conversations.js:337
+#: assets/js/chat-conversations.js:339
 msgid "Previous chat loaded."
 msgstr "Vorheriger Chat geladen."
 
-#: assets/js/chat-conversations.js:1278
-#: assets/js/chat-conversations.js:1292
+#: assets/js/chat-conversations.js:1280
+#: assets/js/chat-conversations.js:1294
 msgid "No conversations yet"
 msgstr "Noch keine Unterhaltungen"
 
-#: assets/js/chat-conversations.js:1282
+#: assets/js/chat-conversations.js:1284
 msgid "Failed to load"
 msgstr "Laden fehlgeschlagen"
 
-#: assets/js/chat-conversations.js:1314
+#: assets/js/chat-conversations.js:1316
 msgid "Today"
 msgstr "Heute"
 
-#: assets/js/chat-conversations.js:1318
+#: assets/js/chat-conversations.js:1320
 msgid "Yesterday"
 msgstr "Gestern"
 
-#: assets/js/chat-conversations.js:1322
+#: assets/js/chat-conversations.js:1324
 msgid "Previous"
 msgstr "Früher"
 
-#: assets/js/chat-conversations.js:1338
-#: assets/js/chat-conversations.js:1382
+#: assets/js/chat-conversations.js:1340
+#: assets/js/chat-conversations.js:1384
 msgid "Delete"
 msgstr "Löschen"
 
-#: assets/js/chat-conversations.js:1370
+#: assets/js/chat-conversations.js:1372
 msgid "No saved conversations."
 msgstr "Keine gespeicherten Unterhaltungen."
 
 #. translators: %d: Number of messages in the conversation.
-#: assets/js/chat-conversations.js:1379
+#: assets/js/chat-conversations.js:1381
 #, js-format
 msgid "%d message"
 msgid_plural "%d messages"
 msgstr[0] "%d Nachricht"
 msgstr[1] "%d Nachrichten"
 
-#: assets/js/chat-conversations.js:1381
+#: assets/js/chat-conversations.js:1383
 msgid "Load"
 msgstr "Laden"
 
-#: assets/js/chat-conversations.js:1388
+#: assets/js/chat-conversations.js:1390
 msgid "Failed to load conversations."
 msgstr "Unterhaltungen konnten nicht geladen werden."
 
-#: assets/js/chat-conversations.js:1392
+#: assets/js/chat-conversations.js:1394
 msgid "Error loading conversations."
 msgstr "Fehler beim Laden der Unterhaltungen."
 
