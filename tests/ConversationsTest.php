@@ -18,6 +18,18 @@ class ConversationsTest extends TestCase {
         $this->conversations = new Conversations();
     }
 
+    public function test_provider_request_preserves_exact_json_and_rejects_invalid_envelopes(): void {
+        $method = new \ReflectionMethod(Conversations::class, 'validate_provider_request_json');
+        $payload = '{"messages":[{"content":"A \\"quote\\" and \\n"}],"parameters":{}}';
+        $envelope = json_encode(['provider' => 'local', 'timestamp' => '2026-11-14T12:00:00Z', 'json' => $payload]);
+        $stored = $method->invoke($this->conversations, $envelope);
+        $this->assertNotNull($stored);
+        $this->assertSame($payload, json_decode($stored)->json);
+        foreach (['null', '{}', 'invalid', '{"provider":"local","timestamp":"now","json":"[]"}'] as $invalid) {
+            $this->assertNull($method->invoke($this->conversations, $invalid));
+        }
+    }
+
     public function test_export_formats_for_config_exposes_default_formats_without_callbacks(): void {
         $formats = $this->conversations->get_export_formats_for_config();
 

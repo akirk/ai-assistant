@@ -1010,3 +1010,21 @@ describe('loading recent conversations', function() {
         assert.strictEqual(exportButtonUpdated, true);
     });
 });
+
+describe('provider request persistence', function() {
+    it('includes the latest request in conversation saves', function() {
+        const { assistant } = loadConversationMixin();
+        assistant.getEncodedMessagesForSave = () => 'encoded';
+        assistant.getConversationTitleForSave = () => 'Conversation';
+        assistant.getProvider = () => 'local';
+        assistant.getModel = () => 'test';
+        assistant.lastProviderRequest = {
+            provider: 'local', timestamp: '2026-11-14T12:00:00Z',
+            json: '{"messages":[],"parameters":{}}'
+        };
+        const data = assistant.getConversationSaveData();
+        assert.deepEqual(JSON.parse(data.last_provider_request), assistant.lastProviderRequest);
+        assistant.lastProviderRequest = null;
+        assert.equal(assistant.getConversationSaveData().last_provider_request, 'null');
+    });
+});

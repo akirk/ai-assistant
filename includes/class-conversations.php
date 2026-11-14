@@ -475,6 +475,7 @@ class Conversations {
             'model' => get_post_meta($conversation_id, '_ai_model', true) ?: '',
             'token_usage' => $this->get_conversation_token_usage($conversation_id, $messages),
             'system_prompt' => get_post_meta($conversation_id, '_ai_system_prompt', true) ?: '',
+            'last_provider_request' => json_decode(get_post_meta($conversation_id, '_ai_last_provider_request', true) ?: 'null'),
             'created' => $post->post_date_gmt ?: $post->post_date,
             'modified' => $post->post_modified_gmt ?: $post->post_modified,
             'author_id' => $author_id,
@@ -1454,6 +1455,22 @@ class Conversations {
         return $usage;
     }
 
+    private function validate_provider_request_json($json): ?string {
+        if (!is_string($json)) return null;
+        $decoded_request = json_decode($json);
+        if (!is_object($decoded_request) || !isset($decoded_request->provider, $decoded_request->timestamp, $decoded_request->json)
+            || !is_string($decoded_request->provider) || !is_string($decoded_request->timestamp)
+            || !is_string($decoded_request->json) || !is_object(json_decode($decoded_request->json))) {
+            return null;
+        }
+        // Keep the inner JSON string intact, including empty objects and escapes.
+        return wp_json_encode([
+            'provider' => $decoded_request->provider,
+            'timestamp' => $decoded_request->timestamp,
+            'json' => $decoded_request->json,
+        ]);
+    }
+
     public function ajax_save_conversation() {
         check_ajax_referer('ai_assistant_chat', '_wpnonce');
 
@@ -1470,6 +1487,7 @@ class Conversations {
             ? (string) wp_unslash($_POST['system_prompt'])
             : '';
         $token_usage = $this->sanitize_token_usage_json(wp_unslash($_POST['token_usage'] ?? ''));
+        $last_provider_request = $this->validate_provider_request_json(wp_unslash($_POST['last_provider_request'] ?? ''));
         $existing_title_status = $conversation_id > 0 ? get_post_meta($conversation_id, '_ai_title_status', true) : '';
         $title_status = $existing_title_status ?: 'generated';
 
@@ -1515,6 +1533,9 @@ class Conversations {
             wp_send_json_error(['message' => $post_id->get_error_message()]);
         }
 
+        if ($last_provider_request !== null) {
+            update_post_meta($post_id, '_ai_last_provider_request', function_exists('wp_slash') ? wp_slash($last_provider_request) : $last_provider_request);
+        }
         update_post_meta($post_id, '_ai_message_count', count($messages));
         update_post_meta($post_id, '_ai_provider', $provider);
         update_post_meta($post_id, '_ai_model', $model);
@@ -1575,6 +1596,7 @@ class Conversations {
             'model' => isset($meta['_ai_model']) ? $meta['_ai_model']->meta_value : '',
             'title_status' => isset($meta['_ai_title_status']) ? $meta['_ai_title_status']->meta_value : '',
             'token_usage' => $token_usage,
+            'last_provider_request' => json_decode(get_post_meta($conversation_id, '_ai_last_provider_request', true) ?: 'null'),
         ]);
     }
 

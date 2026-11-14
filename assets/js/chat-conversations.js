@@ -650,6 +650,7 @@
         startNewChat: function(options) {
             options = options || {};
             this.messages = [];
+            this.lastProviderRequest = null;
             this.pendingActions = [];
             this.pendingToolChecks = 0;
             if (this.clearQueuedMessages) {
@@ -757,6 +758,7 @@
                 provider: this.conversationProvider || this.getProvider(),
                 model: this.conversationModel || this.getModel(),
                 system_prompt: this.systemPrompt || '',
+                last_provider_request: JSON.stringify(this.lastProviderRequest || null),
                 token_usage: this.getTokenUsageSummary ? JSON.stringify(this.getTokenUsageSummary()) : ''
             }, overrides || {});
         },
@@ -1000,6 +1002,7 @@
                         self.conversationModel = response.data.model || self.getModel();
                         self.promptCacheKey = '';
                         self.conversationTokenUsage = response.data.token_usage || null;
+                        self.lastProviderRequest = response.data.last_provider_request || null;
                         self.updateSendButton();
                         if (self.ensureBrowserProviderStatuses) {
                             self.ensureBrowserProviderStatuses().then(function() {

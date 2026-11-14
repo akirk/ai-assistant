@@ -2345,3 +2345,50 @@ describe('queued user messages', function() {
         assert.equal(typeof assistant.messages[1]._ts, 'number');
     });
 });
+
+describe('latest provider request JSON', function() {
+    for (const proxy of [false, true]) {
+        it(`captures the final ${proxy ? 'proxied' : 'direct'} body without headers and survives failure`, async function() {
+            let sent;
+            const assistant = loadProvidersMixin({
+                aiAssistantConfig: { ajaxUrl: '/ajax', nonce: 'private-nonce' },
+                fetch: async (url, options) => {
+                    sent = proxy ? options.body.get('body') : options.body;
+                    throw new Error('Network failure');
+                }
+            });
+            assistant.shouldProxyProvider = () => proxy;
+            let saves = 0;
+            assistant.saveConversation = () => { saves++; };
+            const payload = {
+                model: 'gpt-6-sol', stream: true,
+                messages: [{ role: 'user', content: 'latest recipe?' }],
+                tools: [{ type: 'function', function: { name: 'ability', parameters: {} } }]
+            };
+            await assert.rejects(assistant.fetchLLMProvider('openai', '/chat', {
+                Authorization: 'Bearer private-key'
+            }, payload), /Network failure/);
+            assert.equal(assistant.lastProviderRequest.json, sent);
+            assert.equal(JSON.parse(sent).reasoning_effort, 'none');
+            assert.equal(JSON.stringify(JSON.parse(sent).tools[0].function.parameters), '{}');
+            assert.equal(assistant.lastProviderRequest.provider, 'openai');
+            assert.ok(assistant.lastProviderRequest.timestamp);
+            assert.equal(saves, 1);
+            assert.doesNotMatch(JSON.stringify(assistant.lastProviderRequest), /private-key|private-nonce/);
+            payload.messages[0].content = 'changed';
+            assert.equal(JSON.parse(assistant.lastProviderRequest.json).messages[0].content, 'latest recipe?');
+            assistant.serializeProviderRequest('local', { model: 'retry', messages: [] });
+            assert.equal(JSON.parse(assistant.lastProviderRequest.json).model, 'retry');
+            assert.equal(saves, 2);
+        });
+    }
+
+    it('does not replace the chat snapshot for summary requests', async function() {
+        const assistant = loadProvidersMixin({ fetch: async () => ({ ok: true }) });
+        assistant.shouldProxyProvider = () => false;
+        assistant.serializeProviderRequest('local', { model: 'chat', messages: [] });
+        const original = assistant.lastProviderRequest;
+        await assistant.fetchLLMProvider('openai', '/chat', {}, { model: 'summary', messages: [] });
+        assert.equal(assistant.lastProviderRequest, original);
+    });
+});
