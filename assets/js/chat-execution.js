@@ -251,7 +251,7 @@
                             }
                         };
                     }
-                    return self.executeSingleTool(tc);
+                    return self.executeSingleTool(tc, provider);
                 });
             });
 
@@ -1021,8 +1021,21 @@
             });
         },
 
-        executeSingleTool: function(toolCall) {
+        executeSingleTool: function(toolCall, provider) {
             var toolName = toolCall.name || toolCall.tool;
+
+            if (this.getReusableToolResult) {
+                provider = provider || this.currentProvider || 'openai';
+                var reused = this.getReusableToolResult(toolCall, provider);
+                if (reused) {
+                    if (reused._previousRequestCount >= 2 &&
+                        this.lastRepeatContextWarningTurn !== reused._requestTurn) {
+                        this.lastRepeatContextWarningTurn = reused._requestTurn;
+                        this.addMessage('system', 'The model is repeating the same tool request even after its earlier result was made smaller. Its context window may be too small. Try increasing the context length in your model server or starting a fresh chat.', 'ai-context-size-warning');
+                    }
+                    return Promise.resolve(reused);
+                }
+            }
 
             if (toolName === 'rest_api') {
                 return this.executeRestApi(toolCall);
@@ -2674,7 +2687,7 @@
             } else {
                 this.setToolCardState(toolId, 'executing');
                 this.executingToolCount++;
-                this.executeSingleTool({ id: toolId, name: toolName, arguments: toolArgs }).then(function(result) {
+                this.executeSingleTool({ id: toolId, name: toolName, arguments: toolArgs }, provider).then(function(result) {
                     return self.verifyPluginFileMutationResults([result]);
                 }).then(function(results) {
                     var result = results[0];
@@ -2798,9 +2811,12 @@
         },
 
         stringifyResolvedToolResultForProvider: function(result, provider) {
+            var value = result && result._reusedToolResult ? result.result : this.compactRepeatedToolResult
+                ? this.compactRepeatedToolResult(result, provider)
+                : (result ? result.result : null);
             if (this.stringifyToolResultForProvider) {
                 return this.stringifyToolResultForProvider(
-                    result ? result.result : null,
+                    value,
                     provider,
                     undefined,
                     { toolUseId: result && result.id }
@@ -2808,10 +2824,10 @@
             }
 
             if (this.safeJsonStringify) {
-                return this.safeJsonStringify(result ? result.result : null);
+                return this.safeJsonStringify(value);
             }
 
-            return JSON.stringify(result ? result.result : null);
+            return JSON.stringify(value);
         },
 
         getResolvedToolResultForProviderDisplay: function(result, provider) {

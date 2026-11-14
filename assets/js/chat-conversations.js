@@ -1001,6 +1001,11 @@
                         self.promptCacheKey = '';
                         self.conversationTokenUsage = response.data.token_usage || null;
                         self.updateSendButton();
+                        if (self.ensureBrowserProviderStatuses) {
+                            self.ensureBrowserProviderStatuses().then(function() {
+                                self.updateSendButton();
+                            });
+                        }
                         self.updateTokenCount();
 
                         // Display only what was actually saved with the conversation

@@ -838,6 +838,11 @@
             return this.isConfigured();
         },
 
+        canSendToConversation: function() {
+            var provider = !this.pendingNewChat && this.conversationProvider;
+            return !!(provider && this._isProviderAvailable(provider)) || this.isProviderConfigured();
+        },
+
         updateSendButton: function() {
             var $btn = $('#ai-assistant-send');
             if (!$btn.length) return;
@@ -847,10 +852,37 @@
             }
 
             var isQueueing = this.shouldQueueUserMessage && this.shouldQueueUserMessage();
+            var providerAvailable = this.canSendToConversation();
+            var reasons = [];
+            if (!providerAvailable) reasons.push('No available AI provider (credentials, models, or browser availability check required).');
+            if (this.isUploadingFiles) reasons.push('Attached files are still being read.');
+            var diagnostic = {
+                reasons: reasons,
+                conversationProvider: this.conversationProvider || null,
+                configuredProvider: this.getProvider(),
+                browserProviders: []
+            };
+            if (typeof aiAssistantProviders !== 'undefined') {
+                diagnostic.browserProviders = Object.keys(aiAssistantProviders.available || {}).map(function(id) {
+                    var config = aiAssistantProviders.available[id];
+                    return {
+                        provider: id,
+                        browserStatusChecked: !!config.browserStatusChecked,
+                        browserStatus: config.browserStatus || null,
+                        modelCount: (config.models || []).length,
+                        hasCredentials: !!(config.serverSideAuth || config.apiKey)
+                    };
+                });
+            }
+            var diagnosticKey = JSON.stringify(diagnostic);
+            if (reasons.length && diagnosticKey !== this.lastSendDisabledDiagnostic) {
+                console.log('[AI Assistant] Send button disabled:', diagnostic);
+            }
+            this.lastSendDisabledDiagnostic = reasons.length ? diagnosticKey : null;
             $btn
                 .text(isQueueing ? 'Queue' : $btn.data('default-text'))
                 .attr('title', isQueueing ? 'Queue message' : '')
-                .prop('disabled', !this.isProviderConfigured() || this.isUploadingFiles);
+                .prop('disabled', !providerAvailable || this.isUploadingFiles);
             this.updateModelSelectLockState();
         },
 
