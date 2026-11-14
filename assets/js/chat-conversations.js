@@ -329,11 +329,10 @@
         },
 
         getAreaChangeSuggestionHtml: function(isContinuationOffer) {
-            // translators: 1: Opening link tag, 2: Closing link tag.
+            // translators: %s: Link target and attributes for starting a new chat.
             var suggestion = sprintf(
-                this.escapeHtml(__('%1$sStart a new chat%2$s, or continue here.', 'ai-assistant')),
-                '<a href="#" id="ai-assistant-area-new-chat">',
-                '</a>'
+                __('<a href="%s">Start a new chat</a>, or continue here.', 'ai-assistant'),
+                '#" id="ai-assistant-area-new-chat'
             );
             return isContinuationOffer
                 ? this.escapeHtml(__('Previous chat loaded.', 'ai-assistant')) + ' ' + suggestion

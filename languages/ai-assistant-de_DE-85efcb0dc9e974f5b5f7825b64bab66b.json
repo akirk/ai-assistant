@@ -1,5 +1,5 @@
 {
-    "translation-revision-date": "2026-11-14T12:11:28+00:00",
+    "translation-revision-date": "2026-11-14T12:12:49+00:00",
     "generator": "WP-CLI\/2.13.0-alpha",
     "source": "assets\/js\/chat-conversations.js",
     "domain": "messages",
@@ -13,8 +13,8 @@
             "Loading...": [
                 "Wird geladen..."
             ],
-            "%1$sStart a new chat%2$s, or continue here.": [
-                "%1$sNeuen Chat starten%2$s oder hier fortfahren."
+            "<a href=\"%s\">Start a new chat<\/a>, or continue here.": [
+                "<a href=\"%s\">Neuen Chat starten<\/a> oder hier fortfahren."
             ],
             "Previous chat loaded.": [
                 "Vorheriger Chat geladen."
