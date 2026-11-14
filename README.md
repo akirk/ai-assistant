@@ -115,6 +115,8 @@ Enable Auto-approve to skip confirmation dialogs for tool execution. It starts e
 
 ### Conversation Exports
 
+Conversations retain the latest chat request JSON after provider formatting and context compaction, with its provider and timestamp. Each request replaces the previous snapshot, including retries. JSON exports include it as `last_provider_request` (`json` holds the exact request body); title and summary generation do not replace it. HTTP headers and authentication credentials are not captured.
+
 Use the export button in a conversation to download the current chat. Built-in formats are Markdown, HTML, and JSON, all registered through the same export filter API that other plugins use. The export dropdown also includes an "Include tool calls" checkbox for generating a fuller technical transcript.
 
 Other plugins can add formats with `ai_assistant_conversation_export_formats` and generate content with `ai_assistant_conversation_export_{$format}`. This supports binary formats such as EPUB because the export filter runs server-side and controls the MIME type, extension, filename, and content.

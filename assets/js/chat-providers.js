@@ -653,6 +653,18 @@
             return !!(config && config.proxySupported && config.serverSideAuth);
         },
 
+        serializeProviderRequest: function(provider, payload) {
+            var json = JSON.stringify(payload);
+            this.lastProviderRequest = {
+                provider: provider,
+                timestamp: new Date().toISOString(),
+                json: json
+            };
+            // Persist even if the request fails before an assistant reply exists.
+            if (this.saveConversation) this.saveConversation(true);
+            return json;
+        },
+
         fetchLLMProvider: function(provider, endpoint, headers, payload, signal) {
             // GPT-6 Sol/Luna default to reasoning, which Chat Completions cannot
             // combine with function tools. Apply this before either transport.
@@ -664,6 +676,10 @@
                 payload = $.extend({}, payload, { reasoning_effort: 'none' });
             }
 
+            var requestJson = payload && payload.stream
+                ? this.serializeProviderRequest(provider, payload)
+                : JSON.stringify(payload);
+
             if (this.shouldProxyProvider(provider)) {
                 var separator = aiAssistantConfig.ajaxUrl.indexOf('?') === -1 ? '?' : '&';
                 var proxyUrl = aiAssistantConfig.ajaxUrl +
@@ -673,7 +689,7 @@
                     '&provider=' +
                     encodeURIComponent(provider);
                 var params = new URLSearchParams();
-                params.append('body', JSON.stringify(payload));
+                params.append('body', requestJson);
 
                 return fetch(proxyUrl, {
                     method: 'POST',
@@ -686,7 +702,7 @@
             return fetch(endpoint, {
                 method: 'POST',
                 headers: headers,
-                body: JSON.stringify(payload),
+                body: requestJson,
                 signal: signal
             });
         },
@@ -3375,7 +3391,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(buildPayload(requestMessages)),
+                    body: this.serializeProviderRequest('local', buildPayload(requestMessages)),
                     signal: abortSignal
                 });
 
@@ -3386,7 +3402,7 @@
                         headers: {
                             'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify(buildPayload(requestMessages)),
+                        body: this.serializeProviderRequest('local', buildPayload(requestMessages)),
                         signal: abortSignal
                     });
                 }
@@ -3405,7 +3421,7 @@
                         response = await fetch(endpoint + (useOllamaApi ? '/api/chat' : '/v1/chat/completions'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(buildPayload(requestMessages)),
+                            body: this.serializeProviderRequest('local', buildPayload(requestMessages)),
                             signal: abortSignal
                         });
 
@@ -3414,7 +3430,7 @@
                             response = await fetch(endpoint + '/api/chat', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(buildPayload(requestMessages)),
+                                body: this.serializeProviderRequest('local', buildPayload(requestMessages)),
                                 signal: abortSignal
                             });
                         }
