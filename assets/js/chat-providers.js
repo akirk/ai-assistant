@@ -420,7 +420,7 @@
         },
 
         sendMessage: async function() {
-            if (!this.isProviderConfigured()) return;
+            if (!this.canSendToConversation()) return;
 
             var $input = $('#ai-assistant-input');
             var message = $input.val().trim();
@@ -1324,6 +1324,79 @@
             return undefined;
         },
 
+        isRepeatedToolRequest: function(result, provider) {
+            if (!result || !result.id) return false;
+            var messages = this.messages || [];
+            // A fresh user request may intentionally repeat earlier work.
+            var start = 0;
+            messages.forEach(function(message, index) {
+                if (message.role === 'user' && !this.isPureAnthropicToolResultMessage(message)) {
+                    start = index;
+                }
+            }, this);
+            messages = messages.slice(start);
+            var calls = this.collectToolCallsById(messages, provider);
+            var current = calls[result.id];
+            if (!current) return false;
+
+            function canonical(value) {
+                if (Array.isArray(value)) return value.map(canonical);
+                if (!value || typeof value !== 'object') return value;
+                var sorted = {};
+                Object.keys(value).sort().forEach(function(key) {
+                    sorted[key] = canonical(value[key]);
+                });
+                return sorted;
+            }
+            var signature = JSON.stringify(canonical(current.input));
+            var matches = function(id) {
+                var previous = calls[id];
+                return id !== result.id && previous && previous.name === current.name &&
+                    JSON.stringify(canonical(previous.input)) === signature;
+            };
+            return messages.some(function(message) {
+                if (provider === 'anthropic' && Array.isArray(message.content)) {
+                    return message.content.some(function(block) {
+                        return block.type === 'tool_result' && matches(block.tool_use_id);
+                    });
+                }
+                return message.role === 'tool' && matches(message.tool_call_id);
+            });
+        },
+
+        compactRepeatedToolResult: function(result, provider) {
+            var value = result ? result.result : null;
+            if (!this.isRepeatedToolRequest(result, provider)) return value;
+            var calls = this.collectToolCallsById(this.messages, provider);
+            var call = calls[result.id];
+            var isAbilityList = call.name === 'list_abilities' ||
+                (call.name === 'ability' && (call.input.action || 'list') === 'list');
+            var compacted;
+            if (isAbilityList && value && Array.isArray(value.abilities)) {
+                compacted = {
+                    abilities: value.abilities.map(function(ability) {
+                        var annotations = ability.annotations || {};
+                        return {
+                            id: ability.id || ability.name,
+                            description: this.truncateProviderString(ability.description || '', 240),
+                            instructions: this.truncateProviderString(annotations.instructions || ability.instructions || '', 300),
+                            readonly: annotations.readonly === undefined ? ability.readonly : annotations.readonly
+                        };
+                    }, this),
+                    count: value.count,
+                    filter: value.filter,
+                    instruction: 'This identical ability list was already requested this turn. Choose an ID from this index; use ability action:get for its input schema, then execute it. Do not list the same category again.'
+                };
+            } else {
+                compacted = this.compactProviderValue(value, this.getToolResultCompactLimits('aggressive'), 0);
+                // Small results already fit; do not inflate them with metadata.
+                if (this.safeJsonStringify(compacted).length >= this.safeJsonStringify(value).length) return value;
+            }
+            return this.addToolInspectionHint(compacted, result.id, {
+                originalResultChars: this.safeJsonStringify(value).length
+            });
+        },
+
         stringifyToolResultForProvider: function(result, providerOrMode, mode, options) {
             options = options || {};
             mode = this.getToolResultStringifyMode(providerOrMode, mode);
@@ -1404,7 +1477,9 @@
             var requestTextLimit = Math.max(limits.maxStringChars, Math.floor(limits.maxResultChars / 2));
             var compacted = null;
 
-            if (typeof message.content === 'string' && message.content.length > requestTextLimit) {
+            // Tool results must go through JSON-aware compaction below. Cutting
+            // their serialized text here can insert a marker inside a JSON string.
+            if (message.role !== 'tool' && typeof message.content === 'string' && message.content.length > requestTextLimit) {
                 compacted = $.extend({}, message, {
                     content: this.truncateProviderString(message.content, requestTextLimit)
                 });

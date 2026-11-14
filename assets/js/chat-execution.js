@@ -2798,9 +2798,12 @@
         },
 
         stringifyResolvedToolResultForProvider: function(result, provider) {
+            var value = this.compactRepeatedToolResult
+                ? this.compactRepeatedToolResult(result, provider)
+                : (result ? result.result : null);
             if (this.stringifyToolResultForProvider) {
                 return this.stringifyToolResultForProvider(
-                    result ? result.result : null,
+                    value,
                     provider,
                     undefined,
                     { toolUseId: result && result.id }
@@ -2808,10 +2811,10 @@
             }
 
             if (this.safeJsonStringify) {
-                return this.safeJsonStringify(result ? result.result : null);
+                return this.safeJsonStringify(value);
             }
 
-            return JSON.stringify(result ? result.result : null);
+            return JSON.stringify(value);
         },
 
         getResolvedToolResultForProviderDisplay: function(result, provider) {

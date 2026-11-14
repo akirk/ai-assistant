@@ -37,6 +37,28 @@ function loadCore(options) {
     return context.window.aiAssistant;
 }
 
+describe('conversation provider availability', () => {
+    it('allows a saved provider even when the default provider is unavailable', () => {
+        const assistant = loadCore();
+        assistant.conversationProvider = 'saved-provider';
+        assistant._isProviderAvailable = id => id === 'saved-provider';
+        assistant.isProviderConfigured = () => false;
+        assert.equal(assistant.canSendToConversation(), true);
+        assistant.pendingNewChat = true;
+        assert.equal(assistant.canSendToConversation(), false);
+    });
+
+    it('allows fallback to an available configured provider', () => {
+        const assistant = loadCore();
+        assistant.conversationProvider = 'unreachable-local';
+        assistant._isProviderAvailable = () => false;
+        assistant.isProviderConfigured = () => true;
+        assert.equal(assistant.canSendToConversation(), true);
+        assistant.isProviderConfigured = () => false;
+        assert.equal(assistant.canSendToConversation(), false);
+    });
+});
+
 function createElement(tagName, attrs, children) {
     attrs = attrs || {};
     children = children || {};

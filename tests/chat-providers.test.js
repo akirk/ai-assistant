@@ -64,6 +64,82 @@ function createInputJQuery(initialValue) {
     return { jQueryStub, state };
 }
 
+describe('repeated tool result compaction', function() {
+    function setup(provider) {
+        const assistant = loadProvidersMixin();
+        const input = { action: 'list', category: 'cook-app' };
+        function call(id, args) {
+            return provider === 'anthropic'
+                ? { role: 'assistant', content: [{ type: 'tool_use', id, name: 'ability', input: args }] }
+                : { role: 'assistant', tool_calls: [{ id, function: { name: 'ability', arguments: JSON.stringify(args) } }] };
+        }
+        const completed = provider === 'anthropic'
+            ? { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'first', content: '{}' }] }
+            : { role: 'tool', tool_call_id: 'first', content: '{}' };
+        assistant.messages = [
+            { role: 'user', content: 'What is my latest recipe?' },
+            call('first', input), completed,
+            call('repeat', { category: 'cook-app', action: 'list' })
+        ];
+        const result = {
+            id: 'repeat',
+            result: {
+                abilities: [{
+                    id: 'cookbook/search-recipes',
+                    annotations: { readonly: true, instructions: 'Call without input for latest recipes.' },
+                    input_schema: { description: 'x'.repeat(20000) }
+                }],
+                count: 1, filter: 'cook-app'
+            }
+        };
+        return { assistant, result };
+    }
+
+    for (const provider of ['openai', 'local', 'anthropic']) {
+        it('shrinks repeated ability lists for ' + provider + ' while preserving IDs and inspection access', function() {
+            const { assistant, result } = setup(provider);
+            const original = JSON.stringify(result);
+            assert.equal(assistant.isRepeatedToolRequest(result, provider), true);
+            const compacted = assistant.compactRepeatedToolResult(result, provider);
+            assert.ok(JSON.stringify(compacted).length < original.length / 2);
+            assert.equal(compacted.abilities[0].id, 'cookbook/search-recipes');
+            assert.equal(compacted.abilities[0].readonly, true);
+            assert.equal(compacted._ai_assistant_compacted.inspect_tool_result.tool_use_id, 'repeat');
+            assert.equal(JSON.stringify(result), original);
+        });
+
+        it('does not compact first calls or calls in a new user turn for ' + provider, function() {
+            const { assistant, result } = setup(provider);
+            assert.equal(assistant.isRepeatedToolRequest({ id: 'first' }, provider), false);
+            assistant.messages.splice(3, 0, { role: 'user', content: 'List them again.' });
+            assert.equal(assistant.isRepeatedToolRequest(result, provider), false);
+            assert.equal(assistant.compactRepeatedToolResult(result, provider), result.result);
+        });
+
+        it('does not treat different arguments as a repeat for ' + provider, function() {
+            const { assistant, result } = setup(provider);
+            if (provider === 'anthropic') {
+                assistant.messages[1].content[0].input.category = 'other';
+            } else {
+                assistant.messages[1].tool_calls[0].function.arguments = '{"action":"list","category":"other"}';
+            }
+            assert.equal(assistant.isRepeatedToolRequest(result, provider), false);
+        });
+    }
+
+    it('uses stricter structural compaction for other repeated tool results', function() {
+        const { assistant, result } = setup('local');
+        assistant.messages.filter(m => m.tool_calls).forEach(m => {
+            m.tool_calls[0].function.name = 'read_file';
+            m.tool_calls[0].function.arguments = '{"path":"example.txt"}';
+        });
+        result.result = { content: 'x'.repeat(20000) };
+        const compacted = assistant.compactRepeatedToolResult(result, 'local');
+        assert.ok(JSON.stringify(compacted).length < JSON.stringify(result.result).length);
+        assert.equal(compacted._ai_assistant_compacted.inspect_tool_result.tool_use_id, 'repeat');
+    });
+});
+
 describe('Anthropic message repair', function() {
     it('removes Anthropic thinking blocks from request messages', function() {
         const assistant = Object.assign(loadProvidersMixin(), {
@@ -1616,6 +1692,37 @@ describe('provider request message sanitization', function() {
         assert.ok(assistant.estimateProviderRequestChars(compacted) <= 32768);
     });
 
+    it('preserves JSON tool results between the text and tool-result limits', function() {
+        const assistant = loadProvidersMixin();
+        const content = JSON.stringify({
+            abilities: [{ id: 'cookbook/search-recipes', description: 'x'.repeat(20000) }],
+            count: 1
+        });
+        for (const provider of ['local', 'openai']) {
+            const message = { role: 'tool', tool_call_id: 'list_recipes', content };
+            const output = assistant.compactProviderMessageForRequest(message, provider);
+            assert.equal(output.content, content);
+            assert.equal(JSON.parse(output.content).abilities[0].id, 'cookbook/search-recipes');
+            assert.equal(message.content, content);
+        }
+    });
+
+    it('compacts oversized JSON tool results structurally in normal and recovery requests', function() {
+        const assistant = loadProvidersMixin();
+        const message = {
+            role: 'tool',
+            tool_call_id: 'large_result',
+            content: JSON.stringify({ result: { content: 'x'.repeat(60000) } })
+        };
+        for (const mode of [undefined, 'recovery']) {
+            const output = assistant.compactProviderMessageForRequest(message, 'local', mode);
+            const result = JSON.parse(output.content);
+            assert.ok(assistant.isCompactedToolResultValue(result));
+            assert.ok(output.content.length <= assistant.getToolResultCompactLimits(mode).maxResultChars);
+            assert.ok(message.content.length > output.content.length);
+        }
+    });
+
     it('uses stricter compaction limits for provider recovery requests', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
@@ -2036,7 +2143,7 @@ describe('queued user messages', function() {
             isUploadingFiles: false,
             queuedMessages: [],
             providerCalled: false,
-            isProviderConfigured() {
+            canSendToConversation() {
                 return true;
             },
             addToDraftHistory(message) {
