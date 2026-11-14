@@ -2,20 +2,19 @@ name: Build dist branch
 
 on:
   push:
-    branches-ignore:
-      - 'dist/**'
-  pull_request:
+    branches:
+      - main
+  pull_request_target:
     types:
       - opened
       - synchronize
       - reopened
-  delete:
 
 permissions:
   contents: read
 
 concurrency:
-  group: build-dist-${{ github.event_name }}-${{ github.ref_name || github.event.ref || github.event.pull_request.head.ref }}
+  group: build-dist-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref_name || github.event.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -28,7 +27,7 @@ jobs:
       DIST_REF: dist/${{ github.ref_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -38,72 +37,188 @@ jobs:
 
       - name: Install production dependencies
         if: hashFiles('composer.json') != ''
-        run: composer install --no-dev --optimize-autoloader --no-interaction
+        run: composer install --no-dev --optimize-autoloader --no-interaction --no-scripts --no-plugins
 
-      - name: Point blueprint at dist branch
+      - name: Stamp plugin version with source commit
         run: |
-          php -r '
-          $path = "blueprint.json";
-          $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
-          foreach ($data["steps"] as &$step) {
-              if (
-                  ($step["step"] ?? null) === "installPlugin" &&
-                  ($step["pluginData"]["resource"] ?? null) === "git:directory" &&
-                  isset($step["pluginData"]["ref"])
-              ) {
-                  $step["pluginData"]["ref"] = getenv("DIST_REF");
+          PLUGIN_FILE="$(php -r '
+          foreach ( glob("*.php") as $file ) {
+              $contents = file_get_contents($file);
+              if ( preg_match("/^\\s*\\*\\s*Plugin Name:/mi", $contents) ) {
+                  echo $file;
+                  exit(0);
               }
           }
-          unset($step);
-          file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+          fwrite(STDERR, "Could not find plugin main file.\n");
+          exit(1);
+          ')"
+          SOURCE_COMMIT="$(git rev-parse --short=12 HEAD)"
+          echo "PLUGIN_FILE=${PLUGIN_FILE}" >> "${GITHUB_ENV}"
+          PLUGIN_FILE="${PLUGIN_FILE}" SOURCE_COMMIT="${SOURCE_COMMIT}" php -r '
+          $path = getenv("PLUGIN_FILE");
+          $contents = file_get_contents($path);
+          $commit = getenv("SOURCE_COMMIT");
+          $updated = preg_replace_callback(
+              "/^(\\s*\\*\\s*Version:\\s*)([^\\r\\n]+)/mi",
+              static function ( $matches ) use ( $commit ) {
+                  $base_version = preg_replace("/\\+[0-9a-f]+$/i", "", trim($matches[2]));
+                  return $matches[1] . $base_version . "+" . $commit;
+              },
+              $contents,
+              1,
+              $count
+          );
+          if ( 1 !== $count ) {
+              fwrite(STDERR, "Could not find plugin Version header in {$path}.\n");
+              exit(1);
+          }
+          file_put_contents($path, $updated);
+          '
+
+      - name: Point blueprints at dist branch
+        run: |
+          php -r '
+          $dist_ref = getenv("DIST_REF");
+          $repo_url = "https://github.com/" . getenv("GITHUB_REPOSITORY");
+          foreach (array_merge(glob("blueprint*.json") ?: [], ["demo.json"]) as $path) {
+              if (!is_file($path)) {
+                  continue;
+              }
+              $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+              foreach ($data["steps"] as &$step) {
+                  if (
+                      ($step["step"] ?? null) === "installPlugin" &&
+                      ($step["pluginData"]["resource"] ?? null) === "git:directory" &&
+                      ($step["pluginData"]["url"] ?? null) === $repo_url &&
+                      isset($step["pluginData"]["ref"])
+                  ) {
+                      $step["pluginData"]["ref"] = $dist_ref;
+                  }
+              }
+              unset($step);
+              file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+          }
           '
 
       - name: Push to dist branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add blueprint.json
+          git add "${PLUGIN_FILE}"
+          for file in blueprint*.json demo.json; do
+            if [ -f "${file}" ]; then
+              git add "${file}"
+            fi
+          done
           if [ -d vendor ]; then
             git add -f vendor/
           fi
           git diff --cached --quiet || git commit -m "Build: add vendor"
-          git push origin HEAD:refs/heads/${DIST_REF} --force
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/${DIST_REF} --force
 
   update-pr-description:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
     steps:
       - name: Add Playground link to PR description
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         with:
           script: |
+            const headRepo = process.env.HEAD_REPO;
+            const headSha = process.env.HEAD_SHA;
+            const [headOwner, headName] = headRepo.split('/');
+            const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
+            const headUrl = `https://github.com/${headRepo}`;
+
+            const getJsonFile = async (path) => {
+              const response = await github.rest.repos.getContent({
+                owner: headOwner,
+                repo: headName,
+                path,
+                ref: headSha,
+              });
+
+              if (Array.isArray(response.data) || response.data.type !== 'file' || !response.data.content) {
+                throw new Error(`${path} is not a file`);
+              }
+
+              return JSON.parse(Buffer.from(response.data.content, response.data.encoding || 'base64').toString('utf8'));
+            };
+
+            const pointPluginAtPr = (blueprint) => {
+              const copy = JSON.parse(JSON.stringify(blueprint));
+              for (const step of copy.steps || []) {
+                const pluginData = step.pluginData || {};
+                if (
+                  step.step === 'installPlugin' &&
+                  pluginData.resource === 'git:directory' &&
+                  pluginData.url === repoUrl
+                ) {
+                  pluginData.url = headUrl;
+                  pluginData.ref = headSha;
+                  pluginData.refType = 'commit';
+                }
+              }
+              return copy;
+            };
+
+            const blueprint = pointPluginAtPr(await getJsonFile('blueprint.json'));
+            const minimizeBlueprint = (data) => {
+              const copy = JSON.parse(JSON.stringify(data));
+              delete copy.$schema;
+              delete copy.meta;
+              return copy;
+            };
+            const playgroundUrl = (data) => {
+              const dataUrl = `data:application/json;base64,${Buffer.from(JSON.stringify(minimizeBlueprint(data))).toString('base64')}`;
+              return `https://playground.wordpress.net/?blueprint-url=${encodeURIComponent(dataUrl)}`;
+            };
+            const links = [`[Try this PR](${playgroundUrl(blueprint)})`];
+
+            try {
+              const standalone = await getJsonFile('blueprint-standalone.json');
+              links.push(`[Try standalone](${playgroundUrl(pointPluginAtPr(standalone))})`);
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+            }
+
+            try {
+              const demo = await getJsonFile('demo.json');
+              links.push(`[Try with demo conversations](${playgroundUrl(pointPluginAtPr(demo))})`);
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+            }
+
             const markerStart = '<!-- playground-link:start -->';
             const markerEnd = '<!-- playground-link:end -->';
-            const distRef = `dist/${process.env.HEAD_REF}`;
-            const playgroundUrl = `https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/refs/heads/${distRef}/blueprint.json`;
             const playgroundSection = [
               markerStart,
               '## WordPress Playground',
               '',
-              'Test this PR in WordPress Playground:',
-              '',
-              playgroundUrl,
-              '',
-              `The linked blueprint loads the generated \`${distRef}\` branch, including Composer dependencies.`,
+              `Test this PR in WordPress Playground: ${links.join(' · ')}`,
               markerEnd,
             ].join('\n');
 
             const { owner, repo } = context.repo;
             const pull_number = context.issue.number;
             const currentBody = context.payload.pull_request.body || '';
-            const existingSection = /<!-- (?:[a-z0-9-]+-)?playground-link:start -->[\s\S]*?<!-- (?:[a-z0-9-]+-)?playground-link:end -->/;
-            const body = existingSection.test(currentBody)
-              ? currentBody.replace(existingSection, playgroundSection)
-              : [currentBody.trimEnd(), playgroundSection].filter(Boolean).join('\n\n');
+            // Matches any current or historical marker in this family (e.g. a stale
+            // "demo-playground-link" block from before links were consolidated), so
+            // every run leaves exactly one section behind, however many existed before.
+            const existingSections = /<!-- (?:[a-z0-9-]+-)?playground-link:start -->[\s\S]*?<!-- (?:[a-z0-9-]+-)?playground-link:end -->/g;
+            const withoutSections = currentBody.replace(existingSections, '').replace(/\n{3,}/g, '\n\n').trim();
+            const body = [withoutSections, playgroundSection].filter(Boolean).join('\n\n');
 
             await github.rest.pulls.update({
               owner,
@@ -111,60 +226,3 @@ jobs:
               pull_number,
               body,
             });
-
-  delete-dist:
-    if: github.event_name == 'delete' && github.event.ref_type == 'branch' && !startsWith(github.event.ref, 'dist/')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - name: Delete dist branch and remove stale PR links
-        uses: actions/github-script@v7
-        env:
-          BRANCH_NAME: ${{ github.event.ref }}
-        with:
-          script: |
-            const markerPattern = /<!-- (?:[a-z0-9-]+-)?playground-link:start -->[\s\S]*?<!-- (?:[a-z0-9-]+-)?playground-link:end -->/;
-            const { owner, repo } = context.repo;
-            const branchName = process.env.BRANCH_NAME;
-
-            try {
-              await github.rest.git.deleteRef({
-                owner,
-                repo,
-                ref: `heads/dist/${branchName}`,
-              });
-            } catch (error) {
-              if (error.status !== 404 && error.status !== 422) {
-                throw error;
-              }
-            }
-
-            const head = `${owner}:${process.env.BRANCH_NAME}`;
-            const pulls = await github.paginate(github.rest.pulls.list, {
-              owner,
-              repo,
-              state: 'all',
-              head,
-              per_page: 100,
-            });
-
-            for (const pull of pulls) {
-              const currentBody = pull.body || '';
-              if (!markerPattern.test(currentBody)) {
-                continue;
-              }
-
-              const body = currentBody
-                .replace(markerPattern, '')
-                .replace(/\n{3,}/g, '\n\n')
-                .trim();
-
-              await github.rest.pulls.update({
-                owner,
-                repo,
-                pull_number: pull.number,
-                body,
-              });
-            }

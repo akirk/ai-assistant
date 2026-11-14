@@ -1,6 +1,10 @@
 (function($) {
     'use strict';
 
+    var __ = window.wp.i18n.__;
+    var _n = window.wp.i18n._n;
+    var sprintf = window.wp.i18n.sprintf;
+
     $.extend(window.aiAssistant, {
         fileContextEventsBound: false,
         fileDragDepth: 0,
@@ -291,17 +295,18 @@
             if (this.isUploadingFiles) {
                 html += '<div class="ai-attachment-chip ai-attachment-uploading">' +
                     '<span class="ai-attachment-spinner"></span>' +
-                    '<span>' + this.escapeHtml(this.sprintf(this._n('Reading %d file...', 'Reading %d files...', this.pendingUploadCount), this.pendingUploadCount)) + '</span>' +
+                    /* translators: %d: Number of attached files being read. */
+                    '<span>' + this.escapeHtml(sprintf(_n('Reading %d file...', 'Reading %d files...', this.pendingUploadCount, 'ai-assistant'), this.pendingUploadCount)) + '</span>' +
                     '</div>';
             }
 
             attachments.forEach(function(file, index) {
-                var name = file.original_name || file.name || self.__('Attachment');
-                var title = file.compacted ? self.__('Compacted preview') : self.__('Private text context');
+                var name = file.original_name || file.name || __('Attachment', 'ai-assistant');
+                var title = file.compacted ? __('Compacted preview', 'ai-assistant') : __('Private text context', 'ai-assistant');
                 html += '<div class="ai-attachment-chip">' +
                     '<span class="ai-attachment-name" title="' + self.escapeHtml(title) + '">' + self.escapeHtml(name) + '</span>' +
-                    '<span class="ai-attachment-size">' + self.formatAttachmentBytes(file.size || 0) + (file.compacted ? ' ' + self.escapeHtml(self.__('compacted')) : '') + '</span>' +
-                    '<button type="button" class="ai-attachment-remove" data-index="' + index + '" title="' + self.escapeHtml(self.__('Remove attachment')) + '">&times;</button>' +
+                    '<span class="ai-attachment-size">' + self.formatAttachmentBytes(file.size || 0) + (file.compacted ? ' ' + self.escapeHtml(__('compacted', 'ai-assistant')) : '') + '</span>' +
+                    '<button type="button" class="ai-attachment-remove" data-index="' + index + '" title="' + self.escapeHtml(__('Remove attachment', 'ai-assistant')) + '">&times;</button>' +
                     '</div>';
             });
 

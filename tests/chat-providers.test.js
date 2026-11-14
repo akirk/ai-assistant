@@ -25,12 +25,16 @@ function loadProvidersMixin(extraContext) {
     };
     Object.assign(context, extraContext || {});
 
+    require('./wp-i18n')(context);
     vm.createContext(context);
     const source = fs.readFileSync(
         path.join(__dirname, '../assets/js/chat-providers.js'),
         'utf8'
     );
     vm.runInContext(source, context);
+    if (extraContext && extraContext.includeExecution) {
+        vm.runInContext(fs.readFileSync(path.join(__dirname, '../assets/js/chat-execution.js'), 'utf8'), context);
+    }
     return aiAssistant;
 }
 
@@ -64,7 +68,220 @@ function createInputJQuery(initialValue) {
     return { jQueryStub, state };
 }
 
+describe('repeated tool result compaction', function() {
+    function setup(provider) {
+        const assistant = loadProvidersMixin();
+        const input = { action: 'list', category: 'cook-app' };
+        function call(id, args) {
+            return provider === 'anthropic'
+                ? { role: 'assistant', content: [{ type: 'tool_use', id, name: 'ability', input: args }] }
+                : { role: 'assistant', tool_calls: [{ id, function: { name: 'ability', arguments: JSON.stringify(args) } }] };
+        }
+        const completed = provider === 'anthropic'
+            ? { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'first', content: '{}' }] }
+            : { role: 'tool', tool_call_id: 'first', content: '{}' };
+        assistant.messages = [
+            { role: 'user', content: 'What is my latest recipe?' },
+            call('first', input), completed,
+            call('repeat', { category: 'cook-app', action: 'list' })
+        ];
+        const result = {
+            id: 'repeat',
+            result: {
+                abilities: [{
+                    id: 'cookbook/search-recipes',
+                    annotations: { readonly: true, instructions: 'Call without input for latest recipes.' },
+                    input_schema: { description: 'x'.repeat(20000) }
+                }],
+                count: 1, filter: 'cook-app'
+            }
+        };
+        return { assistant, result };
+    }
+
+    for (const provider of ['openai', 'local', 'anthropic']) {
+        it('shrinks repeated ability lists for ' + provider + ' while preserving IDs and inspection access', function() {
+            const { assistant, result } = setup(provider);
+            const original = JSON.stringify(result);
+            assert.equal(assistant.isRepeatedToolRequest(result, provider), true);
+            const compacted = assistant.compactRepeatedToolResult(result, provider);
+            assert.ok(JSON.stringify(compacted).length < original.length / 2);
+            assert.equal(compacted.abilities[0].id, 'cookbook/search-recipes');
+            assert.equal(compacted.abilities[0].readonly, true);
+            assert.equal(compacted._ai_assistant_compacted.inspect_tool_result.tool_use_id, 'repeat');
+            assert.equal(JSON.stringify(result), original);
+        });
+
+        it('does not compact first calls or calls in a new user turn for ' + provider, function() {
+            const { assistant, result } = setup(provider);
+            assert.equal(assistant.isRepeatedToolRequest({ id: 'first' }, provider), false);
+            assistant.messages.splice(3, 0, { role: 'user', content: 'List them again.' });
+            assert.equal(assistant.isRepeatedToolRequest(result, provider), false);
+            assert.equal(assistant.compactRepeatedToolResult(result, provider), result.result);
+        });
+
+        it('does not treat different arguments as a repeat for ' + provider, function() {
+            const { assistant, result } = setup(provider);
+            if (provider === 'anthropic') {
+                assistant.messages[1].content[0].input.category = 'other';
+            } else {
+                assistant.messages[1].tool_calls[0].function.arguments = '{"action":"list","category":"other"}';
+            }
+            assert.equal(assistant.isRepeatedToolRequest(result, provider), false);
+        });
+    }
+
+    it('uses stricter structural compaction for other repeated tool results', function() {
+        const { assistant, result } = setup('local');
+        assistant.messages.filter(m => m.tool_calls).forEach(m => {
+            m.tool_calls[0].function.name = 'read_file';
+            m.tool_calls[0].function.arguments = '{"path":"example.txt"}';
+        });
+        result.result = { content: 'x'.repeat(20000) };
+        const compacted = assistant.compactRepeatedToolResult(result, 'local');
+        assert.ok(JSON.stringify(compacted).length < JSON.stringify(result.result).length);
+        assert.equal(compacted._ai_assistant_compacted.inspect_tool_result.tool_use_id, 'repeat');
+    });
+});
+
+describe('collapsing repeated read-only requests', function() {
+    function fixture(provider, completed = 2, name = 'find') {
+        const assistant = loadProvidersMixin({ includeExecution: true });
+        const value = { files: [{ path: 'example.txt', content: 'x'.repeat(20000) }] };
+        const messages = [{ role: 'user', content: 'Find the example.' }];
+        function call(id) {
+            return provider === 'anthropic'
+                ? { role: 'assistant', content: [{ type: 'tool_use', id, name, input: { path: 'plugins', text: 'example' } }] }
+                : { role: 'assistant', content: null, tool_calls: [{ id, function: { name, arguments: '{"text":"example","path":"plugins"}' } }] };
+        }
+        function result(id, output = value) {
+            return provider === 'anthropic'
+                ? { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: JSON.stringify(output) }] }
+                : { role: 'tool', tool_call_id: id, content: JSON.stringify(output) };
+        }
+        for (let i = 0; i < completed; i++) messages.push(call('call-' + i), result('call-' + i));
+        assistant.messages = messages;
+        return { assistant, messages, value, call, result };
+    }
+
+    for (const provider of ['openai', 'local', 'anthropic']) {
+        it('replaces the first result and removes duplicate pairs without changing saved history for ' + provider, function() {
+            const { assistant, messages } = fixture(provider);
+            const original = JSON.stringify(messages);
+            const output = assistant.compactProviderMessagesForRequest(messages, provider);
+            const calls = assistant.collectToolCallsById(output, provider);
+            assert.deepEqual(Object.keys(calls), ['call-0']);
+            assert.equal(output[0].content, 'Find the example.');
+            const content = provider === 'anthropic' ? output[2].content[0].content : output[2].content;
+            assert.ok(content.length < 5000);
+            assert.equal(JSON.parse(content)._ai_assistant_compacted.inspect_tool_result.tool_use_id, 'call-0');
+            assert.equal(JSON.stringify(messages), original);
+        });
+
+        it('keeps unrelated calls and assistant text in mixed messages for ' + provider, function() {
+            const { assistant, messages } = fixture(provider);
+            if (provider === 'anthropic') {
+                messages[3].content.unshift({ type: 'text', text: 'Checking another file.' });
+                messages[3].content.push({ type: 'tool_use', id: 'other', name: 'read_file', input: { path: 'other.txt' } });
+                messages[4].content.push({ type: 'tool_result', tool_use_id: 'other', content: '{"content":"other"}' });
+            } else {
+                messages[3].content = 'Checking another file.';
+                messages[3].tool_calls.push({ id: 'other', function: { name: 'read_file', arguments: '{"path":"other.txt"}' } });
+                messages.push({ role: 'tool', tool_call_id: 'other', content: '{"content":"other"}' });
+            }
+            const output = assistant.collapseRepeatedToolRequests(messages, provider);
+            assert.deepEqual(Object.keys(assistant.collectToolCallsById(output, provider)), ['call-0', 'other']);
+            assert.ok(JSON.stringify(output).includes('Checking another file.'));
+        });
+
+        it('reuses results without executing again and warns on the third request for ' + provider, async function() {
+            const { assistant, messages, call, result, value } = fixture(provider, 1);
+            const warnings = [];
+            assistant.addMessage = (...args) => warnings.push(args);
+            messages.push(call('call-1'));
+            const reused = await assistant.executeSingleTool({ id: 'call-1', name: 'find', arguments: { path: 'plugins', text: 'example' } }, provider);
+            assert.equal(reused._reusedToolResult, true);
+            assert.deepEqual(JSON.parse(assistant.stringifyResolvedToolResultForProvider(reused, provider)), value);
+            assert.equal(warnings.length, 0);
+            messages.push(result('call-1'), call('call-2'));
+            await assistant.executeSingleTool({ id: 'call-2', name: 'find', arguments: { path: 'plugins', text: 'example' } }, provider);
+            await assistant.executeSingleTool({ id: 'call-2', name: 'find', arguments: { path: 'plugins', text: 'example' } }, provider);
+            assert.equal(warnings.length, 1);
+            assert.match(warnings[0][1], /context window may be too small/);
+            messages.splice(messages.length - 1, 0, { role: 'user', content: 'Try again.' });
+            assert.equal(assistant.getReusableToolResult({ id: 'call-2', name: 'find', arguments: { path: 'plugins', text: 'example' } }, provider), null);
+        });
+
+        it('preserves repeats after a write or changed read result for ' + provider, function() {
+            const { assistant, messages, result } = fixture(provider);
+            messages[4] = result('call-1', { files: ['changed.txt'] });
+            assert.equal(Object.keys(assistant.collectToolCallsById(assistant.collapseRepeatedToolRequests(messages, provider), provider)).length, 2);
+            const write = provider === 'anthropic'
+                ? { role: 'assistant', content: [{ type: 'tool_use', id: 'write', name: 'write_file', input: { path: 'example.txt', content: 'new' } }] }
+                : { role: 'assistant', tool_calls: [{ id: 'write', function: { name: 'write_file', arguments: '{"path":"example.txt","content":"new"}' } }] };
+            messages.splice(3, 0, write);
+            assert.equal(Object.keys(assistant.collectToolCallsById(assistant.collapseRepeatedToolRequests(messages, provider), provider)).length, 3);
+            assert.equal(assistant.getReusableToolResult({ id: 'next', name: 'find', arguments: { path: 'plugins', text: 'example' } }, provider)._previousRequestCount, 1);
+        });
+    }
+
+    it('never reuses unknown or write-capable tools, and supports read-only extension annotations', function() {
+        const assistant = loadProvidersMixin();
+        for (const name of ['write_file', 'run_php', 'db_query', 'unknown']) {
+            assert.equal(assistant.getReusableToolRequestSignature({ name, arguments: {} }), null);
+        }
+        assistant.getAllToolDefinitions = () => [{ name: 'custom_search', annotations: { readOnlyHint: true } }];
+        assert.ok(assistant.getReusableToolRequestSignature({ name: 'custom_search', arguments: { query: 'example' } }));
+    });
+
+    it('retries failed results and does not collapse requests across user turns', function() {
+        const { assistant, messages, result } = fixture('local');
+        messages[2] = result('call-0', { success: false, error: 'Unavailable' });
+        assert.equal(assistant.collapseRepeatedToolRequests(messages, 'local').length, messages.length);
+        messages.splice(3, 0, { role: 'user', content: 'Search again.' });
+        assert.equal(assistant.collapseRepeatedToolRequests(messages, 'local').length, messages.length);
+    });
+});
+
 describe('Anthropic message repair', function() {
+    it('removes Anthropic thinking blocks from request messages', function() {
+        const assistant = Object.assign(loadProvidersMixin(), {
+            messages: [
+                { role: 'user', content: 'Hello' },
+                {
+                    role: 'assistant',
+                    content: [
+                        { type: 'thinking' },
+                        { type: 'text', text: 'Hi' },
+                        { type: 'redacted_thinking', data: 'opaque' }
+                    ],
+                    _thinking: 'private reasoning'
+                },
+                {
+                    role: 'assistant',
+                    content: [
+                        { type: 'thinking' }
+                    ]
+                },
+                { role: 'user', content: 'Continue' }
+            ],
+            systemPrompt: '',
+            updateTokenCount() {},
+            autoSaveConversation() {}
+        });
+
+        const prepared = assistant.prepareAnthropicMessages();
+
+        assert.equal(JSON.stringify(prepared[1]), JSON.stringify({
+            role: 'assistant',
+            content: [
+                { type: 'text', text: 'Hi' }
+            ]
+        }));
+        assert.equal(prepared.length, 3);
+        assert.equal(prepared[2].content, 'Continue');
+    });
+
     it('inserts an unavailable tool_result before later user text when a tool_use was left unresolved', function() {
         const assistant = loadProvidersMixin();
         const repaired = assistant.repairAnthropicMessages([
@@ -230,14 +447,75 @@ describe('Anthropic message repair', function() {
     });
 });
 
+describe('Unreachable pinned provider fallthrough', function() {
+    function createAssistant(overrides) {
+        return Object.assign(loadProvidersMixin({
+            aiAssistantProviders: {
+                source: 'connectors',
+                available: {
+                    lmstudio: { name: 'LM Studio', type: 'server', browserSupported: true, models: [] },
+                    anthropic: { name: 'Anthropic', type: 'cloud', browserSupported: true, serverSideAuth: true, models: [{ id: 'claude-sonnet-4-6' }] }
+                }
+            }
+        }), {
+            conversationProvider: 'lmstudio',
+            conversationModel: 'local-model',
+            messages: [],
+            buildSystemPrompt() {},
+            setLoading() {},
+            hideToolProgress() {},
+            isConnectorsMode() { return true; },
+            getProviderName(id) { return id; },
+            _providerNeedsBrowserStatus(id) { return id === 'lmstudio'; },
+            ensureBrowserProviderStatus() { return Promise.resolve(); },
+            ensureBrowserProviderStatuses() { return Promise.resolve(); },
+            getModel() { return 'claude-sonnet-4-6'; },
+            addMessage(role, text) { this.logged.push([role, text]); },
+            logged: [],
+            callAnthropic() { this.anthropicCalled = true; },
+            callLocalLLM() { this.localCalled = true; }
+        }, overrides);
+    }
+
+    it('continues with the next available provider when the pinned one is unreachable', async function() {
+        const assistant = createAssistant({
+            _isProviderAvailable(id) { return id === 'anthropic'; },
+            getProvider() { return 'anthropic'; }
+        });
+
+        await assistant.callLLM();
+
+        assert.equal(assistant.anthropicCalled, true);
+        assert.equal(assistant.localCalled, undefined);
+        assert.equal(assistant.conversationProvider, 'anthropic');
+        assert.equal(assistant.conversationModel, 'claude-sonnet-4-6');
+        assert.equal(assistant.logged[0][0], 'system');
+    });
+
+    it('reports an error when no other provider is available either', async function() {
+        const assistant = createAssistant({
+            _isProviderAvailable() { return false; },
+            getProvider() { return 'lmstudio'; }
+        });
+
+        await assistant.callLLM();
+
+        assert.equal(assistant.anthropicCalled, undefined);
+        assert.equal(assistant.localCalled, undefined);
+        assert.equal(assistant.conversationProvider, 'lmstudio');
+        assert.equal(assistant.logged[0][0], 'error');
+    });
+});
+
 describe('Pending approval send guard', function() {
-    it('does not call a provider while tool approvals are pending', function() {
+    it('does not call a provider while tool approvals are pending', async function() {
         const assistant = Object.assign(loadProvidersMixin(), {
             pendingActions: [{ id: 'toolu_1' }],
             conversationProvider: 'anthropic',
             setLoadingCalled: null,
             modalShown: false,
             providerCalled: false,
+            buildSystemPrompt() {},
             setLoading(value) {
                 this.setLoadingCalled = value;
             },
@@ -249,20 +527,21 @@ describe('Pending approval send guard', function() {
             }
         });
 
-        assistant.callLLM();
+        await assistant.callLLM();
 
         assert.equal(assistant.providerCalled, false);
         assert.equal(assistant.modalShown, true);
         assert.equal(assistant.setLoadingCalled, false);
     });
 
-    it('does not call a provider while an approval preflight is pending', function() {
+    it('does not call a provider while an approval preflight is pending', async function() {
         const assistant = Object.assign(loadProvidersMixin(), {
             pendingActions: [],
             pendingToolChecks: 1,
             conversationProvider: 'anthropic',
             setLoadingCalled: null,
             providerCalled: false,
+            buildSystemPrompt() {},
             setLoading(value) {
                 this.setLoadingCalled = value;
             },
@@ -271,7 +550,7 @@ describe('Pending approval send guard', function() {
             }
         });
 
-        assistant.callLLM();
+        await assistant.callLLM();
 
         assert.equal(assistant.providerCalled, false);
         assert.equal(assistant.setLoadingCalled, false);
@@ -476,6 +755,55 @@ describe('provider proxy requests', function() {
     });
 });
 
+describe('OpenAI function tool reasoning compatibility', function() {
+    for (const proxy of [false, true]) {
+        for (const model of ['gpt-6-sol', 'gpt-6-sol-2026-10-01', 'gpt-6-luna']) {
+            it(`disables reasoning for ${model} tools through ${proxy ? 'proxy' : 'direct'} transport`, async function() {
+                let sent;
+                const assistant = loadProvidersMixin({
+                    aiAssistantConfig: { ajaxUrl: '/wp-admin/admin-ajax.php', nonce: 'test' },
+                    fetch(url, options) {
+                        sent = JSON.parse(proxy ? options.body.get('body') : options.body);
+                        return Promise.resolve({ ok: true });
+                    }
+                });
+                assistant.shouldProxyProvider = () => proxy;
+                const payload = {
+                    model,
+                    reasoning_effort: 'medium',
+                    tools: [{ type: 'function', function: { name: 'test_tool' } }],
+                    messages: [{ role: 'user', content: 'hello' }]
+                };
+                await assistant.fetchLLMProvider('openai', '/v1/chat/completions', {}, payload);
+                assert.equal(sent.reasoning_effort, 'none');
+                assert.deepEqual(sent.tools, payload.tools);
+                assert.deepEqual(sent.messages, payload.messages);
+                assert.equal(payload.reasoning_effort, 'medium');
+            });
+        }
+    }
+
+    it('preserves defaults for other models, providers, and requests without function tools', async function() {
+        const assistant = loadProvidersMixin({
+            fetch(url, options) {
+                const sent = JSON.parse(options.body);
+                assert.equal(sent.reasoning_effort, undefined);
+                return Promise.resolve({ ok: true });
+            }
+        });
+        assistant.shouldProxyProvider = () => false;
+        for (const [provider, model, tools] of [
+            ['openai', 'gpt-4o', [{ type: 'function' }]],
+            ['openai', 'gpt-6-sol', []],
+            ['openai', 'gpt-6-sol', undefined],
+            ['openai', 'gpt-6-sol', [{ type: 'custom' }]],
+            ['local', 'gpt-6-sol', [{ type: 'function' }]]
+        ]) {
+            await assistant.fetchLLMProvider(provider, '/v1/chat/completions', {}, { model, tools });
+        }
+    });
+});
+
 describe('provider request message sanitization', function() {
     function readFileResult(content, offset) {
         return JSON.stringify({
@@ -574,6 +902,33 @@ describe('provider request message sanitization', function() {
         assert.equal(parsed.size, originalContent.length);
     });
 
+    it('does not truncate a large string field when the whole tool result fits', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 32768,
+                maxToolResultStringChars: 8192,
+                maxToolResultArrayItems: 5
+            }
+        });
+        const articleContent = 'Article paragraph. '.repeat(700);
+
+        const content = assistant.stringifyToolResultForProvider({
+            ability: 'post-collection/get-article',
+            success: true,
+            article: {
+                id: 3641423,
+                title: 'Brad Garlinghouse Peanut Butter memo',
+                content: articleContent
+            }
+        }, 'anthropic', undefined, { toolUseId: 'toolu_article' });
+        const parsed = JSON.parse(content);
+
+        assert.strictEqual(parsed._truncated, undefined);
+        assert.strictEqual(parsed.article.content, articleContent);
+        assert.ok(content.length < 32768);
+        assert.ok(articleContent.length > 8192);
+    });
+
     it('preserves compacted result shape and tells the model inspect_tool_result can be repeated', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
@@ -612,7 +967,7 @@ describe('provider request message sanitization', function() {
     it('includes original char size metadata on compacted inspectable tool results', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
-                maxToolResultChars: 2048,
+                maxToolResultChars: 4096,
                 maxToolResultStringChars: 1024,
                 maxToolResultArrayItems: 5
             }
@@ -623,7 +978,7 @@ describe('provider request message sanitization', function() {
                 return {
                     id: index + 1,
                     title: 'Session ä ' + (index + 1),
-                    description: 'Details ' + 'x'.repeat(500)
+                    description: 'Details ' + 'x'.repeat(2000)
                 };
             })
         };
@@ -640,10 +995,48 @@ describe('provider request message sanitization', function() {
         assert.strictEqual(parsed.original_result_bytes, undefined);
     });
 
+    it('preserves exact next inspection on compacted text inspect results', function() {
+        const assistant = loadProvidersMixin({
+            aiAssistantConfig: {
+                maxToolResultChars: 4096,
+                maxToolResultStringChars: 400,
+                maxToolResultArrayItems: 5
+            }
+        });
+
+        const nextInspection = {
+            tool_use_id: 'toolu_article',
+            path: 'article.content',
+            offset: 2500,
+            max_length: 2500
+        };
+        const content = assistant.stringifyToolResultForProvider({
+            tool_use_id: 'toolu_article',
+            tool: 'ability',
+            path: 'article.content',
+            type: 'string',
+            chars: 11938,
+            content_format: 'offset_excerpt',
+            content: 'x'.repeat(50000),
+            truncated: true,
+            _truncated: 'This inspect_tool_result response is incomplete. Continue with next_inspection exactly; do not rerun the original broad tool call.',
+            next_offset: 2500,
+            next_inspection: nextInspection,
+            instruction: 'Call inspect_tool_result again with offset to next_offset.'
+        }, 'anthropic', undefined, { toolUseId: 'inspect_article' });
+        const parsed = JSON.parse(content);
+
+        assert.match(parsed._truncated, /Continue with _ai_assistant_compacted\.inspect_tool_result\.next_inspection exactly/);
+        assert.match(parsed._ai_assistant_compacted._truncated, /Continue with _ai_assistant_compacted\.inspect_tool_result\.next_inspection exactly/);
+        assert.deepEqual(parsed._ai_assistant_compacted.inspect_tool_result.next_inspection, nextInspection);
+        assert.strictEqual(parsed._ai_assistant_compacted.inspect_tool_result.offset, 2500);
+        assert.match(parsed._ai_assistant_compacted.inspect_tool_result.instruction, /offset/);
+    });
+
     it('preserves top-level shape in last-resort provider summaries', function() {
         const assistant = loadProvidersMixin();
         const summary = assistant.createProviderValueSummary({
-            ability: 'wordcamp-companion/get-schedule',
+            ability: 'session-planner-for-wordcamps/get-schedule',
             success: true,
             event_url: 'https://europe.wordcamp.org/2026/',
             sessions: Array.from({ length: 20 }, function(_, index) {
@@ -655,7 +1048,7 @@ describe('provider request message sanitization', function() {
             })
         });
 
-        assert.strictEqual(summary.ability, 'wordcamp-companion/get-schedule');
+        assert.strictEqual(summary.ability, 'session-planner-for-wordcamps/get-schedule');
         assert.strictEqual(summary.success, true);
         assert.strictEqual(summary.event_url, 'https://europe.wordcamp.org/2026/');
         assert.ok(Array.isArray(summary.sessions));
@@ -681,6 +1074,7 @@ describe('provider request message sanitization', function() {
             pendingActions: [],
             pendingToolChecks: 0,
             continuingToolLoop: true,
+            buildSystemPrompt() {},
             archiveToolCards() {
                 archiveCalls++;
             },
@@ -743,6 +1137,7 @@ describe('provider request message sanitization', function() {
             conversationProvider: 'anthropic',
             pendingActions: [],
             pendingToolChecks: 0,
+            buildSystemPrompt() {},
             archiveToolCards() {
                 archiveCalls++;
             },
@@ -795,7 +1190,7 @@ describe('provider request message sanitization', function() {
         }, 'anthropic', undefined, { toolUseId: 'inspect_sessions' });
         const parsed = JSON.parse(content);
 
-        assert.strictEqual(parsed._truncated, true);
+        assert.match(parsed._truncated, /Continue with _ai_assistant_compacted\.inspect_tool_result/);
         assert.strictEqual(parsed.path, 'sessions');
         assert.strictEqual(parsed.item_count, 20);
         assert.ok(Array.isArray(parsed.value));
@@ -844,7 +1239,7 @@ describe('provider request message sanitization', function() {
         }, 'anthropic', undefined, { toolUseId: 'inspect_result' });
         const parsed = JSON.parse(content);
 
-        assert.strictEqual(parsed._truncated, true);
+        assert.match(parsed._truncated, /Continue with _ai_assistant_compacted\.inspect_tool_result/);
         assert.strictEqual(parsed.tool_use_id, 'toolu_schedule');
         assert.strictEqual(parsed.path, 'result');
         assert.deepEqual(parsed.available_paths, ['result.sessions', 'result.tracks']);
@@ -1400,6 +1795,37 @@ describe('provider request message sanitization', function() {
         assert.ok(assistant.estimateProviderRequestChars(compacted) <= 32768);
     });
 
+    it('preserves JSON tool results between the text and tool-result limits', function() {
+        const assistant = loadProvidersMixin();
+        const content = JSON.stringify({
+            abilities: [{ id: 'cookbook/search-recipes', description: 'x'.repeat(20000) }],
+            count: 1
+        });
+        for (const provider of ['local', 'openai']) {
+            const message = { role: 'tool', tool_call_id: 'list_recipes', content };
+            const output = assistant.compactProviderMessageForRequest(message, provider);
+            assert.equal(output.content, content);
+            assert.equal(JSON.parse(output.content).abilities[0].id, 'cookbook/search-recipes');
+            assert.equal(message.content, content);
+        }
+    });
+
+    it('compacts oversized JSON tool results structurally in normal and recovery requests', function() {
+        const assistant = loadProvidersMixin();
+        const message = {
+            role: 'tool',
+            tool_call_id: 'large_result',
+            content: JSON.stringify({ result: { content: 'x'.repeat(60000) } })
+        };
+        for (const mode of [undefined, 'recovery']) {
+            const output = assistant.compactProviderMessageForRequest(message, 'local', mode);
+            const result = JSON.parse(output.content);
+            assert.ok(assistant.isCompactedToolResultValue(result));
+            assert.ok(output.content.length <= assistant.getToolResultCompactLimits(mode).maxResultChars);
+            assert.ok(message.content.length > output.content.length);
+        }
+    });
+
     it('uses stricter compaction limits for provider recovery requests', function() {
         const assistant = loadProvidersMixin({
             aiAssistantConfig: {
@@ -1673,6 +2099,75 @@ describe('provider token usage capture', function() {
         assert.strictEqual(attached.usage.cache_read_input_tokens, 20);
     });
 
+    it('stores streamed Anthropic thinking as metadata, not request content blocks', async function() {
+        let payload = null;
+        const thinkingBlocks = [];
+        const assistant = Object.assign(loadProvidersMixin(), {
+            messages: [{ role: 'user', content: 'Hello' }],
+            systemPrompt: 'System',
+            conversationModel: 'claude-test',
+            abortController: null,
+            getModel() {
+                return 'fallback-model';
+            },
+            getApiKey() {
+                return 'test-key';
+            },
+            getProviderEndpoint() {
+                return 'https://example.test/v1/messages';
+            },
+            getTools() {
+                return [];
+            },
+            fetchLLMProvider(provider, endpoint, headers, requestPayload) {
+                payload = requestPayload;
+                return Promise.resolve({ ok: true });
+            },
+            async *readSSEStream() {
+                yield { type: 'content_block_start', content_block: { type: 'thinking' } };
+                yield { type: 'content_block_delta', delta: { type: 'thinking_delta', thinking: 'Inspect first' } };
+                yield { type: 'content_block_stop' };
+                yield { type: 'content_block_start', content_block: { type: 'text', text: '' } };
+                yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hi' } };
+                yield { type: 'content_block_stop' };
+                yield { type: 'message_stop' };
+            },
+            startReply() {
+                return { remove() {} };
+            },
+            updateReply() {},
+            finalizeReply() {},
+            startThinking(options) {
+                const block = { options, content: '', finalized: false };
+                thinkingBlocks.push(block);
+                return block;
+            },
+            updateThinking(block, text) {
+                block.content = text;
+            },
+            finalizeThinking(block) {
+                block.finalized = true;
+            },
+            updateTokenCount() {},
+            autoSaveConversation() {},
+            processToolCalls() {},
+            sendQueuedMessagesIfAvailable() {
+                return false;
+            },
+            setLoading() {}
+        });
+
+        await assistant.callAnthropic();
+
+        assert.strictEqual(payload.messages[0].content, 'Hello');
+        assert.strictEqual(thinkingBlocks[0].content, 'Inspect first');
+        assert.strictEqual(thinkingBlocks[0].finalized, true);
+        assert.strictEqual(assistant.messages[1]._thinking, 'Inspect first');
+        assert.equal(JSON.stringify(assistant.messages[1].content), JSON.stringify([
+            { type: 'text', text: 'Hi' }
+        ]));
+    });
+
     it('requests and stores OpenAI streaming usage on assistant messages', async function() {
         let payload = null;
         let attached = null;
@@ -1751,7 +2246,7 @@ describe('queued user messages', function() {
             isUploadingFiles: false,
             queuedMessages: [],
             providerCalled: false,
-            isProviderConfigured() {
+            canSendToConversation() {
                 return true;
             },
             addToDraftHistory(message) {
@@ -1849,5 +2344,52 @@ describe('queued user messages', function() {
         assert.equal(assistant.messages[1].role, 'user');
         assert.equal(assistant.messages[1].content, 'Next request.');
         assert.equal(typeof assistant.messages[1]._ts, 'number');
+    });
+});
+
+describe('latest provider request JSON', function() {
+    for (const proxy of [false, true]) {
+        it(`captures the final ${proxy ? 'proxied' : 'direct'} body without headers and survives failure`, async function() {
+            let sent;
+            const assistant = loadProvidersMixin({
+                aiAssistantConfig: { ajaxUrl: '/ajax', nonce: 'private-nonce' },
+                fetch: async (url, options) => {
+                    sent = proxy ? options.body.get('body') : options.body;
+                    throw new Error('Network failure');
+                }
+            });
+            assistant.shouldProxyProvider = () => proxy;
+            let saves = 0;
+            assistant.saveConversation = () => { saves++; };
+            const payload = {
+                model: 'gpt-6-sol', stream: true,
+                messages: [{ role: 'user', content: 'latest recipe?' }],
+                tools: [{ type: 'function', function: { name: 'ability', parameters: {} } }]
+            };
+            await assert.rejects(assistant.fetchLLMProvider('openai', '/chat', {
+                Authorization: 'Bearer private-key'
+            }, payload), /Network failure/);
+            assert.equal(assistant.lastProviderRequest.json, sent);
+            assert.equal(JSON.parse(sent).reasoning_effort, 'none');
+            assert.equal(JSON.stringify(JSON.parse(sent).tools[0].function.parameters), '{}');
+            assert.equal(assistant.lastProviderRequest.provider, 'openai');
+            assert.ok(assistant.lastProviderRequest.timestamp);
+            assert.equal(saves, 1);
+            assert.doesNotMatch(JSON.stringify(assistant.lastProviderRequest), /private-key|private-nonce/);
+            payload.messages[0].content = 'changed';
+            assert.equal(JSON.parse(assistant.lastProviderRequest.json).messages[0].content, 'latest recipe?');
+            assistant.serializeProviderRequest('local', { model: 'retry', messages: [] });
+            assert.equal(JSON.parse(assistant.lastProviderRequest.json).model, 'retry');
+            assert.equal(saves, 2);
+        });
+    }
+
+    it('does not replace the chat snapshot for summary requests', async function() {
+        const assistant = loadProvidersMixin({ fetch: async () => ({ ok: true }) });
+        assistant.shouldProxyProvider = () => false;
+        assistant.serializeProviderRequest('local', { model: 'chat', messages: [] });
+        const original = assistant.lastProviderRequest;
+        await assistant.fetchLLMProvider('openai', '/chat', {}, { model: 'summary', messages: [] });
+        assert.equal(assistant.lastProviderRequest, original);
     });
 });

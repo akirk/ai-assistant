@@ -45,7 +45,7 @@ class Chat_UI {
             'ai-assistant-theme-' . $this->get_current_theme_id(),
             $this->get_theme_asset_url('style.css'),
             ['wp-codemirror'],
-            AI_ASSISTANT_VERSION
+            $this->get_theme_asset_version('style.css')
         );
         wp_add_inline_style(
             'ai-assistant-theme-' . $this->get_current_theme_id(),
@@ -55,21 +55,28 @@ class Chat_UI {
         wp_enqueue_script('wp-codemirror');
 
         do_action('wp_ai_provider_browser_status_scripts');
+        wp_enqueue_script(
+            'ai-assistant-browser-status',
+            AI_ASSISTANT_PLUGIN_URL . 'assets/js/browser-status.js',
+            [],
+            filemtime(AI_ASSISTANT_PLUGIN_DIR . 'assets/js/browser-status.js'),
+            false
+        );
         $this->enqueue_client_abilities_assets();
 
         wp_enqueue_script(
             'ai-assistant-chat-core',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-core.js',
-            ['jquery'],
-            AI_ASSISTANT_VERSION,
+            ['jquery', 'wp-i18n'],
+            $this->get_plugin_asset_version('assets/js/chat-core.js'),
             true
         );
 
         wp_enqueue_script(
             'ai-assistant-chat-settings',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-settings.js',
-            ['ai-assistant-chat-core', 'wp-i18n'],
-            AI_ASSISTANT_VERSION,
+            ['ai-assistant-chat-core'],
+            $this->get_plugin_asset_version('assets/js/chat-settings.js'),
             true
         );
 
@@ -77,7 +84,7 @@ class Chat_UI {
             'ai-assistant-chat-tools',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-tools.js',
             ['ai-assistant-chat-core'],
-            AI_ASSISTANT_VERSION,
+            $this->get_plugin_asset_version('assets/js/chat-tools.js'),
             true
         );
 
@@ -85,7 +92,7 @@ class Chat_UI {
             'ai-assistant-chat-files',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-files.js',
             ['ai-assistant-chat-core', 'wp-i18n'],
-            AI_ASSISTANT_VERSION,
+            $this->get_plugin_asset_version('assets/js/chat-files.js'),
             true
         );
 
@@ -93,7 +100,7 @@ class Chat_UI {
             'ai-assistant-chat-providers',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-providers.js',
             ['ai-assistant-chat-core', 'ai-assistant-chat-settings', 'ai-assistant-chat-files'],
-            AI_ASSISTANT_VERSION,
+            $this->get_plugin_asset_version('assets/js/chat-providers.js'),
             true
         );
 
@@ -101,7 +108,7 @@ class Chat_UI {
             'ai-assistant-chat-context',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-context.js',
             ['ai-assistant-chat-core', 'ai-assistant-chat-providers'],
-            AI_ASSISTANT_VERSION,
+            $this->get_plugin_asset_version('assets/js/chat-context.js'),
             true
         );
 
@@ -109,7 +116,7 @@ class Chat_UI {
             'ai-assistant-chat-execution',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-execution.js',
             ['ai-assistant-chat-core', 'wp-i18n'],
-            AI_ASSISTANT_VERSION,
+            $this->get_plugin_asset_version('assets/js/chat-execution.js'),
             true
         );
 
@@ -117,7 +124,7 @@ class Chat_UI {
             'ai-assistant-chat-subagents',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-subagents.js',
             ['ai-assistant-chat-core', 'ai-assistant-chat-tools', 'ai-assistant-chat-providers', 'ai-assistant-chat-execution'],
-            AI_ASSISTANT_VERSION,
+            $this->get_plugin_asset_version('assets/js/chat-subagents.js'),
             true
         );
 
@@ -125,7 +132,7 @@ class Chat_UI {
             'ai-assistant-chat-ui',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-ui.js',
             ['ai-assistant-chat-core', 'ai-assistant-chat-settings', 'ai-assistant-chat-files', 'wp-date', 'wp-i18n'],
-            AI_ASSISTANT_VERSION,
+            $this->get_plugin_asset_version('assets/js/chat-ui.js'),
             true
         );
 
@@ -133,7 +140,7 @@ class Chat_UI {
             'ai-assistant-chat-conversations',
             AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-conversations.js',
             ['ai-assistant-chat-core', 'ai-assistant-chat-ui', 'ai-assistant-chat-providers', 'wp-i18n'],
-            AI_ASSISTANT_VERSION,
+            $this->get_plugin_asset_version('assets/js/chat-conversations.js'),
             true
         );
 
@@ -148,7 +155,7 @@ class Chat_UI {
                 'ai-assistant-chat-subagents',
                 'ai-assistant-chat-providers',
             ],
-            AI_ASSISTANT_VERSION,
+            $this->get_theme_asset_version('script.js'),
             true
         );
 
@@ -158,15 +165,10 @@ class Chat_UI {
 
         $translation_handles = [
             'ai-assistant-chat-core',
-            'ai-assistant-chat-settings',
             'ai-assistant-chat-files',
-            'ai-assistant-chat-providers',
-            'ai-assistant-chat-context',
             'ai-assistant-chat-execution',
-            'ai-assistant-chat-subagents',
             'ai-assistant-chat-ui',
             'ai-assistant-chat-conversations',
-            'ai-assistant-theme-bootstrap',
         ];
 
         foreach ($translation_handles as $handle) {
@@ -203,7 +205,7 @@ class Chat_UI {
                     'import' => 'dynamic',
                 ],
             ],
-            AI_ASSISTANT_VERSION
+            $this->get_plugin_asset_version('assets/js/client-abilities.js')
         );
     }
 
@@ -271,8 +273,9 @@ class Chat_UI {
         $settings = ai_assistant()->settings();
         $current_user = wp_get_current_user();
         $welcome_tip_context = $this->get_welcome_tip_context();
-        $current_ai_changes = $this->get_current_ai_changes_metadata();
-        $system_prompt = $this->add_current_ai_changes_prompt_context(
+        $current_ai_changes = apply_filters('ai_assistant_current_page_context', null);
+        $system_prompt = apply_filters(
+            'ai_assistant_chat_system_prompt',
             $settings->get_system_prompt(),
             $current_ai_changes
         );
@@ -280,12 +283,8 @@ class Chat_UI {
         return [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('ai_assistant_chat'),
-            'fileToolsUrl' => AI_ASSISTANT_PLUGIN_URL . 'file-tools.php',
-            'fileToolsToken' => File_Tool_Auth::create_token(
-                $settings->get_user_permission_level(),
-                $settings->get_user_enabled_tools(),
-                get_current_user_id()
-            ),
+            'fileToolsUrl' => apply_filters('ai_assistant_file_tools_url', ''),
+            'fileToolsToken' => apply_filters('ai_assistant_file_tools_token', ''),
             'toolDefinitions' => $settings->get_client_tool_definitions(),
             'destructiveTools' => $settings->get_destructive_tools(),
             'fileEndpointTools' => $settings->get_file_endpoint_tools(),
@@ -294,8 +293,16 @@ class Chat_UI {
             'autoApprovedAbilities' => ai_assistant_is_playground() ? '*' : $settings->get_auto_approved_abilities(),
             'readonlyAbilities' => Ability_Annotations::get_readonly_ability_ids(),
             'autoApprovedRestApis' => $settings->get_auto_approved_rest_apis(),
+            'localProviderActions' => $settings->get_local_provider_actions(),
+            'isPlayground' => ai_assistant_is_playground(),
             'settingsUrl' => admin_url('options-general.php?page=ai-assistant-settings'),
-            'aiChangesUrl' => admin_url('tools.php?page=ai-changes'),
+            'aiChangesUrl' => apply_filters('ai_assistant_ai_changes_url', ''),
+            'patchAssistantInstall' => !defined('PATCH_ASSISTANT_VERSION') ? [
+                'zipUrl' => 'https://github.com/akirk/patch-assistant/archive/refs/heads/main.zip',
+                'uploadUrl' => admin_url('plugin-install.php'),
+                'playground' => ai_assistant_is_playground(),
+                'playgroundBlueprintUrl' => 'https://raw.githubusercontent.com/akirk/patch-assistant/refs/heads/main/blueprint-install.json',
+            ] : null,
             'conversationExportUrl' => admin_url('admin-post.php?action=ai_assistant_export_conversation'),
             'conversationExportFormats' => ai_assistant()->conversations()->get_export_formats_for_config(),
             'siteUrl' => get_site_url(),
@@ -465,36 +472,6 @@ class Chat_UI {
                 'close' => __('Close', 'ai-assistant'),
             ],
         ];
-    }
-
-    private function get_current_ai_changes_metadata(): ?array {
-        $assistant = function_exists('ai_assistant') ? ai_assistant() : null;
-        if (!is_object($assistant) || !method_exists($assistant, 'plugin_checkout_badge')) {
-            return null;
-        }
-
-        $badge = $assistant->plugin_checkout_badge();
-        if (!is_object($badge) || !method_exists($badge, 'get_current_ai_changes_metadata')) {
-            return null;
-        }
-
-        $metadata = $badge->get_current_ai_changes_metadata();
-        return is_array($metadata) ? $metadata : null;
-    }
-
-    private function add_current_ai_changes_prompt_context(string $system_prompt, ?array $metadata): string {
-        if (empty($metadata['root']) || empty($metadata['url'])) {
-            return $system_prompt;
-        }
-
-        $root = (string) $metadata['root'];
-        $url = (string) $metadata['url'];
-
-        $prompt = $system_prompt . "\n\nCURRENT PAGE FILE CHANGES:\n"
-            . "- The plugin/theme rendering the current window has tracked AI file changes: {$root}.\n"
-            . "- When it is useful to review those changes, you may call navigate with url \"{$url}\" and link_text \"View changed files\". The link should be offered for this current window.\n";
-
-        return $prompt;
     }
 
     /**
@@ -896,7 +873,7 @@ class Chat_UI {
                 [
                     'id' => 'ai-assistant-theme-' . $this->get_current_theme_id() . '-css',
                     'href' => $this->get_theme_asset_url('style.css'),
-                    'version' => AI_ASSISTANT_VERSION,
+                    'version' => $this->get_theme_asset_version('style.css'),
                 ],
             ],
             'inlineStyles' => [
@@ -914,47 +891,57 @@ class Chat_UI {
                 [
                     'id' => 'ai-assistant-chat-core',
                     'src' => AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-core.js',
-                    'version' => AI_ASSISTANT_VERSION,
+                    'version' => $this->get_plugin_asset_version('assets/js/chat-core.js'),
                 ],
                 [
                     'id' => 'ai-assistant-chat-settings',
                     'src' => AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-settings.js',
-                    'version' => AI_ASSISTANT_VERSION,
+                    'version' => $this->get_plugin_asset_version('assets/js/chat-settings.js'),
                 ],
                 [
                     'id' => 'ai-assistant-chat-tools',
                     'src' => AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-tools.js',
-                    'version' => AI_ASSISTANT_VERSION,
+                    'version' => $this->get_plugin_asset_version('assets/js/chat-tools.js'),
                 ],
                 [
                     'id' => 'ai-assistant-chat-files',
                     'src' => AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-files.js',
-                    'version' => AI_ASSISTANT_VERSION,
+                    'version' => $this->get_plugin_asset_version('assets/js/chat-files.js'),
                 ],
                 [
                     'id' => 'ai-assistant-chat-providers',
                     'src' => AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-providers.js',
-                    'version' => AI_ASSISTANT_VERSION,
+                    'version' => $this->get_plugin_asset_version('assets/js/chat-providers.js'),
+                ],
+                [
+                    'id' => 'ai-assistant-chat-context',
+                    'src' => AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-context.js',
+                    'version' => $this->get_plugin_asset_version('assets/js/chat-context.js'),
                 ],
                 [
                     'id' => 'ai-assistant-chat-execution',
                     'src' => AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-execution.js',
-                    'version' => AI_ASSISTANT_VERSION,
+                    'version' => $this->get_plugin_asset_version('assets/js/chat-execution.js'),
+                ],
+                [
+                    'id' => 'ai-assistant-chat-subagents',
+                    'src' => AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-subagents.js',
+                    'version' => $this->get_plugin_asset_version('assets/js/chat-subagents.js'),
                 ],
                 [
                     'id' => 'ai-assistant-chat-ui',
                     'src' => AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-ui.js',
-                    'version' => AI_ASSISTANT_VERSION,
+                    'version' => $this->get_plugin_asset_version('assets/js/chat-ui.js'),
                 ],
                 [
                     'id' => 'ai-assistant-chat-conversations',
                     'src' => AI_ASSISTANT_PLUGIN_URL . 'assets/js/chat-conversations.js',
-                    'version' => AI_ASSISTANT_VERSION,
+                    'version' => $this->get_plugin_asset_version('assets/js/chat-conversations.js'),
                 ],
                 [
                     'id' => 'ai-assistant-theme-bootstrap',
                     'src' => $this->get_theme_asset_url('script.js'),
-                    'version' => AI_ASSISTANT_VERSION,
+                    'version' => $this->get_theme_asset_version('script.js'),
                 ],
             ],
         ];
@@ -984,6 +971,31 @@ class Chat_UI {
         }
 
         return AI_ASSISTANT_PLUGIN_URL . 'themes/' . Assistant_Themes::DEFAULT_THEME . '/' . ltrim($relative_path, '/');
+    }
+
+    private function get_plugin_asset_version(string $relative_path): string {
+        return $this->get_asset_version(AI_ASSISTANT_PLUGIN_DIR . ltrim($relative_path, '/'));
+    }
+
+    private function get_theme_asset_version(string $relative_path): string {
+        $themes = $this->get_assistant_themes();
+        $path = $themes->locate_file($themes->get_current_theme_id(), $relative_path);
+
+        if ($path === '') {
+            $path = AI_ASSISTANT_PLUGIN_DIR . 'themes/' . Assistant_Themes::DEFAULT_THEME . '/' . ltrim($relative_path, '/');
+        }
+
+        return $this->get_asset_version($path);
+    }
+
+    private function get_asset_version(string $path): string {
+        $modified = is_file($path) ? filemtime($path) : false;
+
+        if (!$modified) {
+            return AI_ASSISTANT_VERSION;
+        }
+
+        return AI_ASSISTANT_VERSION . '.' . $modified;
     }
 
     private function get_assistant_themes(): Assistant_Themes {

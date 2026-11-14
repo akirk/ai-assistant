@@ -420,7 +420,7 @@
         },
 
         sendMessage: async function() {
-            if (!this.isProviderConfigured()) return;
+            if (!this.canSendToConversation()) return;
 
             var $input = $('#ai-assistant-input');
             var message = $input.val().trim();
@@ -428,7 +428,6 @@
 
             if (this.isUploadingFiles) return;
             if (!message && attachments.length === 0) return;
-            if (this.isCompactingStandaloneContinuation) return;
 
             if (this.shouldQueueUserMessage()) {
                 this.queueUserMessage(message, attachments);
@@ -511,6 +510,8 @@
             this.streamComplete = false;
             this.executingToolCount = 0;
             this.processedToolIds = {};
+            this.streamingFilePreflights = {};
+            this.streamingFilePreflightDenied = null;
             this.pickImageToolCallInCurrentResponse = '';
             this.toolCallRounds = 0;
             this.consecutiveFailedToolRounds = 0;
@@ -544,14 +545,32 @@
         },
 
         callLLM: async function() {
+            this.buildSystemPrompt();
+
             var provider = this.conversationProvider || this.getProvider();
 
             if (this.ensureBrowserProviderStatus && this._providerNeedsBrowserStatus && this._providerNeedsBrowserStatus(provider)) {
                 await this.ensureBrowserProviderStatus(provider);
                 if (!this._isProviderAvailable(provider)) {
-                    this.addMessage('error', 'Provider "' + provider + '" is not reachable from this browser or has no usable loaded models.');
-                    this.setLoading(false);
-                    return;
+                    // The pinned provider (e.g. LM Studio from a conversation
+                    // started on another device) cannot be used from this
+                    // browser. Fall through the priority list instead of
+                    // leaving the conversation stuck.
+                    if (this.ensureBrowserProviderStatuses) {
+                        await this.ensureBrowserProviderStatuses();
+                    }
+                    var fallbackProvider = this.getProvider();
+                    if (fallbackProvider === provider || !this._isProviderAvailable(fallbackProvider)) {
+                        this.addMessage('error', 'Provider "' + provider + '" is not reachable from this browser or has no usable models, and no other provider is available.');
+                        this.setLoading(false);
+                        return;
+                    }
+                    this.addMessage('system', 'Provider "' + this.getProviderName(provider) + '" is not reachable from this browser. Continuing with "' + this.getProviderName(fallbackProvider) + '".');
+                    provider = fallbackProvider;
+                    this.conversationProvider = fallbackProvider;
+                    this.conversationModel = this.getModel();
+                    this.promptCacheKey = '';
+                    this.conversationDirty = true;
                 }
             }
 
@@ -580,6 +599,8 @@
             this.streamComplete = false;
             this.executingToolCount = 0;
             this.processedToolIds = {};
+            this.streamingFilePreflights = {};
+            this.streamingFilePreflightDenied = null;
             this.pickImageToolCallInCurrentResponse = '';
             this.pendingToolChecks = 0;
 
@@ -632,7 +653,33 @@
             return !!(config && config.proxySupported && config.serverSideAuth);
         },
 
+        serializeProviderRequest: function(provider, payload) {
+            var json = JSON.stringify(payload);
+            this.lastProviderRequest = {
+                provider: provider,
+                timestamp: new Date().toISOString(),
+                json: json
+            };
+            // Persist even if the request fails before an assistant reply exists.
+            if (this.saveConversation) this.saveConversation(true);
+            return json;
+        },
+
         fetchLLMProvider: function(provider, endpoint, headers, payload, signal) {
+            // GPT-6 Sol/Luna default to reasoning, which Chat Completions cannot
+            // combine with function tools. Apply this before either transport.
+            if (provider === 'openai' && payload &&
+                /^gpt-6-(sol|luna)(?:-\d{4}-\d{2}-\d{2})?$/.test(payload.model || '') &&
+                Array.isArray(payload.tools) && payload.tools.some(function(tool) {
+                    return tool.type === 'function';
+                })) {
+                payload = $.extend({}, payload, { reasoning_effort: 'none' });
+            }
+
+            var requestJson = payload && payload.stream
+                ? this.serializeProviderRequest(provider, payload)
+                : JSON.stringify(payload);
+
             if (this.shouldProxyProvider(provider)) {
                 var separator = aiAssistantConfig.ajaxUrl.indexOf('?') === -1 ? '?' : '&';
                 var proxyUrl = aiAssistantConfig.ajaxUrl +
@@ -642,7 +689,7 @@
                     '&provider=' +
                     encodeURIComponent(provider);
                 var params = new URLSearchParams();
-                params.append('body', JSON.stringify(payload));
+                params.append('body', requestJson);
 
                 return fetch(proxyUrl, {
                     method: 'POST',
@@ -655,7 +702,7 @@
             return fetch(endpoint, {
                 method: 'POST',
                 headers: headers,
-                body: JSON.stringify(payload),
+                body: requestJson,
                 signal: signal
             });
         },
@@ -1224,6 +1271,7 @@
 
             var hintToolUseId = String(toolUseId);
             var hint = null;
+            var truncatedInstruction = this.getProviderTruncatedInstruction();
 
             if (
                 !Array.isArray(value) &&
@@ -1237,12 +1285,16 @@
                     path: String(value.path || ''),
                     instruction: 'This inspect_tool_result response was compacted, but it inspected a cached original result. Continue inspecting that original result with this same tool_use_id and path; use the provided offset fields to request the next slice.'
                 };
+                truncatedInstruction = 'This inspect_tool_result response was compacted. Continue with _ai_assistant_compacted.inspect_tool_result.next_inspection exactly when present; do not rerun the original broad tool call.';
 
                 if (value.next_item_offset !== undefined && value.next_item_offset !== null) {
                     hint.item_offset = value.next_item_offset;
                     hint.instruction = 'This inspect_tool_result response was compacted, but it inspected a cached original result. Call inspect_tool_result again with this tool_use_id, path, and item_offset to continue the array slice.';
                 } else if (value.next_offset !== undefined && value.next_offset !== null) {
                     hint.offset = value.next_offset;
+                    if (value.next_inspection && typeof value.next_inspection === 'object') {
+                        hint.next_inspection = $.extend({}, value.next_inspection);
+                    }
                     hint.instruction = 'This inspect_tool_result response was compacted, but it inspected a cached original result. Call inspect_tool_result again with this tool_use_id, path, and offset to continue the text/JSON slice.';
                 }
             }
@@ -1255,7 +1307,7 @@
             }
 
             var metadata = {
-                _truncated: this.getProviderTruncatedInstruction(),
+                _truncated: truncatedInstruction,
                 reason: 'Tool result exceeded the provider-safe context budget and was compacted before being returned to the LLM.',
                 original_chars: options.originalResultChars,
                 inspect_tool_result: hint
@@ -1272,9 +1324,8 @@
                 return arrayValue;
             }
 
-            return $.extend({
-                _truncated: this.getProviderTruncatedInstruction()
-            }, value, {
+            return $.extend({}, value, {
+                _truncated: truncatedInstruction,
                 _ai_assistant_compacted: metadata
             });
         },
@@ -1289,6 +1340,250 @@
             return undefined;
         },
 
+        isRepeatedToolRequest: function(result, provider) {
+            if (!result || !result.id) return false;
+            var messages = this.messages || [];
+            // A fresh user request may intentionally repeat earlier work.
+            var start = 0;
+            messages.forEach(function(message, index) {
+                if (message.role === 'user' && !this.isPureAnthropicToolResultMessage(message)) {
+                    start = index;
+                }
+            }, this);
+            messages = messages.slice(start);
+            var calls = this.collectToolCallsById(messages, provider);
+            var current = calls[result.id];
+            if (!current) return false;
+
+            function canonical(value) {
+                if (Array.isArray(value)) return value.map(canonical);
+                if (!value || typeof value !== 'object') return value;
+                var sorted = {};
+                Object.keys(value).sort().forEach(function(key) {
+                    sorted[key] = canonical(value[key]);
+                });
+                return sorted;
+            }
+            var signature = JSON.stringify(canonical(current.input));
+            var matches = function(id) {
+                var previous = calls[id];
+                return id !== result.id && previous && previous.name === current.name &&
+                    JSON.stringify(canonical(previous.input)) === signature;
+            };
+            return messages.some(function(message) {
+                if (provider === 'anthropic' && Array.isArray(message.content)) {
+                    return message.content.some(function(block) {
+                        return block.type === 'tool_result' && matches(block.tool_use_id);
+                    });
+                }
+                return message.role === 'tool' && matches(message.tool_call_id);
+            });
+        },
+
+        isReusableReadonlyTool: function(call) {
+            var input = call.arguments || {};
+            if (call.name === 'ability') {
+                if (!input.action || input.action === 'list' || input.action === 'get') return true;
+                var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+                return input.action === 'execute' && (config.readonlyAbilities || []).indexOf(input.ability) >= 0;
+            }
+            if (call.name === 'execute_ability') {
+                var runtimeConfig = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
+                return (runtimeConfig.readonlyAbilities || []).indexOf(input.ability) >= 0;
+            }
+            if (call.name === 'skill') return input.action === 'list' || input.action === 'get';
+            if (['list_abilities', 'get_ability', 'read_file', 'find', 'list_directory',
+                'search_files', 'search_content', 'get_page_html', 'inspect_tool_result',
+                'recall_conversations', 'list_skills', 'get_skill'].indexOf(call.name) >= 0) return true;
+            var definitions = this.getAllToolDefinitions ? this.getAllToolDefinitions() : [];
+            return definitions.some(function(definition) {
+                var annotations = definition.annotations || {};
+                return definition.name === call.name &&
+                    (annotations.readonly === true || annotations.readOnlyHint === true) &&
+                    annotations.destructive !== true && annotations.destructiveHint !== true;
+            });
+        },
+
+        getReusableToolRequestSignature: function(call) {
+            if (!call) return null;
+            var input = call.input || call.arguments || {};
+            var normalized = { name: call.name, arguments: input };
+            if (!this.isReusableReadonlyTool(normalized)) return null;
+            function canonical(value) {
+                if (Array.isArray(value)) return value.map(canonical);
+                if (!value || typeof value !== 'object') return value;
+                var sorted = {};
+                Object.keys(value).sort().forEach(function(key) { sorted[key] = canonical(value[key]); });
+                return sorted;
+            }
+            return call.name + ':' + JSON.stringify(canonical(input));
+        },
+
+        getReusableToolResults: function(messages, provider) {
+            var calls = this.collectToolCallsById(messages, provider);
+            var records = [];
+            var turn = null;
+            var epoch = 0;
+            var mixedWriteIds = {};
+            (messages || []).forEach(function(message) {
+                if (message.role === 'user' && !this.isPureAnthropicToolResultMessage(message)) {
+                    turn = message;
+                }
+                if (message.role === 'assistant') {
+                    var ids = provider === 'anthropic' && Array.isArray(message.content)
+                        ? message.content.filter(function(block) { return block.type === 'tool_use'; }).map(function(block) { return block.id; })
+                        : (message.tool_calls || []).map(function(call) { return call.id; });
+                    // A write or unknown tool may have changed what a later read returns.
+                    if (ids.some(function(id) { return !this.getReusableToolRequestSignature(calls[id]); }, this)) {
+                        epoch++;
+                        ids.forEach(function(id) { mixedWriteIds[id] = true; });
+                    }
+                }
+                var results = provider === 'anthropic' && Array.isArray(message.content)
+                    ? message.content.filter(function(block) { return block.type === 'tool_result'; })
+                    : (message.role === 'tool' ? [{ tool_use_id: message.tool_call_id, content: message.content }] : []);
+                results.forEach(function(block) {
+                    var call = calls[block.tool_use_id];
+                    var signature = this.getReusableToolRequestSignature(call);
+                    if (!signature || block.is_error || mixedWriteIds[block.tool_use_id]) return;
+                    try {
+                        var value = JSON.parse(block.content);
+                        if (!value || value.error || value.success === false) return;
+                        records.push({ id: block.tool_use_id, call: call, signature: signature, value: value, turn: turn, epoch: epoch });
+                    } catch (e) { /* Malformed results must be fetched again. */ }
+                }, this);
+            }, this);
+            records.epoch = epoch;
+            return records;
+        },
+
+        getReusableToolResult: function(toolCall, provider) {
+            var signature = this.getReusableToolRequestSignature(toolCall);
+            if (!signature) return null;
+            var messages = this.messages || [];
+            var turn = null;
+            messages.forEach(function(message) {
+                if (message.role === 'user' && !this.isPureAnthropicToolResultMessage(message)) turn = message;
+            }, this);
+            var records = this.getReusableToolResults(messages, provider);
+            var matches = records.filter(function(record) {
+                return record.id !== toolCall.id && record.turn === turn && record.signature === signature && record.epoch === records.epoch;
+            });
+            if (!matches.length) return null;
+            // If a previous refresh returned new data, use the most recent value.
+            var latest = this.safeJsonStringify(matches[matches.length - 1].value);
+            var firstMatch = matches.length - 1;
+            while (firstMatch > 0 && this.safeJsonStringify(matches[firstMatch - 1].value) === latest) firstMatch--;
+            matches = matches.slice(firstMatch);
+            var first = matches[0];
+            var cached = this.toolResultCache && this.toolResultCache[first.id];
+            return {
+                id: toolCall.id,
+                name: toolCall.name,
+                input: toolCall.arguments || {},
+                success: true,
+                result: cached && cached.success ? cached.result : first.value,
+                _reusedToolResult: true,
+                _previousRequestCount: matches.length,
+                _requestTurn: turn
+            };
+        },
+
+        collapseRepeatedToolRequests: function(messages, provider) {
+            var records = this.getReusableToolResults(messages, provider);
+            var firstBySignature = {};
+            var duplicates = {};
+            var replacements = {};
+            var turn;
+            var epoch;
+            records.forEach(function(record) {
+                if (record.turn !== turn || record.epoch !== epoch) {
+                    firstBySignature = {};
+                    turn = record.turn;
+                    epoch = record.epoch;
+                }
+                var first = firstBySignature[record.signature];
+                if (!first) {
+                    firstBySignature[record.signature] = record;
+                    return;
+                }
+                // A read may have been refreshed after an external change.
+                // Never replace a different result with the older value.
+                if (this.safeJsonStringify(first.value) !== this.safeJsonStringify(record.value)) {
+                    firstBySignature[record.signature] = record;
+                    return;
+                }
+                duplicates[record.id] = true;
+                if (!replacements[first.id]) {
+                    var compacted = this.compactRepeatedToolResult({
+                        id: first.id, result: first.value
+                    }, provider, first.call);
+                    var hint = Array.isArray(compacted) ? compacted[compacted.length - 1] : compacted;
+                    if (hint && hint._ai_assistant_compacted) hint._ai_assistant_compacted.repeated_request = true;
+                    replacements[first.id] = this.safeJsonStringify(compacted);
+                }
+            }, this);
+            return (messages || []).map(function(message) {
+                if (provider === 'anthropic' && Array.isArray(message.content)) {
+                    var blocks = message.content.filter(function(block) {
+                        return !duplicates[block.id || block.tool_use_id];
+                    }).map(function(block) {
+                        return replacements[block.tool_use_id]
+                            ? $.extend({}, block, { content: replacements[block.tool_use_id] }) : block;
+                    });
+                    if (!blocks.length) return null;
+                    return $.extend({}, message, { content: blocks });
+                }
+                if (message.role === 'tool') {
+                    if (duplicates[message.tool_call_id]) return null;
+                    return replacements[message.tool_call_id]
+                        ? $.extend({}, message, { content: replacements[message.tool_call_id] }) : message;
+                }
+                if (message.role === 'assistant' && Array.isArray(message.tool_calls)) {
+                    var calls = message.tool_calls.filter(function(call) { return !duplicates[call.id]; });
+                    if (!calls.length && !message.content) return null;
+                    var copy = $.extend({}, message);
+                    if (calls.length) copy.tool_calls = calls;
+                    else delete copy.tool_calls;
+                    return copy;
+                }
+                return message;
+            }).filter(Boolean);
+        },
+
+        compactRepeatedToolResult: function(result, provider, repeatedCall) {
+            var value = result ? result.result : null;
+            if (!repeatedCall && !this.isRepeatedToolRequest(result, provider)) return value;
+            var calls = this.collectToolCallsById(this.messages, provider);
+            var call = repeatedCall || calls[result.id];
+            var isAbilityList = call.name === 'list_abilities' ||
+                (call.name === 'ability' && (call.input.action || 'list') === 'list');
+            var compacted;
+            if (isAbilityList && value && Array.isArray(value.abilities)) {
+                compacted = {
+                    abilities: value.abilities.map(function(ability) {
+                        var annotations = ability.annotations || {};
+                        return {
+                            id: ability.id || ability.name,
+                            description: this.truncateProviderString(ability.description || '', 240),
+                            instructions: this.truncateProviderString(annotations.instructions || ability.instructions || '', 300),
+                            readonly: annotations.readonly === undefined ? ability.readonly : annotations.readonly
+                        };
+                    }, this),
+                    count: value.count,
+                    filter: value.filter,
+                    instruction: 'This identical ability list was already requested this turn. Choose an ID from this index; use ability action:get for its input schema, then execute it. Do not list the same category again.'
+                };
+            } else {
+                compacted = this.compactProviderValue(value, this.getToolResultCompactLimits('aggressive'), 0);
+                // Small results already fit; do not inflate them with metadata.
+                if (this.safeJsonStringify(compacted).length >= this.safeJsonStringify(value).length) return value;
+            }
+            return this.addToolInspectionHint(compacted, result.id, {
+                originalResultChars: this.safeJsonStringify(value).length
+            });
+        },
+
         stringifyToolResultForProvider: function(result, providerOrMode, mode, options) {
             options = options || {};
             mode = this.getToolResultStringifyMode(providerOrMode, mode);
@@ -1297,6 +1592,11 @@
             var inspectionMetadata = {
                 originalResultChars: originalJson.length
             };
+
+            if (originalJson.length <= limits.maxResultChars) {
+                return originalJson;
+            }
+
             result = this.dedupeLargeProviderStrings(result);
             var compacted = this.compactProviderValue(result, limits, 0);
             if (options.toolUseId && this.isCompactedToolResultValue(compacted, 0)) {
@@ -1364,7 +1664,9 @@
             var requestTextLimit = Math.max(limits.maxStringChars, Math.floor(limits.maxResultChars / 2));
             var compacted = null;
 
-            if (typeof message.content === 'string' && message.content.length > requestTextLimit) {
+            // Tool results must go through JSON-aware compaction below. Cutting
+            // their serialized text here can insert a marker inside a JSON string.
+            if (message.role !== 'tool' && typeof message.content === 'string' && message.content.length > requestTextLimit) {
                 compacted = $.extend({}, message, {
                     content: this.truncateProviderString(message.content, requestTextLimit)
                 });
@@ -1450,6 +1752,22 @@
             }
 
             return output;
+        },
+
+        sanitizeAnthropicContentBlocksForRequest: function(content) {
+            if (!Array.isArray(content)) {
+                return content;
+            }
+
+            return content.filter(function(block) {
+                return !(
+                    block &&
+                    (
+                        block.type === 'thinking' ||
+                        block.type === 'redacted_thinking'
+                    )
+                );
+            });
         },
 
         compactProviderMessageForStorage: function(message) {
@@ -1862,7 +2180,11 @@
             }
 
             try {
-                return this.isCompactedToolResultValue(JSON.parse(content), 0);
+                var parsed = JSON.parse(content);
+                var hint = Array.isArray(parsed) ? parsed[parsed.length - 1] : parsed;
+                // This compact result replaces all duplicate exchanges in the request.
+                if (hint && hint._ai_assistant_compacted && hint._ai_assistant_compacted.repeated_request) return false;
+                return this.isCompactedToolResultValue(parsed, 0);
             } catch (e) {
                 return content.indexOf('[... truncated ') !== -1;
             }
@@ -2130,7 +2452,7 @@
         },
 
         compactProviderMessagesForRequest: function(messages, provider, mode) {
-            var compacted = (messages || []).map(function(message) {
+            var compacted = this.collapseRepeatedToolRequests(messages || [], provider).map(function(message) {
                 return this.compactProviderMessageForRequest(message, provider, mode);
             }, this);
             compacted = this.pruneStaleToolCallsForRequest(compacted, provider);
@@ -2479,7 +2801,20 @@
             }
 
             var requestMessages = prepared.messages.map(function(message) {
-                return this.stripMessageMetadata(message);
+                message = this.stripMessageMetadata(message);
+                if (message && Array.isArray(message.content)) {
+                    message = $.extend({}, message, {
+                        content: this.sanitizeAnthropicContentBlocksForRequest(message.content)
+                    });
+                }
+                return message;
+            }, this).filter(function(message) {
+                return !(
+                    message &&
+                    message.role === 'assistant' &&
+                    Array.isArray(message.content) &&
+                    message.content.length === 0
+                );
             }, this);
 
             return this.compactProviderMessagesForRequest(requestMessages, 'anthropic', options.mode || 'normal');
@@ -2581,6 +2916,17 @@
                 var stopReason = null;
                 var providerUsage = null;
                 var toolCardsArchivedBeforeText = false;
+                var streamState = {
+                    $reply: null,
+                    replyRemoved: true,
+                    $thinking: null,
+                    thinkingContent: '',
+                    thinkingStartTime: null,
+                    thinkingDurationMs: 0,
+                    thinkingFinalized: false,
+                    rawContent: '',
+                    textContent: ''
+                };
 
                 for await (var event of this.readSSEStream(response)) {
                     if (event.message && event.message.usage) {
@@ -2602,6 +2948,8 @@
                                 self.showToolProgress(currentBlock.name, 0, currentBlock.id);
                             } else if (currentBlock.type === 'text') {
                                 currentBlock.text = '';
+                            } else if (currentBlock.type === 'thinking') {
+                                currentBlock.thinking = '';
                             }
                             break;
 
@@ -2621,6 +2969,13 @@
                                     currentBlock.input += event.delta.partial_json;
                                     self.showToolProgress(currentBlock.name, currentBlock.input.length, currentBlock.id, currentBlock.input);
                                 }
+                            } else if (event.delta.type === 'thinking_delta') {
+                                if (currentBlock && currentBlock.type === 'thinking') {
+                                    currentBlock.thinking += event.delta.thinking || '';
+                                }
+                                if (streamState && event.delta.thinking) {
+                                    this.appendThinkingContent(streamState, event.delta.thinking);
+                                }
                             }
                             break;
 
@@ -2635,7 +2990,13 @@
                                     // Process tool immediately - don't wait for stream to end
                                     self.processToolCallImmediate(currentBlock.id, currentBlock.name, currentBlock.input, 'anthropic');
                                 }
-                                contentBlocks.push(currentBlock);
+                                if (currentBlock.type === 'thinking') {
+                                    if (streamState) {
+                                        this.finalizeThinkingState(streamState);
+                                    }
+                                } else if (currentBlock.type !== 'redacted_thinking') {
+                                    contentBlocks.push(currentBlock);
+                                }
                                 currentBlock = null;
                             }
                             break;
@@ -2661,7 +3022,12 @@
                 var filteredBlocks = contentBlocks.filter(function(block) {
                     return block.type !== 'text' || (block.text && block.text.length > 0);
                 });
-                var message = this.createStoredMessage('assistant', filteredBlocks);
+                var messageExtra = {};
+                if (streamState && streamState.thinkingContent && streamState.thinkingContent.trim()) {
+                    messageExtra._thinking = streamState.thinkingContent.trim();
+                    messageExtra._thinkingDurationMs = streamState.thinkingDurationMs || 0;
+                }
+                var message = this.createStoredMessage('assistant', filteredBlocks, messageExtra);
                 if (!textContent) {
                     $reply.remove();
                 } else {
@@ -3025,7 +3391,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(buildPayload(requestMessages)),
+                    body: this.serializeProviderRequest('local', buildPayload(requestMessages)),
                     signal: abortSignal
                 });
 
@@ -3036,7 +3402,7 @@
                         headers: {
                             'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify(buildPayload(requestMessages)),
+                        body: this.serializeProviderRequest('local', buildPayload(requestMessages)),
                         signal: abortSignal
                     });
                 }
@@ -3055,7 +3421,7 @@
                         response = await fetch(endpoint + (useOllamaApi ? '/api/chat' : '/v1/chat/completions'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(buildPayload(requestMessages)),
+                            body: this.serializeProviderRequest('local', buildPayload(requestMessages)),
                             signal: abortSignal
                         });
 
@@ -3064,7 +3430,7 @@
                             response = await fetch(endpoint + '/api/chat', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(buildPayload(requestMessages)),
+                                body: this.serializeProviderRequest('local', buildPayload(requestMessages)),
                                 signal: abortSignal
                             });
                         }

@@ -2,6 +2,10 @@
 
 An AI-powered chat interface for WordPress. Bring your own API key or connect to a local LLM.
 
+[Try AI Assistant in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/ai-assistant/main/blueprint.json) · [Try it with demo conversations](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/ai-assistant/main/demo.json)
+
+[Try it in OpenStation](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/akirk/ai-assistant/main/blueprint-openstation.json) — the same app opened in desktop mode with the [OpenStation](https://github.com/WordPress/openstation) plugin.
+
 ## Screenshots
 
 #### "Old Style"
@@ -34,9 +38,21 @@ An AI-powered chat interface for WordPress. Bring your own API key or connect to
 
 1. Upload the plugin to `/wp-content/plugins/ai-assistant`
 2. Activate through the Plugins menu
-3. Configure your API keys in Settings > AI Assistant
+3. Connect a provider in Settings > Connectors when available, or enter your API key in Settings > AI Assistant. Choose a model in AI Assistant.
 
 ## Configuration
+
+AI Assistant needs an AI provider: either a cloud API key with available API credit, or a local model running in Ollama/LM Studio.
+
+**Your subscription may already include API credits.** Eligible ChatGPT Pro/Business and Claude Max/Ultra/Team subscriptions include API credits. Check [OpenAI eligibility and activation](https://developers.openai.com/api/docs/guides/chatgpt-api-credits) or [Claude eligibility and activation](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers) for current allowances and terms.
+
+1. Claim the credits by linking your subscription to an API organization, or add paid API credit with your provider.
+2. Create an API key in that organization on the [OpenAI API platform](https://platform.openai.com/api-keys) or [Claude Console](https://platform.claude.com/settings/keys).
+3. Add the key for the matching provider in **Settings > Connectors** when available, or **Settings > AI Assistant**, then choose a model in AI Assistant.
+
+A subscription alone does not connect AI Assistant automatically; requests use the API balance of the organization associated with your key.
+
+**Local AI is a privacy-friendly, free alternative:** run models on your own device without sending your prompts to a cloud AI provider. Install [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/), start its server, and load a model on the device where you use your browser; no API key is needed. With WordPress Connectors, AI Assistant checks LM Studio (localhost:1234) and Ollama (localhost:11434) directly from your browser; no local provider plugin is required. Reorder their cards alongside cloud connections and choose a model. The LM Studio card shows **Load model** when the selection is not loaded; loading it unloads other LLMs first. Existing local provider plugins supply their configured endpoints and are merged with matching detected connections. Enable browser access/CORS in your local server.
 
 Go to **Settings > AI Assistant** to configure:
 
@@ -99,9 +115,11 @@ Enable Auto-approve to skip confirmation dialogs for tool execution. It starts e
 
 ### Conversation Exports
 
+Conversations retain the latest chat request JSON after provider formatting and context compaction, with its provider and timestamp. Each request replaces the previous snapshot, including retries. JSON exports include it as `last_provider_request` (`json` holds the exact request body); title and summary generation do not replace it. HTTP headers and authentication credentials are not captured.
+
 Use the export button in a conversation to download the current chat. Built-in formats are Markdown, HTML, and JSON, all registered through the same export filter API that other plugins use. The export dropdown also includes an "Include tool calls" checkbox for generating a fuller technical transcript.
 
-Other plugins can add formats with `ai_assistant_conversation_export_formats`. This supports binary formats such as EPUB because the callback runs server-side and controls the MIME type, extension, filename, and content.
+Other plugins can add formats with `ai_assistant_conversation_export_formats` and generate content with `ai_assistant_conversation_export_{$format}`. This supports binary formats such as EPUB because the export filter runs server-side and controls the MIME type, extension, filename, and content.
 
 ```php
 add_filter('ai_assistant_conversation_export_formats', function($formats) {
@@ -110,13 +128,14 @@ add_filter('ai_assistant_conversation_export_formats', function($formats) {
         'description' => __('E-reader friendly conversation export.', 'my-plugin'),
         'extension' => 'epub',
         'mime' => 'application/epub+zip',
-        'callback' => 'my_plugin_export_ai_conversation_epub',
     ];
 
     return $formats;
 });
 
-function my_plugin_export_ai_conversation_epub(array $conversation, array $format) {
+add_filter('ai_assistant_conversation_export_epub', 'my_plugin_export_ai_conversation_epub', 10, 3);
+
+function my_plugin_export_ai_conversation_epub($result, array $conversation, array $format) {
     return [
         'filename' => sanitize_file_name($conversation['title']) . '.epub',
         'mime' => 'application/epub+zip',
@@ -181,6 +200,19 @@ For best results, expose focused abilities with clear input/output schemas inste
 Plugins can add contextual first-message tips with `ai_assistant_welcome_tips`. The returned array is keyed by first URL path component, with one or more tips for each route. Use tips to suggest natural next actions inside the welcome message on plugin-specific screens, and leave detailed behavior to ability descriptions and instructions.
 
 Plugins with browser UI can also register JavaScript callbacks for completed tool calls. For example, a page script can listen for its own `ability` execution and refresh visible UI after the server-side ability succeeds.
+
+### File Access for Outside Agents
+
+The assistant's file tools can also be offered to agents running outside WordPress, such as Claude Code or claude.ai. **Settings → AI Assistant → Tool Permissions** shows an **Expose as ability** switch next to each file tool in the File Reading and File Writing groups. Switched-on tools are registered as WordPress abilities (nothing is registered while all switches are off):
+
+- `ai/read-file`, `ai/find` (read-only; `find` covers `list_directory`, `search_files` and `search_content`)
+- `ai/write-file`, `ai/edit-file`, `ai/delete-file` (destructive)
+
+Agents reach them through the core Abilities REST API (`wp-abilities/v1`, for example with an application password) or, with an MCP server plugin such as [MCP Adapter](https://github.com/WordPress/mcp-adapter) active, as MCP tools.
+
+Exposure never exceeds the local tool permissions: a tool has to be enabled before it can be exposed, and each ability checks the connected user's tool capability, so read-only users only get the read-only abilities. Together with `ai/create-wp-app` and `ai/convert-to-wp-app`, an outside agent can scaffold a plugin and then edit it, or hand over an app it already built: `ai/convert-to-wp-app` takes a complete `index.html` plus any referenced files inline (binary files as `{"base64": ...}`) and turns them into a self-contained WpApp plugin with its own URL, the same conversion [convert-to-wp-app](https://github.com/akirk/convert-to-wp-app) does for git checkouts. Relative asset URLs are rewritten, CDN URLs stay as they are, and bundler development entries (`/src/main.tsx`) are rejected with a hint to build first. Every call goes through the same wp-content sandbox, PHP syntax check and AI Changes tracking as the in-browser tools. The in-browser assistant does not list these abilities; it keeps using its own file tools. Unlike the in-browser tools there is no emergency recovery for outside agents: a plugin fatal also takes the REST API down, so a broken active plugin has to be fixed from the Plugins screen, the AI Changes screen or FTP.
+
+The File Writing group also shows which plugins and themes the web server user cannot write to, for example because they are owned by a different system user. While a writing tool is exposed, the same check runs in Site Health.
 
 ### Tool Extension Hooks
 

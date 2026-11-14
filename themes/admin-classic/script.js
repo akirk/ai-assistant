@@ -146,6 +146,7 @@
                 '<div class="ai-assistant-chat-container">' +
                     '<div class="ai-assistant-header">' +
                         '<h2>' + escapeHtml(text('title', 'AI Assistant')) + '</h2>' +
+                        '<button type="button" class="ai-assistant-header-more" aria-expanded="false">' + escapeHtml(text('more', 'More')) + '</button>' +
                         '<div class="ai-assistant-header-actions">' +
                             '<div id="ai-token-count" class="ai-token-count" tabindex="0" aria-label="' + escapeAttr(text('tokenCountTitle', 'Token usage')) + '">0 tokens</div>' +
                             '<span class="ai-header-sep">|</span>' +
@@ -218,6 +219,20 @@
     function getAdminbarOffset() {
         var $masterbar = $('#wpadminbar');
         return $masterbar.length && $masterbar.is(':visible') ? $masterbar.outerHeight() : 0;
+    }
+
+    function getVisibleAdminbarOffset() {
+        var offset = getAdminbarOffset();
+        var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        var scrollTop;
+
+        if (!offset || viewportWidth > 600) {
+            return offset;
+        }
+
+        scrollTop = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+
+        return Math.max(0, offset - scrollTop);
     }
 
     function preloadConversationIfNeeded() {
@@ -302,7 +317,7 @@
 
         $screenMeta.toggleClass('ai-assistant-screen-meta-sticky', !!enabled);
         if (enabled) {
-            $screenMeta.css('--ai-assistant-adminbar-offset', getAdminbarOffset() + 'px');
+            $screenMeta.css('--ai-assistant-adminbar-offset', getVisibleAdminbarOffset() + 'px');
         } else {
             $screenMeta[0].style.removeProperty('--ai-assistant-adminbar-offset');
         }
@@ -343,7 +358,7 @@
             return;
         }
 
-        adminbarOffset = getAdminbarOffset();
+        adminbarOffset = getVisibleAdminbarOffset();
         panelHeight = attachToPanel && $screenMeta && $screenMeta.length && $screenMeta.is(':visible') ? $screenMeta.outerHeight() : 0;
 
         $linkWrap
@@ -355,7 +370,30 @@
             .addClass('ai-assistant-link-sticky');
     }
 
+    function syncScreenMetaAssistantLatchDuringAnimation($screenMeta, $button, attachToPanel) {
+        var $panel = getScreenMetaPanel($button);
+
+        function update() {
+            setScreenMetaAssistantLatchSticky($screenMeta, $button, true, attachToPanel);
+
+            if (($screenMeta && $screenMeta.is(':animated')) || ($panel.length && $panel.is(':animated'))) {
+                window.requestAnimationFrame(update);
+            }
+        }
+
+        window.requestAnimationFrame(update);
+    }
+
     function bindScreenMeta($screenMeta, $button) {
+        var updateStickyPosition = function() {
+            if ($button.attr('aria-expanded') === 'true') {
+                setScreenMetaAssistantSticky($screenMeta, true);
+                setScreenMetaAssistantLatchSticky($screenMeta, $button, true, true);
+            } else {
+                setScreenMetaAssistantLatchSticky($screenMeta, $button, true, false);
+            }
+        };
+
         setScreenMetaAssistantLatchSticky($screenMeta, $button, true, false);
 
         $('#contextual-help-link, #show-settings-link')
@@ -370,14 +408,11 @@
                 }
             });
 
-        $(window).off('resize.aiAssistantScreenMeta').on('resize.aiAssistantScreenMeta', function() {
-            if ($button.attr('aria-expanded') === 'true') {
-                setScreenMetaAssistantSticky($screenMeta, true);
-                setScreenMetaAssistantLatchSticky($screenMeta, $button, true, true);
-            } else {
-                setScreenMetaAssistantLatchSticky($screenMeta, $button, true, false);
-            }
-        });
+        $(window)
+            .off('resize.aiAssistantScreenMeta')
+            .on('resize.aiAssistantScreenMeta', updateStickyPosition)
+            .off('scroll.aiAssistantScreenMeta')
+            .on('scroll.aiAssistantScreenMeta', updateStickyPosition);
 
         $(document).off('aiAssistantPanelHeightChange.aiAssistantScreenMeta').on('aiAssistantPanelHeightChange.aiAssistantScreenMeta', function() {
             if ($button.attr('aria-expanded') === 'true') {
@@ -405,6 +440,7 @@
                 closeScreenMetaPanel($wrap, $clicked);
             } else {
                 setScreenMetaAssistantSticky($screenMeta, true);
+                syncScreenMetaAssistantLatchDuringAnimation($screenMeta, $clicked, true);
                 openScreenMetaPanel($wrap, $clicked, function() {
                     setScreenMetaAssistantLatchSticky($screenMeta, $clicked, true, true);
                     focusInputAndScroll();
@@ -414,24 +450,41 @@
         });
     }
 
+    function bindMobileHeaderDisclosure($root) {
+        $root.find('.ai-assistant-header-more')
+            .off('click.aiAssistantMobileHeader')
+            .on('click.aiAssistantMobileHeader', function() {
+                var $button = $(this);
+                var $header = $button.closest('.ai-assistant-header');
+                var isOpen = $header.hasClass('is-mobile-actions-open');
+
+                $header.toggleClass('is-mobile-actions-open', !isOpen);
+                $button.attr('aria-expanded', isOpen ? 'false' : 'true');
+            });
+    }
+
     function bindStandalone($wrap) {
         var $panel = $wrap.find('#ai-assistant-standalone-panel');
         var $trigger = $wrap.find('#ai-assistant-standalone-trigger');
         var $button = $trigger.find('button');
         var $menu = $wrap.find('#ai-assistant-floating-menu');
         var updateStandaloneOffset = function() {
-            var $masterbar = $('#wpadminbar');
-            var offset = $masterbar.length && $masterbar.is(':visible') ? $masterbar.outerHeight() : 0;
+            var offset = getVisibleAdminbarOffset();
             $wrap.css('--ai-assistant-adminbar-offset', offset + 'px');
         };
 
         $wrap.appendTo(document.body);
         updateStandaloneOffset();
-        $(window).off('resize.aiAssistantStandalone').on('resize.aiAssistantStandalone', updateStandaloneOffset);
+        $(window)
+            .off('resize.aiAssistantStandalone')
+            .on('resize.aiAssistantStandalone', updateStandaloneOffset)
+            .off('scroll.aiAssistantStandalone')
+            .on('scroll.aiAssistantStandalone', updateStandaloneOffset);
 
         $wrap.show();
         $('#ai-assistant-wrap').removeClass('hidden');
         populateFloatingButtonMenu($wrap);
+        bindMobileHeaderDisclosure($wrap);
 
         var toggleStandalone = function() {
             if ($wrap[0].aiAssistantFloatingButtonDragged || $wrap[0].aiAssistantFloatingMenuOpened) {
@@ -926,12 +979,13 @@
         if (hasScreenMeta) {
             $screenMetaLinks.prepend(
                 '<div id="ai-assistant-link-wrap" class="hide-if-no-js screen-meta-toggle">' +
-                    '<button type="button" id="ai-assistant-link" class="button show-settings" aria-controls="ai-assistant-wrap" aria-expanded="false">' +
+                    '<button type="button" id="ai-assistant-link" class="button button-compact show-settings" aria-controls="ai-assistant-wrap" aria-expanded="false">' +
                         escapeHtml(text('buttonText', 'AI Assistant')) +
                     '</button>' +
                 '</div>'
             );
             $screenMeta.prepend($standaloneWrap.find('#ai-assistant-standalone-panel').html());
+            bindMobileHeaderDisclosure($screenMeta);
             bindScreenMeta($screenMeta, $('#ai-assistant-link'));
         } else {
             bindStandalone($standaloneWrap);

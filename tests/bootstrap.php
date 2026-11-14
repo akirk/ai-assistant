@@ -317,6 +317,7 @@ if (!function_exists('add_filter')) {
             'ai_assistant_read_only_tool_definitions',
             'ai_assistant_read_only_tool_names',
             'ai_assistant_execute_tool',
+            'ai_assistant_execute_file_tool',
             'ai_assistant_tool_meta',
             'ai_assistant_tool_group_order',
             'ai_assistant_tool_order',
@@ -325,7 +326,7 @@ if (!function_exists('add_filter')) {
             'ai_assistant_file_endpoint_tools',
             'ai_assistant_system_prompt',
         ];
-        if (!in_array($tag, $supported, true)) {
+        if (!in_array($tag, $supported, true) && strpos($tag, 'ai_assistant_conversation_export_') !== 0) {
             return true;
         }
         $GLOBALS['wp_test_filters'][$tag][$priority][] = [
@@ -363,9 +364,12 @@ if (!function_exists('esc_html_e'))          { function esc_html_e($text, $domai
 if (!function_exists('esc_attr'))            { function esc_attr($text) { return htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); } }
 if (!function_exists('esc_attr_e'))          { function esc_attr_e($text, $domain = '') { echo esc_attr($text); } }
 if (!function_exists('esc_url'))             { function esc_url($url) { return (string) $url; } }
+if (!function_exists('disabled'))            { function disabled($disabled, $current = true, $display = true) { $result = ((string) $disabled === (string) $current) ? ' disabled="disabled"' : ''; if ($display) { echo $result; } return $result; } }
+if (!function_exists('wp_kses_post'))        { function wp_kses_post($content) { return (string) $content; } }
 if (!function_exists('checked'))             { function checked($checked, $current = true, $display = true) { $result = ((string) $checked === (string) $current) ? ' checked="checked"' : ''; if ($display) { echo $result; } return $result; } }
 if (!function_exists('selected'))            { function selected($selected, $current = true, $display = true) { $result = ((string) $selected === (string) $current) ? ' selected="selected"' : ''; if ($display) { echo $result; } return $result; } }
 if (!function_exists('admin_url'))           { function admin_url($path = '') { return 'http://example.test/wp-admin/' . ltrim($path, '/'); } }
+if (!function_exists('includes_url'))        { function includes_url($path = '') { return 'http://example.test/wp-includes/' . ltrim($path, '/'); } }
 if (!function_exists('add_query_arg'))       { function add_query_arg($key, $value = '', $url = '') { $args = is_array($key) ? $key : [$key => $value]; $url = is_array($key) ? (string) $value : (string) $url; return $url . (strpos($url, '?') === false ? '?' : '&') . http_build_query($args, '', '&'); } }
 if (!function_exists('wp_nonce_url'))        { function wp_nonce_url($url, $action = -1) { return $url . (strpos($url, '?') === false ? '?' : '&') . '_wpnonce=test'; } }
 if (!function_exists('wp_get_referer'))      { function wp_get_referer() { return $GLOBALS['wp_test_referer'] ?? ''; } }
@@ -416,19 +420,10 @@ if (file_exists($vendor_autoload)) {
 require_once $plugin_dir . '/includes/class-tools.php';
 require_once $plugin_dir . '/includes/class-ability-annotations.php';
 require_once $plugin_dir . '/includes/class-skill-registry.php';
-require_once $plugin_dir . '/includes/class-file-tool-auth.php';
-require_once $plugin_dir . '/includes/class-emergency-plugin-guard.php';
-require_once $plugin_dir . '/includes/class-file-tool-executor.php';
-require_once $plugin_dir . '/includes/class-plugin-recovery-admin.php';
 require_once $plugin_dir . '/includes/class-executor.php';
-require_once $plugin_dir . '/dev-tools.php';
 require_once $plugin_dir . '/includes/class-api-handler.php';
-require_once $plugin_dir . '/includes/class-git-tracker.php';
-require_once $plugin_dir . '/includes/class-git-tracker-manager.php';
-require_once $plugin_dir . '/includes/class-plugin-checkout-badge.php';
 require_once $plugin_dir . '/includes/class-admin-colors.php';
 require_once $plugin_dir . '/includes/class-assistant-themes.php';
 require_once $plugin_dir . '/includes/class-conversations.php';
 require_once $plugin_dir . '/includes/class-conversations-app.php';
 require_once $plugin_dir . '/includes/class-settings.php';
-require_once $plugin_dir . '/includes/class-wp-app-abilities.php';

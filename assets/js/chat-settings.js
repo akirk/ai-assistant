@@ -434,6 +434,7 @@
 
             status = status || {};
             config.browserStatusChecked = true;
+            config.browserStatusCheckedAt = Date.now();
             config.browserStatus = status.status || (status.reachable ? 'ready' : 'unreachable');
             config.browserReachable = !!status.reachable;
             config.browserStatusError = status.error || '';
@@ -452,6 +453,22 @@
             return config;
         },
 
+        /**
+         * A browser status result is trusted for this long. After that the next
+         * ensureBrowserProviderStatus() call re-checks, so a local provider that
+         * was started after the page loaded is picked up without a reload. The
+         * previous result stays in effect until the re-check completes.
+         */
+        browserProviderStatusTtl: 60 * 1000,
+
+        _isBrowserProviderStatusStale: function(config) {
+            if (!config || !config.browserStatusChecked) {
+                return true;
+            }
+            var checkedAt = config.browserStatusCheckedAt || 0;
+            return (Date.now() - checkedAt) >= this.browserProviderStatusTtl;
+        },
+
         ensureBrowserProviderStatus: function(id) {
             if (!this._providerNeedsBrowserStatus(id)) {
                 return Promise.resolve(aiAssistantProviders.available[id] || null);
@@ -461,7 +478,7 @@
             }
 
             var config = aiAssistantProviders.available[id];
-            if (config.browserStatusChecked) {
+            if (config.browserStatusChecked && !this._isBrowserProviderStatusStale(config)) {
                 return Promise.resolve(config);
             }
 
@@ -521,8 +538,11 @@
 
         /**
          * Check if a provider is available for use right now.
-         * Cloud providers need an API key, server/local providers are always "available"
-         * (actual reachability is checked at call time).
+         * Cloud providers need an API key. Server providers that support a
+         * browser-side status check (e.g. LM Studio) count as available only
+         * once that check has confirmed reachability and usable models; until
+         * then they are treated as unavailable, since the server cannot know
+         * whether this particular browser can reach them.
          */
         _isProviderAvailable: function(id) {
             if (id === 'local') return true;
@@ -534,15 +554,15 @@
             }
             var config = aiAssistantProviders.available[id];
             if (!config) return false;
+            if (config.type === 'server' && config.browserSupported) {
+                if (!config.browserStatusChecked) return false;
+                return !!(config.browserReachable && config.models && config.models.length > 0);
+            }
             if (config.modelsDeferred) {
                 if (config.type === 'server') return true;
                 return !!(config.serverSideAuth || config.apiKey);
             }
             if (config.type === 'server') {
-                if (config.browserSupported) {
-                    if (!config.browserStatusChecked) return true;
-                    return !!(config.browserReachable && config.models && config.models.length > 0);
-                }
                 return !!(config.models && config.models.length > 0);
             }
             // Must have at least one model to be usable

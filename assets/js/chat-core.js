@@ -1,6 +1,8 @@
 (function($) {
     'use strict';
 
+    var __ = window.wp.i18n.__;
+
     var existingAiAssistant = window.aiAssistant || {};
     var queuedToolCallbacks = Array.isArray(window.aiAssistantToolCallbacks)
         ? window.aiAssistantToolCallbacks.slice()
@@ -46,7 +48,6 @@
         previousUrlContextAt: 0,
         conversationInteracted: false,
         standaloneContinuationOfferConversationId: 0,
-        isCompactingStandaloneContinuation: false,
         saveInProgress: false,
         savePending: false,
         savePendingSilent: true,
@@ -77,40 +78,6 @@
         messagesTouchStartY: null,
         assistantPanelPreviousHeight: existingAiAssistant.assistantPanelPreviousHeight || 0,
         initialized: existingAiAssistant.initialized || false,
-
-        __: function(text) {
-            if (window.wp && window.wp.i18n && typeof window.wp.i18n.__ === 'function') {
-                return window.wp.i18n.__(text, 'ai-assistant');
-            }
-
-            return text;
-        },
-
-        _n: function(single, plural, number) {
-            if (window.wp && window.wp.i18n && typeof window.wp.i18n._n === 'function') {
-                return window.wp.i18n._n(single, plural, number, 'ai-assistant');
-            }
-
-            return number === 1 ? single : plural;
-        },
-
-        sprintf: function() {
-            if (window.wp && window.wp.i18n && typeof window.wp.i18n.sprintf === 'function') {
-                return window.wp.i18n.sprintf.apply(window.wp.i18n, arguments);
-            }
-
-            var args = Array.prototype.slice.call(arguments);
-            var format = String(args.shift() || '');
-            var index = 0;
-
-            return format.replace(/%([sd])/g, function(match) {
-                if (index >= args.length) {
-                    return match;
-                }
-
-                return String(args[index++]);
-            });
-        },
 
         getMessageTimestamp: function() {
             return Date.now ? Date.now() : new Date().getTime();
@@ -188,6 +155,14 @@
 
         bindEvents: function() {
             var self = this;
+
+            $(document).on('click', '.ai-welcome-message a[href="#ai-provider-setup-help"], .ai-welcome-message a[href="#ai-local-setup-help"]', function(e) {
+                e.preventDefault();
+                var $help = $(this).closest('.ai-welcome-message').find($(this).attr('href'));
+                var expanded = $(this).attr('aria-expanded') !== 'true';
+                $help.prop('hidden', !expanded);
+                $(this).attr('aria-expanded', String(expanded));
+            });
 
             $(document).on('click', '.ai-assistant-toggle', function(e) {
                 e.preventDefault();
@@ -270,9 +245,9 @@
                 self.newChat();
             });
 
-            $(document).on('click', '#ai-assistant-area-compact-new-chat', function(e) {
+            $(document).on('click', '#ai-assistant-area-load-previous-chat', function(e) {
                 e.preventDefault();
-                self.compactCurrentConversationAndStartNewChat();
+                self.loadPreviousAvailableConversation();
             });
 
             $(document).on('click', '#ai-confirm-all', function(e) {
@@ -515,7 +490,7 @@
                 e.stopPropagation();
                 self.hideConversationItemMenu();
                 var id = $(this).data('id');
-                if (confirm(self.__('Delete this conversation?'))) {
+                if (confirm(__('Delete this conversation?', 'ai-assistant'))) {
                     self.deleteConversation(id);
                 }
             });
@@ -584,6 +559,15 @@
                 $(this).closest('.ai-action-preview').toggleClass('expanded');
             });
 
+            $(document).on('click', '.ai-patch-assistant-playground-install', function(e) {
+                e.preventDefault();
+                var $button = $(this);
+                var blueprintUrl = $button.attr('data-blueprint-url');
+                if (self.requestPatchAssistantPlaygroundInstall && self.requestPatchAssistantPlaygroundInstall(blueprintUrl)) {
+                    $button.prop('disabled', true).text('Opening Playground install…');
+                }
+            });
+
             $(document).on('click', '.ai-thinking-toggle', function(e) {
                 e.preventDefault();
                 var $block = $(this).closest('.ai-thinking-block').toggleClass('expanded');
@@ -641,7 +625,29 @@
                 this.addMessage('error', 'Configuration error: system prompt not available. Please check plugin settings.');
                 return;
             }
+            this.addCurrentDateTimeContext();
             this.addAccessiblePageSelectorHints();
+        },
+
+        addCurrentDateTimeContext: function() {
+            var now = new Date();
+            var timeZone = '';
+
+            try {
+                if (window.Intl && Intl.DateTimeFormat) {
+                    timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+                }
+            } catch (e) {
+                timeZone = '';
+            }
+
+            this.systemPrompt += '\n\nCURRENT DATE/TIME:\n'
+                + '- Browser Local Date/Time: ' + now.toLocaleString() + '\n'
+                + '- UTC Date/Time: ' + now.toISOString();
+
+            if (timeZone) {
+                this.systemPrompt += '\n- Browser Time Zone: ' + timeZone;
+            }
         },
 
         addAccessiblePageSelectorHints: function() {
@@ -651,7 +657,11 @@
             }
 
             if (window.aiAssistantConfig) {
-                aiAssistantConfig.pageSelectorHints = [aiAssistantConfig.pageSelectorHints, hints].filter(Boolean).join('\n');
+                if (typeof aiAssistantConfig.initialPageSelectorHints === 'undefined') {
+                    aiAssistantConfig.initialPageSelectorHints = aiAssistantConfig.pageSelectorHints || '';
+                }
+
+                aiAssistantConfig.pageSelectorHints = [aiAssistantConfig.initialPageSelectorHints, hints].filter(Boolean).join('\n');
             }
 
             this.systemPrompt += '\n\nCURRENT PAGE CONTENT REGIONS (useful selectors for get_page_html):\n' + hints;
@@ -830,6 +840,11 @@
             return this.isConfigured();
         },
 
+        canSendToConversation: function() {
+            var provider = !this.pendingNewChat && this.conversationProvider;
+            return !!(provider && this._isProviderAvailable(provider)) || this.isProviderConfigured();
+        },
+
         updateSendButton: function() {
             var $btn = $('#ai-assistant-send');
             if (!$btn.length) return;
@@ -839,10 +854,37 @@
             }
 
             var isQueueing = this.shouldQueueUserMessage && this.shouldQueueUserMessage();
+            var providerAvailable = this.canSendToConversation();
+            var reasons = [];
+            if (!providerAvailable) reasons.push('No available AI provider (credentials, models, or browser availability check required).');
+            if (this.isUploadingFiles) reasons.push('Attached files are still being read.');
+            var diagnostic = {
+                reasons: reasons,
+                conversationProvider: this.conversationProvider || null,
+                configuredProvider: this.getProvider(),
+                browserProviders: []
+            };
+            if (typeof aiAssistantProviders !== 'undefined') {
+                diagnostic.browserProviders = Object.keys(aiAssistantProviders.available || {}).map(function(id) {
+                    var config = aiAssistantProviders.available[id];
+                    return {
+                        provider: id,
+                        browserStatusChecked: !!config.browserStatusChecked,
+                        browserStatus: config.browserStatus || null,
+                        modelCount: (config.models || []).length,
+                        hasCredentials: !!(config.serverSideAuth || config.apiKey)
+                    };
+                });
+            }
+            var diagnosticKey = JSON.stringify(diagnostic);
+            if (reasons.length && diagnosticKey !== this.lastSendDisabledDiagnostic) {
+                console.log('[AI Assistant] Send button disabled:', diagnostic);
+            }
+            this.lastSendDisabledDiagnostic = reasons.length ? diagnosticKey : null;
             $btn
                 .text(isQueueing ? 'Queue' : $btn.data('default-text'))
                 .attr('title', isQueueing ? 'Queue message' : '')
-                .prop('disabled', !this.isProviderConfigured() || this.isUploadingFiles || this.isCompactingStandaloneContinuation);
+                .prop('disabled', !providerAvailable || this.isUploadingFiles);
             this.updateModelSelectLockState();
         },
 
@@ -974,7 +1016,6 @@
                 this.conversationDirty ||
                 this.saveInProgress ||
                 this.isLoading ||
-                this.isCompactingStandaloneContinuation ||
                 hasPendingActions ||
                 this.getQueuedMessageCount() > 0
             );

@@ -115,6 +115,14 @@ function createJQuery(input, options) {
             },
             toggle() {
                 return this;
+            },
+            show() {
+                state.css.display = '';
+                return this;
+            },
+            hide() {
+                state.css.display = 'none';
+                return this;
             }
         };
     }
@@ -176,6 +184,7 @@ function loadConversationMixin(initialStorage, config, options) {
         console
     };
 
+    require('./wp-i18n')(context);
     vm.createContext(context);
     const source = fs.readFileSync(
         path.join(__dirname, '../assets/js/chat-conversations.js'),
@@ -525,12 +534,12 @@ describe('conversation area suggestions', function() {
 
         const html = assistant.getAreaChangeSuggestionHtml(true);
 
-        assert.match(html, /previous conversation was loaded/);
+        assert.match(html, /Previous chat loaded/);
         assert.match(html, /id="ai-assistant-area-new-chat"/);
         assert.doesNotMatch(html, /area-compact-new-chat/);
     });
 
-    it('offers compacting for stale standalone continuations', function() {
+    it('offers only a plain new chat for stale standalone continuations', function() {
         const { assistant } = loadConversationMixin({
             aiAssistant_lastUrlContextAt: String(Date.now() - (2 * 60 * 60 * 1000))
         });
@@ -541,8 +550,9 @@ describe('conversation area suggestions', function() {
 
         const html = assistant.getAreaChangeSuggestionHtml(true);
 
-        assert.match(html, /id="ai-assistant-area-compact-new-chat"/);
-        assert.match(html, /Compact it and start a new chat/);
+        assert.match(html, /id="ai-assistant-area-new-chat"/);
+        assert.doesNotMatch(html, /id="ai-assistant-area-compact-new-chat"/);
+        assert.match(html, /Start a new chat/);
     });
 
     it('does not update the stored URL component until interaction', function() {
@@ -871,6 +881,98 @@ describe('loading recent conversations', function() {
         assert.strictEqual(welcomeLoaded, false);
     });
 
+    it('starts fresh and offers the previous chat when the remembered area differs', function() {
+        let loadedConversationId = 0;
+        let welcomeLoaded = false;
+        let tokenCountUpdated = false;
+        let exportButtonUpdated = false;
+        const { assistant, jQuery } = loadConversationMixin({
+            aiAssistant_lastUrlComponent: 'my-apps',
+            aiAssistant_lastUrlContextAt: String(Date.now())
+        }, {
+            ajaxUrl: '/admin-ajax.php',
+            nonce: 'nonce',
+            urlComponent: 'other-app'
+        }, {
+            ajax(settings) {
+                settings.success({
+                    success: true,
+                    data: {
+                        conversations: [
+                            { id: 12, title: 'Old work', message_count: '3' }
+                        ]
+                    }
+                });
+            }
+        });
+
+        assistant.restoreUrlComponentContext();
+        assistant.isStandaloneConversationPanel = function() {
+            return true;
+        };
+        assistant.loadConversation = function(conversationId) {
+            loadedConversationId = conversationId;
+        };
+        assistant.getProvider = function() {
+            return 'openai';
+        };
+        assistant.getModel = function() {
+            return 'gpt-4.1';
+        };
+        assistant.loadWelcomeMessage = function() {
+            welcomeLoaded = true;
+        };
+        assistant.updateSendButton = function() {};
+        assistant.updateTokenCount = function() {
+            tokenCountUpdated = true;
+        };
+        assistant.updateExportButton = function() {
+            exportButtonUpdated = true;
+        };
+        assistant.updateSummarizeButton = function() {};
+        assistant.updateSidebarSelection = function() {};
+        assistant.setNewChatControlState = function() {};
+        assistant.clearToolCards = function() {
+            this.toolCardsCleared = true;
+        };
+        assistant.clearQueuedMessages = function() {
+            this.queuedMessagesCleared = true;
+        };
+        assistant.renderPendingAttachments = function() {
+            this.pendingAttachmentsRendered = true;
+        };
+        assistant.scrollToBottom = function() {};
+        assistant.messages = [{ role: 'user', content: 'Stale message' }];
+        assistant.pendingActions = [{ id: 'stale-action' }];
+        assistant.pendingAttachments = [{ name: 'stale-file.txt' }];
+        assistant.pendingNewChat = true;
+        assistant.pendingNewChatProvider = 'anthropic';
+        assistant.pendingNewChatModel = 'claude';
+
+        assistant.loadMostRecentConversation({
+            updateHistory: false,
+            offerStandaloneContinuation: true
+        });
+
+        assert.strictEqual(loadedConversationId, 0);
+        assert.strictEqual(welcomeLoaded, true);
+        assert.strictEqual(tokenCountUpdated, true);
+        assert.strictEqual(exportButtonUpdated, true);
+        assert.strictEqual(assistant.conversationId, 0);
+        assert.strictEqual(assistant.messages.length, 0);
+        assert.strictEqual(assistant.pendingActions.length, 0);
+        assert.strictEqual(assistant.pendingAttachments.length, 0);
+        assert.strictEqual(assistant.pendingNewChat, false);
+        assert.strictEqual(assistant.pendingNewChatProvider, '');
+        assert.strictEqual(assistant.pendingNewChatModel, '');
+        assert.strictEqual(assistant.toolCardsCleared, true);
+        assert.strictEqual(assistant.queuedMessagesCleared, true);
+        assert.strictEqual(assistant.pendingAttachmentsRendered, true);
+        assert.strictEqual(assistant.previousAvailableConversation.id, 12);
+        assert.match(jQuery('#ai-assistant-area-suggestion').html(), /Previous chat available/);
+        assert.match(jQuery('#ai-assistant-area-suggestion').html(), /id="ai-assistant-area-load-previous-chat"/);
+    });
+
     it('shows a fresh welcome when only empty conversations exist', function() {
         let loadedConversationId = 0;
         let welcomeLoaded = false;
@@ -907,5 +1009,42 @@ describe('loading recent conversations', function() {
         assert.strictEqual(loadedConversationId, 0);
         assert.strictEqual(welcomeLoaded, true);
         assert.strictEqual(exportButtonUpdated, true);
+    });
+});
+
+describe('provider request persistence', function() {
+    it('includes the latest request in conversation saves', function() {
+        const { assistant } = loadConversationMixin();
+        assistant.getEncodedMessagesForSave = () => 'encoded';
+        assistant.getConversationTitleForSave = () => 'Conversation';
+        assistant.getProvider = () => 'local';
+        assistant.getModel = () => 'test';
+        assistant.lastProviderRequest = {
+            provider: 'local', timestamp: '2026-11-14T12:00:00Z',
+            json: '{"messages":[],"parameters":{}}'
+        };
+        const data = assistant.getConversationSaveData();
+        assert.deepEqual(JSON.parse(data.last_provider_request), assistant.lastProviderRequest);
+        assistant.lastProviderRequest = null;
+        assert.equal(assistant.getConversationSaveData().last_provider_request, 'null');
+    });
+});
+
+describe('translated conversation controls', function() {
+    it('uses the plugin domain and escapes translated attribute text', function() {
+        const calls = [];
+        const { assistant } = loadConversationMixin({}, {}, {
+            window: { wp: { i18n: {
+                __(text, domain) {
+                    calls.push([text, domain]);
+                    return text === 'Delete' ? 'Löschen "jetzt"' : text;
+                }
+            } } }
+        });
+        assistant.escapeHtml = text => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        assistant.escapeAttribute = text => assistant.escapeHtml(text).replace(/"/g, '&quot;');
+        const html = assistant.renderConversationGroup([{ id: 1, title: 'Example' }]);
+        assert.match(html, /title="Löschen &quot;jetzt&quot;"/);
+        assert.deepEqual(calls, [['Delete', 'ai-assistant']]);
     });
 });

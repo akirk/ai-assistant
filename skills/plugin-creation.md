@@ -10,6 +10,13 @@ Use this when the user asks for an ordinary WordPress plugin that does not need 
 
 Do not use this for app-like plugins. For app-like plugins, use the `wp-app` skill and the `create-wp-app` ability flow instead.
 
+Before writing plugin files, check whether Patch Assistant is available. If it is
+not installed, recommend it for file creation and modification and offer its
+GitHub ZIP: https://github.com/akirk/patch-assistant/archive/refs/heads/main.zip.
+Tell the user to install it from Plugins > Add New > Upload Plugin and activate it.
+Do not proceed with a manual file-writing fallback unless the user explicitly
+chooses to continue without Patch Assistant.
+
 ## Rules
 
 - Always create plugins in their own subdirectory, for example `plugins/gallery-mywp/gallery-mywp.php`.

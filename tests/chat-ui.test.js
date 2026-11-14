@@ -35,6 +35,7 @@ function loadUiMixin(config, globals) {
         console
     };
 
+    require('./wp-i18n')(context);
     vm.createContext(context);
     const source = fs.readFileSync(
         path.join(__dirname, '../assets/js/chat-ui.js'),
@@ -1488,7 +1489,7 @@ describe('tool result display', function() {
 
         const display = assistant.getToolResultDisplay('ability', {
             _truncated: true,
-            ability: 'wordcamp-companion/get-schedule',
+            ability: 'session-planner-for-wordcamps/get-schedule',
             success: true,
             type: 'object',
             keys: {
@@ -1507,7 +1508,7 @@ describe('tool result display', function() {
 
         assert.strictEqual(display.language, 'json');
         assert.strictEqual(display.label, 'Result');
-        assert.match(display.text, /wordcamp-companion\/get-schedule/);
+        assert.match(display.text, /session-planner-for-wordcamps\/get-schedule/);
         assert.match(display.text, /_ai_assistant_compacted/);
         assert.doesNotMatch(display.text, /undefined/);
     });
@@ -1516,7 +1517,7 @@ describe('tool result display', function() {
         const assistant = loadUiMixin();
 
         const display = assistant.getToolResultDisplay('ability', {
-            ability: 'wordcamp-companion/get-plan',
+            ability: 'session-planner-for-wordcamps/get-plan',
             success: true,
             selected_event_url: 'https://europe.wordcamp.org/2026/',
             selected_wordcamp_term_id: 2,
@@ -1530,7 +1531,7 @@ describe('tool result display', function() {
 
         assert.strictEqual(display.language, 'json');
         assert.strictEqual(display.label, 'Result');
-        assert.match(display.text, /wordcamp-companion\/get-plan/);
+        assert.match(display.text, /session-planner-for-wordcamps\/get-plan/);
         assert.match(display.text, /selected_event_url/);
         assert.match(display.text, /What’s new in WordPress Playground/);
     });
@@ -2028,6 +2029,28 @@ describe('AI changes links', function() {
             'http://example.test/wp-admin/tools.php?page=ai-changes&plugin=plugins%2Fcurrent-app'
         );
         assert.strictEqual(link.attrs.target, undefined);
+    });
+
+    it('links plain URLs while preserving code, existing links, and punctuation', function() {
+        const assistant = loadUiMixin();
+        assistant.escapeHtml = value => String(value)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        const url = 'https://alex.kirk.at/collectibles/collection/3867123/item/3870604/';
+        const html = assistant.formatContent(
+            '- **Street Sweeper**: ' + url + '\n\n' +
+            '(http://example.test/path). https://example.test/wiki/Name_(detail)\n\n' +
+            'https://example.test/?a=1&b=2\n\n' +
+            '[https://example.test/](https://example.test/)\n\n' +
+            '`https://example.test/code`\n\n```text\nhttps://example.test/block\n```'
+        );
+        assert.ok(html.includes('<a href="' + url + '">' + url + '</a>'));
+        assert.ok(html.includes('(<a href="http://example.test/path">http://example.test/path</a>).'));
+        assert.ok(html.includes('href="https://example.test/wiki/Name_(detail)"'));
+        assert.ok(html.includes('href="https://example.test/?a=1&amp;b=2"'));
+        assert.strictEqual((html.match(/<a /g) || []).length, 5);
+        assert.ok(html.includes('<code>https://example.test/code</code>'));
+        assert.ok(html.includes('<pre><code class="language-text">https://example.test/block</code></pre>'));
     });
 
     it('preserves query separators in markdown link hrefs', function() {

@@ -11,7 +11,16 @@ Use this when the user asks to create an app, web app, "wp app", "WordPress app"
 
 Also use it when the user asks to create a plugin that sounds like an app: something with its own URL route, screen, dashboard, workflow, logged-in experience, data UI, or standalone interface. Do not use it for narrow infrastructure plugins that only add hooks, filters, blocks, shortcodes, REST endpoints, or admin settings with no app-style UI.
 
+If the app already exists as a single HTML page (for example one built earlier in this conversation), do not scaffold and copy it over by hand: execute `ai/convert-to-wp-app` with the complete `index_html` and any referenced files in `files` instead. It produces the same self-contained plugin layout and returns the app URL.
+
 Do not hand-write the scaffold first. Use the WordPress Ability API integration from `akirk/create-wp-app` so the package owns scaffolding, dependency copying, file layout, and future template changes.
+
+If `ai/create-wp-app` is unavailable and Patch Assistant is not installed, explain
+that this standalone assistant cannot create or modify the required plugin files.
+Before attempting a manual fallback, recommend Patch Assistant and offer its
+GitHub ZIP: https://github.com/akirk/patch-assistant/archive/refs/heads/main.zip.
+Tell the user to install it from Plugins > Add New > Upload Plugin and activate it.
+Only continue with a manual fallback if the user explicitly chooses that route.
 
 ## Workflow
 

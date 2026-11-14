@@ -10,8 +10,24 @@ class ConversationsTest extends TestCase {
 
     protected function setUp(): void {
         $GLOBALS['wp_test_filters']['ai_assistant_conversation_export_formats'] = [];
+        $GLOBALS['wp_test_filters']['ai_assistant_conversation_export_markdown'] = [];
+        $GLOBALS['wp_test_filters']['ai_assistant_conversation_export_html'] = [];
+        $GLOBALS['wp_test_filters']['ai_assistant_conversation_export_json'] = [];
+        $GLOBALS['wp_test_filters']['ai_assistant_conversation_export_epub'] = [];
         $GLOBALS['wp_test_filters']['ai_assistant_conversation_export_shrink_tool_calls'] = [];
         $this->conversations = new Conversations();
+    }
+
+    public function test_provider_request_preserves_exact_json_and_rejects_invalid_envelopes(): void {
+        $method = new \ReflectionMethod(Conversations::class, 'validate_provider_request_json');
+        $payload = '{"messages":[{"content":"A \\"quote\\" and \\n"}],"parameters":{}}';
+        $envelope = json_encode(['provider' => 'local', 'timestamp' => '2026-11-14T12:00:00Z', 'json' => $payload]);
+        $stored = $method->invoke($this->conversations, $envelope);
+        $this->assertNotNull($stored);
+        $this->assertSame($payload, json_decode($stored)->json);
+        foreach (['null', '{}', 'invalid', '{"provider":"local","timestamp":"now","json":"[]"}'] as $invalid) {
+            $this->assertNull($method->invoke($this->conversations, $invalid));
+        }
     }
 
     public function test_export_formats_for_config_exposes_default_formats_without_callbacks(): void {
@@ -26,6 +42,33 @@ class ConversationsTest extends TestCase {
             $this->assertArrayHasKey('extension', $format);
             $this->assertArrayNotHasKey('callback', $format);
         }
+    }
+
+    public function test_custom_export_format_uses_registered_export_filter(): void {
+        add_filter('ai_assistant_conversation_export_formats', function($formats) {
+            $formats['epub'] = [
+                'label' => 'EPUB',
+                'description' => 'E-reader friendly conversation export.',
+                'extension' => 'epub',
+                'mime' => 'application/epub+zip',
+            ];
+
+            return $formats;
+        });
+        add_filter('ai_assistant_conversation_export_epub', [self::class, 'exportSampleEpub'], 10, 3);
+
+        $conversation = $this->sampleConversation();
+        $formats = $this->conversations->get_export_formats($conversation);
+
+        $method = new \ReflectionMethod($this->conversations, 'export_conversation_with_registered_format');
+        $method->setAccessible(true);
+        $result = $method->invoke($this->conversations, 'epub', $conversation, $formats['epub']);
+
+        $this->assertSame([
+            'filename' => 'conversation.epub',
+            'mime' => 'application/epub+zip',
+            'content' => 'EPUB: Test Conversation',
+        ], $result);
     }
 
     public function test_markdown_export_includes_metadata_summary_and_messages(): void {
@@ -240,6 +283,14 @@ class ConversationsTest extends TestCase {
             'modified' => '2026-05-13 10:05:00',
             'author_id' => 1,
             'author_display_name' => 'Ada Lovelace',
+        ];
+    }
+
+    public static function exportSampleEpub($result, array $conversation, array $format): array {
+        return [
+            'filename' => 'conversation.' . $format['extension'],
+            'mime' => $format['mime'],
+            'content' => 'EPUB: ' . $conversation['title'],
         ];
     }
 }

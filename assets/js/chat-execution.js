@@ -1,6 +1,10 @@
 (function($) {
     'use strict';
 
+    var __ = window.wp.i18n.__;
+    var _n = window.wp.i18n._n;
+    var sprintf = window.wp.i18n.sprintf;
+
     $.extend(window.aiAssistant, {
         getMessageTimestamp: window.aiAssistant.getMessageTimestamp || function() {
             return Date.now ? Date.now() : new Date().getTime();
@@ -251,7 +255,7 @@
                             }
                         };
                     }
-                    return self.executeSingleTool(tc);
+                    return self.executeSingleTool(tc, provider);
                 });
             });
 
@@ -269,9 +273,6 @@
                     } else {
                         var errorMsg = result.result?.error || 'Failed';
                         self.setToolCardState(result.id, 'error', { message: errorMsg, output: result.result });
-                    }
-                    if (self.notifyToolCallCallbacks) {
-                        self.notifyToolCallCallbacks(result, provider);
                     }
                 });
                 self.handleToolResults(results, provider);
@@ -732,9 +733,39 @@
                     return self.executeServerToolAjax(toolCall);
                 }
 
+                if (fallbackToServer && self.getNormalizedAbilityAction(toolName, args) === 'list') {
+                    // The client registry omits PHP abilities that are not exposed
+                    // through REST. Include both registries during discovery.
+                    return self.executeServerToolAjax(toolCall).then(function(response) {
+                        if (!response.success || !response.result || !Array.isArray(response.result.abilities)) {
+                            return response;
+                        }
+                        var abilities = response.result.abilities.slice();
+                        var ids = new Set(abilities.map(function(ability) { return ability.id; }));
+                        self.getClientAbilityList(api, args.category || '').abilities.forEach(function(ability) {
+                            if (!ids.has(ability.id)) {
+                                abilities.push(ability);
+                                ids.add(ability.id);
+                            }
+                        });
+                        return self.createClientAbilityToolResult(toolCall, {
+                            abilities: abilities,
+                            count: abilities.length,
+                            filter: args.category || null
+                        });
+                    });
+                }
+
                 return self.executeClientAbilityTool(toolCall, api).catch(function(error) {
-                    if (fallbackToServer && error && error.aiAssistantFallbackToServer) {
-                        // WP 6.9 COMPAT: Ability exists only in PHP/non-REST registry.
+                    var input = self.getNormalizedAbilityInput(toolName, args);
+                    var emptyObjectInput = input && typeof input === 'object' &&
+                        !Array.isArray(input) && Object.keys(input).length === 0;
+                    if (fallbackToServer && error && (error.aiAssistantFallbackToServer ||
+                        (self.getNormalizedAbilityAction(toolName, args) === 'execute' &&
+                            emptyObjectInput && error.code === 'ability_invalid_input'))) {
+                        // Missing registry entries also use this fallback. Core's
+                        // GET transport drops empty objects; PHP accepts the decoded
+                        // empty array as object-like and still validates the schema.
                         return self.executeServerToolAjax(toolCall);
                     }
 
@@ -878,8 +909,9 @@
             var id = ability.name || ability.id || '';
             return {
                 id: id,
-                name: ability.label || id,
-                description: ability.description || '',
+                description: String(ability.description || '').length > 240
+                    ? String(ability.description).substring(0, 240).replace(/\s+\S*$/, '') + '…'
+                    : (ability.description || ''),
                 category: ability.category || 'uncategorized',
                 readonly: !!annotations.readonly,
                 destructive: !!annotations.destructive
@@ -891,8 +923,8 @@
             var annotations = this.getClientAbilityAnnotations(ability);
             return {
                 id: summary.id,
-                name: summary.name,
-                description: summary.description,
+                name: ability.label || summary.id,
+                description: ability.description || '',
                 category: summary.category,
                 input_schema: ability.input_schema || {},
                 output_schema: ability.output_schema || {},
@@ -900,6 +932,7 @@
                     readonly: !!annotations.readonly,
                     destructive: !!annotations.destructive
                 },
+                has_schema: !!ability.input_schema,
                 instructions: annotations.instructions || ability.instructions || ''
             };
         },
@@ -997,8 +1030,21 @@
             });
         },
 
-        executeSingleTool: function(toolCall) {
+        executeSingleTool: function(toolCall, provider) {
             var toolName = toolCall.name || toolCall.tool;
+
+            if (this.getReusableToolResult) {
+                provider = provider || this.currentProvider || 'openai';
+                var reused = this.getReusableToolResult(toolCall, provider);
+                if (reused) {
+                    if (reused._previousRequestCount >= 2 &&
+                        this.lastRepeatContextWarningTurn !== reused._requestTurn) {
+                        this.lastRepeatContextWarningTurn = reused._requestTurn;
+                        this.addMessage('system', 'The model is repeating the same tool request even after its earlier result was made smaller. Its context window may be too small. Try increasing the context length in your model server or starting a fresh chat.', 'ai-context-size-warning');
+                    }
+                    return Promise.resolve(reused);
+                }
+            }
 
             if (toolName === 'rest_api') {
                 return this.executeRestApi(toolCall);
@@ -1022,6 +1068,18 @@
 
             if (toolName === 'pick_image') {
                 return this.executePickImage(toolCall);
+            }
+
+            if (toolName === 'suggest_patch_assistant') {
+                var runtimeConfig = (typeof aiAssistantConfig !== 'undefined' && aiAssistantConfig) || {};
+                var install = runtimeConfig.patchAssistantInstall || {};
+                return Promise.resolve({
+                    id: toolCall.id,
+                    name: toolName,
+                    input: toolCall.arguments || {},
+                    result: install,
+                    success: true
+                });
             }
 
             if (toolName === 'delegate' && this.executeDelegate) {
@@ -1534,13 +1592,15 @@
         inspectCachedToolResultString: function(record, args, value) {
             var text = String(value || '');
             var maxLength = parseInt(args.max_length, 10);
-            maxLength = Number.isFinite(maxLength) && maxLength > 0 ? Math.min(maxLength, 65536) : 12000;
+            var hasExplicitMaxLength = Number.isFinite(maxLength) && maxLength > 0;
+            maxLength = hasExplicitMaxLength ? Math.min(maxLength, 65536) : 12000;
             var offset = parseInt(args.offset, 10);
             offset = Number.isFinite(offset) && offset > 0 ? offset : 0;
             var search = String(args.search || '');
             var path = String(args.path || '');
 
             if (search) {
+                var searchMaxLength = hasExplicitMaxLength ? maxLength : 2500;
                 var lines = text.split(/\r\n|\n|\r/);
                 var occurrence = parseInt(args.occurrence, 10);
                 occurrence = Number.isFinite(occurrence) && occurrence > 0 ? occurrence : 1;
@@ -1583,9 +1643,68 @@
                 var start = Math.max(0, matchIndex - beforeLines);
                 var end = Math.min(lines.length - 1, matchIndex + afterLines);
                 var content = lines.slice(start, end + 1).join('\n');
-                var truncated = content.length > maxLength;
+                var matchLineLength = matchIndex >= 0 ? lines[matchIndex].length : 0;
+                var shouldUseOffsetWindow = lines.length <= 3 || matchLineLength > searchMaxLength || content.length > searchMaxLength;
+
+                if (shouldUseOffsetWindow) {
+                    var matchOffset = -1;
+                    var searchFrom = 0;
+                    for (var matchCount = 0; matchCount < occurrence; matchCount++) {
+                        matchOffset = text.indexOf(search, searchFrom);
+                        if (matchOffset === -1) {
+                            break;
+                        }
+                        searchFrom = matchOffset + search.length;
+                    }
+
+                    var contextBefore = Math.min(1000, Math.floor(searchMaxLength / 4));
+                    var contentOffset = Math.max(0, matchOffset - contextBefore);
+                    content = text.substring(contentOffset, contentOffset + searchMaxLength);
+                    var nextOffset = contentOffset + content.length;
+                    var offsetTruncated = nextOffset < text.length;
+
+                    return {
+                        tool_use_id: record.id,
+                        tool: record.name,
+                        path: path,
+                        type: 'string',
+                        chars: text.length,
+                        search: search,
+                        occurrence: occurrence,
+                        match_found: true,
+                        match_offset: matchOffset,
+                        content_offset: contentOffset,
+                        content_format: 'offset_excerpt',
+                        content_note: 'The content field is a character-offset excerpt from a long or single-line cached string. Continue with offset/next_offset rather than rerunning the original tool.',
+                        content: content,
+                        truncated: offsetTruncated,
+                        next_offset: offsetTruncated ? nextOffset : null,
+                        matches_seen: found,
+                        more_matches_available: hasMoreMatches,
+                        next_occurrence: hasMoreMatches ? occurrence + 1 : null,
+                        next_inspection: offsetTruncated ? {
+                            tool_use_id: record.id,
+                            path: path,
+                            offset: nextOffset,
+                            max_length: searchMaxLength
+                        } : (hasMoreMatches ? {
+                            tool_use_id: record.id,
+                            path: path,
+                            search: search,
+                            occurrence: occurrence + 1,
+                            max_length: searchMaxLength
+                        } : null),
+                        instruction: offsetTruncated
+                            ? 'This cached string is long or mostly one line, so line windows are not useful. Call inspect_tool_result again with the same tool_use_id and path, and set offset to next_offset. Do not rerun the original broad tool call.'
+                            : (hasMoreMatches
+                                ? 'A later search match is available. Call inspect_tool_result again with the same tool_use_id, path, search, and occurrence=next_occurrence. Do not rerun the original broad tool call.'
+                                : 'No later search match was found in this cached result path.')
+                    };
+                }
+
+                var truncated = content.length > searchMaxLength;
                 if (truncated) {
-                    content = content.substring(0, maxLength);
+                    content = content.substring(0, searchMaxLength);
                 }
 
                 return {
@@ -1614,7 +1733,7 @@
                         occurrence: occurrence + 1,
                         before_lines: beforeLines,
                         after_lines: afterLines,
-                        max_length: maxLength
+                        max_length: searchMaxLength
                     } : null,
                     instruction: hasMoreMatches
                         ? 'The content field is a line excerpt and may not be valid standalone JSON. Another search match is available. Call inspect_tool_result again with the same tool_use_id, path, and search, and set occurrence to next_occurrence. Do not rerun the original broad tool call.'
@@ -1794,6 +1913,22 @@
             return result;
         },
 
+        addInspectResultContinuationMetadata: function(result) {
+            if (!result || typeof result !== 'object') {
+                return result;
+            }
+
+            if (result.next_inspection && typeof result.next_inspection === 'object' && !Array.isArray(result.next_inspections)) {
+                result.next_inspections = [$.extend({}, result.next_inspection)];
+            }
+
+            if (result.truncated && result.next_inspection && !result._truncated) {
+                result._truncated = 'This inspect_tool_result response is incomplete. Continue with next_inspection exactly; do not rerun the original broad tool call.';
+            }
+
+            return result;
+        },
+
         executeInspectToolResult: function(toolCall) {
             var args = toolCall.arguments || {};
             var toolUseId = String(args.tool_use_id || args.tool_result_id || args.id || '').trim();
@@ -1878,6 +2013,8 @@
                 result.path_corrected = true;
             }
 
+            result = this.addInspectResultContinuationMetadata(result);
+
             return {
                 id: toolCall.id,
                 name: 'inspect_tool_result',
@@ -1890,12 +2027,14 @@
         canUseFileToolEndpoint: function(toolName) {
             var config = typeof aiAssistantConfig !== 'undefined' ? aiAssistantConfig : {};
             var fileTools = Array.isArray(config.fileEndpointTools) ? config.fileEndpointTools : [];
+            var enabledTools = Array.isArray(config.enabledTools) ? config.enabledTools : [];
 
             return !!(
                 config &&
                 config.fileToolsUrl &&
                 config.fileToolsToken &&
-                fileTools.indexOf(toolName) >= 0
+                fileTools.indexOf(toolName) >= 0 &&
+                enabledTools.indexOf(toolName) >= 0
             );
         },
 
@@ -1904,6 +2043,23 @@
             var toolName = toolCall.name || toolCall.tool;
             var args = toolCall.arguments || {};
             var mutatingFileTools = ['write_file', 'edit_file', 'delete_file'];
+            var enabledTools = (
+                typeof aiAssistantConfig !== 'undefined' &&
+                Array.isArray(aiAssistantConfig.enabledTools)
+            ) ? aiAssistantConfig.enabledTools : [];
+
+            if (enabledTools.indexOf(toolName) < 0) {
+                return Promise.resolve({
+                    id: toolCall.id,
+                    name: toolName,
+                    input: args,
+                    result: {
+                        error: 'File tool is disabled: ' + toolName,
+                        instruction: 'Ask the user to enable this tool in AI Assistant > Settings > Tool Permissions before trying again.'
+                    },
+                    success: false
+                });
+            }
 
             return fetch(aiAssistantConfig.fileToolsUrl, {
                 method: 'POST',
@@ -1975,6 +2131,84 @@
                     },
                     success: false
                 };
+            });
+        },
+
+        maybePreflightStreamingFileMutation: function(toolId, toolName, partialInput) {
+            if (['write_file', 'edit_file', 'delete_file'].indexOf(toolName) < 0) {
+                return;
+            }
+            if (!partialInput || typeof this.extractPartialJsonString !== 'function') {
+                return;
+            }
+
+            var path = this.extractPartialJsonString(partialInput, 'path');
+            if (!path) {
+                return;
+            }
+
+            this.streamingFilePreflights = this.streamingFilePreflights || {};
+            var key = toolId + ':' + toolName + ':' + path;
+            if (this.streamingFilePreflights[key]) {
+                return;
+            }
+            this.streamingFilePreflights[key] = true;
+
+            if (!this.canUseFileToolEndpoint(toolName)) {
+                return;
+            }
+
+            this.preflightStreamingFileMutation(toolId, toolName, path);
+        },
+
+        preflightStreamingFileMutation: function(toolId, toolName, path) {
+            var self = this;
+            fetch(aiAssistantConfig.fileToolsUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    token: aiAssistantConfig.fileToolsToken,
+                    action: 'preflight_file_mutation',
+                    target_tool: toolName,
+                    path: path,
+                    conversation_id: this.conversationId || 0
+                })
+            }).then(function(response) {
+                return response.json();
+            }).then(function(payload) {
+                if (!payload || !payload.success || !payload.data) {
+                    return;
+                }
+
+                var status = payload.data;
+                if (status.allowed || self.streamingFilePreflightDenied) {
+                    return;
+                }
+
+                self.streamingFilePreflightDenied = {
+                    id: toolId,
+                    name: toolName,
+                    path: path,
+                    status: status,
+                    reason: status.reason || ''
+                };
+
+                var message = (status.reason || 'File mutation is not writable.') + ' ' + path +
+                    (status.permissions ? ' permissions=' + status.permissions : '') +
+                    (status.owner !== null && status.owner !== undefined ? ' owner=' + status.owner : '') +
+                    (status.group !== null && status.group !== undefined ? ' group=' + status.group : '');
+
+                self.setToolCardState(toolId, 'error', { message: message });
+                if (self.addMessage) {
+                    self.addMessage('error', 'Stopped file write before content finished streaming: ' + message);
+                }
+                if (self.abortController) {
+                    self.abortController.abort();
+                }
+            }).catch(function() {
+                // Preflight is opportunistic. The normal file tool execution still enforces writeability.
             });
         },
 
@@ -2462,7 +2696,7 @@
             } else {
                 this.setToolCardState(toolId, 'executing');
                 this.executingToolCount++;
-                this.executeSingleTool({ id: toolId, name: toolName, arguments: toolArgs }).then(function(result) {
+                this.executeSingleTool({ id: toolId, name: toolName, arguments: toolArgs }, provider).then(function(result) {
                     return self.verifyPluginFileMutationResults([result]);
                 }).then(function(results) {
                     var result = results[0];
@@ -2474,9 +2708,6 @@
                         self.setToolCardState(result.id, 'completed', successOptions);
                     } else {
                         self.setToolCardState(result.id, 'error', { message: result.result?.error || 'Failed', output: result.result });
-                    }
-                    if (self.notifyToolCallCallbacks) {
-                        self.notifyToolCallCallbacks(result, provider);
                     }
                     self.pendingToolResults.push(result);
                     self.checkAllToolsResolved();
@@ -2589,9 +2820,12 @@
         },
 
         stringifyResolvedToolResultForProvider: function(result, provider) {
+            var value = result && result._reusedToolResult ? result.result : this.compactRepeatedToolResult
+                ? this.compactRepeatedToolResult(result, provider)
+                : (result ? result.result : null);
             if (this.stringifyToolResultForProvider) {
                 return this.stringifyToolResultForProvider(
-                    result ? result.result : null,
+                    value,
                     provider,
                     undefined,
                     { toolUseId: result && result.id }
@@ -2599,10 +2833,10 @@
             }
 
             if (this.safeJsonStringify) {
-                return this.safeJsonStringify(result ? result.result : null);
+                return this.safeJsonStringify(value);
             }
 
-            return JSON.stringify(result ? result.result : null);
+            return JSON.stringify(value);
         },
 
         getResolvedToolResultForProviderDisplay: function(result, provider) {
@@ -2729,6 +2963,18 @@
 
             this.updateTokenCount();
 
+            // Tool call callbacks run only after the results are in the message
+            // history and the conversation is saved: a callback may navigate away
+            // (e.g. reload the page), and the page-exit save must not persist a
+            // tool_use without its tool_result, or the reloaded conversation would
+            // ask for the same execution again.
+            this.autoSaveConversation();
+            allResults.forEach(function(result) {
+                if (self.notifyToolCallCallbacks) {
+                    self.notifyToolCallCallbacks(result, result._provider || provider);
+                }
+            });
+
             if (navigateResult && !sentQueuedMessages) {
                 var suggestionContent = this.getNavigationSuggestionContent(navigateResult.result);
                 var suggestionMessage = this.createStoredMessage('assistant', suggestionContent);
@@ -2739,8 +2985,6 @@
                 this.autoSaveConversation();
                 return;
             }
-
-            this.autoSaveConversation();
 
             if (sentQueuedMessages) {
                 this.toolCallRounds = 0;
@@ -2874,9 +3118,9 @@
                         var errorMsg = result.result?.error || 'Failed';
                         self.setToolCardState(result.id, 'error', { message: errorMsg, output: result.result });
                     }
-                    if (self.notifyToolCallCallbacks) {
-                        self.notifyToolCallCallbacks(result, providersById[result.id] || resultProvider);
-                    }
+                });
+                results.forEach(function(result) {
+                    result._provider = providersById[result.id] || resultProvider;
                 });
                 self.handleToolResults(results, resultProvider);
             }).catch(function(error) {
@@ -2935,7 +3179,7 @@
                 var $title = $('<strong></strong>');
                 var $subtitle = $('<span></span>');
                 var $close = $('<button type="button" class="ai-tool-approval-close">&times;</button>')
-                    .attr('aria-label', this.__('Keep approval pending'));
+                    .attr('aria-label', __('Keep approval pending', 'ai-assistant'));
                 var $body = $('<div class="ai-tool-approval-body"></div>');
 
                 $heading.append($title, $subtitle);
@@ -2951,11 +3195,10 @@
             var $title = $overlay.find('.ai-tool-approval-heading strong');
             var $subtitle = $overlay.find('.ai-tool-approval-heading span');
 
-            $title.text(count === 1
-                ? this.__('Approval required')
-                : this.sprintf(this._n('%d approval required', '%d approvals required', count), count)
-            );
-            $subtitle.text(this.__('Review tool requests before the assistant changes the site.'));
+            /* translators: %d: Number of tool requests awaiting approval. */
+            var approvalCount = sprintf(_n('%d approval required', '%d approvals required', count, 'ai-assistant'), count);
+            $title.text(count === 1 ? __('Approval required', 'ai-assistant') : approvalCount);
+            $subtitle.text(__('Review tool requests before the assistant changes the site.', 'ai-assistant'));
 
             actions.forEach(function(action) {
                 var $item = $('<div class="ai-tool-approval-item"></div>').attr('data-tool-id', action.id);
@@ -2970,8 +3213,8 @@
                 if (hasAbilityDetails) {
                     $desc.append(
                         $('<button type="button" class="ai-ability-info-toggle" aria-expanded="false"></button>')
-                            .attr('aria-label', self.__('Show ability details'))
-                            .text(self.__("What's this?"))
+                            .attr('aria-label', __('Show ability details', 'ai-assistant'))
+                            .text(__("What's this?", 'ai-assistant'))
                             .attr('data-tool-id', action.id)
                     );
                 }
@@ -2988,14 +3231,14 @@
                     : '';
 
                 $actions.append(
-                    $('<button type="button" class="ai-tool-skip ai-skip-btn"></button>').text(self.__('Skip')).attr('data-tool-id', action.id),
-                    $('<button type="button" class="ai-tool-approve ai-approve-btn"></button>').text(self.__('Approve')).attr('data-tool-id', action.id)
+                    $('<button type="button" class="ai-tool-skip ai-skip-btn"></button>').text(__('Skip', 'ai-assistant')).attr('data-tool-id', action.id),
+                    $('<button type="button" class="ai-tool-approve ai-approve-btn"></button>').text(__('Approve', 'ai-assistant')).attr('data-tool-id', action.id)
                 );
 
                 if (isAbilityExecute) {
                     $actions.append(
                         $('<button type="button" class="ai-tool-approve-always ai-always-approve-btn"></button>')
-                            .text(self.__('Always approve'))
+                            .text(__('Always approve', 'ai-assistant'))
                             .attr('data-tool-id', action.id)
                             .attr('data-ability', args.ability)
                     );
@@ -3004,7 +3247,7 @@
                 if (isRestApiWrite) {
                     $actions.append(
                         $('<button type="button" class="ai-tool-approve-always ai-always-approve-btn"></button>')
-                            .text(self.__('Always approve'))
+                            .text(__('Always approve', 'ai-assistant'))
                             .attr('data-tool-id', action.id)
                             .attr('data-rest-api', restApiPattern)
                     );
@@ -3028,11 +3271,12 @@
                     var $preview = $('<div class="ai-action-preview' + (autoExpand ? ' expanded' : '') + '"></div>')
                         .attr('data-language', preview.language || '')
                         .attr('data-is-edit', preview.isEdit ? '1' : '0');
-                    var previewLabel = preview.isEdit ? self.__('Show changes') : self.__('Show content');
+                    var previewLabel = preview.isEdit ? __('Show changes', 'ai-assistant') : __('Show content', 'ai-assistant');
                     var $toggle = $('<button type="button" class="ai-action-preview-toggle"></button>');
                     $toggle.append(
                         $('<span class="ai-action-preview-icon" aria-hidden="true">&gt;</span>'),
-                        document.createTextNode(previewLabel + ' (' + self.sprintf(self._n('%d line', '%d lines', lineCount), lineCount) + ')')
+                        /* translators: %d: Number of lines in the content preview. */
+                        document.createTextNode(previewLabel + ' (' + sprintf(_n('%d line', '%d lines', lineCount, 'ai-assistant'), lineCount) + ')')
                     );
                     var $content = $('<div class="ai-action-preview-content"><pre class="ai-code-preview"></pre></div>');
                     $preview.append($toggle, $content);
@@ -3047,7 +3291,7 @@
                     var argsJson = JSON.stringify(args, null, 2);
                     if (argsJson && argsJson !== 'null') {
                         var $details = $('<details class="ai-tool-approval-params"><summary></summary><pre></pre></details>');
-                        $details.find('summary').text(self.__('Parameters'));
+                        $details.find('summary').text(__('Parameters', 'ai-assistant'));
                         $details.find('pre').text(argsJson);
                         $item.append($details);
                     }
@@ -3132,12 +3376,12 @@
 
             $header.append($('<code></code>').text(details.id || ''));
             if (details.readonly) {
-                $header.append($('<span class="ai-ability-badge ai-ability-badge-readonly"></span>').text(this.__('Read-only')));
+                $header.append($('<span class="ai-ability-badge ai-ability-badge-readonly"></span>').text(__('Read-only', 'ai-assistant')));
             } else if (details.destructive) {
-                $header.append($('<span class="ai-ability-badge ai-ability-badge-destructive"></span>').text(this.__('Destructive')));
+                $header.append($('<span class="ai-ability-badge ai-ability-badge-destructive"></span>').text(__('Destructive', 'ai-assistant')));
             }
             if (details.approved) {
-                $header.append($('<span class="ai-ability-badge ai-ability-badge-approved"></span>').text(this.__('Always approved')));
+                $header.append($('<span class="ai-ability-badge ai-ability-badge-approved"></span>').text(__('Always approved', 'ai-assistant')));
             }
             $body.append($header);
 
@@ -3147,12 +3391,12 @@
 
             $body.append(
                 $('<p class="description ai-ability-info-description"></p>')
-                    .text(details.description || this.__('No description provided.'))
+                    .text(details.description || __('No description provided.', 'ai-assistant'))
             );
 
-            $body.append($('<div class="ai-ability-params-heading"></div>').text(this.__('Parameters')));
+            $body.append($('<div class="ai-ability-params-heading"></div>').text(__('Parameters', 'ai-assistant')));
             if (!usedNames.length) {
-                $body.append($('<p class="description ai-ability-no-params"></p>').text(this.__('No parameters used.')));
+                $body.append($('<p class="description ai-ability-no-params"></p>').text(__('No parameters used.', 'ai-assistant')));
             } else {
                 var $list = $('<div class="ai-ability-param-list"></div>');
                 usedNames.forEach(function(name) {
@@ -3167,7 +3411,7 @@
                     $head.append($('<code></code>').text(name));
                     $head.append($('<span class="ai-ability-param-type"></span>').text(parameter.type || 'any'));
                     if (parameter.required) {
-                        $head.append($('<span class="ai-ability-param-required"></span>').text(self.__('Required')));
+                        $head.append($('<span class="ai-ability-param-required"></span>').text(__('Required', 'ai-assistant')));
                     }
                     $param.append($head);
                     if (parameter.description) {
@@ -3389,8 +3633,6 @@
                         default:
                             return 'Delegate read-only task';
                     }
-                case 'compact_context':
-                    return 'Compact older context for this request';
                 case 'environment_info':
                     return 'Get environment info';
                 case 'ability':

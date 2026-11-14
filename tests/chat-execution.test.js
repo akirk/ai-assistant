@@ -27,6 +27,18 @@ function loadExecutionMixin(config, options) {
             'write_file',
             'edit_file',
             'delete_file'
+        ],
+        enabledTools: [
+            'read_file',
+            'find',
+            'list_directory',
+            'search_files',
+            'search_content',
+            'write_file',
+            'edit_file',
+            'delete_file',
+            'execute_ability',
+            'rest_api'
         ]
     };
     const resolvedConfig = options.useDefaultConfig === false
@@ -52,9 +64,11 @@ function loadExecutionMixin(config, options) {
         aiAssistantConfig: resolvedConfig,
         URLSearchParams,
         jQuery: jQueryStub,
+        fetch: options.fetch,
         console
     };
 
+    require('./wp-i18n')(context);
     vm.createContext(context);
     const source = fs.readFileSync(
         path.join(__dirname, '../assets/js/chat-execution.js'),
@@ -121,6 +135,140 @@ function flushPromises() {
     return new Promise(resolve => setTimeout(resolve, 0));
 }
 
+describe('client ability normalization', function() {
+    it('returns a compact discovery index while preserving full get details', function() {
+        const assistant = loadExecutionMixin();
+        const ability = {
+            name: 'cookbook/save-recipe',
+            label: 'Save Recipe',
+            description: 'Save a recipe. '.repeat(40),
+            category: 'cookbook',
+            meta: {
+                annotations: {
+                    readonly: false,
+                    destructive: false,
+                    instructions: 'Use when saving recipes.'
+                }
+            },
+            input_schema: {
+                type: 'object',
+                properties: {
+                    title: {
+                        type: 'string',
+                        description: 'Recipe title'
+                    },
+                    tags: {
+                        type: 'array',
+                        items: { type: 'string' }
+                    }
+                },
+                required: ['title']
+            }
+        };
+        const api = {
+            getAbilities() {
+                return [ability];
+            }
+        };
+
+        const list = assistant.getClientAbilityList(api, 'cookbook');
+        const details = assistant.normalizeClientAbilityDetails(ability);
+
+        assert.strictEqual(list.count, 1);
+        assert.strictEqual(list.abilities[0].id, 'cookbook/save-recipe');
+        assert.equal(list.abilities[0].input_schema, undefined);
+        assert.equal(list.abilities[0].has_schema, undefined);
+        assert.equal(list.abilities[0].name, undefined);
+        assert.ok(list.abilities[0].description.length <= 241);
+        assert.ok(list.abilities[0].description.endsWith('…'));
+        assert.equal(list.abilities[0].instructions, undefined);
+        assert.equal(details.description, ability.description);
+        assert.equal(details.instructions, 'Use when saving recipes.');
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(details.input_schema)), ability.input_schema);
+    });
+});
+
+describe('ability discovery across registries', function() {
+    for (const name of ['ability', 'list_abilities']) {
+        it(`includes PHP-only abilities for ${name}`, async function() {
+            const assistant = loadExecutionMixin();
+            assistant.getClientAbilitiesApi = async () => ({
+                getAbilities: () => [
+                    { name: 'travel-app/client-only', category: 'travel-app' },
+                    { name: 'travel-app/shared', category: 'travel-app' }
+                ]
+            });
+            assistant.executeServerToolAjax = async () => ({
+                success: true,
+                result: { abilities: [
+                    { id: 'travel-app/list-trips', category: 'travel-app' },
+                    { id: 'travel-app/shared', category: 'travel-app' }
+                ] }
+            });
+            const response = await assistant.executeAbilityTool({
+                id: 'list', name, arguments: { action: 'list', category: 'travel-app' }
+            });
+            assert.equal(response.success, true);
+            assert.equal(response.result.count, 3);
+            assert.equal(response.result.filter, 'travel-app');
+            assert.deepEqual(Array.from(response.result.abilities, a => a.id), [
+                'travel-app/list-trips', 'travel-app/shared', 'travel-app/client-only'
+            ]);
+        });
+    }
+
+    it('honors disabled server fallback', async function() {
+        const assistant = loadExecutionMixin({ clientAbilities: { fallbackToServer: false } });
+        assistant.getClientAbilitiesApi = async () => ({ getAbilities: () => [] });
+        assistant.executeServerToolAjax = () => { throw new Error('Unexpected server request'); };
+        const response = await assistant.executeAbilityTool({ name: 'ability', arguments: { action: 'list' } });
+        assert.equal(response.result.count, 0);
+    });
+
+    it('preserves server permission failures', async function() {
+        const assistant = loadExecutionMixin();
+        assistant.getClientAbilitiesApi = async () => ({ getAbilities: () => [] });
+        const failure = { success: false, result: { error: 'Tool is not enabled' } };
+        assistant.executeServerToolAjax = async () => failure;
+        assert.equal(await assistant.executeAbilityTool({ name: 'ability', arguments: { action: 'list' } }), failure);
+    });
+});
+
+describe('empty ability input transport', function() {
+    for (const input of [undefined, {}]) {
+        it(`falls back after an invalid-input transport error with ${JSON.stringify(input)}`, async function() {
+            const assistant = loadExecutionMixin();
+            assistant.getClientAbilitiesApi = async () => ({
+                getAbility: () => ({ name: 'cookbook/search-recipes' }),
+                executeAbility: async () => { throw { code: 'ability_invalid_input' }; }
+            });
+            const call = { name: 'ability', arguments: {
+                action: 'execute', ability: 'cookbook/search-recipes', arguments: input
+            } };
+            const expected = { success: true, result: { recipes: [] } };
+            assistant.executeServerToolAjax = async actual => {
+                assert.equal(actual, call);
+                return expected;
+            };
+            assert.equal(await assistant.executeAbilityTool(call), expected);
+        });
+    }
+
+    it('does not retry nonempty invalid input', async function() {
+        const assistant = loadExecutionMixin();
+        assistant.getClientAbilitiesApi = async () => ({
+            getAbility: () => ({ name: 'cookbook/search-recipes' }),
+            executeAbility: async () => { throw { code: 'ability_invalid_input' }; }
+        });
+        assistant.executeServerToolAjax = () => { throw new Error('Unexpected retry'); };
+        const response = await assistant.executeAbilityTool({ name: 'ability', arguments: {
+            action: 'execute', ability: 'cookbook/search-recipes', arguments: { limit: -1 }
+        } });
+        assert.equal(response.success, false);
+        assert.equal(response.result.code, 'ability_invalid_input');
+    });
+});
+
 describe('configured tool routing', function() {
     it('does not infer destructive tools without localized config', function() {
         const assistant = loadExecutionMixin({}, { useDefaultConfig: false });
@@ -136,6 +284,95 @@ describe('configured tool routing', function() {
 
         assert.strictEqual(assistant.canUseFileToolEndpoint('read_file'), false);
         assert.strictEqual(assistant.canUseFileToolEndpoint('edit_file'), false);
+    });
+
+    it('does not route disabled file tools to the direct endpoint', async function() {
+        const assistant = loadExecutionMixin({
+            fileToolsUrl: '/file-tools.php',
+            fileToolsToken: 'token',
+            fileEndpointTools: ['read_file', 'write_file'],
+            enabledTools: ['read_file']
+        }, { useDefaultConfig: false });
+
+        assert.strictEqual(assistant.canUseFileToolEndpoint('read_file'), true);
+        assert.strictEqual(assistant.canUseFileToolEndpoint('write_file'), false);
+
+        const result = await assistant.executeFileToolEndpoint({
+            id: 'toolu_disabled_write',
+            name: 'write_file',
+            arguments: { path: 'plugins/example/file.php', content: '<?php' }
+        });
+
+        assert.strictEqual(result.success, false);
+        assert.match(result.result.error, /File tool is disabled: write_file/);
+        assert.match(result.result.instruction, /Tool Permissions/);
+    });
+
+    it('aborts streaming when a file mutation target is not writable', async function() {
+        let aborted = false;
+        const messages = [];
+        const states = [];
+        const assistant = loadExecutionMixin({
+            fileToolsUrl: '/file-tools.php',
+            fileToolsToken: 'token',
+            fileEndpointTools: ['write_file'],
+            enabledTools: ['write_file']
+        }, {
+            useDefaultConfig: false,
+            fetch: async (url, options) => {
+                const body = JSON.parse(options.body);
+                assert.strictEqual(body.action, 'preflight_file_mutation');
+                assert.strictEqual(body.target_tool, 'write_file');
+                assert.strictEqual(body.path, 'plugins/example/file.php');
+                return {
+                async json() {
+                    return {
+                        success: true,
+                        data: {
+                            path: 'plugins/example/file.php',
+                            exists: true,
+                            allowed: false,
+                            reason: 'Existing file is not writable.',
+                            writable: false,
+                            parent_writable: true,
+                            permissions: '0644',
+                            owner: 1001,
+                            group: 1001
+                        }
+                    };
+                }
+            };
+            }
+        });
+
+        assistant.extractPartialJsonString = function(partialJson, key) {
+            const match = String(partialJson).match(new RegExp('"' + key + '"\\s*:\\s*"([^"]+)"'));
+            return match ? match[1] : '';
+        };
+        assistant.setToolCardState = function(id, state, details) {
+            states.push({ id, state, details });
+        };
+        assistant.addMessage = function(role, content) {
+            messages.push({ role, content });
+        };
+        assistant.abortController = {
+            abort() {
+                aborted = true;
+            }
+        };
+
+        assistant.maybePreflightStreamingFileMutation(
+            'toolu_write',
+            'write_file',
+            '{"path":"plugins/example/file.php","content":"'
+        );
+
+        await flushPromises();
+
+        assert.strictEqual(aborted, true);
+        assert.strictEqual(states[0].state, 'error');
+        assert.match(states[0].details.message, /Existing file is not writable/);
+        assert.match(messages[0].content, /Stopped file write before content finished streaming/);
     });
 });
 
@@ -234,6 +471,54 @@ describe('inspect_tool_result', function() {
         assert.doesNotMatch(inspected.result.content, /History/);
     });
 
+    it('uses offset excerpts for long single-line cached string searches', function() {
+        const assistant = createAssistant();
+        const content = '<p>' + 'alpha<br>'.repeat(800) + 'needle<br>' + 'omega<br>'.repeat(800) + '</p>';
+
+        assistant.rememberToolResultForInspection({
+            id: 'toolu_article',
+            name: 'ability',
+            success: true,
+            result: {
+                article: {
+                    content
+                }
+            }
+        });
+
+        const inspected = assistant.executeInspectToolResult({
+            id: 'inspect_long_line',
+            arguments: {
+                tool_use_id: 'toolu_article',
+                path: 'article.content',
+                search: 'needle',
+                after_lines: 200
+            }
+        });
+
+        assert.strictEqual(inspected.success, true);
+        assert.strictEqual(inspected.result.match_found, true);
+        assert.strictEqual(inspected.result.content_format, 'offset_excerpt');
+        assert.match(inspected.result.content, /needle/);
+        assert.strictEqual(inspected.result.truncated, true);
+        assert.strictEqual(inspected.result.next_offset, inspected.result.content_offset + inspected.result.content.length);
+        assert.deepEqual(JSON.parse(JSON.stringify(inspected.result.next_inspection)), {
+            tool_use_id: 'toolu_article',
+            path: 'article.content',
+            offset: inspected.result.next_offset,
+            max_length: 2500
+        });
+        assert.deepEqual(JSON.parse(JSON.stringify(inspected.result.next_inspections)), [{
+            tool_use_id: 'toolu_article',
+            path: 'article.content',
+            offset: inspected.result.next_offset,
+            max_length: 2500
+        }]);
+        assert.match(inspected.result._truncated, /Continue with next_inspection exactly/);
+        assert.match(inspected.result.instruction, /offset to next_offset/);
+        assert.match(inspected.result.instruction, /Do not rerun the original broad tool call/);
+    });
+
     it('returns a structured array item and next occurrence for cached JSON searches', function() {
         const assistant = createAssistant();
 
@@ -273,6 +558,12 @@ describe('inspect_tool_result', function() {
             search: 'Playground',
             occurrence: 2
         });
+        assert.deepEqual(JSON.parse(JSON.stringify(inspected.result.next_inspections)), [{
+            tool_use_id: 'toolu_schedule',
+            path: 'sessions',
+            search: 'Playground',
+            occurrence: 2
+        }]);
         assert.match(inspected.result.instruction, /Do not rerun the original broad tool call/);
     });
 
@@ -865,9 +1156,46 @@ describe('auto-approved pending actions', function() {
 });
 
 describe('tool call callbacks', function() {
-    it('notifies subscribers after executing tools', async function() {
-        const notifications = [];
-        let handled = false;
+    it('notifies subscribers only after the tool result is stored and saved', function() {
+        const events = [];
+        const assistant = createAssistant({
+            streamComplete: true,
+            pendingToolResults: [],
+            messages: [],
+            deduplicateFileReads() {},
+            updateTokenCount() {},
+            autoSaveConversation() {
+                events.push('save:' + assistant.messages.length);
+            },
+            notifyToolCallCallbacks(result, provider) {
+                events.push('notify:' + result.name + ':' + provider + ':' + assistant.messages.length);
+            },
+            callLLM() {
+                events.push('llm');
+            }
+        });
+
+        assistant.handleToolResults([
+            {
+                id: 'toolu_1',
+                name: 'ability',
+                input: { action: 'execute', ability: 'memex/save-note' },
+                result: { ok: true },
+                success: true
+            }
+        ], 'anthropic');
+
+        assert.deepStrictEqual(events, [
+            'save:1',
+            'notify:ability:anthropic:1',
+            'llm'
+        ]);
+        assert.strictEqual(assistant.messages[0].content[0].tool_use_id, 'toolu_1');
+    });
+
+    it('does not notify subscribers before all tool results are stored', async function() {
+        let notified = 0;
+        let handled = 0;
         const assistant = createAssistant({
             executeSingleTool(toolCall) {
                 return Promise.resolve({
@@ -878,11 +1206,11 @@ describe('tool call callbacks', function() {
                     success: true
                 });
             },
-            notifyToolCallCallbacks(result, provider) {
-                notifications.push({ result, provider });
+            notifyToolCallCallbacks() {
+                notified++;
             },
             handleToolResults() {
-                handled = true;
+                handled++;
             }
         });
 
@@ -899,10 +1227,8 @@ describe('tool call callbacks', function() {
 
         await new Promise(resolve => setTimeout(resolve, 0));
 
-        assert.strictEqual(notifications.length, 1);
-        assert.strictEqual(notifications[0].result.name, 'ability');
-        assert.strictEqual(notifications[0].provider, 'anthropic');
-        assert.strictEqual(handled, true);
+        assert.strictEqual(handled, 1);
+        assert.strictEqual(notified, 0);
     });
 });
 

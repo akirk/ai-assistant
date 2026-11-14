@@ -3,7 +3,7 @@
  * Plugin Name: AI Assistant
  * Plugin URI: https://github.com/akirk/ai-assistant
  * Description: AI-powered chat interface for WordPress. Bring your own key or use a local LLM.
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: Alex Kirk
  * Author URI: https://alex.kirk.at
  * License: GPL v2 or later
@@ -11,6 +11,7 @@
  * Text Domain: ai-assistant
  * Domain Path: /languages
  * Requires at least: 6.0
+ * Tested up to: 7.1
  * Requires PHP: 7.4
  */
 
@@ -29,7 +30,7 @@ function ai_assistant_is_playground(): bool {
     return $is_wasm && $is_playground_path && $has_playground_function;
 }
 
-define('AI_ASSISTANT_VERSION', '1.1.0');
+define('AI_ASSISTANT_VERSION', '1.1.1');
 define('AI_ASSISTANT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AI_ASSISTANT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('AI_ASSISTANT_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -59,10 +60,6 @@ spl_autoload_register(function ($class) {
     }
 });
 
-// Optional high-risk development tools. Comment this line to disable file
-// mutation, plugin installation, and raw PHP execution tools.
-require_once AI_ASSISTANT_PLUGIN_DIR . 'dev-tools.php';
-
 /**
  * Main plugin class
  */
@@ -76,14 +73,8 @@ final class AI_Assistant {
     private $tools;
     private $executor;
     private $conversations;
-    private $git_tracker_manager;
-    private $plugin_downloads;
-    private $changes_admin;
-    private $plugin_recovery_admin;
-    private $plugin_checkout_badge;
     private $connectors_bridge;
     private $llm_proxy;
-    private $wp_app_abilities;
     private $conversations_app;
     private $assistant_themes;
 
@@ -100,14 +91,15 @@ final class AI_Assistant {
 
     private function init_hooks() {
         add_action('plugins_loaded', [$this, 'init']);
+        add_action('init', function() {
+            load_plugin_textdomain('ai-assistant', false, dirname(AI_ASSISTANT_PLUGIN_BASENAME) . '/languages');
+        });
         add_action('init', [$this, 'register_my_apps_integration'], 0);
         register_activation_hook(__FILE__, [$this, 'activate']);
         register_deactivation_hook(__FILE__, [$this, 'deactivate']);
     }
 
     public function init() {
-        load_plugin_textdomain('ai-assistant', false, dirname(AI_ASSISTANT_PLUGIN_BASENAME) . '/languages');
-
         // Initialize Connectors bridge (WordPress 7.0+)
         if (AI_Assistant\Connectors_Bridge::is_available()) {
             $this->connectors_bridge = new AI_Assistant\Connectors_Bridge();
@@ -117,18 +109,12 @@ final class AI_Assistant {
         $this->settings = new AI_Assistant\Settings();
         $this->assistant_themes = new AI_Assistant\Assistant_Themes();
         $this->tools = new AI_Assistant\Tools();
-        $this->git_tracker_manager = new AI_Assistant\Git_Tracker_Manager();
-        $this->executor = new AI_Assistant\Executor($this->tools, $this->git_tracker_manager);
+        $this->executor = new AI_Assistant\Executor($this->tools);
         $this->conversations = new AI_Assistant\Conversations();
         $this->chat_ui = new AI_Assistant\Chat_UI();
         $this->llm_proxy = new AI_Assistant\LLM_Proxy();
         $this->api_handler = new AI_Assistant\API_Handler($this->tools, $this->executor);
-        $this->plugin_downloads = new AI_Assistant\Plugin_Downloads($this->git_tracker_manager);
-        $this->changes_admin = new AI_Assistant\Changes_Admin($this->git_tracker_manager);
-        $this->plugin_recovery_admin = new AI_Assistant\Plugin_Recovery_Admin();
-        $this->plugin_checkout_badge = new AI_Assistant\Plugin_Checkout_Badge($this->git_tracker_manager);
         $this->conversations_app = new AI_Assistant\Conversations_App();
-        $this->wp_app_abilities = new AI_Assistant\Wp_App_Abilities($this->git_tracker_manager);
     }
 
     /**
@@ -160,6 +146,10 @@ final class AI_Assistant {
         $apps['ai-assistant'] = [
             'name' => __('AI Assistant', 'ai-assistant'),
             'dashicon' => 'dashicons-format-chat',
+            // Same tile as the WordPress/blueprints catalog entry.
+            'icon_background' => 'linear-gradient(135deg, #8e2de2, #4a00e0)',
+            'icon_color' => '#fff',
+            'icon_shadow' => true,
             'url' => AI_Assistant\Conversations_App::get_url(),
         ];
 
@@ -182,10 +172,6 @@ final class AI_Assistant {
 
     public function assistant_themes() {
         return $this->assistant_themes;
-    }
-
-    public function plugin_checkout_badge() {
-        return $this->plugin_checkout_badge;
     }
 
     /**
@@ -274,6 +260,16 @@ final class AI_Assistant {
      */
     public function executor() {
         return $this->executor;
+    }
+
+    /**
+     * Allow the optional RW companion plugin to provide the extended executor.
+     */
+    public function set_executor($executor): void {
+        $this->executor = $executor;
+        if ($this->api_handler) {
+            $this->api_handler->set_executor($executor);
+        }
     }
 }
 

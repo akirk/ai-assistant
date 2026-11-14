@@ -309,6 +309,10 @@ The callback receives:
 
 When you can declare a dependency on the AI Assistant script, depend on `ai-assistant-chat-core` and call `window.aiAssistant.onToolCall(...)` directly. The queued `window.aiAssistantToolCallbacks` form is useful when your script may load before the assistant panel script.
 
+Prefer updating the visible UI without a reload. Use `context.result` to replace changed rows, update counters, repaint controls, invalidate local caches, or fetch a small JSON endpoint and rerender the affected region.
+
+Callback code should keep the current page alive. After a tool succeeds, AI Assistant still needs to send the tool result back to the model so it can summarize what changed or continue the workflow. Avoid calling `window.location.reload()`, assigning `window.location`, submitting forms, or otherwise navigating from a callback. A navigation aborts that follow-up provider request and can surface as a transient network error in the chat. If a full refresh is truly required, present a button or link for the user to open after the assistant finishes its response instead of forcing the page to change from the callback.
+
 ## Conversation Export Formats
 
 Plugins can add export formats to the conversation export menu with `ai_assistant_conversation_export_formats`. The built-in Markdown, HTML, and JSON formats use this same filter. The callback runs on the server and can return text or binary content, so formats like EPUB are supported.

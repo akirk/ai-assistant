@@ -263,6 +263,8 @@ var aiAssistantToolsMixin = (function() {
         // Consolidated tools (find, ability, skill) are enabled if ANY of their component tools are enabled.
         isToolEnabled: function(toolName, enabled) {
             switch (toolName) {
+                case 'suggest_patch_assistant':
+                    return !!this.getRuntimeConfig().patchAssistantInstall;
                 case 'find':
                     return enabled.indexOf('list_directory') >= 0 ||
                            enabled.indexOf('search_files') >= 0 ||

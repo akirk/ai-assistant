@@ -1,41 +1,10 @@
 (function($) {
     'use strict';
 
+    var __ = window.wp.i18n.__;
+    var sprintf = window.wp.i18n.sprintf;
+
     $.extend(window.aiAssistant, {
-        __: window.aiAssistant.__ || function(text) {
-            if (window.wp && window.wp.i18n && typeof window.wp.i18n.__ === 'function') {
-                return window.wp.i18n.__(text, 'ai-assistant');
-            }
-
-            return text;
-        },
-
-        _n: window.aiAssistant._n || function(single, plural, number) {
-            if (window.wp && window.wp.i18n && typeof window.wp.i18n._n === 'function') {
-                return window.wp.i18n._n(single, plural, number, 'ai-assistant');
-            }
-
-            return number === 1 ? single : plural;
-        },
-
-        sprintf: window.aiAssistant.sprintf || function() {
-            if (window.wp && window.wp.i18n && typeof window.wp.i18n.sprintf === 'function') {
-                return window.wp.i18n.sprintf.apply(window.wp.i18n, arguments);
-            }
-
-            var args = Array.prototype.slice.call(arguments);
-            var format = String(args.shift() || '');
-            var index = 0;
-
-            return format.replace(/%([sd])/g, function(match) {
-                if (index >= args.length) {
-                    return match;
-                }
-
-                return String(args[index++]);
-            });
-        },
-
         addMessage: function(role, content, extraClass, options) {
             var $messages = $('#ai-assistant-messages');
             if (extraClass && typeof extraClass === 'object') {
@@ -62,7 +31,7 @@
                 : null;
 
             if (fileContext) {
-                displayContent = fileContext.visibleText || this.__('Attached files');
+                displayContent = fileContext.visibleText || __('Attached files', 'ai-assistant');
                 copyContent = displayContent;
             }
 
@@ -243,10 +212,10 @@
 
         getMessageActions: function(timestamp) {
             return '<div class="ai-message-actions">' +
-                '<button type="button" class="ai-action-btn ai-action-copy" title="' + this.escapeAttribute(this.__('Copy')) + '">' +
+                '<button type="button" class="ai-action-btn ai-action-copy" title="' + this.escapeAttribute(__('Copy', 'ai-assistant')) + '">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 9h9a2 2 0 012 2v9a2 2 0 01-2 2h-9a2 2 0 01-2-2v-9a2 2 0 012-2z"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
                 '</button>' +
-                '<button type="button" class="ai-action-btn ai-action-summarize" title="' + this.escapeAttribute(this.__('Summarize conversation')) + '">' +
+                '<button type="button" class="ai-action-btn ai-action-summarize" title="' + this.escapeAttribute(__('Summarize conversation', 'ai-assistant')) + '">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>' +
                 '</button>' +
                 this.getMessageTimestampHtml(timestamp) +
@@ -256,13 +225,13 @@
         getUserMessageActions: function(timestamp) {
             return '<div class="ai-message-actions">' +
                 this.getMessageTimestampHtml(timestamp) +
-                '<button type="button" class="ai-action-btn ai-action-copy" title="' + this.escapeAttribute(this.__('Copy')) + '">' +
+                '<button type="button" class="ai-action-btn ai-action-copy" title="' + this.escapeAttribute(__('Copy', 'ai-assistant')) + '">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 9h9a2 2 0 012 2v9a2 2 0 01-2 2h-9a2 2 0 01-2-2v-9a2 2 0 012-2z"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
                 '</button>' +
-                '<button type="button" class="ai-action-btn ai-action-edit" title="' + this.escapeAttribute(this.__('Edit and resend')) + '">' +
+                '<button type="button" class="ai-action-btn ai-action-edit" title="' + this.escapeAttribute(__('Edit and resend', 'ai-assistant')) + '">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
                 '</button>' +
-                '<button type="button" class="ai-action-btn ai-action-retry" title="' + this.escapeAttribute(this.__('Retry')) + '">' +
+                '<button type="button" class="ai-action-btn ai-action-retry" title="' + this.escapeAttribute(__('Retry', 'ai-assistant')) + '">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>' +
                 '</button>' +
                 '</div>';
@@ -270,7 +239,7 @@
 
         getRetryErrorActions: function() {
             return '<div class="ai-message-actions ai-message-error-actions">' +
-                '<button type="button" class="ai-action-btn ai-action-retry-last" title="' + this.escapeAttribute(this.__('Retry last message')) + '">' +
+                '<button type="button" class="ai-action-btn ai-action-retry-last" title="' + this.escapeAttribute(__('Retry last message', 'ai-assistant')) + '">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>' +
                 '</button>' +
                 '</div>';
@@ -1025,15 +994,15 @@
                 $card = this.getToolCardElement(toolId);
             }
 
-            $card.find('.ai-tool-card-status').text(this.__('Choose image'));
+            $card.find('.ai-tool-card-status').text(__('Choose image', 'ai-assistant'));
             $card.find('.ai-tool-card-spinner').hide();
             $card.find('.ai-tool-card-size').hide();
             $card.find('.ai-tool-card-actions').empty();
 
             var $cardPreview = $card.find('.ai-tool-card-preview').empty();
             var $cardNote = $('<div class="ai-image-picker-card-note"></div>');
-            var $cardNoteText = $('<span></span>').text(this.__('Image picker open'));
-            var $reopen = $('<button type="button" class="button button-small ai-image-picker-reopen"></button>').text(this.__('Open picker'));
+            var $cardNoteText = $('<span></span>').text(__('Image picker open', 'ai-assistant'));
+            var $reopen = $('<button type="button" class="button button-small ai-image-picker-reopen"></button>').text(__('Open picker', 'ai-assistant'));
             $cardNote.append($cardNoteText, $reopen);
             $cardPreview.append($cardNote);
 
@@ -1041,22 +1010,22 @@
             var $dialog = $('<div class="ai-image-picker-dialog"></div>');
             var $header = $('<div class="ai-image-picker-header"></div>');
             var $headingWrap = $('<div class="ai-image-picker-heading"></div>');
-            var $titleText = $('<strong></strong>').text(this.__('Choose image'));
-            var $subtitle = $('<span></span>').text(args && args.purpose ? args.purpose : this.__('Pick one result to continue'));
+            var $titleText = $('<strong></strong>').text(__('Choose image', 'ai-assistant'));
+            var $subtitle = $('<span></span>').text(args && args.purpose ? args.purpose : __('Pick one result to continue', 'ai-assistant'));
             var $close = $('<button type="button" class="ai-image-picker-close">&times;</button>')
-                .attr('aria-label', this.__('Cancel image selection'));
+                .attr('aria-label', __('Cancel image selection', 'ai-assistant'));
             var $picker = $('<div class="ai-image-picker"></div>');
             var $controls = $('<div class="ai-image-picker-controls"></div>');
             var $input = $('<input type="search" class="ai-image-picker-query">')
-                .attr('placeholder', this.__('Search images'))
+                .attr('placeholder', __('Search images', 'ai-assistant'))
                 .val(query);
-            var $search = $('<button type="button" class="button button-small ai-image-picker-search"></button>').text(this.__('Search'));
-            var $more = $('<button type="button" class="button button-small ai-image-picker-more"></button>').text(this.__('More')).prop('hidden', true);
-            var $cancel = $('<button type="button" class="button button-small ai-image-picker-cancel"></button>').text(this.__('Cancel'));
+            var $search = $('<button type="button" class="button button-small ai-image-picker-search"></button>').text(__('Search', 'ai-assistant'));
+            var $more = $('<button type="button" class="button button-small ai-image-picker-more"></button>').text(__('More', 'ai-assistant')).prop('hidden', true);
+            var $cancel = $('<button type="button" class="button button-small ai-image-picker-cancel"></button>').text(__('Cancel', 'ai-assistant'));
             var $upload = $('<div class="ai-image-picker-upload" tabindex="0"></div>');
-            var $uploadText = $('<span class="ai-image-picker-upload-text"></span>').text(this.__('Drop a photo here'));
-            var $browse = $('<button type="button" class="button button-small ai-image-picker-browse"></button>').text(this.__('Choose file'));
-            var $fileInput = $('<input type="file" class="ai-image-picker-file-input" accept="image/*">').attr('aria-label', this.__('Choose image file'));
+            var $uploadText = $('<span class="ai-image-picker-upload-text"></span>').text(__('Drop a photo here', 'ai-assistant'));
+            var $browse = $('<button type="button" class="button button-small ai-image-picker-browse"></button>').text(__('Choose file', 'ai-assistant'));
+            var $fileInput = $('<input type="file" class="ai-image-picker-file-input" accept="image/*">').attr('aria-label', __('Choose image file', 'ai-assistant'));
             var $status = $('<div class="ai-image-picker-status" aria-live="polite"></div>');
             var $grid = $('<div class="ai-image-picker-grid"></div>');
 
@@ -1126,7 +1095,7 @@
                 if (done) return;
 
                 if (!file) {
-                    $status.text(self.__('Drop an image file.'));
+                    $status.text(__('Drop an image file.', 'ai-assistant'));
                     return;
                 }
 
@@ -1234,7 +1203,7 @@
 
                 var nextQuery = $input.val().trim();
                 if (!nextQuery) {
-                    $status.text(self.__('Enter a search term.'));
+                    $status.text(__('Enter a search term.', 'ai-assistant'));
                     return;
                 }
 
@@ -1245,7 +1214,7 @@
                     $grid.empty();
                 }
 
-                $status.text(self.__('Searching...'));
+                $status.text(__('Searching...', 'ai-assistant'));
                 $search.prop('disabled', true);
                 $more.prop('disabled', true);
 
@@ -1258,7 +1227,8 @@
                             lastFallbackFrom = nextQuery;
                             page = 1;
                             $input.val(broaderQuery);
-                            $status.text(self.sprintf(self.__('Trying broader search: %s'), broaderQuery));
+                            /* translators: %s: Broader image search query. */
+                            $status.text(sprintf(__('Trying broader search: %s', 'ai-assistant'), broaderQuery));
                             $more.prop('hidden', true);
 
                             return self.fetchImageResults(broaderQuery, page).then(function(broaderResults) {
@@ -1268,7 +1238,7 @@
                                     $status.text('');
                                     $more.prop('hidden', false);
                                 } else {
-                                    $status.text(self.__('No images found.'));
+                                    $status.text(__('No images found.', 'ai-assistant'));
                                 }
                             });
                         }
@@ -1279,14 +1249,14 @@
                         $status.text('');
                         $more.prop('hidden', false);
                     } else {
-                        $status.text(nextPage ? self.__('No more images.') : self.__('No images found.'));
+                        $status.text(nextPage ? __('No more images.', 'ai-assistant') : __('No images found.', 'ai-assistant'));
                         if (!nextPage) {
                             $more.prop('hidden', true);
                         }
                     }
                 }).catch(function() {
                     if (!done) {
-                        $status.text(self.__('Image search failed.'));
+                        $status.text(__('Image search failed.', 'ai-assistant'));
                     }
                 }).then(function() {
                     if (!done) {
@@ -1318,12 +1288,12 @@
             });
 
             $cancel.on('click', function() {
-                $status.text(self.__('Cancelled'));
+                $status.text(__('Cancelled', 'ai-assistant'));
                 finish({ cancelled: true, message: 'User cancelled image selection' });
             });
 
             $close.on('click', function() {
-                $status.text(self.__('Cancelled'));
+                $status.text(__('Cancelled', 'ai-assistant'));
                 finish({ cancelled: true, message: 'User cancelled image selection' });
             });
 
@@ -1401,19 +1371,20 @@
             var $output = $('<div class="ai-tool-output ai-picked-image-output"></div>');
             var $summary = $('<div class="ai-picked-image-summary"></div>');
             var $meta = $('<div class="ai-picked-image-meta"></div>');
-            var $title = $('<strong></strong>').text(output.title || this.__('Selected image'));
+            var $title = $('<strong></strong>').text(output.title || __('Selected image', 'ai-assistant'));
             var detailsParts = [];
             if (output.attachment_id) {
-                detailsParts.push(this.sprintf(this.__('Attachment #%s'), output.attachment_id));
+                /* translators: %s: Media attachment ID. */
+                detailsParts.push(sprintf(__('Attachment #%s', 'ai-assistant'), output.attachment_id));
             } else if (output.external) {
-                detailsParts.push(this.__('External URL'));
+                detailsParts.push(__('External URL', 'ai-assistant'));
             }
             if (output.creator) detailsParts.push(output.creator);
             if (output.license) detailsParts.push(output.license);
             if (output.note) detailsParts.push(output.note);
             var details = detailsParts.join(' - ');
             var $details = $('<span></span>').text(details);
-            var $link = $('<a target="_blank" rel="noopener noreferrer"></a>').text(this.__('Open image')).attr('href', output.source_url || output.url || output.landing_url);
+            var $link = $('<a target="_blank" rel="noopener noreferrer"></a>').text(__('Open image', 'ai-assistant')).attr('href', output.source_url || output.url || output.landing_url);
 
             if (output.thumbnail || output.url) {
                 $summary.append($('<img>').attr({
@@ -1815,7 +1786,7 @@
 
             var $link = $('<a id="ai-assistant-ai-changes-link" class="ai-assistant-ai-changes-link"></a>')
                 .attr('href', link.url)
-                .text(this.__('View changed files'));
+                .text(__('View changed files', 'ai-assistant'));
             applyLinkTarget($link, link);
             $suggestion.append($link);
 
@@ -1853,7 +1824,7 @@
             }
 
             this.renderAiChangesSuggestion($.extend({
-                link_text: this.__('View changed files'),
+                link_text: __('View changed files', 'ai-assistant'),
                 open_in_current_window: true
             }, metadata));
         },
@@ -1887,6 +1858,9 @@
             }
             if (toolName === 'rest_api') {
                 this.renderRestApiResultLinks($card, output);
+            }
+            if (toolName === 'suggest_patch_assistant') {
+                this.renderPatchAssistantInstallLinks($card, output);
             }
 
             var display = this.getToolResultDisplay(toolName, output);
@@ -1924,12 +1898,67 @@
 
             var $links = $('<div class="ai-tool-result-links"></div>');
             if (editUrl) {
-                $links.append($('<a target="_blank" rel="noopener noreferrer"></a>').text(this.__('Edit')).attr('href', editUrl));
+                $links.append($('<a target="_blank" rel="noopener noreferrer"></a>').text(__('Edit', 'ai-assistant')).attr('href', editUrl));
             }
             if (viewUrl) {
-                $links.append($('<a target="_blank" rel="noopener noreferrer"></a>').text(this.__('View')).attr('href', viewUrl));
+                $links.append($('<a target="_blank" rel="noopener noreferrer"></a>').text(__('View', 'ai-assistant')).attr('href', viewUrl));
             }
             $card.append($links);
+        },
+
+        renderPatchAssistantInstallLinks: function($card, output) {
+            if (!output || typeof output !== 'object') return;
+
+            var links = [
+                { key: 'zipUrl', label: 'Download Patch Assistant ZIP' },
+                { key: 'uploadUrl', label: 'Open Plugins > Add New' },
+            ];
+            var $links = $('<div class="ai-tool-result-links ai-patch-assistant-install-links"></div>');
+            if (output.playground && output.playgroundBlueprintUrl) {
+                $links.append($('<button type="button" class="button ai-patch-assistant-playground-install"></button>')
+                    .attr('data-blueprint-url', output.playgroundBlueprintUrl)
+                    .text('Install Patch Assistant in this Playground'));
+            }
+            links.forEach(function(link) {
+                if (!output[link.key]) return;
+                $links.append($('<a target="_blank" rel="noopener noreferrer"></a>')
+                    .attr('href', output[link.key])
+                    .text(link.label));
+            });
+            if ($links.children().length) {
+                $card.append($links);
+            }
+        },
+
+        requestPatchAssistantPlaygroundInstall: function(blueprintUrl) {
+            if (!blueprintUrl || !window.parent || window.parent === window) return false;
+
+            var target = window.parent;
+            try {
+                while (target.parent !== target) {
+                    void target.document;
+                    target = target.parent;
+                }
+            } catch (e) {}
+
+            try {
+                var targetOrigin = '*';
+                try {
+                    if (target.location && target.location.origin) {
+                        targetOrigin = target.location.origin;
+                    }
+                } catch (e) {}
+
+                target.postMessage({
+                    type: 'relay',
+                    relayType: 'install-blueprint',
+                    blueprintUrl: blueprintUrl,
+                    requestId: 'ai-assistant-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)
+                }, targetOrigin);
+                return true;
+            } catch (e) {
+                return false;
+            }
         },
 
         addToolUseMessage: function(toolName, input, $container, result) {
@@ -1941,7 +1970,7 @@
             var $card = $('<div class="ai-tool-card ai-tool-card-completed">' +
                 '<div class="ai-tool-card-header">' +
                 '<span class="ai-tool-card-name">' + this.escapeHtml(toolName) + '</span>' +
-                '<span class="ai-tool-card-status">' + this.escapeHtml(this.__('Completed')) + '</span>' +
+                '<span class="ai-tool-card-status">' + this.escapeHtml(__('Completed', 'ai-assistant')) + '</span>' +
                 '</div>' +
                 '<div class="ai-tool-card-desc">' + this.escapeHtml(description) + '</div>' +
                 '<div class="ai-tool-card-preview"></div>' +
@@ -2028,6 +2057,7 @@
                     : self.escapeHtml(decodedHref).replace(/"/g, '&quot;').replace(/'/g, '&#039;');
                 return '<a href="' + escapedHref + '">' + label + '</a>';
             });
+            content = this.linkifyPlainUrls(content);
 
             // Block markdown.
             content = content.replace(/^### (.+)$/gm, '<h4>$1</h4>');
@@ -2040,6 +2070,31 @@
             });
 
             return content;
+        },
+
+        linkifyPlainUrls: function(content) {
+            var protectedDepth = 0;
+
+            // Only link text, never existing links, code, or HTML attributes.
+            return content.split(/(<[^>]+>)/g).map(function(part) {
+                if (part.charAt(0) === '<') {
+                    if (/^<(a|code)\b/i.test(part)) protectedDepth++;
+                    if (/^<\/(a|code)>/i.test(part)) protectedDepth--;
+                    return part;
+                }
+                if (protectedDepth) return part;
+
+                return part.replace(/\bhttps?:\/\/(?:(?!&(?:quot|lt|gt|#039);)[^\s<>"'])+/gi, function(url) {
+                    var suffix = '';
+                    while (/[.,!?;:]$/.test(url) ||
+                        (/\)$/.test(url) && (url.match(/\)/g) || []).length > (url.match(/\(/g) || []).length) ||
+                        (/\]$/.test(url) && (url.match(/\]/g) || []).length > (url.match(/\[/g) || []).length)) {
+                        suffix = url.slice(-1) + suffix;
+                        url = url.slice(0, -1);
+                    }
+                    return '<a href="' + url + '">' + url + '</a>' + suffix;
+                });
+            }).join('');
         },
 
         decodeHtmlEntities: function(value) {
@@ -2347,18 +2402,36 @@
 
             if (!this.isProviderConfigured()) {
                 var hasConnectors = typeof aiAssistantProviders !== 'undefined' && aiAssistantProviders.source === 'connectors';
-                var message;
-                if (hasConnectors) {
-                    var connectorsUrl = aiAssistantProviders.connectorsUrl || aiAssistantConfig.settingsUrl;
-                    if (aiAssistantProviders.hasLocal) {
-                        message = 'Welcome! No AI provider is reachable from this browser. Start and load a local model on this device, or configure a cloud provider in [Connectors](' + connectorsUrl + ') to start chatting.';
-                    } else {
-                        message = 'Welcome! No AI providers with API keys found. Please configure a provider in [Connectors](' + connectorsUrl + ') to start chatting.';
-                    }
-                } else {
-                    message = 'Welcome! Please configure your API key in [Settings](' + aiAssistantConfig.settingsUrl + ') to start chatting.';
+                var setupUrl = hasConnectors
+                    ? (aiAssistantProviders.connectorsUrl || aiAssistantConfig.settingsUrl)
+                    : aiAssistantConfig.settingsUrl;
+                var setupLabel = hasConnectors ? 'Connectors' : 'Settings';
+                var message = 'Welcome! Connect an AI provider in [' + setupLabel + '](' + setupUrl + ') to start chatting. Use an API key ([your AI subscription may include API credits](#ai-provider-setup-help)) or a [local AI](#ai-local-setup-help).';
+                if (hasConnectors && aiAssistantProviders.hasLocal) {
+                    message += ' Start your local server, then choose a model in AI Assistant settings.';
+                }
+                if (!aiAssistantConfig.isPlayground) {
+                    message += '\n\nOr use [MCP Connect](https://github.com/akirk/mcp-connect) to work with your site from an external AI client.';
                 }
                 this.addMessage('system', message, 'ai-welcome-message');
+                var help = '1. Claim API credits from an eligible subscription by linking an API organization, or add paid API credit. See [OpenAI eligibility and activation](https://developers.openai.com/api/docs/guides/chatgpt-api-credits) or [Claude eligibility and activation](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers).\n2. Create an API key in that organization on the [OpenAI API platform](https://platform.openai.com/api-keys) or [Claude Console](https://platform.claude.com/settings/keys).\n3. Add the key for the matching provider in [' + setupLabel + '](' + setupUrl + '), then choose a model in AI Assistant.\n\nRequests use your provider’s API balance.';
+                var localHelp = '**A privacy-friendly, free alternative.** Run AI on your own device without sending your prompts to a cloud AI provider.\n\n1. Install [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/) on this device, download a model, and start the local server. Allow requests from this website in the server’s browser access / CORS settings.';
+                if (hasConnectors) {
+                    localHelp += '\n2. Open [AI Assistant settings](' + aiAssistantConfig.settingsUrl + ') and click **Scan again** next to **Save Changes**. LM Studio (localhost:1234) and Ollama (localhost:11434) are detected directly from this browser; no WordPress provider plugin is required.';
+                    localHelp += '\n3. Choose a model in its provider card. For an unloaded LM Studio model, click **Load model**; this unloads other LLMs on that server. Drag the cards to set your preferred provider order.';
+                } else {
+                    localHelp += '\n2. Choose Local in [Settings](' + setupUrl + '), enter the local server endpoint, and choose a model.';
+                }
+                localHelp += '\n\nNo API key is needed for local AI. The server must be reachable from this browser.';
+                var $welcome = $('#ai-assistant-messages .ai-welcome-message').last();
+                $welcome.find('a[href="#ai-provider-setup-help"]').attr('aria-expanded', 'false').attr('aria-controls', 'ai-provider-setup-help');
+                $welcome.find('.ai-message-content').append(
+                    $('<div id="ai-provider-setup-help" hidden></div>').html(this.formatContent(help))
+                );
+                $welcome.find('a[href="#ai-local-setup-help"]').attr('aria-expanded', 'false').attr('aria-controls', 'ai-local-setup-help');
+                $welcome.find('.ai-message-content').append(
+                    $('<div id="ai-local-setup-help" hidden></div>').html(this.formatContent(localHelp))
+                );
             } else {
                 var provider = this.pendingNewChat
                     ? (this.pendingNewChatProvider || this.getProvider())
@@ -2370,6 +2443,10 @@
                 this.addModelInfoMessage(provider, model);
                 this.showModelUpgradeNotice(provider, model);
                 this.showLegacyKeyMigrationNotice();
+            }
+
+            if (this.positionPreviousConversationAvailableSuggestion) {
+                this.positionPreviousConversationAvailableSuggestion();
             }
         },
 
@@ -3455,6 +3532,9 @@
                         $card.find('.ai-tool-card-desc').text(desc);
                     }
                 }
+                if (typeof this.maybePreflightStreamingFileMutation === 'function') {
+                    this.maybePreflightStreamingFileMutation(toolId, toolName, partialInput);
+                }
             }
         },
 
@@ -3816,18 +3896,18 @@
 
             switch (state) {
                 case 'ready':
-                    $status.text(this.__('Ready'));
+                    $status.text(__('Ready', 'ai-assistant'));
                     $spinner.hide();
                     $actions.empty();
                     break;
                 case 'checking':
-                    $status.text(options.message || this.__('Checking ability...'));
+                    $status.text(options.message || __('Checking ability...', 'ai-assistant'));
                     $spinner.show();
                     $actions.empty();
                     $card.find('.ai-tool-params, .ai-ability-approval-slot, .ai-ability-approval-details').remove();
                     break;
                 case 'pending':
-                    $status.text(this.__('Waiting for approval'));
+                    $status.text(__('Waiting for approval', 'ai-assistant'));
                     $spinner.hide();
                     var cardState = this.toolCardsState[toolId];
                     var $params = $card.find('.ai-tool-params');
@@ -3840,7 +3920,7 @@
                             var pendingArgsJson = JSON.stringify(pendingArgs, null, 2);
                             if (pendingArgsJson !== 'null') {
                                 $params = $('<details class="ai-tool-params"><summary></summary><pre></pre></details>');
-                                $params.find('summary').text(this.__('Parameters'));
+                                $params.find('summary').text(__('Parameters', 'ai-assistant'));
                                 $params.find('pre').text(pendingArgsJson);
                                 $card.find('.ai-tool-card-actions').before($params);
                             }
@@ -3852,8 +3932,8 @@
                     if (hasAbilityDetails) {
                         $card.find('.ai-tool-card-desc').append(
                             $('<button class="ai-ability-info-toggle" type="button" aria-expanded="false"></button>')
-                                .attr('aria-label', this.__('Show ability details'))
-                                .text(this.__("What's this?"))
+                                .attr('aria-label', __('Show ability details', 'ai-assistant'))
+                                .text(__("What's this?", 'ai-assistant'))
                                 .attr('data-tool-id', toolId)
                         );
                         $card.find('.ai-tool-card-actions').before(
@@ -3870,20 +3950,20 @@
                         : '';
                     var escapedToolId = this.escapeAttribute(toolId);
                     $actions.html(
-                        '<button class="ai-tool-approve ai-approve-btn" data-tool-id="' + escapedToolId + '">' + this.escapeHtml(this.__('Approve')) + '</button>' +
-                        (isAbilityExecute ? '<button class="ai-tool-approve-always ai-always-approve-btn" data-tool-id="' + escapedToolId + '" data-ability="' + this.escapeAttribute(cardState.arguments.ability) + '">' + this.escapeHtml(this.__('Always approve')) + '</button>' : '') +
-                        (isRestApiWrite ? '<button class="ai-tool-approve-always ai-always-approve-btn" data-tool-id="' + escapedToolId + '" data-rest-api="' + this.escapeAttribute(restApiPattern) + '">' + this.escapeHtml(this.__('Always approve')) + '</button>' : '') +
-                        '<button class="ai-tool-skip ai-skip-btn" data-tool-id="' + escapedToolId + '">' + this.escapeHtml(this.__('Skip')) + '</button>'
+                        '<button class="ai-tool-approve ai-approve-btn" data-tool-id="' + escapedToolId + '">' + this.escapeHtml(__('Approve', 'ai-assistant')) + '</button>' +
+                        (isAbilityExecute ? '<button class="ai-tool-approve-always ai-always-approve-btn" data-tool-id="' + escapedToolId + '" data-ability="' + this.escapeAttribute(cardState.arguments.ability) + '">' + this.escapeHtml(__('Always approve', 'ai-assistant')) + '</button>' : '') +
+                        (isRestApiWrite ? '<button class="ai-tool-approve-always ai-always-approve-btn" data-tool-id="' + escapedToolId + '" data-rest-api="' + this.escapeAttribute(restApiPattern) + '">' + this.escapeHtml(__('Always approve', 'ai-assistant')) + '</button>' : '') +
+                        '<button class="ai-tool-skip ai-skip-btn" data-tool-id="' + escapedToolId + '">' + this.escapeHtml(__('Skip', 'ai-assistant')) + '</button>'
                     );
                     break;
                 case 'executing':
-                    $status.text(this.__('Executing...'));
+                    $status.text(__('Executing...', 'ai-assistant'));
                     $spinner.show();
                     $actions.empty();
                     $card.find('.ai-tool-params, .ai-ability-approval-slot, .ai-ability-approval-details').remove();
                     break;
                 case 'completed':
-                    $status.text(options.message || this.__('Completed'));
+                    $status.text(options.message || __('Completed', 'ai-assistant'));
                     $spinner.hide();
                     $actions.empty();
                     $card.find('.ai-tool-card-size').hide();
@@ -3894,7 +3974,7 @@
                     }
                     break;
                 case 'error':
-                    $status.text(options.message || this.__('Error'));
+                    $status.text(options.message || __('Error', 'ai-assistant'));
                     $spinner.hide();
                     $actions.empty();
                     if (options.output) {
@@ -3904,7 +3984,7 @@
                     }
                     break;
                 case 'skipped':
-                    $status.text(this.__('Skipped by user'));
+                    $status.text(__('Skipped by user', 'ai-assistant'));
                     $spinner.hide();
                     $actions.empty();
                     $card.find('.ai-tool-params, .ai-ability-approval-slot, .ai-ability-approval-details').remove();

@@ -1,6 +1,10 @@
 (function($) {
     'use strict';
 
+    var __ = window.wp.i18n.__;
+    var _n = window.wp.i18n._n;
+    var sprintf = window.wp.i18n.sprintf;
+
     $.extend(window.aiAssistant, {
         // Draft management
         saveDraft: function() {
@@ -288,6 +292,13 @@
             );
         },
 
+        isCurrentUrlComponentDifferentFromPrevious: function(current) {
+            var origin = this.previousUrlComponent || '';
+            current = current || this.getCurrentUrlComponent();
+
+            return !!(origin && current && origin !== current);
+        },
+
         isCurrentConversationContextStale: function() {
             var maxAge = parseInt(this.newChatSuggestionMaxAgeMs, 10) || 60 * 60 * 1000;
             var contextAt = this.getLatestStoredMessageTimestamp() || parseInt(this.previousUrlContextAt, 10) || 0;
@@ -320,15 +331,26 @@
         getAreaChangeSuggestionHtml: function(isContinuationOffer) {
             if (isContinuationOffer) {
                 if (this.isCurrentConversationContextStale()) {
-                    return 'This previous conversation was loaded from your last page. ' +
-                        '<a href="#" id="ai-assistant-area-compact-new-chat">Compact it and start a new chat</a>, or continue here.';
+                    return 'Previous chat loaded. ' +
+                        '<a href="#" id="ai-assistant-area-new-chat">Start a new chat</a>, or continue here.';
                 }
 
-                return 'This previous conversation was loaded from your last page. ' +
+                return 'Previous chat loaded. ' +
                     '<a href="#" id="ai-assistant-area-new-chat">Start a new chat</a>, or continue here.';
             }
 
-            return 'Click to <a href="#" id="ai-assistant-area-new-chat">start a new chat</a> or just continue the conversation.';
+            return '<a href="#" id="ai-assistant-area-new-chat">Start a new chat</a>, or continue here.';
+        },
+
+        getPreviousConversationAvailableHtml: function(previous) {
+            previous = previous || {};
+            var title = previous.title || ('Conversation ' + previous.id);
+            var escapedTitle = this.escapeAttribute
+                ? this.escapeAttribute(title)
+                : String(title).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#039;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            return 'Previous chat available. ' +
+                '<a href="#" id="ai-assistant-area-load-previous-chat" title="' + escapedTitle + '">Continue it</a>.';
         },
 
         setAreaChangeSuggestionHtml: function($suggestion, html) {
@@ -356,6 +378,50 @@
             if (this.moveAiChangesSuggestionToEnd) {
                 this.moveAiChangesSuggestionToEnd();
             }
+        },
+
+        showPreviousConversationAvailableSuggestion: function(previous) {
+            previous = previous || {};
+            this.previousAvailableConversation = {
+                id: parseInt(previous.id, 10) || 0,
+                title: previous.title || ''
+            };
+
+            var $suggestion = this.ensureAreaChangeSuggestion();
+            this.setAreaChangeSuggestionHtml($suggestion, this.getPreviousConversationAvailableHtml(this.previousAvailableConversation));
+            $suggestion.prop('hidden', false);
+            if (this.moveAiChangesSuggestionToEnd) {
+                this.moveAiChangesSuggestionToEnd();
+            }
+            this.scrollToBottom(true);
+        },
+
+        positionPreviousConversationAvailableSuggestion: function() {
+            if (!this.previousAvailableConversation) {
+                return;
+            }
+
+            var $suggestion = $('#ai-assistant-area-suggestion');
+            if ($suggestion.length) {
+                $('#ai-assistant-messages').append($suggestion);
+            }
+        },
+
+        loadPreviousAvailableConversation: function() {
+            var previous = this.previousAvailableConversation || {};
+            var conversationId = parseInt(previous.id, 10) || 0;
+
+            if (!conversationId) {
+                return;
+            }
+
+            this.previousAvailableConversation = null;
+            if (this.markConversationInteracted) {
+                this.markConversationInteracted();
+            }
+            this.loadConversation(conversationId, {
+                updateHistory: false
+            });
         },
 
         updateAreaChangeSuggestion: function() {
@@ -588,6 +654,7 @@
         startNewChat: function(options) {
             options = options || {};
             this.messages = [];
+            this.lastProviderRequest = null;
             this.pendingActions = [];
             this.pendingToolChecks = 0;
             if (this.clearQueuedMessages) {
@@ -695,6 +762,7 @@
                 provider: this.conversationProvider || this.getProvider(),
                 model: this.conversationModel || this.getModel(),
                 system_prompt: this.systemPrompt || '',
+                last_provider_request: JSON.stringify(this.lastProviderRequest || null),
                 token_usage: this.getTokenUsageSummary ? JSON.stringify(this.getTokenUsageSummary()) : ''
             }, overrides || {});
         },
@@ -938,7 +1006,13 @@
                         self.conversationModel = response.data.model || self.getModel();
                         self.promptCacheKey = '';
                         self.conversationTokenUsage = response.data.token_usage || null;
+                        self.lastProviderRequest = response.data.last_provider_request || null;
                         self.updateSendButton();
+                        if (self.ensureBrowserProviderStatuses) {
+                            self.ensureBrowserProviderStatuses().then(function() {
+                                self.updateSendButton();
+                            });
+                        }
                         self.updateTokenCount();
 
                         // Display only what was actually saved with the conversation
@@ -992,6 +1066,18 @@
                         }
 
                         if (mostRecent) {
+                            if (
+                                options.offerStandaloneContinuation &&
+                                self.isStandaloneConversationPanel &&
+                                self.isStandaloneConversationPanel() &&
+                                self.isCurrentUrlComponentDifferentFromPrevious()
+                            ) {
+                                self.startNewChat({ updateHistory: false });
+                                $('#ai-assistant-messages').css('visibility', 'visible');
+                                self.showPreviousConversationAvailableSuggestion(mostRecent);
+                                return;
+                            }
+
                             self.loadConversation(mostRecent.id, {
                                 updateHistory: options.updateHistory !== false,
                                 offerStandaloneContinuation: !!options.offerStandaloneContinuation
@@ -1193,11 +1279,11 @@
                     if (response.success && response.data.conversations) {
                         self.renderSidebarConversations(response.data.conversations);
                     } else {
-                        $container.html('<div class="ai-sidebar-empty">' + self.escapeHtml(self.__('No conversations yet')) + '</div>');
+                        $container.html('<div class="ai-sidebar-empty">' + self.escapeHtml(__('No conversations yet', 'ai-assistant')) + '</div>');
                     }
                 },
                 error: function() {
-                    $container.html('<div class="ai-sidebar-empty">' + self.escapeHtml(self.__('Failed to load')) + '</div>');
+                    $container.html('<div class="ai-sidebar-empty">' + self.escapeHtml(__('Failed to load', 'ai-assistant')) + '</div>');
                 }
             });
         },
@@ -1207,7 +1293,7 @@
             var $container = $('#ai-sidebar-conversations');
 
             if (conversations.length === 0) {
-                $container.html('<div class="ai-sidebar-empty">' + self.escapeHtml(self.__('No conversations yet')) + '</div>');
+                $container.html('<div class="ai-sidebar-empty">' + self.escapeHtml(__('No conversations yet', 'ai-assistant')) + '</div>');
                 return;
             }
 
@@ -1229,15 +1315,15 @@
             var html = '';
 
             if (groups.today.length > 0) {
-                html += '<div class="ai-conv-date-group">' + self.escapeHtml(self.__('Today')) + '</div>';
+                html += '<div class="ai-conv-date-group">' + self.escapeHtml(__('Today', 'ai-assistant')) + '</div>';
                 html += self.renderConversationGroup(groups.today);
             }
             if (groups.yesterday.length > 0) {
-                html += '<div class="ai-conv-date-group">' + self.escapeHtml(self.__('Yesterday')) + '</div>';
+                html += '<div class="ai-conv-date-group">' + self.escapeHtml(__('Yesterday', 'ai-assistant')) + '</div>';
                 html += self.renderConversationGroup(groups.yesterday);
             }
             if (groups.older.length > 0) {
-                html += '<div class="ai-conv-date-group">' + self.escapeHtml(self.__('Previous')) + '</div>';
+                html += '<div class="ai-conv-date-group">' + self.escapeHtml(__('Previous', 'ai-assistant')) + '</div>';
                 html += self.renderConversationGroup(groups.older);
             }
 
@@ -1253,7 +1339,7 @@
                 var title = conv.title || '';
                 html += '<div class="ai-conv-item' + activeClass + '" data-id="' + conv.id + '">';
                 html += '<div class="ai-conv-item-title" title="' + self.escapeAttribute(title) + '">' + self.escapeHtml(title) + '</div>';
-                html += '<button type="button" class="ai-conv-item-delete" data-id="' + conv.id + '" title="' + self.escapeAttribute(self.__('Delete')) + '">&times;</button>';
+                html += '<button type="button" class="ai-conv-item-delete" data-id="' + conv.id + '" title="' + self.escapeAttribute(__('Delete', 'ai-assistant')) + '">&times;</button>';
                 html += '</div>';
             });
             return html;
@@ -1271,7 +1357,7 @@
             var $modal = $('#ai-conversation-modal');
             var $list = $('#ai-conversation-list');
 
-            $list.html('<p>' + this.escapeHtml(this.__('Loading...')) + '</p>');
+            $list.html('<p>' + this.escapeHtml(__('Loading...', 'ai-assistant')) + '</p>');
             $modal.show();
 
             $.ajax({
@@ -1285,7 +1371,7 @@
                     if (response.success && response.data.conversations) {
                         var conversations = response.data.conversations;
                         if (conversations.length === 0) {
-                            $list.html('<p>' + self.escapeHtml(self.__('No saved conversations.')) + '</p>');
+                            $list.html('<p>' + self.escapeHtml(__('No saved conversations.', 'ai-assistant')) + '</p>');
                             return;
                         }
 
@@ -1293,20 +1379,21 @@
                         conversations.forEach(function(conv) {
                             html += '<div class="ai-conversation-item">';
                             html += '<div class="ai-conversation-item-title">' + self.escapeHtml(conv.title) + '</div>';
-                            html += '<div class="ai-conversation-item-meta">' + self.escapeHtml(self.sprintf(self._n('%d message', '%d messages', conv.message_count), conv.message_count)) + ' &bull; ' + self.escapeHtml(conv.date) + '</div>';
+                            /* translators: %d: Number of messages in the conversation. */
+                            html += '<div class="ai-conversation-item-meta">' + self.escapeHtml(sprintf(_n('%d message', '%d messages', conv.message_count, 'ai-assistant'), conv.message_count)) + ' &bull; ' + self.escapeHtml(conv.date) + '</div>';
                             html += '<div class="ai-conversation-item-actions">';
-                            html += '<button class="button button-primary button-small ai-conversation-load" data-id="' + conv.id + '">' + self.escapeHtml(self.__('Load')) + '</button>';
-                            html += '<button class="button button-small ai-conversation-delete" data-id="' + conv.id + '">' + self.escapeHtml(self.__('Delete')) + '</button>';
+                            html += '<button class="button button-primary button-small ai-conversation-load" data-id="' + conv.id + '">' + self.escapeHtml(__('Load', 'ai-assistant')) + '</button>';
+                            html += '<button class="button button-small ai-conversation-delete" data-id="' + conv.id + '">' + self.escapeHtml(__('Delete', 'ai-assistant')) + '</button>';
                             html += '</div>';
                             html += '</div>';
                         });
                         $list.html(html);
                     } else {
-                        $list.html('<p>' + self.escapeHtml(self.__('Failed to load conversations.')) + '</p>');
+                        $list.html('<p>' + self.escapeHtml(__('Failed to load conversations.', 'ai-assistant')) + '</p>');
                     }
                 },
                 error: function() {
-                    $list.html('<p>' + self.escapeHtml(self.__('Error loading conversations.')) + '</p>');
+                    $list.html('<p>' + self.escapeHtml(__('Error loading conversations.', 'ai-assistant')) + '</p>');
                 }
             });
         },
@@ -2054,39 +2141,6 @@
             });
         },
 
-        getOrGenerateConversationSummary: function(conversationId) {
-            var self = this;
-
-            return this.loadConversationSummarySource(conversationId).then(function(convData) {
-                if (convData.existing_summary) {
-                    return {
-                        convData: convData,
-                        summary: convData.existing_summary,
-                        generated: false,
-                        saved: true
-                    };
-                }
-
-                return self.generateConversationSummary(convData).then(function(summary) {
-                    return self.saveConversationSummaryValue(conversationId, summary).then(function() {
-                        return {
-                            convData: convData,
-                            summary: summary,
-                            generated: true,
-                            saved: true
-                        };
-                    }).catch(function() {
-                        return {
-                            convData: convData,
-                            summary: summary,
-                            generated: true,
-                            saved: false
-                        };
-                    });
-                });
-            });
-        },
-
         getConversationReferenceUrl: function(conversationId) {
             conversationId = parseInt(conversationId, 10) || 0;
             if (!conversationId) {
@@ -2118,27 +2172,6 @@
             return baseUrl + (baseUrl.indexOf('?') === -1 ? '?' : '&') + 'conversation=' + encodeURIComponent(conversationId);
         },
 
-        createConversationContinuationContext: function(previous, summary) {
-            previous = previous || {};
-
-            var title = previous.title || ('Conversation ' + previous.id);
-            var lines = [
-                'Previous conversation context. This is background only, not a new user request.',
-                '',
-                'Previous conversation: ' + title
-            ];
-
-            if (previous.id) {
-                lines.push('Previous conversation ID: ' + previous.id);
-            }
-            if (previous.url) {
-                lines.push('Previous conversation link: ' + previous.url);
-            }
-
-            lines.push('', 'Summary:', summary);
-            return lines.join('\n');
-        },
-
         showConversationContinuationReference: function(previous, compactedContext) {
             previous = previous || {};
             compactedContext = String(compactedContext || '');
@@ -2165,75 +2198,6 @@
                 '</div>'
             );
             this.scrollToBottom(true);
-        },
-
-        startNewChatWithConversationReference: function(previous, summary) {
-            previous = previous || {};
-            previous.id = parseInt(previous.id, 10) || 0;
-            previous.title = previous.title || ('Conversation ' + previous.id);
-            previous.url = previous.url || this.getConversationReferenceUrl(previous.id);
-
-            this.startNewChat();
-
-            var contextMessage = this.createStoredMessage('user', this.createConversationContinuationContext(previous, summary), {
-                _hidden: true,
-                _contextReference: {
-                    conversation_id: previous.id,
-                    title: previous.title,
-                    url: previous.url
-                }
-            });
-
-            this.messages.push(contextMessage);
-            this.updateTokenCount();
-            if (this.updateExportButton) {
-                this.updateExportButton();
-            }
-            this.showConversationContinuationReference(previous, contextMessage.content);
-            $('#ai-assistant-input').focus();
-        },
-
-        compactCurrentConversationAndStartNewChat: function() {
-            var self = this;
-            var conversationId = parseInt(this.conversationId, 10) || 0;
-
-            if (!conversationId || this.isCompactingStandaloneContinuation) {
-                return;
-            }
-
-            var previous = {
-                id: conversationId,
-                title: this.conversationTitle || ('Conversation ' + conversationId),
-                url: this.getConversationReferenceUrl(conversationId)
-            };
-            var $suggestion = $('#ai-assistant-area-suggestion');
-
-            this.isCompactingStandaloneContinuation = true;
-            this.updateSendButton();
-            $suggestion.addClass('is-loading').text('Compacting previous conversation...');
-
-            this.getOrGenerateConversationSummary(conversationId).then(function(result) {
-                previous.title = result.convData.title || previous.title;
-                previous.url = self.getConversationReferenceUrl(previous.id);
-                self.conversationInteracted = true;
-                self.standaloneContinuationOfferConversationId = 0;
-                self.storeCurrentUrlComponent();
-                self.startNewChatWithConversationReference(previous, result.summary);
-            }).catch(function(error) {
-                self.addMessage('error', 'Failed to compact previous conversation: ' + error.message);
-                if ($suggestion.length) {
-                    $suggestion.removeClass('is-loading');
-                    $('#ai-assistant-messages').append($suggestion);
-                    self.setAreaChangeSuggestionHtml($suggestion, self.getAreaChangeSuggestionHtml(true));
-                    $suggestion.prop('hidden', false);
-                    if (self.moveAiChangesSuggestionToEnd) {
-                        self.moveAiChangesSuggestionToEnd();
-                    }
-                }
-            }).finally(function() {
-                self.isCompactingStandaloneContinuation = false;
-                self.updateSendButton();
-            });
         },
 
         manualSummarizeConversation: function() {
