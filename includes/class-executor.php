@@ -211,11 +211,10 @@ class Executor {
             $details = Ability_Annotations::get_details($id, $ability);
             $result[] = [
                 'id' => $details['id'],
+                'description' => wp_html_excerpt($details['description'], 240, '…'),
                 'category' => $details['category'],
-                'annotations' => $details['annotations'],
-                'has_schema' => $details['has_schema'],
-                'input_schema' => $details['input_schema'],
-                'parameters' => $details['parameters'],
+                'readonly' => $details['readonly'],
+                'destructive' => $details['destructive'],
             ];
         }
         return ['abilities' => $result, 'count' => count($result), 'filter' => $category ?: null];
