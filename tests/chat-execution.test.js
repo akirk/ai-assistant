@@ -135,12 +135,12 @@ function flushPromises() {
 }
 
 describe('client ability normalization', function() {
-    it('includes input schemas in list and get results', function() {
+    it('returns a compact discovery index while preserving full get details', function() {
         const assistant = loadExecutionMixin();
         const ability = {
             name: 'cookbook/save-recipe',
             label: 'Save Recipe',
-            description: 'Save a recipe',
+            description: 'Save a recipe. '.repeat(40),
             category: 'cookbook',
             meta: {
                 annotations: {
@@ -175,7 +175,14 @@ describe('client ability normalization', function() {
 
         assert.strictEqual(list.count, 1);
         assert.strictEqual(list.abilities[0].id, 'cookbook/save-recipe');
-        assert.deepStrictEqual(JSON.parse(JSON.stringify(list.abilities[0].input_schema)), ability.input_schema);
+        assert.equal(list.abilities[0].input_schema, undefined);
+        assert.equal(list.abilities[0].has_schema, undefined);
+        assert.equal(list.abilities[0].name, undefined);
+        assert.ok(list.abilities[0].description.length <= 241);
+        assert.ok(list.abilities[0].description.endsWith('…'));
+        assert.equal(list.abilities[0].instructions, undefined);
+        assert.equal(details.description, ability.description);
+        assert.equal(details.instructions, 'Use when saving recipes.');
         assert.deepStrictEqual(JSON.parse(JSON.stringify(details.input_schema)), ability.input_schema);
     });
 });
@@ -223,6 +230,41 @@ describe('ability discovery across registries', function() {
         const failure = { success: false, result: { error: 'Tool is not enabled' } };
         assistant.executeServerToolAjax = async () => failure;
         assert.equal(await assistant.executeAbilityTool({ name: 'ability', arguments: { action: 'list' } }), failure);
+    });
+});
+
+describe('empty ability input transport', function() {
+    for (const input of [undefined, {}]) {
+        it(`falls back after an invalid-input transport error with ${JSON.stringify(input)}`, async function() {
+            const assistant = loadExecutionMixin();
+            assistant.getClientAbilitiesApi = async () => ({
+                getAbility: () => ({ name: 'cookbook/search-recipes' }),
+                executeAbility: async () => { throw { code: 'ability_invalid_input' }; }
+            });
+            const call = { name: 'ability', arguments: {
+                action: 'execute', ability: 'cookbook/search-recipes', arguments: input
+            } };
+            const expected = { success: true, result: { recipes: [] } };
+            assistant.executeServerToolAjax = async actual => {
+                assert.equal(actual, call);
+                return expected;
+            };
+            assert.equal(await assistant.executeAbilityTool(call), expected);
+        });
+    }
+
+    it('does not retry nonempty invalid input', async function() {
+        const assistant = loadExecutionMixin();
+        assistant.getClientAbilitiesApi = async () => ({
+            getAbility: () => ({ name: 'cookbook/search-recipes' }),
+            executeAbility: async () => { throw { code: 'ability_invalid_input' }; }
+        });
+        assistant.executeServerToolAjax = () => { throw new Error('Unexpected retry'); };
+        const response = await assistant.executeAbilityTool({ name: 'ability', arguments: {
+            action: 'execute', ability: 'cookbook/search-recipes', arguments: { limit: -1 }
+        } });
+        assert.equal(response.success, false);
+        assert.equal(response.result.code, 'ability_invalid_input');
     });
 });
 

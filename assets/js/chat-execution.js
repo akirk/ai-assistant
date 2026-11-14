@@ -753,8 +753,15 @@
                 }
 
                 return self.executeClientAbilityTool(toolCall, api).catch(function(error) {
-                    if (fallbackToServer && error && error.aiAssistantFallbackToServer) {
-                        // WP 6.9 COMPAT: Ability exists only in PHP/non-REST registry.
+                    var input = self.getNormalizedAbilityInput(toolName, args);
+                    var emptyObjectInput = input && typeof input === 'object' &&
+                        !Array.isArray(input) && Object.keys(input).length === 0;
+                    if (fallbackToServer && error && (error.aiAssistantFallbackToServer ||
+                        (self.getNormalizedAbilityAction(toolName, args) === 'execute' &&
+                            emptyObjectInput && error.code === 'ability_invalid_input'))) {
+                        // Missing registry entries also use this fallback. Core's
+                        // GET transport drops empty objects; PHP accepts the decoded
+                        // empty array as object-like and still validates the schema.
                         return self.executeServerToolAjax(toolCall);
                     }
 
@@ -896,16 +903,14 @@
             ability = ability || {};
             var annotations = this.getClientAbilityAnnotations(ability);
             var id = ability.name || ability.id || '';
-            var inputSchema = ability.input_schema || {};
             return {
                 id: id,
-                name: ability.label || id,
-                description: ability.description || '',
+                description: String(ability.description || '').length > 240
+                    ? String(ability.description).substring(0, 240).replace(/\s+\S*$/, '') + '…'
+                    : (ability.description || ''),
                 category: ability.category || 'uncategorized',
                 readonly: !!annotations.readonly,
-                destructive: !!annotations.destructive,
-                has_schema: !!ability.input_schema,
-                input_schema: inputSchema
+                destructive: !!annotations.destructive
             };
         },
 
@@ -914,16 +919,16 @@
             var annotations = this.getClientAbilityAnnotations(ability);
             return {
                 id: summary.id,
-                name: summary.name,
-                description: summary.description,
+                name: ability.label || summary.id,
+                description: ability.description || '',
                 category: summary.category,
-                input_schema: summary.input_schema,
+                input_schema: ability.input_schema || {},
                 output_schema: ability.output_schema || {},
                 annotations: {
                     readonly: !!annotations.readonly,
                     destructive: !!annotations.destructive
                 },
-                has_schema: summary.has_schema,
+                has_schema: !!ability.input_schema,
                 instructions: annotations.instructions || ability.instructions || ''
             };
         },
