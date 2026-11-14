@@ -1138,11 +1138,12 @@ class Settings {
                     if (success) {
                         message = '<?php echo esc_js(__('Connected to', 'ai-assistant')); ?> ' + serverType + '!';
                     } else if (isCors) {
-                        message = '<strong><?php echo esc_js(__('Could not connect.', 'ai-assistant')); ?></strong> '
-                            + '<?php echo esc_js(__('Your origin can\'t be accessed. To enable cross-origin requests follow', 'ai-assistant')); ?> '
-                            + '<a href="https://docs.ollama.com/faq#how-can-i-allow-additional-web-origins-to-access-ollama" target="_blank"><?php echo esc_js(__('these instructions for Ollama', 'ai-assistant')); ?></a>, '
-                            + '<?php echo esc_js(__('or', 'ai-assistant')); ?> '
-                            + '<a href="https://lmstudio.ai/docs/developer/core/server/settings#settings-information" target="_blank"><?php echo esc_js(__('these instructions for LM Studio', 'ai-assistant')); ?></a>.';
+                        message = <?php echo wp_json_encode(sprintf(
+                            /* translators: 1: Ollama CORS documentation URL, 2: LM Studio CORS documentation URL. */
+                            __('<strong>Could not connect.</strong> Your origin can\'t be accessed. To enable cross-origin requests follow <a href="%1$s" target="_blank">these instructions for Ollama</a>, or <a href="%2$s" target="_blank">these instructions for LM Studio</a>.', 'ai-assistant'),
+                            'https://docs.ollama.com/faq#how-can-i-allow-additional-web-origins-to-access-ollama',
+                            'https://lmstudio.ai/docs/developer/core/server/settings#settings-information'
+                        )); ?>;
                     } else {
                         message = '<strong><?php echo esc_js(__('Could not connect.', 'ai-assistant')); ?></strong> <?php echo esc_js(__('Check the URL and ensure your local LLM server is running.', 'ai-assistant')); ?>';
                     }
@@ -1257,8 +1258,11 @@ class Settings {
                 </li>
                 <li>
                     <?php if (Connectors_Bridge::is_available()) : ?>
-                        <?php esc_html_e('Add the key for the matching provider in', 'ai-assistant'); ?>
-                        <a href="<?php echo esc_url(admin_url('options-connectors.php')); ?>"><?php esc_html_e('WordPress Connectors', 'ai-assistant'); ?></a>.
+                        <?php printf(
+                            /* translators: %s: URL of the Connectors settings page. */
+                            __('Add the key for the matching provider in <a href="%s">WordPress Connectors</a>.', 'ai-assistant'),
+                            esc_url(admin_url('options-connectors.php'))
+                        ); ?>
                     <?php else : ?>
                         <?php esc_html_e('Add the key for the matching provider in the provider settings.', 'ai-assistant'); ?>
                     <?php endif; ?>
@@ -1299,9 +1303,9 @@ class Settings {
             <p>
                 <?php
                 printf(
-                    /* translators: %s: link to Connectors settings page */
-                    esc_html__('Cloud providers are managed through %s. Drag to reorder, then choose the model to use for each provider.', 'ai-assistant'),
-                    '<a href="' . esc_url($connectors_url) . '">' . esc_html__('WordPress Connectors', 'ai-assistant') . '</a>'
+                    /* translators: %s: URL of the Connectors settings page. */
+                    __('Cloud providers are managed through <a href="%s">WordPress Connectors</a>. Drag to reorder, then choose the model to use for each provider.', 'ai-assistant'),
+                    esc_url($connectors_url)
                 );
                 ?>
             </p>

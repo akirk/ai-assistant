@@ -1,5 +1,5 @@
 {
-    "translation-revision-date": "2026-11-14T12:12:49+00:00",
+    "translation-revision-date": "2026-11-14T12:15:02+00:00",
     "generator": "WP-CLI\/2.13.0-alpha",
     "source": "assets\/js\/chat-ui.js",
     "domain": "messages",
@@ -12,6 +12,9 @@
             },
             "Cancel": [
                 "Abbrechen"
+            ],
+            "Settings": [
+                "Einstellungen"
             ],
             "Attached files": [
                 "Angeh\u00e4ngte Dateien"
@@ -148,11 +151,41 @@
             "You're chatting with **%s**": [
                 "Du chattest mit **%s**"
             ],
-            "You're chatting with": [
-                "Du chattest mit"
+            "You're chatting with <strong>%s<\/strong>": [
+                "Du chattest mit <strong>%s<\/strong>"
             ],
             "Checking local AI providers from this browser...": [
                 "Lokale KI-Anbieter werden \u00fcber diesen Browser gepr\u00fcft..."
+            ],
+            "Connectors": [
+                "Konnektoren"
+            ],
+            "Welcome! Connect an AI provider in [%1$s](%2$s) to start chatting. Use an API key ([your AI subscription may include API credits](#ai-provider-setup-help)) or a [local AI](#ai-local-setup-help).": [
+                "Willkommen! Verbinde einen KI-Anbieter unter [%1$s](%2$s), um einen Chat zu starten. Verwende einen API-Schl\u00fcssel ([dein KI-Abonnement enth\u00e4lt m\u00f6glicherweise API-Guthaben](#ai-provider-setup-help)) oder eine [lokale KI](#ai-local-setup-help)."
+            ],
+            " Start your local server, then choose a model in AI Assistant settings.": [
+                " Starte deinen lokalen Server und w\u00e4hle dann ein Modell in den AI Assistant-Einstellungen."
+            ],
+            "\n\nOr use [MCP Connect](https:\/\/github.com\/akirk\/mcp-connect) to work with your site from an external AI client.": [
+                "\n\nOder verwende [MCP Connect](https:\/\/github.com\/akirk\/mcp-connect), um von einem externen KI-Client aus mit deiner Website zu arbeiten."
+            ],
+            "1. Claim API credits from an eligible subscription by linking an API organization, or add paid API credit. See [OpenAI eligibility and activation](https:\/\/developers.openai.com\/api\/docs\/guides\/chatgpt-api-credits) or [Claude eligibility and activation](https:\/\/platform.claude.com\/docs\/en\/about-claude\/api-credits-for-subscribers).\n2. Create an API key in that organization on the [OpenAI API platform](https:\/\/platform.openai.com\/api-keys) or [Claude Console](https:\/\/platform.claude.com\/settings\/keys).\n3. Add the key for the matching provider in [%1$s](%2$s), then choose a model in AI Assistant.\n\nRequests use your provider\u2019s API balance.": [
+                "1. Sichere dir API-Guthaben aus einem berechtigten Abonnement, indem du eine API-Organisation verkn\u00fcpfst, oder kaufe API-Guthaben. Siehe [OpenAI: Voraussetzungen und Aktivierung](https:\/\/developers.openai.com\/api\/docs\/guides\/chatgpt-api-credits) oder [Claude: Voraussetzungen und Aktivierung](https:\/\/platform.claude.com\/docs\/en\/about-claude\/api-credits-for-subscribers).\n2. Erstelle einen API-Schl\u00fcssel in dieser Organisation auf der [OpenAI API-Plattform](https:\/\/platform.openai.com\/api-keys) oder in der [Claude Console](https:\/\/platform.claude.com\/settings\/keys).\n3. F\u00fcge den Schl\u00fcssel f\u00fcr den passenden Anbieter unter [%1$s](%2$s) hinzu und w\u00e4hle dann ein Modell in AI Assistant.\n\nAnfragen verwenden das API-Guthaben deines Anbieters."
+            ],
+            "**A privacy-friendly, free alternative.** Run AI on your own device without sending your prompts to a cloud AI provider.\n\n1. Install [Ollama](https:\/\/ollama.com\/) or [LM Studio](https:\/\/lmstudio.ai\/) on this device, download a model, and start the local server. Allow requests from this website in the server\u2019s browser access \/ CORS settings.": [
+                "**Eine datenschutzfreundliche, kostenlose Alternative.** F\u00fchre KI auf deinem eigenen Ger\u00e4t aus, ohne deine Prompts an einen Cloud-KI-Anbieter zu senden.\n\n1. Installiere [Ollama](https:\/\/ollama.com\/) oder [LM Studio](https:\/\/lmstudio.ai\/) auf diesem Ger\u00e4t, lade ein Modell herunter und starte den lokalen Server. Erlaube Anfragen von dieser Website in den Browserzugriffs- bzw. CORS-Einstellungen des Servers."
+            ],
+            "\n2. Open [AI Assistant settings](%s) and click **Scan again** next to **Save Changes**. LM Studio (localhost:1234) and Ollama (localhost:11434) are detected directly from this browser; no WordPress provider plugin is required.": [
+                "\n2. \u00d6ffne die [AI Assistant-Einstellungen](%s) und klicke neben **\u00c4nderungen speichern** auf **Erneut suchen**. LM Studio (localhost:1234) und Ollama (localhost:11434) werden direkt \u00fcber diesen Browser erkannt; ein WordPress-Anbieter-Plugin ist nicht erforderlich."
+            ],
+            "\n3. Choose a model in its provider card. For an unloaded LM Studio model, click **Load model**; this unloads other LLMs on that server. Drag the cards to set your preferred provider order.": [
+                "\n3. W\u00e4hle ein Modell in der Karte des Anbieters. Klicke bei einem nicht geladenen LM Studio-Modell auf **Modell laden**; dadurch werden andere LLMs auf diesem Server entladen. Ziehe die Karten in die gew\u00fcnschte Anbieterreihenfolge."
+            ],
+            "\n2. Choose Local in [Settings](%s), enter the local server endpoint, and choose a model.": [
+                "\n2. W\u00e4hle \u201eLokal\u201c unter [Einstellungen](%s), gib den lokalen Server-Endpunkt ein und w\u00e4hle ein Modell."
+            ],
+            "\n\nNo API key is needed for local AI. The server must be reachable from this browser.": [
+                "\n\nF\u00fcr lokale KI ist kein API-Schl\u00fcssel erforderlich. Der Server muss \u00fcber diesen Browser erreichbar sein."
             ],
             "Local LLM": [
                 "Lokales LLM"

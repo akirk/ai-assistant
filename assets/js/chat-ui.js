@@ -2340,9 +2340,8 @@
             }
 
             $line.addClass('ai-model-info-line');
-            $line.empty()
-                .append(this.escapeHtml(__('You\'re chatting with', 'ai-assistant')) + ' ')
-                .append($('<strong></strong>').text(providerName));
+            // translators: %s: AI provider name.
+            $line.html(sprintf(__('You\'re chatting with <strong>%s</strong>', 'ai-assistant'), this.escapeHtml(providerName)));
             this.renderModelInfoControl($line, provider, model);
         },
 
@@ -2406,24 +2405,24 @@
                 var setupUrl = hasConnectors
                     ? (aiAssistantProviders.connectorsUrl || aiAssistantConfig.settingsUrl)
                     : aiAssistantConfig.settingsUrl;
-                var setupLabel = hasConnectors ? 'Connectors' : 'Settings';
-                var message = 'Welcome! Connect an AI provider in [' + setupLabel + '](' + setupUrl + ') to start chatting. Use an API key ([your AI subscription may include API credits](#ai-provider-setup-help)) or a [local AI](#ai-local-setup-help).';
+                var setupLabel = hasConnectors ? __('Connectors', 'ai-assistant') : __('Settings', 'ai-assistant');
+                var message = sprintf(__('Welcome! Connect an AI provider in [%1$s](%2$s) to start chatting. Use an API key ([your AI subscription may include API credits](#ai-provider-setup-help)) or a [local AI](#ai-local-setup-help).', 'ai-assistant'), setupLabel, setupUrl);
                 if (hasConnectors && aiAssistantProviders.hasLocal) {
-                    message += ' Start your local server, then choose a model in AI Assistant settings.';
+                    message += __(' Start your local server, then choose a model in AI Assistant settings.', 'ai-assistant');
                 }
                 if (!aiAssistantConfig.isPlayground) {
-                    message += '\n\nOr use [MCP Connect](https://github.com/akirk/mcp-connect) to work with your site from an external AI client.';
+                    message += __('\n\nOr use [MCP Connect](https://github.com/akirk/mcp-connect) to work with your site from an external AI client.', 'ai-assistant');
                 }
                 this.addMessage('system', message, 'ai-welcome-message');
-                var help = '1. Claim API credits from an eligible subscription by linking an API organization, or add paid API credit. See [OpenAI eligibility and activation](https://developers.openai.com/api/docs/guides/chatgpt-api-credits) or [Claude eligibility and activation](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers).\n2. Create an API key in that organization on the [OpenAI API platform](https://platform.openai.com/api-keys) or [Claude Console](https://platform.claude.com/settings/keys).\n3. Add the key for the matching provider in [' + setupLabel + '](' + setupUrl + '), then choose a model in AI Assistant.\n\nRequests use your provider’s API balance.';
-                var localHelp = '**A privacy-friendly, free alternative.** Run AI on your own device without sending your prompts to a cloud AI provider.\n\n1. Install [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/) on this device, download a model, and start the local server. Allow requests from this website in the server’s browser access / CORS settings.';
+                var help = sprintf(__('1. Claim API credits from an eligible subscription by linking an API organization, or add paid API credit. See [OpenAI eligibility and activation](https://developers.openai.com/api/docs/guides/chatgpt-api-credits) or [Claude eligibility and activation](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers).\n2. Create an API key in that organization on the [OpenAI API platform](https://platform.openai.com/api-keys) or [Claude Console](https://platform.claude.com/settings/keys).\n3. Add the key for the matching provider in [%1$s](%2$s), then choose a model in AI Assistant.\n\nRequests use your provider’s API balance.', 'ai-assistant'), setupLabel, setupUrl);
+                var localHelp = __('**A privacy-friendly, free alternative.** Run AI on your own device without sending your prompts to a cloud AI provider.\n\n1. Install [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/) on this device, download a model, and start the local server. Allow requests from this website in the server’s browser access / CORS settings.', 'ai-assistant');
                 if (hasConnectors) {
-                    localHelp += '\n2. Open [AI Assistant settings](' + aiAssistantConfig.settingsUrl + ') and click **Scan again** next to **Save Changes**. LM Studio (localhost:1234) and Ollama (localhost:11434) are detected directly from this browser; no WordPress provider plugin is required.';
-                    localHelp += '\n3. Choose a model in its provider card. For an unloaded LM Studio model, click **Load model**; this unloads other LLMs on that server. Drag the cards to set your preferred provider order.';
+                    localHelp += sprintf(__('\n2. Open [AI Assistant settings](%s) and click **Scan again** next to **Save Changes**. LM Studio (localhost:1234) and Ollama (localhost:11434) are detected directly from this browser; no WordPress provider plugin is required.', 'ai-assistant'), aiAssistantConfig.settingsUrl);
+                    localHelp += __('\n3. Choose a model in its provider card. For an unloaded LM Studio model, click **Load model**; this unloads other LLMs on that server. Drag the cards to set your preferred provider order.', 'ai-assistant');
                 } else {
-                    localHelp += '\n2. Choose Local in [Settings](' + setupUrl + '), enter the local server endpoint, and choose a model.';
+                    localHelp += sprintf(__('\n2. Choose Local in [Settings](%s), enter the local server endpoint, and choose a model.', 'ai-assistant'), setupUrl);
                 }
-                localHelp += '\n\nNo API key is needed for local AI. The server must be reachable from this browser.';
+                localHelp += __('\n\nNo API key is needed for local AI. The server must be reachable from this browser.', 'ai-assistant');
                 var $welcome = $('#ai-assistant-messages .ai-welcome-message').last();
                 $welcome.find('a[href="#ai-provider-setup-help"]').attr('aria-expanded', 'false').attr('aria-controls', 'ai-provider-setup-help');
                 $welcome.find('.ai-message-content').append(
