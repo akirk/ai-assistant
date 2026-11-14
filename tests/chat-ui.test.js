@@ -679,6 +679,29 @@ describe('partial tool descriptions', function() {
 });
 
 describe('welcome message', function() {
+    it('uses the German catalog for welcome text, tips and tool counts', function() {
+        const catalogFile = fs.readdirSync(path.join(__dirname, '../languages')).find(name => {
+            if (!name.endsWith('.json')) return false;
+            const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, '../languages', name), 'utf8'));
+            return catalog.source === 'assets/js/chat-ui.js';
+        });
+        const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, '../languages', catalogFile), 'utf8'));
+        const translations = catalog.locale_data.messages;
+        const context = { window: {} };
+        require('./wp-i18n')(context);
+        context.wp.i18n.__ = text => translations[text] ? translations[text][0] : text;
+        context.wp.i18n._n = (single, plural, count) => translations[single][count === 1 ? 0 : 1];
+        const assistant = loadUiMixin({
+            homeUrl: 'https://example.test',
+            welcomeTips: ['Ein Tipp.']
+        }, { wp: context.wp });
+
+        assert.match(assistant.buildWelcomeMessage(), /^Hallo! Ich bin dein KI-Assistent\./);
+        assert.match(assistant.buildWelcomeMessage(), /Ein paar Tipps für diesen Bereich/);
+        assert.strictEqual(context.wp.i18n.__("You're chatting with"), 'Du chattest mit');
+        assert.strictEqual(assistant.toolGroupLabelFromEntries([]), '0 Werkzeuge');
+    });
+
     it('blends configured tips into the assistant welcome message', function() {
         const assistant = loadUiMixin({
             homeUrl: 'http://example.test',

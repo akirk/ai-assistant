@@ -1,0 +1,34 @@
+{
+    "translation-revision-date": "2026-11-14T12:07:38+00:00",
+    "generator": "WP-CLI\/2.13.0-alpha",
+    "source": "assets\/js\/chat-files.js",
+    "domain": "messages",
+    "locale_data": {
+        "messages": {
+            "": {
+                "domain": "messages",
+                "lang": "de_DE",
+                "plural-forms": "nplurals=2; plural=(n != 1);"
+            },
+            "Reading %d file...": [
+                "%d Datei wird gelesen...",
+                "%d Dateien werden gelesen..."
+            ],
+            "Attachment": [
+                "Anhang"
+            ],
+            "Compacted preview": [
+                "Gek\u00fcrzte Vorschau"
+            ],
+            "Private text context": [
+                "Privater Textkontext"
+            ],
+            "compacted": [
+                "gek\u00fcrzt"
+            ],
+            "Remove attachment": [
+                "Anhang entfernen"
+            ]
+        }
+    }
+}

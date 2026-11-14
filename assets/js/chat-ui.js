@@ -2,6 +2,7 @@
     'use strict';
 
     var __ = window.wp.i18n.__;
+    var _n = window.wp.i18n._n;
     var sprintf = window.wp.i18n.sprintf;
 
     $.extend(window.aiAssistant, {
@@ -2014,7 +2015,7 @@
             var self = this;
             var $messages = $('#ai-assistant-messages');
             var groupId = 'tool-history-' + (++this.toolCardsGroupCounter);
-            var label = this.toolGroupLabel(toolUses || []) + ' - complete';
+            var label = sprintf(__('%s - complete', 'ai-assistant'), this.toolGroupLabel(toolUses || []));
             var $group = $('<details class="ai-tool-cards-group ai-tool-cards-complete" data-tool-group-id="' + this.escapeAttribute(groupId) + '">' +
                 '<summary class="ai-tool-cards-summary">' + this.escapeHtml(label) + '</summary>' +
                 '</details>');
@@ -2220,10 +2221,10 @@
 
         getWelcomeIntro: function() {
             if (this.isMyWordPressSite()) {
-                return 'Hello! I\'m your AI Assistant. I can help you shape My WordPress into your personal software home: create private apps, organize data and memories, manage plugins, and adapt workflows. What would you like to do?';
+                return __('Hello! I\'m your AI Assistant. I can help you shape My WordPress into your personal software home: create private apps, organize data and memories, manage plugins, and adapt workflows. What would you like to do?', 'ai-assistant');
             }
 
-            return 'Hello! I\'m your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?';
+            return __('Hello! I\'m your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?', 'ai-assistant');
         },
 
         buildWelcomeMessage: function() {
@@ -2240,7 +2241,7 @@
                 return message;
             }
 
-            return message + '\n\nA few tips for this area of your WordPress:\n- ' + tips.join('\n- ');
+            return message + '\n\n' + __('A few tips for this area of your WordPress:', 'ai-assistant') + '\n- ' + tips.join('\n- ');
         },
 
         getModelInfoOptions: function(provider, model) {
@@ -2277,7 +2278,7 @@
                 var $select = $('<select class="ai-model-select" aria-label="Model"></select>')
                     .attr('data-provider', provider)
                     .attr('data-current-model', model)
-                    .attr('title', 'Change model')
+                    .attr('title', __('Change model', 'ai-assistant'))
                     .prop('disabled', !!this.isLoading);
 
                 options.forEach(function(option) {
@@ -2330,7 +2331,7 @@
 
         addModelInfoMessage: function(provider, model) {
             var providerName = this.getProviderName(provider);
-            this.addMessage('system', 'You\'re chatting with **' + providerName + '**', 'ai-model-info');
+            this.addMessage('system', sprintf(__('You\'re chatting with **%s**', 'ai-assistant'), providerName), 'ai-model-info');
 
             var $message = $('#ai-assistant-messages .ai-model-info').last();
             var $line = $message.find('.ai-message-content p').first();
@@ -2340,7 +2341,7 @@
 
             $line.addClass('ai-model-info-line');
             $line.empty()
-                .append('You\'re chatting with ')
+                .append(this.escapeHtml(__('You\'re chatting with', 'ai-assistant')) + ' ')
                 .append($('<strong></strong>').text(providerName));
             this.renderModelInfoControl($line, provider, model);
         },
@@ -2381,7 +2382,7 @@
             if (this.hasUncheckedBrowserProviderStatuses && this.hasUncheckedBrowserProviderStatuses()) {
                 var self = this;
                 var wasPendingNewChat = this.pendingNewChat;
-                this.addMessage('system', 'Checking local AI providers from this browser...', 'ai-welcome-message');
+                this.addMessage('system', __('Checking local AI providers from this browser...', 'ai-assistant'), 'ai-welcome-message');
                 this.ensureBrowserProviderStatuses().then(function() {
                     if (wasPendingNewChat && !self.pendingNewChat) {
                         return;
@@ -2543,7 +2544,7 @@
 
             return provider === 'anthropic' ? 'Anthropic' :
                    provider === 'openai' ? 'OpenAI' :
-                   provider === 'local' ? 'Local LLM' : provider;
+                   provider === 'local' ? __('Local LLM', 'ai-assistant') : provider;
         },
 
         rebuildMessagesUI: function() {
@@ -3372,7 +3373,8 @@
                 counts[name]++;
             }, this);
 
-            var label = count === 1 ? '1 tool' : count + ' tools';
+            // translators: %d: Number of tools in the group.
+            var label = sprintf(_n('%d tool', '%d tools', count, 'ai-assistant'), count);
             if (!order.length) {
                 return label;
             }
@@ -3474,13 +3476,13 @@
             $container.toggleClass('ai-tool-cards-complete', done === total && total > 0);
             var $summary = $container.find('> .ai-tool-cards-summary');
             if (!$summary.length) {
-                $container.attr('aria-label', done === total && total > 0 ? base + ' - complete' : base + ' - ' + done + '/' + total + ' done');
+                $container.attr('aria-label', done === total && total > 0 ? sprintf(__('%s - complete', 'ai-assistant'), base) : sprintf(__('%1$s - %2$d/%3$d done', 'ai-assistant'), base, done, total));
                 return;
             }
             if (done === total && total > 0) {
-                $summary.text(base + ' - complete');
+                $summary.text(sprintf(__('%s - complete', 'ai-assistant'), base));
             } else {
-                $summary.text(base + ' - ' + done + '/' + total + ' done');
+                $summary.text(sprintf(__('%1$s - %2$d/%3$d done', 'ai-assistant'), base, done, total));
             }
 
             if (options.autoCollapse && done === total && total > 0) {

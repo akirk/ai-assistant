@@ -329,17 +329,13 @@
         },
 
         getAreaChangeSuggestionHtml: function(isContinuationOffer) {
-            if (isContinuationOffer) {
-                if (this.isCurrentConversationContextStale()) {
-                    return 'Previous chat loaded. ' +
-                        '<a href="#" id="ai-assistant-area-new-chat">Start a new chat</a>, or continue here.';
-                }
-
-                return 'Previous chat loaded. ' +
-                    '<a href="#" id="ai-assistant-area-new-chat">Start a new chat</a>, or continue here.';
-            }
-
-            return '<a href="#" id="ai-assistant-area-new-chat">Start a new chat</a>, or continue here.';
+            var link = '<a href="#" id="ai-assistant-area-new-chat">' +
+                this.escapeHtml(__('Start a new chat', 'ai-assistant')) + '</a>';
+            // translators: %s: Link to start a new chat.
+            var suggestion = sprintf(__('%s, or continue here.', 'ai-assistant'), link);
+            return isContinuationOffer
+                ? this.escapeHtml(__('Previous chat loaded.', 'ai-assistant')) + ' ' + suggestion
+                : suggestion;
         },
 
         getPreviousConversationAvailableHtml: function(previous) {

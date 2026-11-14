@@ -163,6 +163,8 @@ function loadConversationMixin(initialStorage, config, options) {
         draftHistoryKey: 'aiAssistant_draftHistory',
         draftHistoryMax: 10
     };
+    aiAssistant.escapeHtml = text => String(text)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const storage = createStorage(initialStorage);
     const windowObject = Object.assign({
         aiAssistant,

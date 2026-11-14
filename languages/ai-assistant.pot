@@ -1,0 +1,1482 @@
+# Copyright (C) 2026 Alex Kirk
+# This file is distributed under the GPL v2 or later.
+msgid ""
+msgstr ""
+"Project-Id-Version: AI Assistant 1.1.1\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/ai-assistant\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-11-14T12:07:37+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.13.0-alpha\n"
+"X-Domain: ai-assistant\n"
+
+#. Plugin Name of the plugin
+#: ai-assistant.php:3
+#: ai-assistant.php:147
+#: includes/class-chat-ui.php:837
+#: includes/class-chat-ui.php:838
+#: includes/class-settings.php:90
+#: templates/conversations/index.php:12
+msgid "AI Assistant"
+msgstr ""
+
+#. Plugin URI of the plugin
+#: ai-assistant.php:4
+msgid "https://github.com/akirk/ai-assistant"
+msgstr ""
+
+#. Description of the plugin
+#: ai-assistant.php:5
+msgid "AI-powered chat interface for WordPress. Bring your own key or use a local LLM."
+msgstr ""
+
+#. Author of the plugin
+#: ai-assistant.php:7
+msgid "Alex Kirk"
+msgstr ""
+
+#. Author URI of the plugin
+#: ai-assistant.php:8
+msgid "https://alex.kirk.at"
+msgstr ""
+
+#: includes/class-ability-annotations.php:264
+#, php-format
+msgid "Allowed: %s"
+msgstr ""
+
+#: includes/class-ability-annotations.php:273
+#, php-format
+msgid "Default: %s"
+msgstr ""
+
+#: includes/class-ability-annotations.php:286
+#, php-format
+msgid "Fields: %s"
+msgstr ""
+
+#: includes/class-assistant-themes.php:98
+#: themes/admin-classic/theme.php:9
+msgid "Admin Classic"
+msgstr ""
+
+#: includes/class-chat-ui.php:234
+#: includes/class-chat-ui.php:260
+msgid "Sorry, you are not allowed to use AI Assistant."
+msgstr ""
+
+#: includes/class-chat-ui.php:461
+#: includes/class-chat-ui.php:845
+#: includes/class-conversations-app.php:134
+msgid "Ask me anything about your WordPress site..."
+msgstr ""
+
+#: includes/class-chat-ui.php:462
+#: includes/class-chat-ui.php:844
+#: includes/class-conversations-app.php:135
+msgid "Send"
+msgstr ""
+
+#: includes/class-chat-ui.php:463
+msgid "Thinking..."
+msgstr ""
+
+#: includes/class-chat-ui.php:464
+msgid "An error occurred. Please try again."
+msgstr ""
+
+#: includes/class-chat-ui.php:465
+msgid "Confirm Action"
+msgstr ""
+
+#: includes/class-chat-ui.php:466
+msgid "Confirm"
+msgstr ""
+
+#: includes/class-chat-ui.php:467
+#: assets/js/chat-ui.js:1025
+msgid "Cancel"
+msgstr ""
+
+#: includes/class-chat-ui.php:468
+msgid "Approve Actions"
+msgstr ""
+
+#: includes/class-chat-ui.php:469
+msgid "Approve All"
+msgstr ""
+
+#: includes/class-chat-ui.php:470
+msgid "Skip All"
+msgstr ""
+
+#: includes/class-chat-ui.php:471
+#: includes/class-chat-ui.php:839
+#: includes/class-conversations-app.php:83
+msgid "New Chat"
+msgstr ""
+
+#: includes/class-chat-ui.php:472
+msgid "Close"
+msgstr ""
+
+#. translators: %s: Markdown link to switch the AI Assistant presentation theme.
+#: includes/class-chat-ui.php:581
+#, php-format
+msgid "AI Assistant is using the Admin Classic theme. %s."
+msgstr ""
+
+#: includes/class-chat-ui.php:584
+msgid "Switch to Floating Button"
+msgstr ""
+
+#. translators: %s: Markdown link to switch the AI Assistant presentation theme.
+#: includes/class-chat-ui.php:594
+#, php-format
+msgid "AI Assistant is using the Floating Button theme. %s."
+msgstr ""
+
+#: includes/class-chat-ui.php:597
+msgid "Switch to Admin Classic"
+msgstr ""
+
+#: includes/class-chat-ui.php:821
+msgid "Change to Admin Classic display style"
+msgstr ""
+
+#: includes/class-chat-ui.php:822
+msgid "Change to Floating Button display style"
+msgstr ""
+
+#: includes/class-chat-ui.php:840
+#: includes/class-conversations.php:38
+msgid "Conversations"
+msgstr ""
+
+#: includes/class-chat-ui.php:841
+#: includes/class-conversations-app.php:92
+msgid "Settings"
+msgstr ""
+
+#: includes/class-chat-ui.php:843
+msgid "Hide on this page"
+msgstr ""
+
+#: includes/class-chat-ui.php:846
+msgid "AI Assistant Tab"
+msgstr ""
+
+#: includes/class-chat-ui.php:847
+#: includes/class-conversations-app.php:103
+msgid "Token usage"
+msgstr ""
+
+#: includes/class-chat-ui.php:848
+#: includes/class-conversations-app.php:121
+msgid "Drop files to attach"
+msgstr ""
+
+#: includes/class-chat-ui.php:849
+msgid "Scroll to bottom"
+msgstr ""
+
+#: includes/class-chat-ui.php:850
+#: includes/class-conversations-app.php:131
+msgid "Attach files"
+msgstr ""
+
+#: includes/class-chat-ui.php:851
+#: includes/class-conversations-app.php:136
+msgid "Stop generation"
+msgstr ""
+
+#: includes/class-chat-ui.php:852
+msgid "Resize AI Assistant"
+msgstr ""
+
+#: includes/class-chat-ui.php:853
+msgid "Drag to resize AI Assistant. Double-click to toggle maximum size."
+msgstr ""
+
+#: includes/class-chat-ui.php:854
+#: includes/class-conversations-app.php:108
+#: includes/class-settings.php:156
+#: includes/class-settings.php:1996
+#: includes/class-settings.php:2059
+msgid "Auto-approve"
+msgstr ""
+
+#: includes/class-chat-ui.php:855
+#: includes/class-conversations-app.php:108
+msgid "Automatically approve destructive actions without confirmation"
+msgstr ""
+
+#: includes/class-conversations-app.php:87
+#: includes/class-settings.php:898
+#: includes/class-settings.php:2097
+#: assets/js/chat-conversations.js:1356
+msgid "Loading..."
+msgstr ""
+
+#: includes/class-conversations-app.php:100
+msgid "Chats"
+msgstr ""
+
+#: includes/class-conversations-app.php:104
+msgid "Generate conversation summary"
+msgstr ""
+
+#: includes/class-conversations-app.php:110
+msgid "Export conversation"
+msgstr ""
+
+#: includes/class-conversations.php:36
+#: includes/class-settings.php:80
+#: includes/class-settings.php:81
+msgid "AI Conversations"
+msgstr ""
+
+#: includes/class-conversations.php:37
+#: includes/class-conversations.php:616
+#: includes/class-conversations.php:668
+#: includes/class-conversations.php:1509
+msgid "Conversation"
+msgstr ""
+
+#: includes/class-conversations.php:39
+msgid "All Conversations"
+msgstr ""
+
+#: includes/class-conversations.php:40
+msgid "View Conversation"
+msgstr ""
+
+#: includes/class-conversations.php:41
+#: includes/class-conversations.php:68
+msgid "Continue Conversation"
+msgstr ""
+
+#: includes/class-conversations.php:42
+msgid "Search Conversations"
+msgstr ""
+
+#: includes/class-conversations.php:43
+msgid "No conversations found"
+msgstr ""
+
+#: includes/class-conversations.php:59
+msgid "Conversation Messages"
+msgstr ""
+
+#: includes/class-conversations.php:95
+msgid "Markdown"
+msgstr ""
+
+#: includes/class-conversations.php:96
+msgid "Readable plain-text transcript."
+msgstr ""
+
+#: includes/class-conversations.php:104
+msgid "HTML"
+msgstr ""
+
+#: includes/class-conversations.php:105
+msgid "Standalone web page transcript."
+msgstr ""
+
+#: includes/class-conversations.php:113
+msgid "JSON"
+msgstr ""
+
+#: includes/class-conversations.php:114
+msgid "Raw messages and metadata for backup or import workflows."
+msgstr ""
+
+#: includes/class-conversations.php:446
+msgid "Invalid conversation ID"
+msgstr ""
+
+#: includes/class-conversations.php:451
+msgid "Conversation not found"
+msgstr ""
+
+#: includes/class-conversations.php:455
+msgid "Permission denied"
+msgstr ""
+
+#: includes/class-conversations.php:507
+#: includes/class-conversations.php:538
+#: includes/class-conversations.php:557
+msgid "Export format not found."
+msgstr ""
+
+#: includes/class-conversations.php:520
+msgid "Export filter did not return content."
+msgstr ""
+
+#: includes/class-conversations.php:671
+msgid "Conversation ID"
+msgstr ""
+
+#: includes/class-conversations.php:672
+#: includes/class-conversations.php:1286
+msgid "Messages"
+msgstr ""
+
+#: includes/class-conversations.php:676
+msgid "Tool calls"
+msgstr ""
+
+#: includes/class-conversations.php:680
+msgid "Author"
+msgstr ""
+
+#: includes/class-conversations.php:683
+#: includes/class-settings.php:625
+msgid "Provider"
+msgstr ""
+
+#: includes/class-conversations.php:686
+#: includes/class-settings.php:670
+#: includes/class-settings.php:1623
+msgid "Model"
+msgstr ""
+
+#: includes/class-conversations.php:689
+msgid "Created"
+msgstr ""
+
+#: includes/class-conversations.php:700
+msgid "AI Assistant Transcript"
+msgstr ""
+
+#: includes/class-conversations.php:714
+msgid "Conversation Summary"
+msgstr ""
+
+#: includes/class-conversations.php:730
+msgid "No text content"
+msgstr ""
+
+#: includes/class-conversations.php:773
+msgid "Tool result"
+msgstr ""
+
+#: includes/class-conversations.php:774
+msgid "Tool call"
+msgstr ""
+
+#: includes/class-conversations.php:1196
+msgid "No messages in this conversation."
+msgstr ""
+
+#: includes/class-conversations.php:1226
+msgid "Continue this conversation"
+msgstr ""
+
+#: includes/class-conversations.php:1229
+msgid "Opens the chat interface with this conversation loaded."
+msgstr ""
+
+#: includes/class-conversations.php:1278
+#: assets/js/chat-ui.js:35
+msgid "Attached files"
+msgstr ""
+
+#: includes/class-conversations.php:1287
+msgid "Last Message"
+msgstr ""
+
+#: includes/class-settings.php:89
+msgid "AI Assistant Settings"
+msgstr ""
+
+#: includes/class-settings.php:105
+msgid "Overview"
+msgstr ""
+
+#: includes/class-settings.php:106
+msgid "The AI Assistant helps you manage your WordPress site through natural language conversation. Ask questions, request changes, or get help with content."
+msgstr ""
+
+#: includes/class-settings.php:107
+msgid "Your conversation history is saved automatically and can be accessed from the sidebar."
+msgstr ""
+
+#: includes/class-settings.php:112
+msgid "Capabilities"
+msgstr ""
+
+#: includes/class-settings.php:113
+msgid "The AI Assistant can help you with:"
+msgstr ""
+
+#: includes/class-settings.php:115
+msgid "<strong>Content</strong> - Create, edit, and manage posts and pages"
+msgstr ""
+
+#: includes/class-settings.php:116
+msgid "<strong>Media</strong> - Upload and organize images and files"
+msgstr ""
+
+#: includes/class-settings.php:117
+msgid "<strong>Settings</strong> - View and modify site configuration"
+msgstr ""
+
+#: includes/class-settings.php:118
+msgid "<strong>Plugins</strong> - Get information about installed plugins"
+msgstr ""
+
+#: includes/class-settings.php:119
+msgid "<strong>Database</strong> - Query data (read-only unless you have full access)"
+msgstr ""
+
+#: includes/class-settings.php:125
+msgid "Available Tools"
+msgstr ""
+
+#: includes/class-settings.php:126
+msgid "The AI Assistant has access to the following tools:"
+msgstr ""
+
+#: includes/class-settings.php:150
+msgid "Available Skills"
+msgstr ""
+
+#: includes/class-settings.php:157
+msgid "When Auto-approve is enabled, the assistant will execute actions without asking for confirmation. Use with caution."
+msgstr ""
+
+#: includes/class-settings.php:158
+msgid "On my.wordpress.net, Auto-approve starts enabled by default. Elsewhere, you will be prompted to approve changes unless you turn it on."
+msgstr ""
+
+#: includes/class-settings.php:164
+#, php-format
+msgid "The following system prompt is sent to the AI with each conversation (approximately %s token):"
+msgid_plural "The following system prompt is sent to the AI with each conversation (approximately %s tokens):"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/class-settings.php:174
+msgid "System Prompt"
+msgstr ""
+
+#: includes/class-settings.php:180
+msgid "For more information:"
+msgstr ""
+
+#: includes/class-settings.php:181
+msgid "Plugin Settings"
+msgstr ""
+
+#: includes/class-settings.php:591
+msgid "Sorry, you are not allowed to change AI Assistant settings."
+msgstr ""
+
+#: includes/class-settings.php:621
+msgid "These settings are stored in your browser and not on the server. API keys never leave your device."
+msgstr ""
+
+#: includes/class-settings.php:628
+msgid "Anthropic (Claude)"
+msgstr ""
+
+#: includes/class-settings.php:629
+msgid "OpenAI (ChatGPT)"
+msgstr ""
+
+#: includes/class-settings.php:630
+msgid "Local LLM (Ollama/LM Studio)"
+msgstr ""
+
+#: includes/class-settings.php:635
+msgid "Anthropic API Key"
+msgstr ""
+
+#: includes/class-settings.php:638
+#: includes/class-settings.php:656
+#: includes/class-settings.php:664
+msgid "Test Connection"
+msgstr ""
+
+#: includes/class-settings.php:643
+msgid "Prompt Caching"
+msgstr ""
+
+#: includes/class-settings.php:647
+#: includes/class-settings.php:1318
+msgid "Enable Anthropic prompt caching"
+msgstr ""
+
+#: includes/class-settings.php:649
+#: includes/class-settings.php:1320
+msgid "May reduce latency and cost when you frequently use Anthropic with long prompts. Off by default because cache writes can cost more."
+msgstr ""
+
+#: includes/class-settings.php:653
+msgid "OpenAI API Key"
+msgstr ""
+
+#: includes/class-settings.php:661
+msgid "Local LLM Endpoint"
+msgstr ""
+
+#: includes/class-settings.php:666
+msgid "Ollama default: localhost:11434, LM Studio: localhost:1234"
+msgstr ""
+
+#: includes/class-settings.php:673
+#: includes/class-settings.php:938
+msgid "Select a model..."
+msgstr ""
+
+#: includes/class-settings.php:675
+msgid "Refresh Models"
+msgstr ""
+
+#: includes/class-settings.php:679
+msgid "Summarization Model"
+msgstr ""
+
+#: includes/class-settings.php:682
+#: includes/class-settings.php:939
+msgid "Same as chat model"
+msgstr ""
+
+#: includes/class-settings.php:684
+msgid "Optional: Use a faster/cheaper model for conversation summaries."
+msgstr ""
+
+#: includes/class-settings.php:925
+msgid "Auto-detecting..."
+msgstr ""
+
+#: includes/class-settings.php:930
+msgid "Found"
+msgstr ""
+
+#: includes/class-settings.php:933
+msgid "No local LLM found"
+msgstr ""
+
+#: includes/class-settings.php:949
+msgid "Recommended"
+msgstr ""
+
+#: includes/class-settings.php:966
+#: includes/class-settings.php:1078
+#: includes/class-settings.php:1088
+msgid "Enter API key first"
+msgstr ""
+
+#: includes/class-settings.php:968
+msgid "Could not connect to local server"
+msgstr ""
+
+#: includes/class-settings.php:1071
+msgid "Testing..."
+msgstr ""
+
+#: includes/class-settings.php:1084
+#: includes/class-settings.php:1094
+msgid "Connected!"
+msgstr ""
+
+#: includes/class-settings.php:1084
+#: includes/class-settings.php:1094
+msgid "Invalid API key"
+msgstr ""
+
+#: includes/class-settings.php:1139
+msgid "Connected to"
+msgstr ""
+
+#: includes/class-settings.php:1141
+#: includes/class-settings.php:1147
+msgid "Could not connect."
+msgstr ""
+
+#: includes/class-settings.php:1142
+msgid "Your origin can't be accessed. To enable cross-origin requests follow"
+msgstr ""
+
+#: includes/class-settings.php:1143
+msgid "these instructions for Ollama"
+msgstr ""
+
+#: includes/class-settings.php:1144
+msgid "or"
+msgstr ""
+
+#: includes/class-settings.php:1145
+msgid "these instructions for LM Studio"
+msgstr ""
+
+#: includes/class-settings.php:1147
+msgid "Check the URL and ensure your local LLM server is running."
+msgstr ""
+
+#: includes/class-settings.php:1207
+#, php-format
+msgid "Configure %s"
+msgstr ""
+
+#: includes/class-settings.php:1212
+#, php-format
+msgid "Activate %s provider"
+msgstr ""
+
+#: includes/class-settings.php:1219
+#, php-format
+msgid "Install %s provider"
+msgstr ""
+
+#: includes/class-settings.php:1235
+msgid "Setup help: local AI and cloud providers"
+msgstr ""
+
+#: includes/class-settings.php:1236
+msgid "Use AI on your own device"
+msgstr ""
+
+#: includes/class-settings.php:1237
+msgid "LM Studio and Ollama run models on the device where you use this browser. Your prompts go directly to that local server."
+msgstr ""
+
+#: includes/class-settings.php:1239
+msgid "Install a local AI application and download a model:"
+msgstr ""
+
+#: includes/class-settings.php:1242
+msgid "Start its server and enable browser access from this website in its CORS settings. If your browser asks to connect to services on your device, allow access."
+msgstr ""
+
+#: includes/class-settings.php:1243
+msgid "Allow browser access to Ollama"
+msgstr ""
+
+#: includes/class-settings.php:1246
+msgid "Click Scan again next to Save Changes. AI Assistant checks localhost:1234 for LM Studio and localhost:11434 for Ollama."
+msgstr ""
+
+#: includes/class-settings.php:1247
+msgid "Choose a model in the provider’s card. LM Studio groups models under Loaded and Unloaded. Select an unloaded model and click Load model to load it; other LLMs on that server are unloaded first."
+msgstr ""
+
+#: includes/class-settings.php:1249
+msgid "Choose Local in the provider settings, enter the local server endpoint, and choose a model."
+msgstr ""
+
+#: includes/class-settings.php:1252
+msgid "Connect a cloud provider"
+msgstr ""
+
+#: includes/class-settings.php:1254
+msgid "Create an API key and add API credit with your provider:"
+msgstr ""
+
+#: includes/class-settings.php:1260
+msgid "Add the key for the matching provider in"
+msgstr ""
+
+#: includes/class-settings.php:1261
+#: includes/class-settings.php:1304
+msgid "WordPress Connectors"
+msgstr ""
+
+#: includes/class-settings.php:1263
+msgid "Add the key for the matching provider in the provider settings."
+msgstr ""
+
+#: includes/class-settings.php:1266
+msgid "Choose the model to use in AI Assistant."
+msgstr ""
+
+#: includes/class-settings.php:1268
+msgid "AI Assistant uses your provider’s API balance. Your subscription may include API credits; check eligibility and activation with your provider:"
+msgstr ""
+
+#: includes/class-settings.php:1273
+msgid "Once connected, drag the provider cards to set your preferred order. AI Assistant uses the first available provider."
+msgstr ""
+
+#. translators: %s: link to Connectors settings page
+#: includes/class-settings.php:1303
+#, php-format
+msgid "Cloud providers are managed through %s. Drag to reorder, then choose the model to use for each provider."
+msgstr ""
+
+#: includes/class-settings.php:1309
+msgid "Local providers connect directly to localhost on your device using JavaScript in your browser."
+msgstr ""
+
+#: includes/class-settings.php:1588
+msgid "checking"
+msgstr ""
+
+#: includes/class-settings.php:1590
+msgid "not reachable"
+msgstr ""
+
+#: includes/class-settings.php:1592
+msgid "no browser check"
+msgstr ""
+
+#: includes/class-settings.php:1594
+msgid "no models"
+msgstr ""
+
+#: includes/class-settings.php:1596
+msgid "no key"
+msgstr ""
+
+#: includes/class-settings.php:1598
+msgid "local"
+msgstr ""
+
+#: includes/class-settings.php:1600
+msgid "ready"
+msgstr ""
+
+#: includes/class-settings.php:1603
+msgid "1 model"
+msgstr ""
+
+#: includes/class-settings.php:1605
+msgid "checking models"
+msgstr ""
+
+#: includes/class-settings.php:1606
+msgid "models"
+msgstr ""
+
+#: includes/class-settings.php:1629
+msgid "Checking models..."
+msgstr ""
+
+#: includes/class-settings.php:1634
+msgid "No models available"
+msgstr ""
+
+#: includes/class-settings.php:1638
+msgid "Loaded"
+msgstr ""
+
+#: includes/class-settings.php:1639
+msgid "Unloaded"
+msgstr ""
+
+#: includes/class-settings.php:1661
+#, php-format
+msgid "Loading “%s”…"
+msgstr ""
+
+#: includes/class-settings.php:1702
+msgid "Scan again"
+msgstr ""
+
+#: includes/class-settings.php:1763
+#, php-format
+msgid "%1$d provider plugin(s) found but none have API keys configured. Visit %2$s to enter your credentials."
+msgstr ""
+
+#: includes/class-settings.php:1765
+#: includes/class-settings.php:1774
+#: includes/class-settings.php:1783
+msgid "Settings &rarr; Connectors"
+msgstr ""
+
+#: includes/class-settings.php:1773
+#, php-format
+msgid "Provider plugins are installed but none are supported for browser-direct calls yet. Visit %s to check your configuration."
+msgstr ""
+
+#: includes/class-settings.php:1782
+#, php-format
+msgid "No AI provider plugins are installed. Visit %s to install and configure a provider (e.g. Anthropic, OpenAI)."
+msgstr ""
+
+#: includes/class-settings.php:1821
+msgid "All tools are automatically enabled in Playground. The controls below are read-only so you can inspect registered tools, abilities, and schemas."
+msgstr ""
+
+#: includes/class-settings.php:1829
+msgid "Choose which tools the AI can use. ⚠ tools can modify files, run code, or install plugins."
+msgstr ""
+
+#: includes/class-settings.php:1833
+msgid "Tool permission groups"
+msgstr ""
+
+#: includes/class-settings.php:1874
+msgid "Enable all ability tool actions"
+msgstr ""
+
+#: includes/class-settings.php:1874
+msgid "Enable all tools in this tab"
+msgstr ""
+
+#: includes/class-settings.php:1899
+msgid "The assistant offers these tools to the model as one consolidated tool"
+msgstr ""
+
+#: includes/class-settings.php:1908
+msgid "Also offer these tools to agents outside WordPress as one WordPress ability"
+msgstr ""
+
+#. translators: %s: ability name
+#: includes/class-settings.php:1919
+#: includes/class-settings.php:1954
+#, php-format
+msgid "Expose as %s ability"
+msgstr ""
+
+#: includes/class-settings.php:1936
+#: includes/class-settings.php:1982
+msgid "Always allowed"
+msgstr ""
+
+#: includes/class-settings.php:1939
+msgid "Dangerous: can modify data or execute code"
+msgstr ""
+
+#: includes/class-settings.php:1943
+msgid "Also offer this tool to agents outside WordPress as a WordPress ability"
+msgstr ""
+
+#: includes/class-settings.php:1976
+msgid "GET and OPTIONS requests do not ask for approval. Saved write routes below are auto-approved; uncheck a route and save to restore approve prompts."
+msgstr ""
+
+#: includes/class-settings.php:2007
+msgid "These are not visibility controls. When List Abilities is enabled, the AI can discover all registered abilities. Auto-approve only decides whether execution skips the approve prompt."
+msgstr ""
+
+#: includes/class-settings.php:2010
+msgid "No abilities available — requires WordPress 6.9+ with the Abilities API."
+msgstr ""
+
+#: includes/class-settings.php:2014
+msgid "No abilities registered yet. Abilities are exposed by plugins using the WordPress Abilities API."
+msgstr ""
+
+#: includes/class-settings.php:2043
+#: includes/class-settings.php:2286
+#: assets/js/chat-execution.js:3379
+msgid "Read-only"
+msgstr ""
+
+#: includes/class-settings.php:2046
+#: includes/class-settings.php:2288
+#: assets/js/chat-execution.js:3381
+msgid "Destructive"
+msgstr ""
+
+#: includes/class-settings.php:2051
+msgid "No prompt"
+msgstr ""
+
+#: includes/class-settings.php:2077
+msgid "Select an ability to view its description and parameters."
+msgstr ""
+
+#: includes/class-settings.php:2096
+#: assets/js/chat-ui.js:1905
+msgid "View"
+msgstr ""
+
+#: includes/class-settings.php:2323
+#: includes/class-settings.php:2359
+#: assets/js/chat-execution.js:3414
+msgid "Required"
+msgstr ""
+
+#: includes/class-settings.php:2330
+msgid "True"
+msgstr ""
+
+#: includes/class-settings.php:2396
+msgid "Instructions for the AI Assistant"
+msgstr ""
+
+#: includes/class-settings.php:2423
+#: assets/js/chat-execution.js:3394
+msgid "No description provided."
+msgstr ""
+
+#: includes/class-settings.php:2429
+#: includes/class-settings.php:2432
+#: includes/class-settings.php:2436
+#: assets/js/chat-execution.js:3294
+#: assets/js/chat-execution.js:3397
+#: assets/js/chat-ui.js:3925
+msgid "Parameters"
+msgstr ""
+
+#: includes/class-settings.php:2430
+msgid "No parameter schema available."
+msgstr ""
+
+#: includes/class-settings.php:2433
+msgid "No parameters."
+msgstr ""
+
+#: includes/class-settings.php:2443
+msgid "Raw input schema"
+msgstr ""
+
+#: includes/class-settings.php:2452
+msgid "Change parameters"
+msgstr ""
+
+#: includes/class-settings.php:2574
+msgid "Missing ability ID."
+msgstr ""
+
+#: includes/class-settings.php:2590
+#: includes/class-settings.php:2597
+msgid "Unable to load sample output."
+msgstr ""
+
+#: includes/class-settings.php:2631
+msgid "is required."
+msgstr ""
+
+#: includes/class-settings.php:2639
+msgid "must be a valid number."
+msgstr ""
+
+#: includes/class-settings.php:2646
+msgid "must be valid JSON."
+msgstr ""
+
+#: includes/class-settings.php:2650
+msgid "must be a JSON array."
+msgstr ""
+
+#: includes/class-settings.php:2654
+msgid "must be a JSON object."
+msgstr ""
+
+#: includes/class-settings.php:2680
+msgid "Check the sample input fields."
+msgstr ""
+
+#: includes/class-settings.php:2702
+msgid "Full Access"
+msgstr ""
+
+#: includes/class-settings.php:2703
+msgid "Read Only"
+msgstr ""
+
+#: includes/class-settings.php:2704
+msgid "Chat Only"
+msgstr ""
+
+#: includes/class-settings.php:2708
+msgid "AI Assistant access is controlled via WordPress capabilities. The following shows the current capability assigned to each role."
+msgstr ""
+
+#: includes/class-settings.php:2712
+msgid "Role"
+msgstr ""
+
+#: includes/class-settings.php:2713
+msgid "Capability"
+msgstr ""
+
+#: includes/class-settings.php:2719
+msgid "No Access"
+msgstr ""
+
+#: includes/class-settings.php:2737
+msgid "Full Access: All enabled tools including file writes, PHP execution, and plugin installation. Read Only: Non-dangerous enabled tools plus abilities annotated read-only; REST API write requests are additionally enforced by WordPress permissions. Chat Only: No tool execution. Tool permissions above apply as a further restriction to all roles."
+msgstr ""
+
+#: includes/class-settings.php:2740
+msgid "To change capabilities, use a role management plugin or add code to assign ai_assistant_full, ai_assistant_read_only, or ai_assistant_chat_only capabilities."
+msgstr ""
+
+#: includes/class-settings.php:2750
+msgid "Configure where the AI Assistant appears."
+msgstr ""
+
+#: includes/class-settings.php:2754
+msgid "Frontend Access"
+msgstr ""
+
+#: includes/class-settings.php:2758
+msgid "Assistant Theme"
+msgstr ""
+
+#: includes/class-settings.php:2777
+msgid "Show AI Assistant on the frontend"
+msgstr ""
+
+#: includes/class-settings.php:2780
+msgid "When enabled, logged-in users with access will see the AI Assistant button on the frontend of your site."
+msgstr ""
+
+#: includes/class-settings.php:2791
+msgid "LLM Provider"
+msgstr ""
+
+#: includes/class-settings.php:2795
+msgid "Display"
+msgstr ""
+
+#: includes/class-settings.php:2799
+msgid "Tool Permissions"
+msgstr ""
+
+#: includes/class-settings.php:2803
+msgid "Role Capabilities"
+msgstr ""
+
+#: includes/class-settings.php:2818
+msgid "Why expose a file tool as an ability?"
+msgstr ""
+
+#: includes/class-settings.php:2819
+msgid "So that agents outside WordPress can use it too. An exposed tool keeps the tool permissions of the connected user, and every change is tracked in AI Changes."
+msgstr ""
+
+#: includes/class-settings.php:2828
+msgid "Agents connect through the active MCP Adapter plugin; MCP Connect handles their login."
+msgstr ""
+
+#. translators: %s: link to the MCP Connect plugin
+#: includes/class-settings.php:2832
+#, php-format
+msgid "Agents connect through the active MCP Adapter plugin. Add %s to let claude.ai, Claude Code and similar clients log in with OAuth instead of an application password."
+msgstr ""
+
+#. translators: 1: link to the MCP Adapter plugin, 2: link to the MCP Connect plugin
+#: includes/class-settings.php:2838
+#, php-format
+msgid "Install and activate %1$s to let agents connect, plus %2$s so that claude.ai, Claude Code and similar clients can log in with OAuth."
+msgstr ""
+
+#: includes/class-settings.php:2850
+msgid "Exposing tools as abilities requires WordPress 6.9 or newer with the Abilities API."
+msgstr ""
+
+#. translators: %s: link to Site Health
+#: includes/class-settings.php:2870
+#, php-format
+msgid "While a file writing tool is exposed as an ability, this check also runs in %s."
+msgstr ""
+
+#: includes/class-settings.php:2871
+msgid "Site Health"
+msgstr ""
+
+#: includes/class-settings.php:3404
+msgid "Settings sections"
+msgstr ""
+
+#: includes/class-settings.php:3710
+#: includes/class-settings.php:3720
+msgid "No skills available. Add .md files to the skills/ directory."
+msgstr ""
+
+#: includes/class-settings.php:3743
+msgid "Skills are specialized knowledge documents the AI can load on-demand. Click a skill to view its content:"
+msgstr ""
+
+#: themes/admin-classic/theme.php:10
+msgid "The original WordPress Help-style assistant latch."
+msgstr ""
+
+#: themes/floating-button/theme.php:7
+msgid "Floating Button"
+msgstr ""
+
+#: themes/floating-button/theme.php:8
+msgid "A floating launcher and detached assistant panel."
+msgstr ""
+
+#: assets/js/chat-conversations.js:333
+msgid "Start a new chat"
+msgstr ""
+
+#. translators: %s: Link to start a new chat.
+#: assets/js/chat-conversations.js:335
+#, js-format
+msgid "%s, or continue here."
+msgstr ""
+
+#: assets/js/chat-conversations.js:337
+msgid "Previous chat loaded."
+msgstr ""
+
+#: assets/js/chat-conversations.js:1278
+#: assets/js/chat-conversations.js:1292
+msgid "No conversations yet"
+msgstr ""
+
+#: assets/js/chat-conversations.js:1282
+msgid "Failed to load"
+msgstr ""
+
+#: assets/js/chat-conversations.js:1314
+msgid "Today"
+msgstr ""
+
+#: assets/js/chat-conversations.js:1318
+msgid "Yesterday"
+msgstr ""
+
+#: assets/js/chat-conversations.js:1322
+msgid "Previous"
+msgstr ""
+
+#: assets/js/chat-conversations.js:1338
+#: assets/js/chat-conversations.js:1382
+msgid "Delete"
+msgstr ""
+
+#: assets/js/chat-conversations.js:1370
+msgid "No saved conversations."
+msgstr ""
+
+#. translators: %d: Number of messages in the conversation.
+#: assets/js/chat-conversations.js:1379
+#, js-format
+msgid "%d message"
+msgid_plural "%d messages"
+msgstr[0] ""
+msgstr[1] ""
+
+#: assets/js/chat-conversations.js:1381
+msgid "Load"
+msgstr ""
+
+#: assets/js/chat-conversations.js:1388
+msgid "Failed to load conversations."
+msgstr ""
+
+#: assets/js/chat-conversations.js:1392
+msgid "Error loading conversations."
+msgstr ""
+
+#: assets/js/chat-core.js:493
+msgid "Delete this conversation?"
+msgstr ""
+
+#: assets/js/chat-execution.js:3182
+msgid "Keep approval pending"
+msgstr ""
+
+#. translators: %d: Number of tool requests awaiting approval.
+#: assets/js/chat-execution.js:3199
+#, js-format
+msgid "%d approval required"
+msgid_plural "%d approvals required"
+msgstr[0] ""
+msgstr[1] ""
+
+#: assets/js/chat-execution.js:3200
+msgid "Approval required"
+msgstr ""
+
+#: assets/js/chat-execution.js:3201
+msgid "Review tool requests before the assistant changes the site."
+msgstr ""
+
+#: assets/js/chat-execution.js:3216
+#: assets/js/chat-ui.js:3937
+msgid "Show ability details"
+msgstr ""
+
+#: assets/js/chat-execution.js:3217
+#: assets/js/chat-ui.js:3938
+msgid "What's this?"
+msgstr ""
+
+#: assets/js/chat-execution.js:3234
+#: assets/js/chat-ui.js:3958
+msgid "Skip"
+msgstr ""
+
+#: assets/js/chat-execution.js:3235
+#: assets/js/chat-ui.js:3955
+msgid "Approve"
+msgstr ""
+
+#: assets/js/chat-execution.js:3241
+#: assets/js/chat-execution.js:3250
+#: assets/js/chat-ui.js:3956
+#: assets/js/chat-ui.js:3957
+msgid "Always approve"
+msgstr ""
+
+#: assets/js/chat-execution.js:3274
+msgid "Show changes"
+msgstr ""
+
+#: assets/js/chat-execution.js:3274
+msgid "Show content"
+msgstr ""
+
+#. translators: %d: Number of lines in the content preview.
+#: assets/js/chat-execution.js:3279
+#, js-format
+msgid "%d line"
+msgid_plural "%d lines"
+msgstr[0] ""
+msgstr[1] ""
+
+#: assets/js/chat-execution.js:3384
+msgid "Always approved"
+msgstr ""
+
+#: assets/js/chat-execution.js:3399
+msgid "No parameters used."
+msgstr ""
+
+#. translators: %d: Number of attached files being read.
+#: assets/js/chat-files.js:299
+#, js-format
+msgid "Reading %d file..."
+msgid_plural "Reading %d files..."
+msgstr[0] ""
+msgstr[1] ""
+
+#: assets/js/chat-files.js:304
+msgid "Attachment"
+msgstr ""
+
+#: assets/js/chat-files.js:305
+msgid "Compacted preview"
+msgstr ""
+
+#: assets/js/chat-files.js:305
+msgid "Private text context"
+msgstr ""
+
+#: assets/js/chat-files.js:308
+msgid "compacted"
+msgstr ""
+
+#: assets/js/chat-files.js:309
+msgid "Remove attachment"
+msgstr ""
+
+#: assets/js/chat-ui.js:216
+#: assets/js/chat-ui.js:229
+msgid "Copy"
+msgstr ""
+
+#: assets/js/chat-ui.js:219
+msgid "Summarize conversation"
+msgstr ""
+
+#: assets/js/chat-ui.js:232
+msgid "Edit and resend"
+msgstr ""
+
+#: assets/js/chat-ui.js:235
+msgid "Retry"
+msgstr ""
+
+#: assets/js/chat-ui.js:243
+msgid "Retry last message"
+msgstr ""
+
+#: assets/js/chat-ui.js:998
+#: assets/js/chat-ui.js:1014
+msgid "Choose image"
+msgstr ""
+
+#: assets/js/chat-ui.js:1005
+msgid "Image picker open"
+msgstr ""
+
+#: assets/js/chat-ui.js:1006
+msgid "Open picker"
+msgstr ""
+
+#: assets/js/chat-ui.js:1015
+msgid "Pick one result to continue"
+msgstr ""
+
+#: assets/js/chat-ui.js:1017
+msgid "Cancel image selection"
+msgstr ""
+
+#: assets/js/chat-ui.js:1021
+msgid "Search images"
+msgstr ""
+
+#: assets/js/chat-ui.js:1023
+msgid "Search"
+msgstr ""
+
+#: assets/js/chat-ui.js:1024
+msgid "More"
+msgstr ""
+
+#: assets/js/chat-ui.js:1027
+msgid "Drop a photo here"
+msgstr ""
+
+#: assets/js/chat-ui.js:1028
+msgid "Choose file"
+msgstr ""
+
+#: assets/js/chat-ui.js:1029
+msgid "Choose image file"
+msgstr ""
+
+#: assets/js/chat-ui.js:1099
+msgid "Drop an image file."
+msgstr ""
+
+#: assets/js/chat-ui.js:1207
+msgid "Enter a search term."
+msgstr ""
+
+#: assets/js/chat-ui.js:1218
+msgid "Searching..."
+msgstr ""
+
+#. translators: %s: Broader image search query.
+#: assets/js/chat-ui.js:1232
+#, js-format
+msgid "Trying broader search: %s"
+msgstr ""
+
+#: assets/js/chat-ui.js:1242
+#: assets/js/chat-ui.js:1253
+msgid "No images found."
+msgstr ""
+
+#: assets/js/chat-ui.js:1253
+msgid "No more images."
+msgstr ""
+
+#: assets/js/chat-ui.js:1260
+msgid "Image search failed."
+msgstr ""
+
+#: assets/js/chat-ui.js:1292
+#: assets/js/chat-ui.js:1297
+msgid "Cancelled"
+msgstr ""
+
+#: assets/js/chat-ui.js:1375
+msgid "Selected image"
+msgstr ""
+
+#. translators: %s: Media attachment ID.
+#: assets/js/chat-ui.js:1379
+#, js-format
+msgid "Attachment #%s"
+msgstr ""
+
+#: assets/js/chat-ui.js:1381
+msgid "External URL"
+msgstr ""
+
+#: assets/js/chat-ui.js:1388
+msgid "Open image"
+msgstr ""
+
+#: assets/js/chat-ui.js:1790
+#: assets/js/chat-ui.js:1828
+msgid "View changed files"
+msgstr ""
+
+#: assets/js/chat-ui.js:1902
+msgid "Edit"
+msgstr ""
+
+#: assets/js/chat-ui.js:1974
+#: assets/js/chat-ui.js:3968
+msgid "Completed"
+msgstr ""
+
+#: assets/js/chat-ui.js:2018
+#: assets/js/chat-ui.js:3479
+#: assets/js/chat-ui.js:3483
+#, js-format
+msgid "%s - complete"
+msgstr ""
+
+#: assets/js/chat-ui.js:2224
+msgid "Hello! I'm your AI Assistant. I can help you shape My WordPress into your personal software home: create private apps, organize data and memories, manage plugins, and adapt workflows. What would you like to do?"
+msgstr ""
+
+#: assets/js/chat-ui.js:2227
+msgid "Hello! I'm your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?"
+msgstr ""
+
+#: assets/js/chat-ui.js:2244
+msgid "A few tips for this area of your WordPress:"
+msgstr ""
+
+#: assets/js/chat-ui.js:2281
+msgid "Change model"
+msgstr ""
+
+#: assets/js/chat-ui.js:2334
+#, js-format
+msgid "You're chatting with **%s**"
+msgstr ""
+
+#: assets/js/chat-ui.js:2344
+msgid "You're chatting with"
+msgstr ""
+
+#: assets/js/chat-ui.js:2385
+msgid "Checking local AI providers from this browser..."
+msgstr ""
+
+#: assets/js/chat-ui.js:2547
+msgid "Local LLM"
+msgstr ""
+
+#. translators: %d: Number of tools in the group.
+#: assets/js/chat-ui.js:3377
+#, js-format
+msgid "%d tool"
+msgid_plural "%d tools"
+msgstr[0] ""
+msgstr[1] ""
+
+#: assets/js/chat-ui.js:3479
+#: assets/js/chat-ui.js:3485
+#, js-format
+msgid "%1$s - %2$d/%3$d done"
+msgstr ""
+
+#: assets/js/chat-ui.js:3901
+msgid "Ready"
+msgstr ""
+
+#: assets/js/chat-ui.js:3906
+msgid "Checking ability..."
+msgstr ""
+
+#: assets/js/chat-ui.js:3912
+msgid "Waiting for approval"
+msgstr ""
+
+#: assets/js/chat-ui.js:3962
+msgid "Executing..."
+msgstr ""
+
+#: assets/js/chat-ui.js:3979
+msgid "Error"
+msgstr ""
+
+#: assets/js/chat-ui.js:3989
+msgid "Skipped by user"
+msgstr ""

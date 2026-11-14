@@ -1,0 +1,187 @@
+{
+    "translation-revision-date": "2026-11-14T12:07:38+00:00",
+    "generator": "WP-CLI\/2.13.0-alpha",
+    "source": "assets\/js\/chat-ui.js",
+    "domain": "messages",
+    "locale_data": {
+        "messages": {
+            "": {
+                "domain": "messages",
+                "lang": "de_DE",
+                "plural-forms": "nplurals=2; plural=(n != 1);"
+            },
+            "Cancel": [
+                "Abbrechen"
+            ],
+            "Attached files": [
+                "Angeh\u00e4ngte Dateien"
+            ],
+            "View": [
+                "Ansehen"
+            ],
+            "Parameters": [
+                "Parameter"
+            ],
+            "Show ability details": [
+                "Ability-Details anzeigen"
+            ],
+            "What's this?": [
+                "Was ist das?"
+            ],
+            "Skip": [
+                "\u00dcberspringen"
+            ],
+            "Approve": [
+                "Genehmigen"
+            ],
+            "Always approve": [
+                "Immer genehmigen"
+            ],
+            "Copy": [
+                "Kopieren"
+            ],
+            "Summarize conversation": [
+                "Unterhaltung zusammenfassen"
+            ],
+            "Edit and resend": [
+                "Bearbeiten und erneut senden"
+            ],
+            "Retry": [
+                "Erneut versuchen"
+            ],
+            "Retry last message": [
+                "Letzte Nachricht erneut versuchen"
+            ],
+            "Choose image": [
+                "Bild ausw\u00e4hlen"
+            ],
+            "Image picker open": [
+                "Bildauswahl ge\u00f6ffnet"
+            ],
+            "Open picker": [
+                "Auswahl \u00f6ffnen"
+            ],
+            "Pick one result to continue": [
+                "W\u00e4hle ein Ergebnis, um fortzufahren"
+            ],
+            "Cancel image selection": [
+                "Bildauswahl abbrechen"
+            ],
+            "Search images": [
+                "Bilder suchen"
+            ],
+            "Search": [
+                "Suchen"
+            ],
+            "More": [
+                "Mehr"
+            ],
+            "Drop a photo here": [
+                "Foto hier ablegen"
+            ],
+            "Choose file": [
+                "Datei ausw\u00e4hlen"
+            ],
+            "Choose image file": [
+                "Bilddatei ausw\u00e4hlen"
+            ],
+            "Drop an image file.": [
+                "Lege eine Bilddatei ab."
+            ],
+            "Enter a search term.": [
+                "Gib einen Suchbegriff ein."
+            ],
+            "Searching...": [
+                "Suche l\u00e4uft..."
+            ],
+            "Trying broader search: %s": [
+                "Allgemeinere Suche wird versucht: %s"
+            ],
+            "No images found.": [
+                "Keine Bilder gefunden."
+            ],
+            "No more images.": [
+                "Keine weiteren Bilder."
+            ],
+            "Image search failed.": [
+                "Bildersuche fehlgeschlagen."
+            ],
+            "Cancelled": [
+                "Abgebrochen"
+            ],
+            "Selected image": [
+                "Ausgew\u00e4hltes Bild"
+            ],
+            "Attachment #%s": [
+                "Anhang #%s"
+            ],
+            "External URL": [
+                "Externe URL"
+            ],
+            "Open image": [
+                "Bild \u00f6ffnen"
+            ],
+            "View changed files": [
+                "Ge\u00e4nderte Dateien ansehen"
+            ],
+            "Edit": [
+                "Bearbeiten"
+            ],
+            "Completed": [
+                "Abgeschlossen"
+            ],
+            "%s - complete": [
+                "%s - abgeschlossen"
+            ],
+            "Hello! I'm your AI Assistant. I can help you shape My WordPress into your personal software home: create private apps, organize data and memories, manage plugins, and adapt workflows. What would you like to do?": [
+                "Hallo! Ich bin dein KI-Assistent. Ich helfe dir, My WordPress zu deinem pers\u00f6nlichen Software-Zuhause zu machen: private Apps erstellen, Daten und Erinnerungen organisieren, Plugins verwalten und Arbeitsabl\u00e4ufe anpassen. Was m\u00f6chtest du tun?"
+            ],
+            "Hello! I'm your AI Assistant. I can help you manage your WordPress installation - read and modify files, manage plugins, query the database, and more. What would you like to do?": [
+                "Hallo! Ich bin dein KI-Assistent. Ich kann dir helfen, deine WordPress-Installation zu verwalten \u2013 Dateien lesen und \u00e4ndern, Plugins verwalten, die Datenbank abfragen und vieles mehr. Was m\u00f6chtest du tun?"
+            ],
+            "A few tips for this area of your WordPress:": [
+                "Ein paar Tipps f\u00fcr diesen Bereich deiner WordPress-Website:"
+            ],
+            "Change model": [
+                "Modell wechseln"
+            ],
+            "You're chatting with **%s**": [
+                "Du chattest mit **%s**"
+            ],
+            "You're chatting with": [
+                "Du chattest mit"
+            ],
+            "Checking local AI providers from this browser...": [
+                "Lokale KI-Anbieter werden \u00fcber diesen Browser gepr\u00fcft..."
+            ],
+            "Local LLM": [
+                "Lokales LLM"
+            ],
+            "%d tool": [
+                "%d Werkzeug",
+                "%d Werkzeuge"
+            ],
+            "%1$s - %2$d\/%3$d done": [
+                "%1$s - %2$d\/%3$d abgeschlossen"
+            ],
+            "Ready": [
+                "Bereit"
+            ],
+            "Checking ability...": [
+                "Ability wird gepr\u00fcft..."
+            ],
+            "Waiting for approval": [
+                "Warte auf Genehmigung"
+            ],
+            "Executing...": [
+                "Wird ausgef\u00fchrt..."
+            ],
+            "Error": [
+                "Fehler"
+            ],
+            "Skipped by user": [
+                "Vom Benutzer \u00fcbersprungen"
+            ]
+        }
+    }
+}
