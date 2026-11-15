@@ -1,0 +1,8 @@
+/vendor/
+composer.lock
+my-playground-app/
+wizard/assets/*.zip
+!wizard/assets/jszip.min.js
+wizard/templates.js
+build.sh
+logs
