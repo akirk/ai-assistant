@@ -872,7 +872,7 @@ class Settings {
                     }
                 });
                 updateProviderVisibility();
-                loadModels(false);
+                loadModels();
             }
 
             // Show/hide provider-specific rows
@@ -888,19 +888,12 @@ class Settings {
             });
 
             // Load models based on provider
-            async function loadModels(allowLocalDiscovery) {
+            async function loadModels() {
                 var provider = $('#ai_provider').val();
                 var $modelSelect = $('#ai_model');
                 var $sumSelect = $('#ai_summarization_model');
                 var currentModel = getStoredModel(provider);
                 var currentSumModel = getSetting('summarizationModel');
-
-                // Opening settings must not request local-network permission.
-                if (provider === 'local' && allowLocalDiscovery === false) {
-                    $modelSelect.empty().append($('<option>').val(currentModel || '').text(currentModel || '<?php echo esc_js(__('Refresh models to connect to your local server', 'ai-assistant')); ?>'));
-                    $sumSelect.empty().append($('<option>').val(currentSumModel || '').text(currentSumModel || '<?php echo esc_js(__('Same as chat model', 'ai-assistant')); ?>'));
-                    return;
-                }
 
                 $modelSelect.html('<option value=""><?php echo esc_js(__('Loading...', 'ai-assistant')); ?></option>');
 
@@ -1711,8 +1704,9 @@ class Settings {
                     }
 
                     $('<button type="button" class="button">').text('<?php echo esc_js(__('Scan again', 'ai-assistant')); ?>').css('margin-left', '8px').insertAfter($('#submit')).on('click', checkBrowserProviders);
-                    // Local discovery is explicitly initiated with Scan again.
+                    // Visiting settings is an explicit request to discover providers.
                     render();
+                    checkBrowserProviders();
 
                     $('#ai_anthropic_prompt_cache')
                         .prop('checked', getSetting('anthropicPromptCache') === '1')
