@@ -7,7 +7,11 @@ const vm = require('node:vm');
 function loadCore(options) {
     options = options || {};
 
-    function jQueryStub() {
+    function jQueryStub(selector) {
+        if (options.panels) {
+            const expanded = options.panels[selector];
+            return { ready() {}, length: expanded === undefined ? 0 : 1, attr: () => expanded };
+        }
         return {
             ready() {},
             trigger() {}
@@ -384,5 +388,24 @@ describe('assistant panel resizing', function() {
         assert.strictEqual(panel.state.height, 420);
         assert.strictEqual(panel.state.classes.has('expanded'), false);
         assert.strictEqual(panel.state.attrs['aria-valuenow'], 420);
+    });
+});
+
+
+describe('local provider discovery visibility', () => {
+    for (const selector of ['#ai-assistant-link', '#ai-assistant-standalone-trigger button']) {
+        it('defers discovery until ' + selector + ' is opened', () => {
+            const panels = { [selector]: 'false' };
+            const assistant = loadCore({ panels });
+            assert.equal(assistant.shouldDeferBrowserProviderStatusChecks(), true);
+            panels[selector] = 'true';
+            assert.equal(assistant.shouldDeferBrowserProviderStatusChecks(), false);
+        });
+    }
+    it('defers when no panel exists and allows the full-page chat', () => {
+        const assistant = loadCore({ panels: {} });
+        assert.equal(assistant.shouldDeferBrowserProviderStatusChecks(), true);
+        assistant.isFullPage = true;
+        assert.equal(assistant.shouldDeferBrowserProviderStatusChecks(), false);
     });
 });

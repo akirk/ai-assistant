@@ -1079,12 +1079,9 @@
         },
 
         shouldDeferBrowserProviderStatusChecks: function() {
-            if (this.isFullPage) {
-                return false;
-            }
-
-            var $standaloneButton = $('#ai-assistant-standalone-trigger button');
-            return $standaloneButton.length > 0 && $standaloneButton.attr('aria-expanded') !== 'true';
+            // Discovery can trigger the browser's local-network permission prompt.
+            // Wait until the user opens either kind of chat panel.
+            return !this.isPanelOpen();
         },
 
         isNearBottom: function(threshold) {
