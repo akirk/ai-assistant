@@ -241,6 +241,17 @@
         }
 
         var preload = function() {
+            // Opening the panel must discover local providers even when the
+            // conversation was already preloaded while discovery was deferred.
+            if (typeof window.aiAssistant.ensureBrowserProviderStatuses === 'function') {
+                window.aiAssistant.ensureBrowserProviderStatuses().then(function() {
+                    window.aiAssistant.updateSendButton();
+                    if ($('#ai-assistant-messages .ai-welcome-message').length) {
+                        $('#ai-assistant-messages .ai-welcome-message').remove();
+                        window.aiAssistant.loadWelcomeMessage();
+                    }
+                });
+            }
             if (window.aiAssistant && typeof window.aiAssistant.preloadMostRecentConversation === 'function') {
                 window.aiAssistant.preloadMostRecentConversation();
             } else if (

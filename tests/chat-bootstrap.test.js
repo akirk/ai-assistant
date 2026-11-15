@@ -621,6 +621,31 @@ function createHarness(useCoreScreenMeta, bootstrapOverrides, assistantOverrides
 }
 
 describe('chat bootstrap screen-meta latch', function() {
+    for (const withScreenMeta of [true, false]) {
+        it('checks local providers on every panel opening with screenMeta=' + withScreenMeta, async function() {
+            let checks = 0;
+            let updates = 0;
+            const harness = createHarness(withScreenMeta, {}, {
+                ensureBrowserProviderStatuses() {
+                    assert.strictEqual(harness.elements['ai-assistant-link'].attrs['aria-expanded'], 'true');
+                    checks++;
+                    return Promise.resolve();
+                },
+                updateSendButton() { updates++; }
+            });
+            assert.strictEqual(checks, 0);
+            harness.clickAssistant();
+            await Promise.resolve();
+            assert.strictEqual(checks, 1);
+            assert.strictEqual(updates, 1);
+            harness.clickAssistant();
+            assert.strictEqual(checks, 1);
+            harness.clickAssistant();
+            await Promise.resolve();
+            assert.strictEqual(checks, 2);
+        });
+    }
+
     it('uses WordPress screenMeta methods for a dynamically rendered admin latch', function() {
         const harness = createHarness(true);
 
