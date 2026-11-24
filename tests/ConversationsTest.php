@@ -139,8 +139,25 @@ class ConversationsTest extends TestCase {
         $this->assertStringNotContainsString('[Tool: read_file]', $html);
     }
 
-    public function test_json_export_returns_raw_download_payload(): void {
-        $payload = $this->conversations->export_conversation_as_json($this->sampleConversation(), [
+    public static function jsonExportInputs(): array {
+        return [
+            'raw input with default transcript settings' => [false],
+            'prepared input with tool calls enabled' => [true],
+        ];
+    }
+
+    /** @dataProvider jsonExportInputs */
+    public function test_json_export_keeps_raw_payload_without_prepared_representations(bool $prepare_messages): void {
+        $conversation = $this->sampleConversation();
+        if ($prepare_messages) {
+            $conversation['include_tool_calls'] = true;
+            $conversation = $this->conversations->prepare_conversation_messages_for_export($conversation, [
+                'extension' => 'json',
+                'mime' => 'application/json',
+            ]);
+        }
+
+        $payload = $this->conversations->export_conversation_as_json($conversation, [
             'extension' => 'json',
             'mime' => 'application/json',
         ]);
@@ -157,6 +174,12 @@ class ConversationsTest extends TestCase {
         $this->assertSame('system', $decoded['conversation']['messages'][0]['role']);
         $this->assertSame('Stored system prompt.', $decoded['conversation']['messages'][0]['content']);
         $this->assertSame('user', $decoded['conversation']['messages'][1]['role']);
+        $this->assertArrayNotHasKey('markdown', $decoded['conversation']['messages'][1]);
+        $this->assertArrayNotHasKey('html', $decoded['conversation']['messages'][1]);
+        $this->assertArrayNotHasKey('markdown', $decoded['conversation']['messages'][2]);
+        $this->assertArrayNotHasKey('html', $decoded['conversation']['messages'][2]);
+        $this->assertStringNotContainsString('<h2>Export Heading</h2>', $payload['content']);
+        $this->assertStringNotContainsString('[Tool: read_file]', $payload['content']);
     }
 
     public function test_prepare_conversation_messages_for_export_adds_only_distinct_markdown_and_html(): void {
@@ -175,29 +198,6 @@ class ConversationsTest extends TestCase {
         $this->assertStringContainsString('read_file content omitted from export', $prepared['messages'][2]['markdown']);
         $this->assertStringNotContainsString('secret file contents', $prepared['messages'][2]['markdown']);
         $this->assertStringContainsString('secret file contents', $prepared['messages'][2]['content'][0]['content']);
-    }
-
-    public function test_json_export_removes_prepared_representations_from_messages(): void {
-        $conversation = $this->sampleConversation();
-        $conversation['include_tool_calls'] = true;
-        $prepared = $this->conversations->prepare_conversation_messages_for_export($conversation, [
-            'extension' => 'json',
-            'mime' => 'application/json',
-        ]);
-
-        $payload = $this->conversations->export_conversation_as_json($prepared, [
-            'extension' => 'json',
-            'mime' => 'application/json',
-        ]);
-        $decoded = json_decode($payload['content'], true);
-
-        $this->assertArrayNotHasKey('markdown', $decoded['conversation']['messages'][1]);
-        $this->assertArrayNotHasKey('html', $decoded['conversation']['messages'][1]);
-        $this->assertArrayNotHasKey('markdown', $decoded['conversation']['messages'][2]);
-        $this->assertArrayNotHasKey('html', $decoded['conversation']['messages'][2]);
-        $this->assertStringNotContainsString('<h2>Export Heading</h2>', $payload['content']);
-        $this->assertStringNotContainsString('[Tool: read_file]', $payload['content']);
-        $this->assertStringContainsString('secret file contents', $payload['content']);
     }
 
     public function test_token_usage_builder_includes_subagent_usage_and_savings(): void {
