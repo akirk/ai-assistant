@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --test tests/chat-tools.test.js
+      - run: node --test tests/*.test.js
 
   php:
     runs-on: ubuntu-latest
