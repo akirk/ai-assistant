@@ -58,11 +58,11 @@ class API_Handler {
             wp_send_json_error(['message' => 'Tool execution is provided by the Patch Assistant companion plugin.'], 503);
         }
 
-        if (false) { // Temporary CI mutation: bypass assistant-role gate.
+        if (!current_user_can('ai_assistant_full') && !current_user_can('ai_assistant_read_only')) {
             wp_send_json_error(['message' => 'Tool execution not allowed']);
         }
 
-        $permission = 'full'; // Temporary CI mutation: elevate read-only requests.
+        $permission = current_user_can('ai_assistant_full') ? 'full' : 'read_only';
 
         $tool_name = sanitize_text_field($_POST['tool'] ?? '');
         $arguments_json = stripslashes($_POST['arguments'] ?? '{}');
