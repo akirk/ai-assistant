@@ -2,6 +2,7 @@
 namespace AI_Assistant\Tests;
 
 use AI_Assistant\API_Handler;
+use AI_Assistant\Executor;
 use AI_Assistant\Tools;
 use PHPUnit\Framework\TestCase;
 
@@ -17,6 +18,60 @@ class APIHandlerTest extends TestCase {
 
     protected function tearDown(): void {
         $_POST = [];
+    }
+
+    public static function assistantRoles(): array {
+        return [
+            'full access' => [['ai_assistant_full' => true], true],
+            'read-only access' => [['ai_assistant_read_only' => true], true],
+            'chat-only access' => [['ai_assistant_chat_only' => true], false],
+            'no assistant role' => [[], false],
+        ];
+    }
+
+    /** @dataProvider assistantRoles */
+    public function test_tool_api_enforces_assistant_role(array $capabilities, bool $allowed): void {
+        $GLOBALS['wp_test_capabilities'] = $capabilities;
+        $_POST = ['tool' => 'get_plugins', 'arguments' => '{}'];
+        $tools = new Tools();
+        $handler = new API_Handler($tools, new Executor($tools));
+
+        try {
+            $handler->handle_execute_tool();
+            $this->fail('Expected the JSON response to stop execution');
+        } catch (\RuntimeException $e) {
+            $this->assertSame($allowed ? 'wp_send_json_success' : 'wp_send_json_error', $e->getMessage());
+        }
+
+        $response = $GLOBALS['wp_test_json_response'];
+        $this->assertSame($allowed, $response['success']);
+        if ($allowed) {
+            $this->assertSame('hello.php', $response['data']['plugins'][0]['file']);
+            $this->assertSame('Hello Dolly', $response['data']['plugins'][0]['name']);
+            $this->assertSame(2, $response['data']['total']);
+        } else {
+            $this->assertSame(['message' => 'Tool execution not allowed'], $response['data']);
+        }
+    }
+
+    public function test_read_only_tool_api_preserves_executor_write_restriction(): void {
+        $GLOBALS['wp_test_capabilities'] = ['ai_assistant_read_only' => true];
+        $_POST = ['tool' => 'write_file', 'arguments' => '{}'];
+        $tools = new Tools();
+        $handler = new API_Handler($tools, new Executor($tools));
+
+        try {
+            $handler->handle_execute_tool();
+            $this->fail('Expected the JSON error to stop execution');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('wp_send_json_error', $e->getMessage());
+        }
+
+        $this->assertFalse($GLOBALS['wp_test_json_response']['success']);
+        $this->assertSame(
+            ['message' => "Tool 'write_file' requires full access permission"],
+            $GLOBALS['wp_test_json_response']['data']
+        );
     }
 
     public function test_handle_execute_tool_catches_type_errors_as_json_error(): void {
@@ -52,11 +107,8 @@ class APIHandlerTest extends TestCase {
             'arguments' => '"not an object"',
         ];
 
-        $handler = new API_Handler(new Tools(), new class {
-            public function execute_tool($tool_name, array $arguments, string $permission = 'full', ?int $conversation_id = null) {
-                throw new \RuntimeException('Executor should not be called');
-            }
-        });
+        $tools = new Tools();
+        $handler = new API_Handler($tools, new Executor($tools));
 
         try {
             $handler->handle_execute_tool();
@@ -100,11 +152,8 @@ class APIHandlerTest extends TestCase {
             ],
         ];
 
-        $handler = new API_Handler(new Tools(), new class {
-            public function execute_tool($tool_name, array $arguments, string $permission = 'full', ?int $conversation_id = null) {
-                throw new \RuntimeException('Executor should not be called');
-            }
-        });
+        $tools = new Tools();
+        $handler = new API_Handler($tools, new Executor($tools));
 
         try {
             $handler->handle_get_ability_details();
@@ -136,11 +185,8 @@ class APIHandlerTest extends TestCase {
             'ability' => 'demo/missing',
         ];
 
-        $handler = new API_Handler(new Tools(), new class {
-            public function execute_tool($tool_name, array $arguments, string $permission = 'full', ?int $conversation_id = null) {
-                throw new \RuntimeException('Executor should not be called');
-            }
-        });
+        $tools = new Tools();
+        $handler = new API_Handler($tools, new Executor($tools));
 
         try {
             $handler->handle_get_ability_details();
