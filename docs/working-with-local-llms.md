@@ -10,16 +10,16 @@ A model's advertised maximum context is different from the context its server al
 
 AI Assistant combines several strategies to make effective use of the available context:
 
-- **Keep the system prompt focused:** Provide brief guidance and plugin-topic hints, then load detailed instructions as needed.
-- **Discover capabilities on demand:** Let the model look up relevant tool details.
-- **Retrieve focused information:** Encourage requests for relevant records, pages, or file excerpts.
-- **Delegate focused investigations:** Let subagents gather information separately and return concise findings.
-- **Compact large results:** Send concise previews and let the model inspect omitted details.
-- **Reshape repeated tool exchanges:** Keep the first request with a smaller result and remove duplicate exchanges from the next model request.
-- **Keep useful working context:** Retain relevant results and remove outdated information.
-- **Summarize older history:** Preserve goals, decisions, and findings as the conversation grows.
-- **Adapt to the loaded window:** Size requests to the available context and trim older exchanges when necessary.
-- **Recover and bound repeated work:** Retry context errors with smaller requests and stop unproductive tool loops.
+- **[Keep the system prompt focused](#keep-the-system-prompt-focused):** Provide brief guidance and plugin-topic hints, then load detailed instructions as needed.
+- **[Discover capabilities on demand](#discover-capabilities-on-demand):** Let the model look up relevant tool details.
+- **[Retrieve focused information](#retrieve-only-what-the-task-needs):** Encourage requests for relevant records, pages, or file excerpts.
+- **[Delegate focused investigations](#delegate-focused-investigations-to-subagents):** Let subagents gather information separately and return concise findings.
+- **[Compact large results](#compact-large-results-and-inspect-details-later):** Send concise previews and let the model inspect omitted details.
+- **[Reshape repeated tool exchanges](#reshape-repeated-tool-exchanges):** Keep the first request with a smaller result and remove duplicate exchanges from the next model request.
+- **[Keep useful working context](#keep-useful-working-context):** Retain relevant results and remove outdated information.
+- **[Summarize older history](#summarize-and-trim-older-history):** Preserve goals, decisions, and findings as the conversation grows.
+- **[Adapt to the loaded window](#summarize-and-trim-older-history):** Size requests to the available context and trim older exchanges when necessary.
+- **[Recover and bound repeated work](#recover-from-errors-and-stop-loops):** Retry context errors with smaller requests and stop unproductive tool loops.
 
 ## Keep the system prompt focused
 
@@ -45,7 +45,7 @@ As a conversation grows, each model request carries its accumulated context. AI 
 
 This gives the subagent room to work even when the main conversation already occupies much of its context window. It can inspect a codebase, recall earlier conversations, or examine the current page, carrying only its own investigation history between requests. The plugin limits its tool-call rounds and keeps its work read-only.
 
-The subagent returns a concise report with findings and sources. AI Assistant adds that report to the main conversation without adding the full intermediate tool results. For cloud models, this can also save input tokens: each investigation step avoids resending the long parent conversation. Subagents still have their own model context limit, but start without the parent's accumulated context.
+The subagent returns a concise report with findings and sources. AI Assistant adds that report to the main conversation without adding the full intermediate tool results.
 
 ## Compact large results and inspect details later
 
@@ -85,8 +85,8 @@ AI Assistant aims to give a constrained model enough relevant information to com
 
 The plugin estimates context usage rather than counting tokens with the model's tokenizer. These strategies reduce pressure on the available window; they do not make every workflow fit, regardless of the model's parameter count or advertised maximum context.
 
-## These strategies also help cloud models use fewer tokens
+## Summary
 
-AI Assistant uses these strategies with cloud models too. Brief prompts, on-demand instructions, focused retrieval, compact results, and summaries reduce how much information the plugin sends repeatedly. Subagents let an investigation proceed with a small independent history, then bring its findings back into the main conversation.
+AI Assistant helps constrained models work effectively by keeping prompts focused, loading details on demand, giving subagents independent context, and managing the information it carries between steps. Together, these strategies leave more room for relevant information and useful work.
 
-This can reduce token costs as well as context pressure, particularly during long conversations with several investigation steps. Delegation adds its own requests and report, so a simple task may cost less when the main assistant handles it directly. The aim is to spend tokens on relevant information and useful work, while limiting repeated context and redundant tool results.
+The same approach can also reduce cloud-model token costs by limiting repeated context and redundant tool results. Subagents can investigate without resending a long parent conversation at every step, then return concise findings. Delegation and summarization add their own model requests, so the savings depend on the task.
