@@ -645,14 +645,14 @@
             var response = await fetch(endpoint + '/v1/chat/completions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(this.applyLocalThinkingSetting(payload, false, endpoint))
             });
 
             if (!response.ok && (response.status === 404 || response.status === 405)) {
                 response = await fetch(endpoint + '/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(this.applyLocalThinkingSetting(payload, true, endpoint))
                 });
             }
 

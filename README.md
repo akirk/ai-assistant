@@ -61,6 +61,8 @@ Go to **Settings > AI Assistant** to configure:
 - **API Keys**: Enter your provider API keys
 - **Anthropic Prompt Caching**: Optionally enable Anthropic prompt caching when you frequently use Anthropic with long prompts. It is off by default because cache writes can cost more.
 - **Local Endpoint**: Configure Ollama/LM Studio endpoint (default: `http://localhost:11434`)
+- **Disable thinking**: Available inside each reachable LM Studio provider card (or beside a detected LM Studio endpoint in legacy settings). Stored per endpoint in your browser; sends `reasoning_effort: "none"` for chat, summaries, and delegated tasks to that server. Requires a server version and model that support disabling reasoning.
+- **LM Studio context**: The model dropdown shows the configured context and theoretical maximum from LM Studio's `/api/v1/models`, for example `Qwen (context: 32k loaded, 256k supported)` (1k = 1,024 tokens). Missing context metadata is never replaced with the theoretical maximum. These are context capacities, not remaining free tokens, and do not change the assistant's compaction thresholds.
 
 ## Usage
 

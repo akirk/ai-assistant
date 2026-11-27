@@ -664,6 +664,9 @@ class Settings {
                     <button type="button" class="button ai-test-connection" data-provider="local"><?php esc_html_e('Test Connection', 'ai-assistant'); ?></button>
                     <span class="ai-connection-status"></span>
                     <p class="description"><?php esc_html_e('Ollama default: localhost:11434, LM Studio: localhost:1234', 'ai-assistant'); ?></p>
+                    <label id="ai-lmstudio-thinking" style="display:none"><input type="checkbox">
+                        <?php esc_html_e('Disable thinking', 'ai-assistant'); ?>
+                    </label>
                 </td>
             </tr>
             <tr>
@@ -898,6 +901,7 @@ class Settings {
                 $modelSelect.html('<option value=""><?php echo esc_js(__('Loading...', 'ai-assistant')); ?></option>');
 
                 var models = [];
+                $('#ai-lmstudio-thinking').hide();
 
                 if (provider === 'anthropic') {
                     var apiKey = getFieldValue($('#ai_anthropic_key')) || getSetting('anthropicApiKey');
@@ -1015,6 +1019,28 @@ class Settings {
             async function fetchLocalModels(endpoint) {
                 endpoint = normalizeEndpoint(endpoint);
                 if (!endpoint) return [];
+                // Native LM Studio metadata distinguishes loaded context from model maximum.
+                if (window.wpAiProviderBrowserStatus) {
+                    var status = await window.wpAiProviderBrowserStatus.check({ id: 'local', type: 'server', localKind: 'lmstudio', endpoint: endpoint });
+                    if (status.reachable && status.loadSupported) {
+                        var thinkingKey = 'lmstudioDisableThinking_' + endpoint;
+                        $('#ai-lmstudio-thinking').show().find('input')
+                            .prop('checked', getSetting(thinkingKey) === '1')
+                            .off('change').on('change', function() { setSetting(thinkingKey, this.checked ? '1' : ''); });
+
+                        return status.models.map(function(model) {
+                            var contexts = (model.loadedContexts || []).filter(function(instance) { return Number.isFinite(instance.tokens) && instance.tokens > 0; });
+                            var formatContext = function(tokens) { return tokens >= 1024 ? parseFloat((tokens / 1024).toFixed(1)) + 'k' : String(tokens); };
+                            var details = contexts.length
+                                ? [contexts.map(function(instance) { return formatContext(instance.tokens); }).join(', ') + ' <?php echo esc_js(__('loaded', 'ai-assistant')); ?>']
+                                : ['<?php echo esc_js(__('Loaded context unavailable', 'ai-assistant')); ?>'];
+                            if (Number.isFinite(model.maxContextLength) && model.maxContextLength > 0) details.push(formatContext(model.maxContextLength) + ' <?php echo esc_js(__('supported', 'ai-assistant')); ?>');
+                            var name = model.name + ' (<?php echo esc_js(__('context:', 'ai-assistant')); ?> ' + details.join(', ') + ')';
+                            return { id: model.id, name: name };
+                        });
+                    }
+                    if (status.reachable) return status.models;
+                }
                 // Try OpenAI-compatible endpoint first (works with LM Studio, Ollama, etc.)
                 try {
                     var response = await fetch(endpoint + '/v1/models');
@@ -1351,6 +1377,9 @@ class Settings {
                         font-size: 12px; padding: 1px 6px;
                         border-radius: 3px;
                     }
+                    .ai-provider-priority .ai-lmstudio-thinking {
+                        flex-basis: 100%; text-align: right;
+                    }
                     .ai-anthropic-prompt-cache-option { margin: 12px 0; }
                     .ai-anthropic-prompt-cache-option .description { margin-top: 4px; }
                     .ai-priority-status.available { color: #00a32a; background: #edfaef; }
@@ -1500,7 +1529,9 @@ class Settings {
                             return {
                                 id: id,
                                 name: (model && model.name) || id,
-                                capabilities: (model && model.capabilities) || []
+                                capabilities: (model && model.capabilities) || [],
+                                maxContextLength: model && model.maxContextLength,
+                                loadedContexts: (model && model.loadedContexts) || []
                             };
                         }).filter(function(model) {
                             return model.id !== '';
@@ -1650,9 +1681,25 @@ class Settings {
                                     var $target = group.label ? $('<optgroup>').attr('label', group.label).appendTo($modelSelect) : $modelSelect;
                                     models.forEach(function(model) {
                                         var id = normalizeModelId(model.id);
+                                        var modelLabel = model.name || id;
+                                        if (p.localKind === 'lmstudio') {
+                                            var formatContext = function(tokens) { return tokens >= 1024 ? parseFloat((tokens / 1024).toFixed(1)) + 'k' : String(tokens); };
+                                            var details = [];
+                                            var contexts = (model.loadedContexts || []).filter(function(instance) {
+                                                return Number.isFinite(instance.tokens) && instance.tokens > 0;
+                                            });
+                                            if (group.loaded && contexts.length) {
+                                                details.push(contexts.map(function(instance) { return formatContext(instance.tokens); }).join(', ') +
+                                                    ' <?php echo esc_js(__('loaded', 'ai-assistant')); ?>');
+                                            }
+                                            if (Number.isFinite(model.maxContextLength) && model.maxContextLength > 0) {
+                                                details.push(formatContext(model.maxContextLength) + ' <?php echo esc_js(__('supported', 'ai-assistant')); ?>');
+                                            }
+                                            if (details.length) modelLabel += ' (<?php echo esc_js(__('context:', 'ai-assistant')); ?> ' + details.join(', ') + ')';
+                                        }
                                         $('<option>')
                                             .val(id)
-                                            .text(model.name || id)
+                                            .text(modelLabel)
                                             .prop('selected', id === selectedModel)
                                             .appendTo($target);
                                     });
@@ -1669,6 +1716,15 @@ class Settings {
                             }
                             $li.append($main).append($modelControl);
                             if (p.localKind === 'lmstudio') {
+                                if (p.available) {
+                                    var thinkingKey = 'lmstudioDisableThinking_' + p.endpoint.replace(/\/+$/, '');
+                                    var $thinking = $('<input type="checkbox">')
+                                        .prop('checked', getSetting(thinkingKey) === '1')
+                                        .on('change', function() { setSetting(thinkingKey, this.checked ? '1' : ''); });
+                                    $li.append($('<label>').addClass('ai-lmstudio-thinking').append($thinking)
+                                        .append(document.createTextNode(' <?php echo esc_js(__('Disable thinking', 'ai-assistant')); ?>')));
+                                }
+
                                 var $feedback = $('<span>').attr('role', 'status').text(p.loadMessage || '');
                                 var needsLoad = p.loadSupported && selectedModel && (p.loadedModelIds || []).indexOf(selectedModel) === -1;
                                 if (needsLoad && !p.loading) $('<button type="button" class="button">').text('Load model')
@@ -1682,6 +1738,7 @@ class Settings {
                                         window.wpAiProviderBrowserStatus.loadModel(p, model).then(function() {
                                             p.loadMessage = '';
                                             p.loadedModelIds = [model];
+                                            checkBrowserProviders();
                                         }).catch(function(error) {
                                             p.loadMessage = 'Could not load model: ' + error.message;
                                         }).finally(function() { p.loading = false; render(); });

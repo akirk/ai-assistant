@@ -39,7 +39,14 @@
                             if (instances.length) {
                                 status.loadedModelIds.push(model.key);
                             }
-                            return { id: model.key, name: model.display_name || model.key, capabilities: ['text_generation'] };
+                            return {
+                                id: model.key, name: model.display_name || model.key,
+                                capabilities: ['text_generation'],
+                                maxContextLength: model.max_context_length,
+                                loadedContexts: instances.map(function(instance) {
+                                    return { id: instance.id, tokens: instance.config && instance.config.context_length };
+                                })
+                            };
                         });
                         status.loadSupported = true;
                     } catch (error) {
