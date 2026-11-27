@@ -39,7 +39,7 @@ AI Assistant encourages the model to gather focused information. Tools offer fil
 
 For short tasks, focused retrieval can keep requests within a small context window throughout the exchange, without invoking summarization or overflow recovery.
 
-## Delegate focused investigations
+## Delegate focused investigations to subagents
 
 AI Assistant lets the model hand a focused investigation to a read-only subagent through the `delegate` tool. Subagents can inspect a codebase, recall earlier conversations, or examine the current page. The plugin gives each subagent a task-specific prompt, selected shared context, a restricted tool set, and a limit on tool-call rounds.
 
