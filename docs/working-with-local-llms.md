@@ -62,6 +62,8 @@ Once the model has used a large tool result, AI Assistant can leave it out of la
 
 When a model asks for the same information again, appending another copy of a large result can make context pressure worse. This can happen when a local model server handles context overflow by truncating earlier material, such as the middle of the conversation, leaving the model without a result it already requested.
 
+Because the model has no independent memory of earlier requests, AI Assistant controls the conversation history it sees next. We can do more than shorten that history: we can revise how an earlier exchange appears. When the model repeats a request, we can omit the duplicate exchange and give the first request a smaller, more useful result. On the next inference, the model has no separate recollection that it asked twice. The saved transcript still records what actually happened.
+
 AI Assistant takes a different approach for eligible repeated read-only calls: it rebuilds the next outgoing request as though the model had asked only once. It keeps the first tool call, replaces that call's result with a compacted version, and removes the duplicate call/result pairs. The model gets another chance to use a smaller answer without carrying the repeated exchanges in its context.
 
 The plugin can reuse a successful earlier result instead of executing the tool again. It keeps already-small results unchanged when compaction would add overhead, and supplies inspection hints for compacted results so the model can request specific details.
