@@ -41,7 +41,7 @@ For short tasks, focused retrieval can keep requests within a small context wind
 
 ## Delegate focused investigations to subagents
 
-As a conversation grows, each model request carries its accumulated context. AI Assistant can move a focused investigation into a fresh context through the `delegate` tool. The subagent starts with the delegated task, a short task-specific system prompt, selected site or page hints, and a restricted tool set. It does not inherit the main conversation's history.
+As a conversation grows, each model request carries its accumulated context. AI Assistant lets the model invoke a subagent for a focused investigation and receive its findings. The subagent works in a fresh context with the investigation task, a short task-specific system prompt, selected site or page hints, and a restricted tool set. It does not inherit the main conversation's history.
 
 This gives the subagent room to work even when the main conversation already occupies much of its context window. It can inspect a codebase, recall earlier conversations, or examine the current page, carrying only its own investigation history between requests. The plugin limits its tool-call rounds and keeps its work read-only.
 
