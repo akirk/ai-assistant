@@ -41,9 +41,11 @@ For short tasks, focused retrieval can keep requests within a small context wind
 
 ## Delegate focused investigations to subagents
 
-AI Assistant lets the model hand a focused investigation to a read-only subagent through the `delegate` tool. Subagents can inspect a codebase, recall earlier conversations, or examine the current page. The plugin gives each subagent a task-specific prompt, selected shared context, a restricted tool set, and a limit on tool-call rounds.
+As a conversation grows, each model request carries its accumulated context. AI Assistant can move a focused investigation into a fresh context through the `delegate` tool. The subagent starts with the delegated task, a short task-specific system prompt, selected site or page hints, and a restricted tool set. It does not inherit the main conversation's history.
 
-The subagent returns a concise report with findings and sources. AI Assistant keeps its full intermediate tool results out of the main conversation, so exploratory work consumes less of the main context window. Delegation still adds model requests, and each subagent must fit its work into the available context.
+This gives the subagent room to work even when the main conversation already occupies much of its context window. It can inspect a codebase, recall earlier conversations, or examine the current page, carrying only its own investigation history between requests. The plugin limits its tool-call rounds and keeps its work read-only.
+
+The subagent returns a concise report with findings and sources. AI Assistant adds that report to the main conversation without adding the full intermediate tool results. For cloud models, this can also save input tokens: each investigation step avoids resending the long parent conversation. Subagents still have their own model context limit, but start without the parent's accumulated context.
 
 ## Compact large results and inspect details later
 
@@ -82,3 +84,9 @@ AI Assistant warns when the model keeps repeating eligible tool requests after c
 AI Assistant aims to give a constrained model enough relevant information to complete the next step. Focused tasks with concise tool results suit this approach well. Longer conversations and broad investigations require more selection, compaction, or a larger loaded context.
 
 The plugin estimates context usage rather than counting tokens with the model's tokenizer. These strategies reduce pressure on the available window; they do not make every workflow fit, regardless of the model's parameter count or advertised maximum context.
+
+## These strategies also help cloud models use fewer tokens
+
+AI Assistant uses these strategies with cloud models too. Brief prompts, on-demand instructions, focused retrieval, compact results, and summaries reduce how much information the plugin sends repeatedly. Subagents let an investigation proceed with a small independent history, then bring its findings back into the main conversation.
+
+This can reduce token costs as well as context pressure, particularly during long conversations with several investigation steps. Delegation adds its own requests and report, so a simple task may cost less when the main assistant handles it directly. The aim is to spend tokens on relevant information and useful work, while limiting repeated context and redundant tool results.
