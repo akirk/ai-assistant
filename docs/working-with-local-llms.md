@@ -49,7 +49,7 @@ The subagent returns a concise report with findings and sources. AI Assistant ad
 
 ## Compact large results and inspect details later
 
-AI Assistant compacts oversized tool results before sending them to the model. It includes previews, information about the result's structure, and markers that identify omitted details. When the server reports its loaded context size, the plugin also adjusts result limits to that budget, helping prevent one result from dominating the request.
+A tool can return unexpectedly large amounts of information. Fetching a long blog post, for example, can produce a result that exhausts the model's context window on its own, before accounting for the conversation. AI Assistant compacts oversized tool results before sending them to the model. It includes previews, information about the result's structure, and markers that identify omitted details. When the server reports its loaded context size, the plugin also adjusts result limits to that budget, helping prevent one result from dominating the request.
 
 The plugin keeps original results in an active browser cache, with 20 entries by default. The model can ask to inspect a specific part of an earlier result, search within it, or read it in smaller chunks. Reloading the page clears the cache, and new entries can evict older ones; the model may then need to read the original source again.
 
@@ -87,6 +87,6 @@ The plugin estimates context usage rather than counting tokens with the model's 
 
 ## Summary
 
-AI Assistant helps constrained models work effectively by keeping prompts focused, loading details on demand, giving subagents independent context, and managing the information it carries between steps. Together, these strategies leave more room for relevant information and useful work.
+AI Assistant helps constrained models work effectively by keeping prompts focused, loading details on demand, giving subagents independent context, and managing the information it carries between steps. For models with small context windows, these strategies can make the difference between completing a task and being unable to fit the information needed to proceed.
 
 The same approach can also reduce cloud-model token costs by limiting repeated context and redundant tool results. Subagents can investigate without resending a long parent conversation at every step, then return concise findings. Delegation and summarization add their own model requests, so the savings depend on the task.
