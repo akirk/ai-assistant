@@ -1,69 +1,69 @@
 {
-	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
-	"meta": {
-		"title": "AI Assistant",
-		"description": "AI-powered chat interface for WordPress. Bring your own key or use a local LLM.",
-		"author": "Alex Kirk",
-		"categories": [
-			"Apps",
-			"AI"
-		]
-	},
-	"landingPage": "/ai-assistant/conversations/",
-	"login": true,
-	"steps": [
-		{
-			"step": "installPlugin",
-			"pluginData": {
-				"resource": "git:directory",
-				"url": "https://github.com/akirk/ai-assistant",
-				"ref": "main",
-				"refType": "branch"
-			},
-			"options": {
-				"activate": false,
-				"targetFolderName": "ai-assistant"
-			}
-		},
-		{
-			"step": "installPlugin",
-			"pluginData": {
-				"resource": "git:directory",
-				"url": "https://github.com/akirk/wp-app",
-				"ref": "main",
-				"refType": "branch",
-				"path": "src"
-			},
-			"options": {
-				"activate": false,
-				"targetFolderName": "ai-assistant/vendor/akirk/wp-app"
-			}
-		},
-		{
-			"step": "installPlugin",
-			"pluginData": {
-				"resource": "git:directory",
-				"url": "https://github.com/akirk/create-wp-app",
-				"ref": "main",
-				"refType": "branch"
-			},
-			"options": {
-				"activate": false,
-				"targetFolderName": "ai-assistant/vendor/akirk/create-wp-app"
-			}
-		},
-		{
-			"step": "mkdir",
-			"path": "wordpress/wp-content/plugins/ai-assistant/vendor"
-		},
-		{
-			"step": "writeFile",
-			"path": "/wordpress/wp-content/plugins/ai-assistant/vendor/autoload.php",
-			"data": "<?php\nrequire_once __DIR__ . \"/akirk/wp-app/functions.php\";\nspl_autoload_register( static function ( $class ) {\n\t$wp_app_map = [\n\t\t\"WpApp\\\\BaseApp\" => \"abstract-baseapp.php\",\n\t\t\"WpApp\\\\BaseStorage\" => \"BaseStorage.php\",\n\t\t\"WpApp\\\\Client_Encrypted_Fields\" => \"class-client-encrypted-fields.php\",\n\t\t\"WpApp\\\\Masterbar\" => \"class-masterbar.php\",\n\t\t\"WpApp\\\\Openstation\" => \"class-openstation.php\",\n\t\t\"WpApp\\\\Pwa\" => \"class-pwa.php\",\n\t\t\"WpApp\\\\Registry\" => \"class-registry.php\",\n\t\t\"WpApp\\\\Router\" => \"class-router.php\",\n\t\t\"WpApp\\\\Settings\" => \"class-settings.php\",\n\t\t\"WpApp\\\\WpApp\" => \"class-wpapp.php\",\n\t\t\"WpApp\\\\Rest\\\\Access\" => \"rest/class-access.php\",\n\t\t\"WpApp\\\\Rest\\\\Private_Posts_Controller\" => \"rest/class-private-posts-controller.php\",\n\t\t\"WpApp\\\\Rest\\\\Private_Terms_Controller\" => \"rest/class-private-terms-controller.php\",\n\t];\n\tif ( isset( $wp_app_map[ $class ] ) ) {\n\t\trequire_once __DIR__ . \"/akirk/wp-app/\" . $wp_app_map[ $class ];\n\t\treturn;\n\t}\n\n\t$prefix = \"Akirk\\\\CreateWpApp\\\\\";\n\tif ( 0 === strpos( $class, $prefix ) ) {\n\t\t$relative = substr( $class, strlen( $prefix ) );\n\t\t$file = __DIR__ . \"/akirk/create-wp-app/src/\" . str_replace( \"\\\\\", \"/\", $relative ) . \".php\";\n\t\tif ( is_file( $file ) ) {\n\t\t\trequire_once $file;\n\t\t}\n\t}\n} );\n"
-		},
-		{
-			"step": "activatePlugin",
-			"pluginPath": "ai-assistant/ai-assistant.php"
-		}
-	]
+    "$schema": "https://playground.wordpress.net/blueprint-schema.json",
+    "meta": {
+        "title": "AI Assistant",
+        "description": "AI-powered chat interface for WordPress. Bring your own key or use a local LLM.",
+        "author": "Alex Kirk",
+        "categories": [
+            "Apps",
+            "AI"
+        ]
+    },
+    "landingPage": "/ai-assistant/conversations/",
+    "login": true,
+    "steps": [
+        {
+            "step": "installPlugin",
+            "pluginData": {
+                "resource": "git:directory",
+                "url": "https://github.com/akirk/ai-assistant",
+                "ref": "dist/main",
+                "refType": "branch"
+            },
+            "options": {
+                "activate": false,
+                "targetFolderName": "ai-assistant"
+            }
+        },
+        {
+            "step": "installPlugin",
+            "pluginData": {
+                "resource": "git:directory",
+                "url": "https://github.com/akirk/wp-app",
+                "ref": "main",
+                "refType": "branch",
+                "path": "src"
+            },
+            "options": {
+                "activate": false,
+                "targetFolderName": "ai-assistant/vendor/akirk/wp-app"
+            }
+        },
+        {
+            "step": "installPlugin",
+            "pluginData": {
+                "resource": "git:directory",
+                "url": "https://github.com/akirk/create-wp-app",
+                "ref": "main",
+                "refType": "branch"
+            },
+            "options": {
+                "activate": false,
+                "targetFolderName": "ai-assistant/vendor/akirk/create-wp-app"
+            }
+        },
+        {
+            "step": "mkdir",
+            "path": "wordpress/wp-content/plugins/ai-assistant/vendor"
+        },
+        {
+            "step": "writeFile",
+            "path": "/wordpress/wp-content/plugins/ai-assistant/vendor/autoload.php",
+            "data": "<?php\nrequire_once __DIR__ . \"/akirk/wp-app/functions.php\";\nspl_autoload_register( static function ( $class ) {\n\t$wp_app_map = [\n\t\t\"WpApp\\\\BaseApp\" => \"abstract-baseapp.php\",\n\t\t\"WpApp\\\\BaseStorage\" => \"BaseStorage.php\",\n\t\t\"WpApp\\\\Client_Encrypted_Fields\" => \"class-client-encrypted-fields.php\",\n\t\t\"WpApp\\\\Masterbar\" => \"class-masterbar.php\",\n\t\t\"WpApp\\\\Openstation\" => \"class-openstation.php\",\n\t\t\"WpApp\\\\Pwa\" => \"class-pwa.php\",\n\t\t\"WpApp\\\\Registry\" => \"class-registry.php\",\n\t\t\"WpApp\\\\Router\" => \"class-router.php\",\n\t\t\"WpApp\\\\Settings\" => \"class-settings.php\",\n\t\t\"WpApp\\\\WpApp\" => \"class-wpapp.php\",\n\t\t\"WpApp\\\\Rest\\\\Access\" => \"rest/class-access.php\",\n\t\t\"WpApp\\\\Rest\\\\Private_Posts_Controller\" => \"rest/class-private-posts-controller.php\",\n\t\t\"WpApp\\\\Rest\\\\Private_Terms_Controller\" => \"rest/class-private-terms-controller.php\",\n\t];\n\tif ( isset( $wp_app_map[ $class ] ) ) {\n\t\trequire_once __DIR__ . \"/akirk/wp-app/\" . $wp_app_map[ $class ];\n\t\treturn;\n\t}\n\n\t$prefix = \"Akirk\\\\CreateWpApp\\\\\";\n\tif ( 0 === strpos( $class, $prefix ) ) {\n\t\t$relative = substr( $class, strlen( $prefix ) );\n\t\t$file = __DIR__ . \"/akirk/create-wp-app/src/\" . str_replace( \"\\\\\", \"/\", $relative ) . \".php\";\n\t\tif ( is_file( $file ) ) {\n\t\t\trequire_once $file;\n\t\t}\n\t}\n} );\n"
+        },
+        {
+            "step": "activatePlugin",
+            "pluginPath": "ai-assistant/ai-assistant.php"
+        }
+    ]
 }

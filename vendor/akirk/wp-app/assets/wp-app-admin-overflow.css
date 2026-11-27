@@ -1,0 +1,186 @@
+#wpadminbar {
+    z-index: 100100;
+}
+
+#wpadminbar .ab-sub-wrapper {
+    z-index: 100101;
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow {
+    position: relative;
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow.wp-app-admin-overflow-sticky > .ab-item {
+    color: #a7aaad;
+    cursor: pointer;
+    overflow: hidden;
+    padding: 0;
+    position: relative;
+    text-indent: 100%;
+    white-space: nowrap;
+    width: 32px;
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow.wp-app-admin-overflow-sticky > .ab-item .ab-icon {
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    width: 32px;
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow > .ab-item .ab-icon:before {
+    content: "\f347";
+    display: block;
+    font: normal 20px/1 dashicons;
+    height: 32px;
+    line-height: 27px;
+    text-align: center;
+    text-indent: 0;
+    top: 0;
+    width: 32px;
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow-settings {
+    border-top: 1px solid rgba(255, 255, 255, 0.16);
+    margin-top: 4px;
+    padding-top: 4px;
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow > .ab-sub-wrapper {
+    top: 32px;
+    left: var(--wp-app-overflow-offset, 0px);
+    min-width: 0;
+    max-height: calc(100vh - 54px);
+    max-width: calc(100vw - 16px);
+    overflow-y: auto;
+    right: auto;
+    width: min(430px, calc(100vw - 16px));
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow > .ab-sub-wrapper > .ab-submenu {
+    box-sizing: border-box;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(min(88px, 100%), 1fr));
+    min-width: 0;
+    padding: 12px 8px;
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow .ab-submenu > li {
+    min-width: 0;
+    width: auto;
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow-settings {
+    grid-column: 1 / -1;
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow .wp-app-link-title {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: auto;
+    text-align: center;
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow .wp-app-link-text,
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow .wp-app-link-title > .screen-reader-text {
+    line-height: 1.25;
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow .wp-app-link-icon,
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow .wp-app-link-icon img {
+    flex-shrink: 0;
+    font-size: 28px;
+    height: 48px;
+    line-height: 48px;
+    max-height: 48px;
+    max-width: 48px;
+    width: 48px;
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow .wp-app-link-icon {
+    border-radius: 10px;
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow .wp-app-link-icon .dashicons {
+    font-size: 36px;
+    height: 36px;
+    line-height: 36px;
+    width: 36px;
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow .wp-app-link-title > .screen-reader-text {
+    clip: auto;
+    clip-path: none;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    position: static;
+    width: auto;
+}
+
+#wpadminbar li#wp-admin-bar-wp-app-admin-overflow .ab-submenu .ab-item {
+    box-sizing: border-box;
+    display: block;
+    height: auto !important;
+    line-height: 22px !important;
+    max-width: calc(100vw - 16px);
+    min-height: 44px;
+    min-width: 0;
+    overflow: visible;
+    padding: 10px 4px;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: normal;
+    word-break: break-word;
+}
+
+@media screen and (max-width: 782px) {
+    #wpadminbar li.wp-app-admin-link {
+        display: none !important;
+    }
+
+    #wpadminbar li#wp-admin-bar-wp-app-admin-overflow {
+        display: block !important;
+        position: static;
+    }
+
+    #wpadminbar li#wp-admin-bar-wp-app-admin-overflow > .ab-item {
+        color: #a7aaad;
+        overflow: hidden;
+        padding: 0;
+        position: relative;
+        text-indent: 100%;
+        white-space: nowrap;
+        width: 52px;
+    }
+
+    #wpadminbar li#wp-admin-bar-wp-app-admin-overflow > .ab-item .ab-icon {
+        height: 46px;
+        margin: 0;
+        padding: 0;
+        width: 52px;
+    }
+
+    #wpadminbar li#wp-admin-bar-wp-app-admin-overflow > .ab-item .ab-icon:before {
+        font: normal 32px/1 dashicons;
+        height: 46px;
+        line-height: 46px;
+        width: 34px;
+    }
+
+    #wpadminbar li#wp-admin-bar-wp-app-admin-overflow > .ab-sub-wrapper {
+        top: 46px;
+        left: 8px;
+        right: 8px;
+        width: auto;
+    }
+}
+
+#wpadminbar .wp-app-desktop-pin > .ab-item {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    min-width: 24px;
+}

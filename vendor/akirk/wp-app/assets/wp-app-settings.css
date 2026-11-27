@@ -1,0 +1,350 @@
+.wp-app-navigation-settings {
+    max-width: 1100px;
+}
+
+.wp-app-settings-section {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 6px;
+    margin: 16px 0;
+    padding: 16px;
+}
+
+.wp-app-settings-section > summary {
+    cursor: pointer;
+    padding: 4px 0;
+}
+
+.wp-app-settings-section > summary h2 {
+    display: inline;
+    font-size: 18px;
+}
+
+.wp-app-settings-apps {
+    display: grid;
+    gap: 8px;
+}
+
+.wp-app-settings-app {
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+}
+
+.wp-app-settings-app > summary {
+    align-items: center;
+    cursor: pointer;
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+}
+
+.wp-app-settings-app > summary::after {
+    content: "›";
+    font-size: 24px;
+    margin-left: auto;
+}
+
+.wp-app-settings-app[open] > summary::after {
+    transform: rotate(90deg);
+}
+
+.wp-app-settings-app summary strong,
+.wp-app-settings-app summary small {
+    display: block;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.wp-app-settings-app summary small {
+    color: #646970;
+    margin-top: 4px;
+}
+
+.wp-app-settings-app-icon {
+    display: flex;
+    flex-shrink: 0;
+}
+
+.wp-app-navigation-settings .wp-app-link-icon {
+    align-items: center;
+    background: #f0f0f1;
+    border-radius: 8px;
+    display: inline-flex;
+    flex-shrink: 0;
+    font-size: 24px;
+    font-weight: 600;
+    height: 40px;
+    justify-content: center;
+    line-height: 1;
+    overflow: hidden;
+    text-transform: uppercase;
+    width: 40px;
+}
+
+.wp-app-navigation-settings .wp-app-link-icon-image {
+    background: transparent;
+}
+
+.wp-app-navigation-settings .wp-app-link-icon img {
+    height: 100%;
+    object-fit: contain;
+    width: 100%;
+}
+
+.wp-app-navigation-settings .wp-app-link-icon .dashicons {
+    font-size: 28px;
+    height: 28px;
+    line-height: 28px;
+    width: 28px;
+}
+
+.wp-app-settings-editor {
+    padding: 12px;
+}
+
+.wp-app-settings-app > .wp-app-settings-editor {
+    border-top: 1px solid #dcdcde;
+}
+
+.wp-app-settings-field label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.wp-app-settings-field input,
+.wp-app-settings-field select {
+    box-sizing: border-box;
+    max-width: 100%;
+    width: 100%;
+}
+
+.wp-app-settings-visibility {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 18px 0;
+}
+
+.wp-app-settings-visibility label {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    min-height: 32px;
+}
+
+.wp-app-settings-visibility input[type="checkbox"] {
+    flex-shrink: 0;
+    margin: 0;
+}
+
+.wp-app-settings-navigation-preview {
+    background: #2c3338;
+    border-radius: 6px;
+    box-sizing: border-box;
+    color: #f0f0f1;
+    gap: 8px;
+    min-height: 64px;
+    padding: 12px 8px;
+}
+
+.wp-app-settings-preview-launcher {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(88px, 100%), 1fr));
+    max-width: 480px;
+}
+
+.wp-app-settings-preview-desktop {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.wp-app-settings-tile {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    font: inherit;
+    gap: 8px;
+    justify-content: flex-start;
+    line-height: 1.25;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    padding: 10px 4px;
+    text-align: center;
+}
+
+.wp-app-settings-tile > span:last-child {
+    font-size: 14px;
+    line-height: 1.25;
+}
+
+.wp-app-settings-tile:hover,
+.wp-app-settings-tile:focus-visible {
+    background: #3c434a;
+    outline: 2px solid #72aee6;
+}
+
+.wp-app-settings-preview-launcher .wp-app-link-icon {
+    height: 48px;
+    width: 48px;
+}
+
+.wp-app-settings-preview-launcher .wp-app-link-icon .dashicons {
+    font-size: 36px;
+    height: 36px;
+    line-height: 36px;
+    width: 36px;
+}
+
+.wp-app-settings-navigation-preview .wp-app-link-icon-generated {
+    background: #50575e;
+}
+
+.wp-app-settings-preview-desktop .wp-app-link-icon {
+    border-radius: 4px;
+    font-size: 18px;
+    height: 24px;
+    width: 24px;
+}
+
+.wp-app-settings-preview-desktop .wp-app-link-icon .dashicons {
+    font-size: 20px;
+    height: 20px;
+    line-height: 20px;
+    width: 20px;
+}
+
+.wp-app-settings-popover {
+    background: #fff;
+    border: 1px solid #8c8f94;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px #0003;
+    box-sizing: border-box;
+    color: #1d2327;
+    margin: auto;
+    max-height: calc(100dvh - 32px);
+    max-width: calc(100vw - 24px);
+    padding: 16px;
+    width: 380px;
+    position: fixed;
+}
+
+.wp-app-settings-popover::backdrop {
+    background: #0004;
+}
+
+.wp-app-settings-popover-header {
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+}
+
+.wp-app-settings-popover-header h2 {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.wp-app-settings-popover .wp-app-settings-editor {
+    padding: 0;
+}
+
+.wp-app-settings-move-controls {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.wp-app-settings-save-status {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px #0002;
+    box-sizing: border-box;
+    margin: 0;
+    max-width: min(360px, calc(100vw - 32px));
+    padding: 8px 12px;
+    z-index: 10;
+}
+
+[data-editor-status] {
+    min-height: 1.5em;
+    margin: 8px 0;
+}
+
+[data-editor-status][hidden] {
+    display: block;
+    visibility: hidden;
+}
+
+.wp-app-settings-save-status.is-saved {
+    color: #008a20;
+}
+
+.wp-app-settings-save-status.is-failed {
+    color: #b32d2e;
+}
+
+.wp-app-dashicon-autocomplete {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    max-height: 200px;
+    overflow: auto;
+    padding: 4px;
+    z-index: 100000;
+}
+
+.wp-app-dashicon-autocomplete .ui-menu-item-wrapper {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+}
+
+.wp-app-dashicon-autocomplete .ui-state-active {
+    background: #2271b1;
+    color: #fff;
+}
+
+@media (max-width: 782px) {
+    .wp-app-settings-section {
+        padding: 12px;
+    }
+
+    .wp-app-settings-popover {
+        border-radius: 12px 12px 0 0;
+        bottom: 0;
+        margin: auto 0 0;
+        max-height: 85dvh;
+        max-width: 100%;
+        top: auto;
+        width: 100%;
+    }
+}
+
+@media (min-width: 783px) {
+    .wp-app-settings-popover {
+        margin: 0;
+    }
+}
+
+.wp-app-settings-navigation-preview .wp-app-link-icon {
+    background: #50575e;
+    color: #f0f0f1;
+}
+
+.wp-app-settings-popover-header {
+    background: #fff;
+    position: sticky;
+    top: -16px;
+    z-index: 2;
+}
