@@ -3351,6 +3351,14 @@
             return messages.slice(cutAt);
         },
 
+        applyLocalThinkingSetting: function(payload, ollama, endpoint) {
+            var key = 'lmstudioDisableThinking_' + String(endpoint || '').replace(/\/+$/, '');
+            if (!ollama && endpoint && this.getSetting && this.getSetting(key) === '1') {
+                return Object.assign({}, payload, { reasoning_effort: 'none' });
+            }
+            return payload;
+        },
+
         callLocalLLM: async function(endpointOverride) {
             var self = this;
             var endpoint = (endpointOverride || this.getLocalEndpoint()).replace(/\/$/, '');
@@ -3391,7 +3399,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: this.serializeProviderRequest('local', buildPayload(requestMessages)),
+                    body: this.serializeProviderRequest('local', this.applyLocalThinkingSetting(buildPayload(requestMessages), useOllamaApi, endpoint)),
                     signal: abortSignal
                 });
 
@@ -3402,7 +3410,7 @@
                         headers: {
                             'Content-Type': 'application/json'
                         },
-                        body: this.serializeProviderRequest('local', buildPayload(requestMessages)),
+                        body: this.serializeProviderRequest('local', this.applyLocalThinkingSetting(buildPayload(requestMessages), useOllamaApi, endpoint)),
                         signal: abortSignal
                     });
                 }
@@ -3421,7 +3429,7 @@
                         response = await fetch(endpoint + (useOllamaApi ? '/api/chat' : '/v1/chat/completions'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: this.serializeProviderRequest('local', buildPayload(requestMessages)),
+                            body: this.serializeProviderRequest('local', this.applyLocalThinkingSetting(buildPayload(requestMessages), useOllamaApi, endpoint)),
                             signal: abortSignal
                         });
 
@@ -3430,7 +3438,7 @@
                             response = await fetch(endpoint + '/api/chat', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: this.serializeProviderRequest('local', buildPayload(requestMessages)),
+                                body: this.serializeProviderRequest('local', this.applyLocalThinkingSetting(buildPayload(requestMessages), useOllamaApi, endpoint)),
                                 signal: abortSignal
                             });
                         }
@@ -3750,17 +3758,17 @@
 
         callLocalForSummary: function(model, prompt) {
             var self = this;
-            var endpoint = this.getLocalEndpoint().replace(/\/$/, '');
+            var endpoint = (this.getProviderEndpoint(this.getProvider()) || this.getLocalEndpoint()).replace(/\/$/, '');
 
             return new Promise(function(resolve, reject) {
                 fetch(endpoint + '/v1/chat/completions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
+                    body: JSON.stringify(self.applyLocalThinkingSetting({
                         model: model,
                         max_tokens: 1024,
                         messages: [{ role: 'user', content: prompt }]
-                    })
+                    }, false, endpoint))
                 }).then(function(response) {
                     return response.json();
                 }).then(function(data) {
@@ -3773,11 +3781,11 @@
                     fetch(endpoint + '/api/generate', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
+                        body: JSON.stringify(self.applyLocalThinkingSetting({
                             model: model,
                             prompt: prompt,
                             stream: false
-                        })
+                        }, true, endpoint))
                     }).then(function(response) {
                         return response.json();
                     }).then(function(data) {

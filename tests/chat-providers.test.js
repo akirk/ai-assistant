@@ -2393,3 +2393,24 @@ describe('latest provider request JSON', function() {
         assert.equal(assistant.lastProviderRequest, original);
     });
 });
+
+describe('LM Studio thinking override', () => {
+    it('only disables thinking for the configured LM Studio endpoint', () => {
+        const assistant = loadProvidersMixin();
+        assistant.getSetting = key => key === 'lmstudioDisableThinking_http://localhost:1234' ? '1' : '';
+        const payload = { model: 'qwen', messages: [] };
+        assert.equal(assistant.applyLocalThinkingSetting(payload, false, 'http://localhost:1234/').reasoning_effort, 'none');
+        assert.equal(assistant.applyLocalThinkingSetting(payload, false, 'http://localhost:11434'), payload);
+        assert.equal(assistant.applyLocalThinkingSetting(payload, true, 'http://localhost:1234'), payload);
+        assert.equal(payload.reasoning_effort, undefined);
+        assert.equal(payload.think, undefined);
+    });
+
+    it('leaves server defaults intact when unchecked or not configured', () => {
+        const assistant = loadProvidersMixin();
+        const payload = { model: 'qwen' };
+        assert.equal(assistant.applyLocalThinkingSetting(payload, false, 'http://localhost:1234'), payload);
+        assistant.getSetting = () => '';
+        assert.equal(assistant.applyLocalThinkingSetting(payload, false, 'http://localhost:1234'), payload);
+    });
+});

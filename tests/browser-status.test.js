@@ -62,3 +62,19 @@ it('discovers Ollama using its native model list', async () => {
     }).check({ ...provider, localKind: 'ollama' });
     assert.equal(status.models[0].id, 'llama');
 });
+
+it('distinguishes loaded context sizes from the theoretical model maximum', async () => {
+    const status = await load(async () => ({ ok: true, json: async () => ({ models: [
+        { type: 'llm', key: 'qwen', max_context_length: 262144, loaded_instances: [
+            { id: 'small', config: { context_length: 8192 } },
+            { id: 'large', config: { context_length: 32768 } }
+        ] },
+        { type: 'llm', key: 'unloaded', max_context_length: 131072, loaded_instances: [] }
+    ] }) })).check({ ...provider, localKind: 'lmstudio' });
+    assert.equal(status.models[0].maxContextLength, 262144);
+    assert.equal(status.models[0].loadedContexts[0].id, 'small');
+    assert.equal(status.models[0].loadedContexts[0].tokens, 8192);
+    assert.equal(status.models[0].loadedContexts[1].tokens, 32768);
+    assert.equal(status.models[1].loadedContexts.length, 0);
+    assert.equal(status.models[1].maxContextLength, 131072);
+});
