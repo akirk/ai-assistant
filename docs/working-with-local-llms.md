@@ -45,9 +45,9 @@ By design, LLMs don't remember previous messages. AI Assistant therefore has to 
 
 To avoid that for specific investigations, AI Assistant lets the model invoke a subagent and receive its findings. The subagent works in a fresh context with the investigation task, a short task-specific system prompt, selected site or page hints, and a restricted tool set. It does not inherit the main conversation's history.
 
-This gives the subagent room to work even when the main conversation already occupies much of its context window. It can inspect a codebase, recall earlier conversations, or examine the current page, carrying only its own investigation history between requests. The plugin limits its tool-call rounds and keeps its work read-only.
+A subagent can inspect a codebase, recall earlier conversations, or examine the current page, carrying only its own investigation history between requests. The plugin limits its tool-call rounds and keeps its work read-only.
 
-The subagent returns a concise report with findings and sources. AI Assistant adds that report to the main conversation without adding the full intermediate tool results.
+The subagent returns a concise report with findings and sources. AI Assistant adds that report to the main conversation without adding the full intermediate tool results. The subagent consumes additional tokens for its own requests and responses, but reduces the investigation's impact on the main conversation's context window. With a local model, token billing may not matter; keeping the investigation within the available context still does.
 
 ## Compact large results and inspect details later
 
