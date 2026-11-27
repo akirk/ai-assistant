@@ -1368,10 +1368,10 @@ class Settings {
                     .ai-provider-priority .ai-priority-name { font-weight: 500; }
                     .ai-provider-priority .ai-priority-models { color: #646970; font-size: 13px; }
                     .ai-provider-priority .ai-priority-model-control {
-                        flex: 0 1 340px; margin: 0;
+                        flex: 0 1 400px; margin: 0;
                     }
                     .ai-provider-priority .ai-priority-model-select {
-                        width: 100%; max-width: 340px;
+                        width: 100%; max-width: 400px;
                     }
                     .ai-provider-priority .ai-priority-status {
                         font-size: 12px; padding: 1px 6px;
