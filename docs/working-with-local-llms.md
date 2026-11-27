@@ -1,6 +1,6 @@
 # Working with local LLMs
 
-AI Assistant makes provider requests directly from the browser. A WordPress site can therefore use a model server running on the user's device, including LM Studio or Ollama. The chat runtime and model interaction loop run in JavaScript, while tools that access WordPress data or perform server-side actions execute in the site's PHP context through authenticated requests. Some tools run in the browser instead: `get_page_html` inspects the current page, and `inspect_tool_result` reads cached tool output. WordPress abilities can also provide browser-side implementations.
+AI Assistant makes provider requests directly from the browser. A WordPress site can therefore use a model server running on the user's device, including LM Studio or Ollama. The chat runtime and model interaction loop run in JavaScript, while tools that access WordPress data or perform server-side actions execute in the site's PHP context through authenticated requests. Some tools run in the browser instead, for instance to inspect the DOM of the current page. WordPress abilities can also provide browser-side implementations.
 
 AI Assistant gives local models the same enabled tool set as cloud models. To help constrained models use those tools effectively, the plugin keeps requests focused and manages how much information each step adds to the conversation.
 
