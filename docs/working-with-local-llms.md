@@ -41,7 +41,9 @@ For short tasks, focused retrieval can keep requests within a small context wind
 
 ## Delegate focused investigations to subagents
 
-By design, LLMs don't remember previous messages. AI Assistant therefore has to send the full conversation context again with every request, including when reporting tool-call results. As the conversation grows, that accumulated context takes up more of the available window. AI Assistant lets the model invoke a subagent for a focused investigation and receive its findings. The subagent works in a fresh context with the investigation task, a short task-specific system prompt, selected site or page hints, and a restricted tool set. It does not inherit the main conversation's history.
+By design, LLMs don't remember previous messages. AI Assistant therefore has to send the full conversation context again with every request, including when reporting tool-call results. As the conversation grows, that accumulated context takes up more of the available window.
+
+To avoid that for specific investigations, AI Assistant lets the model invoke a subagent and receive its findings. The subagent works in a fresh context with the investigation task, a short task-specific system prompt, selected site or page hints, and a restricted tool set. It does not inherit the main conversation's history.
 
 This gives the subagent room to work even when the main conversation already occupies much of its context window. It can inspect a codebase, recall earlier conversations, or examine the current page, carrying only its own investigation history between requests. The plugin limits its tool-call rounds and keeps its work read-only.
 
