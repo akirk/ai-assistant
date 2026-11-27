@@ -29,7 +29,7 @@ The plugin directs the model to use these hints to discover relevant abilities a
 
 ## Discover capabilities on demand
 
-AI Assistant exposes WordPress capabilities through the `ability` meta-tool. It avoids sending every registered ability schema with every request. Instead, the model can request a compact discovery index, fetch the schema for a relevant ability, and execute it with focused arguments.
+AI Assistant gives the model a way to discover WordPress capabilities on demand. It avoids sending every registered ability schema with every request. Instead, the model can request a compact discovery index, fetch the schema for a relevant ability, and execute it with focused arguments.
 
 Users can further reduce tool overhead by choosing a narrower tool set in the plugin settings.
 
@@ -51,7 +51,7 @@ The subagent returns a concise report with findings and sources. AI Assistant ad
 
 AI Assistant compacts oversized tool results before sending them to the model. It includes previews, information about the result's structure, and markers that identify omitted details. When the server reports its loaded context size, the plugin also adjusts result limits to that budget, helping prevent one result from dominating the request.
 
-The plugin keeps original results in an active browser cache, with 20 entries by default. The model can use `inspect_tool_result` to retrieve a narrow slice by tool-use ID, path, search, or offset. Reloading the page clears the cache, and new entries can evict older ones; the model may then need to read the original source again.
+The plugin keeps original results in an active browser cache, with 20 entries by default. The model can ask to inspect a specific part of an earlier result, search within it, or read it in smaller chunks. Reloading the page clears the cache, and new entries can evict older ones; the model may then need to read the original source again.
 
 ## Keep useful working context
 
