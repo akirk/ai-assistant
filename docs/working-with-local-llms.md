@@ -15,10 +15,9 @@ AI Assistant combines several strategies to make effective use of the available 
 - **[Retrieve focused information](#retrieve-only-what-the-task-needs):** Encourage requests for relevant records, pages, or file excerpts.
 - **[Delegate focused investigations](#delegate-focused-investigations-to-subagents):** Let subagents gather information separately and return concise findings.
 - **[Compact large results](#compact-large-results-and-inspect-details-later):** Send concise previews and let the model inspect omitted details.
-- **[Reshape repeated tool exchanges](#reshape-repeated-tool-exchanges):** Keep the first request with a smaller result and remove duplicate exchanges from the next model request.
 - **[Keep useful working context](#keep-useful-working-context):** Retain relevant results and remove outdated information.
-- **[Summarize older history](#summarize-and-trim-older-history):** Preserve goals, decisions, and findings as the conversation grows.
-- **[Adapt to the loaded window](#summarize-and-trim-older-history):** Size requests to the available context and trim older exchanges when necessary.
+- **[Reshape repeated tool exchanges](#reshape-repeated-tool-exchanges):** Keep the first request with a smaller result and remove duplicate exchanges from the next model request.
+- **[Summarize and trim older history](#summarize-and-trim-older-history):** Preserve goals, decisions, and findings, then trim older exchanges when necessary to fit the available context.
 - **[Recover and bound repeated work](#recover-from-errors-and-stop-loops):** Retry context errors with smaller requests and stop unproductive tool loops.
 
 ## Keep the system prompt focused
@@ -29,19 +28,19 @@ The plugin directs the model to use these hints to discover relevant abilities a
 
 ## Discover capabilities on demand
 
-AI Assistant gives the model a way to discover WordPress capabilities on demand. It avoids sending every registered ability schema with every request. Instead, the model can request a compact discovery index, fetch the schema for a relevant ability, and execute it with focused arguments.
+AI Assistant lets the model discover what WordPress and its plugins can do without sending detailed instructions for every available action with every request. The model first asks for a brief list of relevant actions, then looks up the inputs needed for the action it chooses. It can learn how to perform the task without filling its context with unrelated capabilities.
 
 Users can further reduce tool overhead by choosing a narrower tool set in the plugin settings.
 
 ## Retrieve only what the task needs
 
-AI Assistant encourages the model to gather focused information. Tools offer file reads by offset or search window, and plugin abilities can offer filters and paged results. These options help the model find relevant records or inspect an exact file range before editing.
+AI Assistant encourages the model to ask for the information it needs for the next step. For example, it can request the relevant paragraph from an article instead of reading the whole post, or inspect one function before editing a file. Tools support reading selected portions and searching within files, while plugin abilities can filter records and return results in smaller batches.
 
 For short tasks, focused retrieval can keep requests within a small context window throughout the exchange, without invoking summarization or overflow recovery.
 
 ## Delegate focused investigations to subagents
 
-By design, LLMs don't remember previous messages. AI Assistant therefore has to send the full conversation context again with every request, including when reporting tool-call results. As the conversation grows, that accumulated context takes up more of the available window.
+By design, LLMs don't remember previous messages. AI Assistant therefore has to send the conversation context the model needs again with every request, including when reporting tool-call results. Without strategies such as summarization and trimming, that means resending the full conversation history. As the conversation grows, that accumulated context takes up more of the available window.
 
 To avoid that for specific investigations, AI Assistant lets the model invoke a subagent and receive its findings. The subagent works in a fresh context with the investigation task, a short task-specific system prompt, selected site or page hints, and a restricted tool set. It does not inherit the main conversation's history.
 
@@ -53,11 +52,11 @@ The subagent returns a concise report with findings and sources. AI Assistant ad
 
 A tool can return unexpectedly large amounts of information. Fetching a long blog post, for example, can produce a result that exhausts the model's context window on its own, before accounting for the conversation. AI Assistant compacts oversized tool results before sending them to the model. It includes previews, information about the result's structure, and markers that identify omitted details. When the server reports its loaded context size, the plugin also adjusts result limits to that budget, helping prevent one result from dominating the request.
 
-The plugin keeps original results in an active browser cache, with 20 entries by default. The model can ask to inspect a specific part of an earlier result, search within it, or read it in smaller chunks. Reloading the page clears the cache, and new entries can evict older ones; the model may then need to read the original source again.
+The plugin temporarily keeps original results in the browser so the model can inspect details that the compact version leaves out. The model can ask to inspect a specific part of an earlier result, search within it, or read it in smaller chunks. Reloading the page clears these results, and the plugin may discard older ones as it gathers new information. The model may then need to read the original source again.
 
 ## Keep useful working context
 
-AI Assistant removes older large tool results from future requests after the model has consumed them, while retaining useful small results such as skill instructions and ability schemas. It also keeps a recent working set of distinct file-read windows to help the model avoid reading the same chunks repeatedly. After a successful file change, the plugin invalidates affected read windows.
+Once the model has used a large tool result, AI Assistant can leave it out of later requests while retaining useful smaller results, such as task instructions and the inputs a plugin action accepts. It also retains recent file excerpts to help the model avoid reading the same passages repeatedly. When a file changes, the plugin stops reusing outdated excerpts so the model can read the current content.
 
 ## Reshape repeated tool exchanges
 
@@ -71,15 +70,17 @@ AI Assistant applies this within the same user turn, preserves changed results, 
 
 ## Summarize and trim older history
 
-As the conversation grows, AI Assistant can summarize older history and retain recent exchanges at a safe user-message boundary. When it knows the loaded context size, the plugin triggers summarization earlier relative to the budget and retains a shorter recent tail. It also checks whether a summary request fits the summarization model's known loaded window. If the history cannot fit that request, the plugin falls back to compaction and trimming.
+As the conversation grows, AI Assistant can replace older exchanges with a summary that preserves the user's goals, decisions, important findings, and unfinished work. The model can continue from those essentials without carrying every earlier message and tool result. The plugin keeps recent exchanges together so the model can still follow the current task.
 
-If a request still exceeds its budget, AI Assistant removes older exchanges. For known local windows, it preserves the latest user turn and its tool exchanges. Trimming changes the outgoing request without deleting the saved transcript, though the plugin may already have compacted stored tool results.
+When it knows the loaded context size, AI Assistant starts summarizing sooner for smaller windows. Summarization itself requires a model request; if that request cannot fit the known window or fails, the plugin can still compact results and trim older exchanges.
+
+If a request still exceeds its budget, AI Assistant removes older exchanges. When it knows the local model's window size, it keeps the latest user request and the tool exchanges that follow it together. Trimming changes the outgoing request without deleting the saved transcript, though the plugin may already have compacted stored tool results.
 
 If the current turn, system prompt, and tools still exceed the estimated allowance, AI Assistant stops before sending. It suggests reducing input or enabled tools, starting a fresh chat, or increasing the server's loaded context. A single long tool workflow can still reach this limit.
 
 ## Recover from errors and stop loops
 
-When a provider returns a recognized HTTP context-limit error, AI Assistant retries once with stricter compaction and a smaller request budget. For local requests, it tries the OpenAI-compatible API first and falls back to Ollama's native chat API when the server reports an unsupported route.
+When a provider rejects a request because it exceeds a context limit, AI Assistant recognizes supported error responses and retries once with more compact results and a smaller request budget.
 
 AI Assistant warns when the model keeps repeating eligible tool requests after compaction. It also enforces configurable tool-round limits and stops workflows after consecutive failed rounds. These controls limit repeated work, but they cannot ensure correct reasoning or detect every case where a server silently truncates context.
 
