@@ -174,7 +174,7 @@ body.wp-app-body.ai-assistant-app-body .ai-assistant-page.ai-assistant-theme-flo
 .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-main #ai-assistant-messages {
     background: #fff !important;
     gap: 18px !important;
-    padding: 24px 28px 150px !important;
+    padding: 24px 28px !important;
 }
 
 body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-layout,
@@ -304,17 +304,17 @@ body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-mai
     background: #fff !important;
     border: 1px solid #e5e7eb !important;
     border-radius: 10px !important;
-    bottom: 20px !important;
+    bottom: auto !important;
     box-shadow: 0 8px 28px rgba(15, 23, 42, 0.14) !important;
     display: grid !important;
     gap: 8px !important;
     grid-template-columns: 36px minmax(0, 1fr) auto !important;
-    left: 24px !important;
-    margin: 0 !important;
+    left: auto !important;
+    margin: 0 24px 20px !important;
     min-height: 92px !important;
     padding: 14px !important;
-    position: absolute !important;
-    right: 24px !important;
+    position: relative !important;
+    right: auto !important;
     z-index: 20 !important;
 }
 
@@ -374,7 +374,7 @@ body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-mai
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel #ai-assistant-messages {
     background: #fff !important;
     gap: 18px !important;
-    padding: 22px 22px 150px !important;
+    padding: 22px !important;
 }
 
 .ai-assistant-standalone-wrap .ai-assistant-standalone-panel .ai-message {
@@ -495,17 +495,17 @@ body.wp-admin .ai-assistant-page.ai-assistant-theme-floating-button .ai-chat-mai
     background: #fff !important;
     border: 1px solid #e5e7eb !important;
     border-radius: 10px !important;
-    bottom: 16px !important;
+    bottom: auto !important;
     box-shadow: 0 8px 28px rgba(15, 23, 42, 0.14) !important;
     display: grid !important;
     gap: 8px !important;
     grid-template-columns: 36px minmax(0, 1fr) auto !important;
-    left: 16px !important;
-    margin: 0 !important;
+    left: auto !important;
+    margin: 0 16px 16px !important;
     min-height: 92px !important;
     padding: 14px !important;
-    position: absolute !important;
-    right: 16px !important;
+    position: relative !important;
+    right: auto !important;
     z-index: 20 !important;
 }
 
