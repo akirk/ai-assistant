@@ -61,7 +61,9 @@ AI Assistant removes older large tool results from future requests after the mod
 
 ## Reshape repeated tool exchanges
 
-When a model asks for the same information again, appending another copy of a large result can make context pressure worse. This can happen when a local model server handles context overflow by truncating earlier material, such as the middle of the conversation, leaving the model without a result it already requested. AI Assistant takes a different approach for eligible repeated read-only calls: it rebuilds the next outgoing request as though the model had asked only once. It keeps the first tool call, replaces that call's result with a compacted version, and removes the duplicate call/result pairs. The model gets another chance to use a smaller answer without carrying the repeated exchanges in its context.
+When a model asks for the same information again, appending another copy of a large result can make context pressure worse. This can happen when a local model server handles context overflow by truncating earlier material, such as the middle of the conversation, leaving the model without a result it already requested.
+
+AI Assistant takes a different approach for eligible repeated read-only calls: it rebuilds the next outgoing request as though the model had asked only once. It keeps the first tool call, replaces that call's result with a compacted version, and removes the duplicate call/result pairs. The model gets another chance to use a smaller answer without carrying the repeated exchanges in its context.
 
 The plugin can reuse a successful earlier result instead of executing the tool again. It keeps already-small results unchanged when compaction would add overhead, and supplies inspection hints for compacted results so the model can request specific details.
 
