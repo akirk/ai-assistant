@@ -143,7 +143,9 @@
             return {
                 id: id,
                 name: (model && model.name) || id,
-                capabilities: (model && model.capabilities) || []
+                capabilities: (model && model.capabilities) || [],
+                maxContextLength: model && model.maxContextLength,
+                loadedContexts: (model && model.loadedContexts) || []
             };
         }).filter(function(model) {
             return model.id !== '';

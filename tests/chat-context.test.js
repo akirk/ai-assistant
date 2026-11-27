@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function loadContextMixin(config) {
+function loadContextMixin(config, providers) {
     const aiAssistant = {
         messages: [],
         systemPrompt: 'system',
@@ -22,6 +22,7 @@ function loadContextMixin(config) {
     };
     const context = {
         window: { aiAssistant },
+        aiAssistantProviders: providers || { available: {} },
         aiAssistantConfig: {
             contextCompaction: Object.assign({
                 enabled: true,
@@ -39,6 +40,7 @@ function loadContextMixin(config) {
     };
 
     vm.createContext(context);
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '../assets/js/chat-providers.js'), 'utf8'), context);
     const source = fs.readFileSync(
         path.join(__dirname, '../assets/js/chat-context.js'),
         'utf8'
@@ -91,5 +93,25 @@ describe('context compaction', function() {
             content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: '{}' }]
         }), false);
         assert.equal(assistant.isSafeCompactionTailStart({ role: 'user', content: 'Continue.' }), true);
+    });
+});
+
+
+describe('loaded-window context compaction', function() {
+    it('summarizes below the fixed threshold with fewer than 26 messages', async function() {
+        const assistant = loadContextMixin({ triggerTokens: 24000, recentMessages: 24 }, { available: {
+            lmstudio: { type: 'server', models: [{ id: 'model', loadedContexts: [{ id: 'instance', tokens: 8192 }] }] }
+        } });
+        assistant.conversationProvider = 'lmstudio';
+        assistant.conversationModel = 'model';
+        const messages = Array.from({ length: 12 }, (_, index) => ({
+            role: index % 2 ? 'assistant' : 'user', content: 'x'.repeat(2200)
+        }));
+        assert.ok(assistant.estimateTokensForMessages(messages) < 24000);
+        const original = JSON.stringify(messages);
+        const result = await assistant.maybeCompactProviderMessages('local', messages);
+        assert.equal(result.compacted, true);
+        assert.equal(JSON.stringify(messages), original);
+        assert.match(result.messages[0].content, /Prior conversation summary/);
     });
 });

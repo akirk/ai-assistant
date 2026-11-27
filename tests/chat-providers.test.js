@@ -2414,3 +2414,59 @@ describe('LM Studio thinking override', () => {
         assert.equal(assistant.applyLocalThinkingSetting(payload, false, 'http://localhost:1234'), payload);
     });
 });
+
+describe('loaded local context budgets', function() {
+    function fixture(models) {
+        const assistant = loadProvidersMixin({ aiAssistantProviders: { available: {
+            lmstudio: { type: 'server', models }
+        } } });
+        assistant.conversationProvider = 'lmstudio';
+        assistant.conversationModel = 'model';
+        assistant.getToolsOpenAI = () => [{ type: 'function', function: { name: 'ability' } }];
+        return assistant;
+    }
+
+    it('uses loaded capacity rather than model maximum and includes tools and output headroom', function() {
+        const assistant = fixture([{ id: 'model', maxContextLength: 262144,
+            loadedContexts: [{ id: 'instance', tokens: 8192 }] }]);
+        const budget = assistant.getLocalContextBudget();
+        assert.equal(budget.contextTokens, 8192);
+        assert.equal(budget.outputTokens, 1024);
+        assert.equal(budget.requestChars, (8192 - 1024) * 4 - JSON.stringify(assistant.getToolsOpenAI()).length);
+        assert.equal(assistant.getProviderRequestCharLimit(), budget.requestChars);
+        assert.ok(assistant.getProviderRequestCharLimit('recovery') < budget.requestChars);
+        assert.ok(assistant.getToolResultCompactLimits().maxResultChars < budget.requestChars);
+        assert.ok(assistant.getToolResultCompactLimits().maxResultChars < 32768);
+    });
+
+    it('uses the smallest eligible instance unless an instance is explicitly selected', function() {
+        const assistant = fixture([{ id: 'model', loadedContexts: [
+            { id: 'small', tokens: 4096 }, { id: 'large', tokens: 32768 }
+        ] }]);
+        assert.equal(assistant.getLocalContextBudget().contextTokens, 4096);
+        assistant.conversationModel = 'large';
+        assert.equal(assistant.getLocalContextBudget().contextTokens, 32768);
+    });
+
+    it('retains defaults when only a theoretical maximum is available', function() {
+        const assistant = fixture([{ id: 'model', maxContextLength: 262144, loadedContexts: [] }]);
+        assert.equal(assistant.getLocalContextBudget(), null);
+        assert.equal(assistant.getProviderRequestCharLimit(), 160 * 1024);
+    });
+
+    it('trims older exchanges while preserving the complete current user turn', function() {
+        const assistant = fixture([{ id: 'model', loadedContexts: [{ id: 'instance', tokens: 4096 }] }]);
+        assistant.systemPrompt = 'system';
+        const current = [
+            { role: 'user', content: 'current request' },
+            { role: 'assistant', content: null, tool_calls: [{ id: 'call', function: { name: 'ability', arguments: '{}' } }] },
+            { role: 'tool', tool_call_id: 'call', content: '{}' }
+        ];
+        const messages = [{ role: 'user', content: 'x'.repeat(20000) }, { role: 'assistant', content: 'old answer' }].concat(current);
+        const original = JSON.stringify(messages);
+        const result = assistant.trimProviderMessagesToBudget(messages, 'local', assistant.getProviderRequestCharLimit());
+        assert.ok(assistant.estimateProviderRequestChars(result) <= assistant.getProviderRequestCharLimit());
+        assert.deepEqual(result.slice(-3), current);
+        assert.equal(JSON.stringify(messages), original);
+    });
+});

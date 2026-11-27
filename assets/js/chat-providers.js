@@ -738,15 +738,47 @@
             return value;
         },
 
+        // Loaded server capacity is authoritative; model maximums are not allocation sizes.
+        getLocalContextBudget: function(modelOverride) {
+            var provider = this.conversationProvider || (this.getProvider && this.getProvider());
+            var registry = typeof aiAssistantProviders !== 'undefined' ? aiAssistantProviders.available : {};
+            var config = registry && registry[provider];
+            if (!config || config.type !== 'server') return null;
+            var modelId = modelOverride || this.conversationModel || (this.getModel && this.getModel());
+            var models = config.models || [];
+            var model = models.find(function(entry) {
+                return entry.id === modelId || (entry.loadedContexts || []).some(function(instance) { return instance.id === modelId; });
+            });
+            if (!model) return null;
+            var instances = model.loadedContexts || [];
+            var exact = instances.filter(function(instance) { return instance.id === modelId; });
+            var sizes = (exact.length ? exact : instances).map(function(instance) { return instance.tokens; })
+                .filter(function(tokens) { return Number.isFinite(tokens) && tokens > 0; });
+            if (!sizes.length) return null;
+            var contextTokens = Math.floor(Math.min.apply(Math, sizes));
+            var outputTokens = Math.max(1, Math.min(1024, Math.floor(contextTokens / 4)));
+            // Use the existing four-character token estimate, including serialized tool schemas.
+            var inputChars = Math.floor((contextTokens - outputTokens) * 4);
+            var toolsChars = this.safeJsonStringify(this.getToolsOpenAI ? this.getToolsOpenAI() : []).length;
+            return { contextTokens: contextTokens, outputTokens: outputTokens,
+                requestChars: Math.max(0, inputChars - toolsChars) };
+        },
+
         getToolResultCompactLimits: function(mode) {
             var aggressive = mode === 'aggressive' || mode === 'recovery';
             var maxResultChars = this.getProviderLimit('maxToolResultChars', 32 * 1024, 4096);
             var maxStringChars = this.getProviderLimit('maxToolResultStringChars', 8 * 1024, 1024);
             var maxArrayItems = this.getProviderLimit('maxToolResultArrayItems', 40, 1);
 
+            var budget = this.getLocalContextBudget();
+            if (budget) {
+                maxResultChars = Math.min(maxResultChars, Math.max(512, Math.floor(budget.requestChars / 3)));
+                maxStringChars = Math.min(maxStringChars, Math.max(256, Math.floor(maxResultChars / 4)));
+            }
+
             return {
-                maxResultChars: aggressive ? Math.max(4096, Math.floor(maxResultChars / 4)) : maxResultChars,
-                maxStringChars: aggressive ? Math.max(1024, Math.floor(maxStringChars / 4)) : maxStringChars,
+                maxResultChars: aggressive ? Math.max(budget ? 512 : 4096, Math.floor(maxResultChars / 4)) : maxResultChars,
+                maxStringChars: aggressive ? Math.max(budget ? 256 : 1024, Math.floor(maxStringChars / 4)) : maxStringChars,
                 maxArrayItems: aggressive ? Math.max(8, Math.floor(maxArrayItems / 4)) : maxArrayItems,
                 maxObjectKeys: aggressive ? 40 : 120,
                 maxDepth: aggressive ? 4 : 8
@@ -755,10 +787,9 @@
 
         getProviderRequestCharLimit: function(mode) {
             var limit = this.getProviderLimit('maxProviderRequestChars', 160 * 1024, 32 * 1024);
-            if (mode === 'recovery') {
-                return Math.max(16 * 1024, Math.floor(limit / 2));
-            }
-            return limit;
+            if (mode === 'recovery') limit = Math.max(16 * 1024, Math.floor(limit / 2));
+            var budget = this.getLocalContextBudget();
+            return budget ? Math.min(limit, Math.floor(budget.requestChars * (mode === 'recovery' ? 0.75 : 1))) : limit;
         },
 
         truncateProviderString: function(text, maxChars) {
@@ -2434,6 +2465,12 @@
             var result = (messages || []).slice();
             var dropped = 0;
             var minKeep = Math.min(8, Math.max(2, result.length));
+            if (provider === 'local' && this.getLocalContextBudget()) {
+                // Keep the latest user turn and its complete tool exchanges.
+                var latestUser = -1;
+                result.forEach(function(message, index) { if (message.role === 'user') latestUser = index; });
+                if (latestUser >= 0) minKeep = result.length - latestUser;
+            }
 
             while (result.length > minKeep && this.estimateProviderRequestChars(result) > budget) {
                 result.shift();
@@ -3370,15 +3407,19 @@
             }
 
             try {
+                var selectedProvider = this.conversationProvider || (this.getProvider && this.getProvider());
+                if (this.ensureBrowserProviderStatus) await this.ensureBrowserProviderStatus(selectedProvider);
+                var localBudget = this.getLocalContextBudget();
                 var requestMode = 'normal';
                 var localRequestState = this.prepareProviderRequestMessages
                     ? await this.prepareProviderRequestMessages('local', this.messages)
                     : { messages: this.messages, compacted: false };
                 var buildRequestMessages = function(mode) {
-                    return [
-                        { role: 'system', content: this.systemPrompt },
-                        ...this.compactProviderMessagesForRequest(this.sanitizeMessages(localRequestState.messages), 'local', mode)
-                    ];
+                    var messages = this.compactProviderMessagesForRequest(this.sanitizeMessages(localRequestState.messages), 'local', mode);
+                    if (localBudget && this.estimateProviderRequestChars(messages) > this.getProviderRequestCharLimit(mode)) {
+                        throw new Error('The current turn, system prompt, and tools exceed the estimated budget for the loaded ' + localBudget.contextTokens + '-token context. Start a fresh chat, reduce enabled tools or input size, or increase the loaded context in your model server.');
+                    }
+                    return [{ role: 'system', content: this.systemPrompt }].concat(messages);
                 }.bind(this);
                 var requestMessages = buildRequestMessages(requestMode);
 
@@ -3390,7 +3431,8 @@
                         model: model,
                         stream: true,
                         messages: messages,
-                        tools: this.getToolsOpenAI()
+                        tools: this.getToolsOpenAI(),
+                        ...(localBudget ? (useOllamaApi ? { options: { num_predict: localBudget.outputTokens } } : { max_tokens: localBudget.outputTokens }) : {})
                     };
                 }.bind(this);
 

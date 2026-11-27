@@ -6,10 +6,11 @@
 
         getContextCompactionConfig: function() {
             var config = (typeof aiAssistantConfig !== 'undefined' && aiAssistantConfig.contextCompaction) || {};
+            var budget = this.getLocalContextBudget && this.getLocalContextBudget();
             return {
                 enabled: config.enabled !== false,
-                triggerTokens: Math.max(1000, parseInt(config.triggerTokens || 24000, 10)),
-                recentMessages: Math.max(4, parseInt(config.recentMessages || 24, 10)),
+                triggerTokens: Math.min(Math.max(1000, parseInt(config.triggerTokens || 24000, 10)), budget ? Math.max(1, Math.floor(budget.requestChars / 4 * 0.8)) : Infinity),
+                recentMessages: budget ? 4 : Math.max(4, parseInt(config.recentMessages || 24, 10)),
                 maxSummaryWords: Math.max(100, parseInt(config.maxSummaryWords || 700, 10))
             };
         },
@@ -140,6 +141,15 @@
                 'If the user chose items from an earlier suggestion list, keep enough detail to continue the action without rediscovering the list. ' +
                 'Do not add a title. Keep it under ' + maxWords + ' words.\n\nConversation:\n' +
                 this.buildMessagesTextForSummary(messages);
+
+            var summaryBudget = this.getLocalContextBudget && this.getLocalContextBudget(model);
+            if (summaryBudget) {
+                // The summary call has no tools, but must itself fit the loaded model.
+                var summaryChars = Math.max(0, Math.floor((summaryBudget.contextTokens - 1024) * 3));
+                if (prompt.length > summaryChars) {
+                    throw new Error('Older history exceeds the loaded summarization model context; using deterministic request compaction.');
+                }
+            }
 
             if (provider === 'anthropic') {
                 return this.callAnthropicForSummary(model, prompt);
