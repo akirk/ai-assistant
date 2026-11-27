@@ -35,6 +35,7 @@ class Executor {
             'db_query', 'get_plugins', 'get_themes', 'environment_info',
             'list_abilities', 'get_ability', 'list_skills', 'get_skill',
             'ability', 'skill',
+            'navigate',
         ];
         $read_only = apply_filters('ai_assistant_read_only_tool_names', $read_only, $tool_name, $arguments);
 
@@ -64,6 +65,8 @@ class Executor {
         }
 
         switch ($tool_name) {
+            case 'navigate':
+                return $this->navigate((string) ($arguments['url'] ?? ''), (string) ($arguments['link_text'] ?? ''));
             case 'read_file':
             case 'find':
             case 'list_directory':
@@ -98,6 +101,40 @@ class Executor {
             default:
                 throw new \Exception("Unknown tool: $tool_name");
         }
+    }
+
+    private function navigate(string $url, string $link_text): array {
+        $url = trim($url);
+        if (strpos($url, '/') === 0 && strpos($url, '//') !== 0) {
+            $url = home_url($url);
+        }
+
+        $home = wp_parse_url(home_url());
+        $target = wp_parse_url($url);
+        $home_path = rtrim($home['path'] ?? '', '/');
+        $target_path = $target['path'] ?? '/';
+        $port = static function (array $parts): int {
+            return (int) ($parts['port'] ?? (($parts['scheme'] ?? '') === 'https' ? 443 : 80));
+        };
+        if (!$target ||
+            !in_array(strtolower($target['scheme'] ?? ''), ['http', 'https'], true) ||
+            strtolower($target['scheme'] ?? '') !== strtolower($home['scheme'] ?? '') ||
+            strtolower($target['host'] ?? '') !== strtolower($home['host'] ?? '') ||
+            $port($target) !== $port($home) ||
+            isset($target['user']) || isset($target['pass']) ||
+            ($home_path !== '' && $target_path !== $home_path && strpos($target_path, $home_path . '/') !== 0)) {
+            throw new \Exception('Invalid URL: The URL must be within the current WordPress site.');
+        }
+
+        $link_text = trim(wp_strip_all_tags($link_text));
+        $link_text = preg_replace('/[\r\n\t\[\]()]+/', ' ', $link_text);
+        $link_text = trim(preg_replace('/\s+/', ' ', $link_text));
+
+        return [
+            'url' => esc_url_raw($url),
+            'link_text' => $link_text ?: 'Open this page',
+            'action' => 'navigate',
+        ];
     }
 
     private function has_tool_permission(string $tool_name, array $arguments): bool {

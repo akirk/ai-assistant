@@ -1,5 +1,13 @@
 @import url("../admin-classic/style.css");
 
+.ai-thinking-complete .ai-thinking-label {
+    padding: .2em 1em;
+}
+
+.ai-thinking-block.expanded .ai-thinking-content {
+    padding-top: 1em;
+}
+
 .ai-assistant-standalone-wrap {
     bottom: var(--ai-assistant-floating-bottom, 24px) !important;
     left: auto !important;
