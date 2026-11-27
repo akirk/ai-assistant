@@ -107,6 +107,8 @@ The assistant keeps long sessions usable by controlling what gets sent to the LL
 
 The raw inspect cache is intentionally not part of the saved conversation payload. It is available for the active browser runtime and disappears after reload, which keeps very large private tool output out of long-term conversation storage and out of future provider prompts.
 
+See [Working with local LLMs](docs/working-with-local-llms.md) for loaded-context budgeting, focused retrieval, compaction, and practical limits.
+
 ### Tool Permissions for Local LLMs
 
 Local LLMs (Ollama, LM Studio) and cloud providers receive the same enabled tool set. Use **Settings → AI Assistant → Tool Permissions** to choose which tools are available. Smaller local models usually behave best with a narrower enabled set, especially fewer write/code-execution tools.

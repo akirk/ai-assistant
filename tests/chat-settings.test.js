@@ -666,3 +666,17 @@ describe('chat settings model lifecycle', function() {
         assert.strictEqual(assistant.getAvailableModels('lmstudio').length, 0);
     });
 });
+
+describe('loaded context discovery metadata', function() {
+    it('preserves loaded instance capacity for request budgeting', function() {
+        const assistant = loadSettingsMixin({ providers: { source: 'connectors', available: {
+            lmstudio: { type: 'server', browserSupported: true }
+        } } });
+        const config = assistant._applyBrowserProviderStatus('lmstudio', {
+            reachable: true, status: 'ready', models: [{ id: 'model', maxContextLength: 262144,
+                loadedContexts: [{ id: 'instance', tokens: 8192 }] }]
+        });
+        assert.equal(config.models[0].maxContextLength, 262144);
+        assert.equal(config.models[0].loadedContexts[0].tokens, 8192);
+    });
+});
