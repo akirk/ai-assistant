@@ -5343,6 +5343,7 @@ body.ai-assistant-app-body {
 
 /* Thinking/Reasoning block (OpenAI o1, o3 models) */
 .ai-thinking-block {
+    flex-shrink: 0;
     margin: 8px 14px;
     background: #f6f7f7;
     border: 1px solid #dcdcde;
