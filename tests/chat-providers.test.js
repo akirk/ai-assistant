@@ -2470,3 +2470,157 @@ describe('loaded local context budgets', function() {
         assert.equal(JSON.stringify(messages), original);
     });
 });
+
+describe('OpenAI Responses compatibility', function() {
+    it('routes newer families while retaining Chat Completions for legacy models', function() {
+        const assistant = loadProvidersMixin();
+        for (const model of ['gpt-6.1-sol', 'gpt-6.2-astra', 'gpt-6.1-terra', 'gpt-6-sol-2026-10-01', 'gpt-5.6-sol']) {
+            assert.equal(assistant.usesOpenAIResponses(model), true);
+        }
+        for (const model of ['gpt-4o', 'gpt-5.4', 'o3', 'local-model']) {
+            assert.equal(assistant.usesOpenAIResponses(model), false);
+        }
+    });
+
+    it('converts saved tool history, images, and schemas without mutating them', function() {
+        const assistant = loadProvidersMixin();
+        const reasoning = { type: 'reasoning', id: 'rs_1', summary: [], encrypted_content: 'opaque' };
+        const call = { id: 'call_1', type: 'function', function: { name: 'ability', arguments: '{}' } };
+        assistant.messages = [{ role: 'assistant', content: null, tool_calls: [call], _openaiReasoning: [reasoning] }];
+        const payload = {
+            model: 'gpt-6.1-sol', stream: true, prompt_cache_key: 'test',
+            tools: [{ type: 'function', function: { name: 'ability', parameters: { type: 'object', properties: {} } } }],
+            messages: [
+                { role: 'system', content: 'Help' },
+                { role: 'user', content: [{ type: 'text', text: 'Look' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,test' } }] },
+                { role: 'assistant', content: null, tool_calls: [call] },
+                { role: 'tool', tool_call_id: 'call_1', content: '{"ok":true}' }
+            ]
+        };
+        const before = JSON.stringify(payload);
+        const result = JSON.parse(JSON.stringify(assistant.buildOpenAIResponsesPayload(payload)));
+        assert.equal(result.store, false);
+        assert.deepEqual(result.include, ['reasoning.encrypted_content']);
+        assert.equal(result.messages, undefined);
+        assert.equal(result.tools[0].name, 'ability');
+        assert.equal(result.tools[0].strict, false);
+        assert.equal(result.input[1].content[1].type, 'input_image');
+        assert.deepEqual(result.input[2], reasoning);
+        assert.deepEqual(result.input[3], { type: 'function_call', call_id: 'call_1', name: 'ability', arguments: '{}' });
+        assert.deepEqual(result.input[4], { type: 'function_call_output', call_id: 'call_1', output: '{"ok":true}' });
+        assert.equal(JSON.stringify(payload), before);
+        assistant.messages = [];
+        assert.equal(assistant.buildOpenAIResponsesPayload(payload).input.some(item => item.type === 'reasoning'), false);
+    });
+
+    it('normalizes streaming text, interleaved tool calls, reasoning, and usage', async function() {
+        const assistant = loadProvidersMixin();
+        assistant.readSSEStream = async function*() {
+            yield { type: 'response.output_text.delta', delta: 'Checking.' };
+            yield { type: 'response.output_item.added', output_index: 2, item: { type: 'function_call', call_id: 'call_1', name: 'ability' } };
+            yield { type: 'response.function_call_arguments.delta', output_index: 2, delta: '{"action":' };
+            yield { type: 'response.function_call_arguments.delta', output_index: 2, delta: '"list"}' };
+            yield { type: 'response.completed', response: {
+                output: [{ type: 'reasoning', encrypted_content: 'opaque' }],
+                usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30, output_tokens_details: { reasoning_tokens: 15 } }
+            } };
+        };
+        const chunks = [];
+        for await (const chunk of assistant.readOpenAIStream({}, true)) chunks.push(chunk);
+        assert.equal(chunks[0].choices[0].delta.content, 'Checking.');
+        assert.equal(chunks[1].choices[0].delta.tool_calls[0].id, 'call_1');
+        assert.equal(chunks[2].choices[0].delta.tool_calls[0].function.arguments + chunks[3].choices[0].delta.tool_calls[0].function.arguments, '{"action":"list"}');
+        const completed = chunks.find(chunk => chunk.usage);
+        assert.equal(completed.usage.completion_tokens_details.reasoning_tokens, 15);
+        assert.equal(completed._openaiReasoning[0].encrypted_content, 'opaque');
+    });
+
+    it('fails incomplete, failed, and truncated streams instead of executing partial tools', async function() {
+        for (const event of [
+            { type: 'response.incomplete', response: { incomplete_details: { reason: 'max_output_tokens' } } },
+            { type: 'response.failed', response: { error: { message: 'Provider failed' } } },
+            { type: 'error', message: 'Bad request' },
+            { type: 'response.output_text.delta', delta: 'Partial' }
+        ]) {
+            const assistant = loadProvidersMixin();
+            assistant.readSSEStream = async function*() { yield event; };
+            await assert.rejects(async () => {
+                for await (const chunk of assistant.readOpenAIStream({}, true)) {}
+            });
+        }
+    });
+
+    it('leaves Chat Completions streaming unchanged', async function() {
+        const assistant = loadProvidersMixin();
+        const original = { choices: [{ delta: { content: 'Legacy' } }] };
+        assistant.readSSEStream = async function*() { yield original; };
+        for await (const chunk of assistant.readOpenAIStream({}, false)) assert.equal(chunk, original);
+    });
+});
+
+for (const proxy of [false, true]) {
+    it(`runs Responses tool rounds over ${proxy ? 'proxy' : 'direct'} transport`, async function() {
+        const requests = [];
+        const assistant = Object.assign(loadProvidersMixin({
+            aiAssistantConfig: { ajaxUrl: '/ajax', nonce: 'test' },
+            fetch(url, options) {
+                requests.push({ url, payload: JSON.parse(proxy ? options.body.get('body') : options.body) });
+                return Promise.resolve({ ok: true });
+            }
+        }), {
+            messages: [{ role: 'user', content: 'List abilities' }], systemPrompt: 'Help',
+            conversationModel: 'gpt-6.1-sol', conversationId: 1,
+            getModel() { return this.conversationModel; }, getApiKey() { return 'test'; },
+            getProviderEndpoint() { return 'https://example.test/v1/chat/completions'; },
+            getToolsOpenAI() { return [{ type: 'function', function: { name: 'ability', parameters: { type: 'object' } } }]; },
+            shouldProxyProvider() { return proxy; },
+            async *readSSEStream() {
+                yield { type: 'response.output_item.added', output_index: 1, item: { type: 'function_call', call_id: 'call_1', name: 'ability' } };
+                yield { type: 'response.function_call_arguments.delta', output_index: 1, delta: '{"action":"list"}' };
+                yield { type: 'response.completed', response: { output: [{ type: 'reasoning', id: 'rs_1', summary: [], encrypted_content: 'opaque' }] } };
+            },
+            startReply() { return { remove() {} }; }, updateReply() {}, finalizeReply() {},
+            updateTokenCount() {}, autoSaveConversation() {}, showToolProgress() {}, updateToolCardDescription() {},
+            processToolCalls(calls) { this.executed = calls; },
+            setLoading() {}, addMessage(role, error) { assert.fail(error); }
+        });
+        await assistant.callOpenAI();
+        assert.equal(requests[0].url, proxy ? '/ajax?action=ai_assistant_llm_proxy&_wpnonce=test&provider=openai' : 'https://example.test/v1/responses');
+        assert.equal(requests[0].payload.tools[0].name, 'ability');
+        assert.equal(requests[0].payload.reasoning_effort, undefined);
+        assert.equal(assistant.executed[0].arguments.action, 'list');
+        assert.equal(assistant.messages[1]._openaiReasoning[0].encrypted_content, 'opaque');
+        assistant.messages.push({ role: 'tool', tool_call_id: 'call_1', content: '{"abilities":[]}' });
+        await assistant.callOpenAI();
+        const input = requests[1].payload.input;
+        const reasoningIndex = input.findIndex(item => item.type === 'reasoning');
+        assert.ok(reasoningIndex >= 0);
+        assert.equal(input[reasoningIndex + 1].type, 'function_call');
+        assert.equal(input[reasoningIndex + 2].type, 'function_call_output');
+        assert.equal(assistant.lastProviderRequest.json, JSON.stringify(requests[1].payload));
+    });
+}
+
+it('uses Responses for new-model summaries and preserves legacy summary requests', async function() {
+    for (const model of ['gpt-6.1-sol', 'gpt-4o']) {
+        const assistant = loadProvidersMixin();
+        const responses = model === 'gpt-6.1-sol';
+        assistant.getApiKey = () => 'test';
+        assistant.getProviderEndpoint = () => 'https://example.test/v1/chat/completions';
+        assistant.fetchLLMProvider = async (provider, endpoint, headers, payload) => {
+            assert.equal(endpoint.endsWith('/responses'), responses);
+            if (responses) {
+                assert.equal(payload.input[0].content, 'Summarize');
+                assert.equal(payload.store, false);
+                assert.equal(payload.max_tokens, undefined);
+            } else {
+                assert.equal(payload.messages[0].content, 'Summarize');
+                assert.equal(payload.max_tokens, 1024);
+            }
+            return { json: async () => responses
+                ? { status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: 'Summary' }] }] }
+                : { choices: [{ message: { content: 'Summary' } }] } };
+        };
+        assert.equal(await assistant.callOpenAIForSummary(model, 'Summarize'), 'Summary');
+    }
+});

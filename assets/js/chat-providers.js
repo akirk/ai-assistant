@@ -3135,6 +3135,104 @@
             }
         },
 
+        usesOpenAIResponses: function(model) {
+            return /^gpt-(?:6(?:\.\d+)?|5\.6)(?:-|$)/.test(model || '');
+        },
+
+        buildOpenAIResponsesPayload: function(payload) {
+            var input = [];
+            var history = this.messages || [];
+            (payload.messages || []).forEach(function(message) {
+                if (message.role === 'tool') {
+                    input.push({ type: 'function_call_output', call_id: message.tool_call_id, output: message.content || '' });
+                    return;
+                }
+                // Recover opaque reasoning from stored history after request sanitization.
+                // Match tool IDs so trimming cannot attach it to a different turn.
+                if (message.tool_calls && message.tool_calls.length) {
+                    var stored = history.find(function(item) {
+                        return item.role === 'assistant' && item.tool_calls && item.tool_calls.some(function(call) {
+                            return call.id === message.tool_calls[0].id;
+                        });
+                    });
+                    if (stored && stored._openaiReasoning) {
+                        input.push.apply(input, stored._openaiReasoning);
+                    }
+                }
+                if (message.content) {
+                    var content = message.content;
+                    if (Array.isArray(content)) {
+                        content = content.map(function(part) {
+                            if (part.type === 'text') {
+                                return { type: message.role === 'assistant' ? 'output_text' : 'input_text', text: part.text };
+                            }
+                            if (part.type === 'image_url') {
+                                return { type: 'input_image', image_url: part.image_url.url, detail: part.image_url.detail || 'auto' };
+                            }
+                            return part;
+                        });
+                    }
+                    input.push({ role: message.role, content: content });
+                }
+                (message.tool_calls || []).forEach(function(call) {
+                    input.push({ type: 'function_call', call_id: call.id, name: call.function.name, arguments: call.function.arguments || '{}' });
+                });
+            });
+            var result = {
+                model: payload.model,
+                stream: !!payload.stream,
+                store: false,
+                include: ['reasoning.encrypted_content'],
+                input: input
+            };
+            if (payload.prompt_cache_key) result.prompt_cache_key = payload.prompt_cache_key;
+            if (payload.reasoning_effort) result.reasoning = { effort: payload.reasoning_effort };
+            if (payload.tools) {
+                result.tools = payload.tools.map(function(tool) {
+                    return tool.type === 'function'
+                        ? Object.assign({ type: 'function' }, tool.function, { strict: false })
+                        : tool;
+                });
+            }
+            return result;
+        },
+
+        // Normalize Responses events for the existing UI and tool approval loop.
+        readOpenAIStream: async function*(response, responses) {
+            var completed = false;
+            for await (var event of this.readSSEStream(response)) {
+                if (!responses) {
+                    yield event;
+                    continue;
+                }
+                var delta = {};
+                if (event.type === 'response.output_text.delta' || event.type === 'response.refusal.delta') {
+                    delta.content = event.delta;
+                } else if (event.type === 'response.output_item.added' && event.item.type === 'function_call') {
+                    delta.tool_calls = [{ index: event.output_index, id: event.item.call_id,
+                        function: { name: event.item.name, arguments: '' } }];
+                } else if (event.type === 'response.function_call_arguments.delta') {
+                    delta.tool_calls = [{ index: event.output_index, function: { arguments: event.delta } }];
+                } else if (event.type === 'response.completed') {
+                    completed = true;
+                    var usage = event.response.usage;
+                    yield { usage: usage && {
+                        prompt_tokens: usage.input_tokens,
+                        completion_tokens: usage.output_tokens,
+                        total_tokens: usage.total_tokens,
+                        prompt_tokens_details: usage.input_tokens_details,
+                        completion_tokens_details: usage.output_tokens_details
+                    }, _openaiReasoning: (event.response.output || []).filter(function(item) { return item.type === 'reasoning'; }) };
+                } else if (event.type === 'error' || event.type === 'response.failed' || event.type === 'response.incomplete') {
+                    var failure = event.response || event;
+                    throw new Error((failure.error && failure.error.message) || event.message ||
+                        'OpenAI response incomplete: ' + ((failure.incomplete_details || {}).reason || 'unknown reason'));
+                }
+                yield { choices: [{ delta: delta }] };
+            }
+            if (responses && !completed) throw new Error('OpenAI response stream ended before completion.');
+        },
+
         callOpenAI: async function() {
             var self = this;
             var model = this.conversationModel || this.getModel();
@@ -3153,13 +3251,15 @@
                 }.bind(this);
                 var requestMessages = buildRequestMessages(requestMode);
 
+                var useResponses = this.usesOpenAIResponses(model);
                 var endpoint = this.getProviderEndpoint('openai') || 'https://api.openai.com/v1/chat/completions';
+                if (useResponses) endpoint = endpoint.replace(/\/chat\/completions\/?$/, '/responses');
                 var headers = {
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer ' + apiKey
                 };
                 var buildPayload = function(messages) {
-                    return {
+                    var payload = {
                         model: model,
                         stream: true,
                         stream_options: { include_usage: true },
@@ -3167,6 +3267,7 @@
                         messages: messages,
                         tools: this.getToolsOpenAI()
                     };
+                    return useResponses ? this.buildOpenAIResponsesPayload(payload) : payload;
                 }.bind(this);
                 var response = await this.fetchLLMProvider(
                     'openai',
@@ -3201,7 +3302,9 @@
                 var streamState = this.createStreamingResponseState(this.startReply());
                 var toolCallsMap = {};
                 var providerUsage = null;
-                for await (var chunk of this.readSSEStream(response)) {
+                var openaiReasoning = [];
+                for await (var chunk of this.readOpenAIStream(response, useResponses)) {
+                    if (chunk._openaiReasoning) openaiReasoning = chunk._openaiReasoning;
                     if (chunk.usage) {
                         providerUsage = this.mergeTokenUsage
                             ? this.mergeTokenUsage(providerUsage, chunk.usage)
@@ -3255,6 +3358,7 @@
                 });
 
                 var messageExtra = {};
+                if (openaiReasoning.length) messageExtra._openaiReasoning = openaiReasoning;
                 if (streamState.thinkingContent && streamState.thinkingContent.trim()) {
                     messageExtra._thinking = streamState.thinkingContent.trim();
                     messageExtra._thinkingDurationMs = streamState.thinkingDurationMs || 0;
@@ -3770,7 +3874,11 @@
         callOpenAIForSummary: function(model, prompt) {
             var self = this;
             var apiKey = this.getApiKey('openai');
+            var useResponses = this.usesOpenAIResponses(model);
             var endpoint = this.getProviderEndpoint('openai') || 'https://api.openai.com/v1/chat/completions';
+            if (useResponses) endpoint = endpoint.replace(/\/chat\/completions\/?$/, '/responses');
+            var payload = { model: model, max_tokens: 1024, messages: [{ role: 'user', content: prompt }] };
+            if (useResponses) payload = this.buildOpenAIResponsesPayload(payload);
             return new Promise(function(resolve, reject) {
                 self.fetchLLMProvider(
                     'openai',
@@ -3779,15 +3887,15 @@
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + apiKey
                     },
-                    {
-                        model: model,
-                        max_tokens: 1024,
-                        messages: [{ role: 'user', content: prompt }]
-                    }
+                    payload
                 ).then(function(response) {
                     return response.json();
                 }).then(function(data) {
-                    if (data.choices && data.choices[0] && data.choices[0].message) {
+                    if (useResponses && data.status === 'completed') {
+                        resolve((data.output || []).filter(function(item) { return item.type === 'message'; }).map(function(item) {
+                            return (item.content || []).filter(function(part) { return part.type === 'output_text'; }).map(function(part) { return part.text; }).join('');
+                        }).join(''));
+                    } else if (data.choices && data.choices[0] && data.choices[0].message) {
                         resolve(data.choices[0].message.content);
                     } else if (data.error) {
                         reject(new Error(data.error.message));

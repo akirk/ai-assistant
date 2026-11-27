@@ -69,7 +69,7 @@ class LLM_Proxy {
             $this->send_json_error('Invalid provider request JSON.', 400);
         }
 
-        $request = $this->get_provider_request($provider);
+        $request = $this->get_provider_request($provider, $provider === 'openai' && isset($payload->input));
         if (is_wp_error($request)) {
             $this->send_json_error($request->get_error_message(), 400);
         }
@@ -191,7 +191,7 @@ class LLM_Proxy {
     /**
      * Resolve the Connector endpoint and provider auth without exposing either to JS.
      */
-    private function get_provider_request(string $provider) {
+    private function get_provider_request(string $provider, bool $responses = false) {
         try {
             $registry = AiClient::defaultRegistry();
             if (!$registry->isProviderConfigured($provider)) {
@@ -220,7 +220,7 @@ class LLM_Proxy {
             }
 
             return [
-                'url'     => $class_name::url(self::PROVIDER_GENERATION_PATHS[$provider]),
+                'url'     => $class_name::url($responses ? 'responses' : self::PROVIDER_GENERATION_PATHS[$provider]),
                 'headers' => $headers,
             ];
         } catch (\Throwable $e) {

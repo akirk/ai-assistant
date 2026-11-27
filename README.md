@@ -18,7 +18,7 @@ An AI-powered chat interface for WordPress. Bring your own API key or connect to
 
 ## Features
 
-- **Multiple LLM Providers**: Anthropic (Claude), OpenAI, and local models via Ollama/LM Studio
+- **Multiple LLM Providers**: Anthropic (Claude), OpenAI, and local models via Ollama/LM Studio. GPT-5.6 and GPT-6 families use OpenAI’s Responses API with reasoning and tools; older OpenAI models and local servers retain Chat Completions support.
 - **Tool System**: Execute PHP, read/write/edit files, query the database, manage plugins and themes
 - **Git-Compatible Change Tracking**: All AI modifications are tracked using a git-compatible structure in `wp-content`
 - **Revert & Reapply**: Undo any AI change and optionally reapply it later
